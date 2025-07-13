@@ -497,6 +497,11 @@ local function getCategoryTree()
 		table.insert(tree, node)
 	end
 	table.sort(tree, function(a, b) return a.value < b.value end)
+	-- pseudo‑node for adding new categories
+	table.insert(tree, {
+		value = "ADD_CATEGORY",
+		text = "|cff00ff00+ " .. (L["Add Category"] or "Add Category ..."),
+	})
 	return tree
 end
 
@@ -877,6 +882,28 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 	treeGroup:SetFullWidth(true)
 	treeGroup:SetTree(getCategoryTree())
 	treeGroup:SetCallback("OnGroupSelected", function(widget, _, value)
+		-- Handle click on pseudo‑node for adding new categories
+		if value == "ADD_CATEGORY" then
+			-- create a new category with default settings
+			local newId = (#addon.db["buffTrackerCategories"] or 0) + 1
+			addon.db["buffTrackerCategories"][newId] = {
+				name = L["NewCategoryName"] or "New",
+				point = "CENTER",
+				x = 0,
+				y = 0,
+				size = 36,
+				direction = "RIGHT",
+				trackType = "BUFF",
+				allowedSpecs = {},
+				allowedClasses = {},
+				allowedRoles = {},
+				buffs = {},
+			}
+			ensureAnchor(newId)
+			refreshTree(newId) -- rebuild tree and select new node
+			return -- don’t build options for pseudo‑node
+		end
+
 		local catId, _, buffId = strsplit("\001", value)
 		catId = tonumber(catId)
 		selectedCategory = catId
@@ -896,30 +923,6 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 	end)
 	left:AddChild(treeGroup)
 
-	local addIcon = AceGUI:Create("Icon")
-	addIcon:SetImage("Interface\\Buttons\\UI-PlusButton-Up")
-	addIcon:SetImageSize(24, 24)
-	addIcon:SetCallback("OnClick", function()
-		local newId = (#addon.db["buffTrackerCategories"] or 0) + 1
-		addon.db["buffTrackerCategories"][newId] = {
-			name = "New",
-			point = "CENTER",
-			x = 0,
-			y = 0,
-			size = 36,
-			direction = "RIGHT",
-			trackType = "BUFF",
-			allowedSpecs = {},
-			allowedClasses = {},
-			allowedRoles = {},
-			buffs = {},
-		}
-		ensureAnchor(newId)
-		refreshTree(newId)
-	end)
-	left:AddChild(addIcon)
-
-	-- ensure the first category is selected and options shown
 	local ok = treeGroup:SelectByValue(tostring(selectedCategory))
 	if not ok then
 		-- fallback: pick first root node from current tree
