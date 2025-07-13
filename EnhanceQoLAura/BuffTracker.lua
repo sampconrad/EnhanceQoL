@@ -599,14 +599,28 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 	core:AddChild(spellEdit)
 
 	local delBtn = addon.functions.createButtonAce(L["DeleteCategory"], 150, function()
-		addon.db["buffTrackerCategories"][catId] = nil
-		addon.db["buffTrackerOrder"][catId] = nil
-		if anchors[catId] then
-			anchors[catId]:Hide()
-			anchors[catId] = nil
+		local catName = addon.db["buffTrackerCategories"][catId].name or ""
+		StaticPopupDialogs["EQOL_DELETE_CATEGORY"] = StaticPopupDialogs["EQOL_DELETE_CATEGORY"]
+			or {
+				text = L["DeleteCategoryConfirm"],
+				button1 = YES,
+				button2 = CANCEL,
+				timeout = 0,
+				whileDead = true,
+				hideOnEscape = true,
+				preferredIndex = 3,
+			}
+		StaticPopupDialogs["EQOL_DELETE_CATEGORY"].OnAccept = function()
+			addon.db["buffTrackerCategories"][catId] = nil
+			addon.db["buffTrackerOrder"][catId] = nil
+			if anchors[catId] then
+				anchors[catId]:Hide()
+				anchors[catId] = nil
+			end
+			selectedCategory = next(addon.db["buffTrackerCategories"]) or 1
+			refreshTree(selectedCategory)
 		end
-		selectedCategory = next(addon.db["buffTrackerCategories"]) or 1
-		refreshTree(selectedCategory)
+		StaticPopup_Show("EQOL_DELETE_CATEGORY", catName)
 	end)
 	core:AddChild(delBtn)
 
