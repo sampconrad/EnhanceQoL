@@ -263,6 +263,13 @@ local function createBuffFrame(icon, parent, size, castOnClick, spellID)
 	cd:SetDrawEdge(false)
 	frame.cd = cd
 
+	local count = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	count:SetFont(addon.variables.defaultFont, 16, "OUTLINE")
+	count:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
+	count:SetShadowOffset(1, -1)
+	count:SetShadowColor(0, 0, 0, 1)
+	frame.count = count
+
 	frame.castOnClick = castOnClick
 	if castOnClick then
 		frame:SetAttribute("type", "spell")
@@ -436,6 +443,13 @@ local function updateBuff(catId, id, changedId)
 			auraInstanceMap[aura.auraInstanceID] = { catId = catId, buffId = id }
 		else
 			frame.auraInstanceID = nil
+		end
+
+		if addon.db["buffTrackerShowStacks"] and aura and aura.applications and aura.applications > 1 then
+			frame.count:SetText(aura.applications)
+			frame.count:Show()
+		else
+			frame.count:Hide()
 		end
 	end
 end
@@ -1003,7 +1017,14 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 		end
 	end)
 	treeGroup:SetCallback("OnDragDrop", function(_, _, src, dst) handleDragDrop(src, dst) end)
+
 	left:AddChild(treeGroup)
+
+	local cbStacks = addon.functions.createCheckboxAce(L["buffTrackerShowStacks"], addon.db["buffTrackerShowStacks"], function(_, _, val)
+		addon.db["buffTrackerShowStacks"] = val
+		scanBuffs()
+	end)
+	left:AddChild(cbStacks)
 
 	local ok = treeGroup:SelectByValue(tostring(selectedCategory))
 	if not ok then
