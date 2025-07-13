@@ -25,6 +25,7 @@ local anchors = {}
 local activeBuffFrames = {}
 local auraInstanceMap = {}
 local altToBase = {}
+local spellToCat = {}
 
 local LSM = LibStub("LibSharedMedia-3.0")
 
@@ -120,8 +121,11 @@ local function getCategory(id) return addon.db["buffTrackerCategories"][id] end
 
 local function rebuildAltMapping()
 	wipe(altToBase)
-	for _, cat in pairs(addon.db["buffTrackerCategories"]) do
+	wipe(spellToCat)
+	for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
 		for baseId, buff in pairs(cat.buffs or {}) do
+			spellToCat[baseId] = spellToCat[baseId] or {}
+			spellToCat[baseId][catId] = true
 			if buff.altIDs then
 				for _, altId in ipairs(buff.altIDs) do
 					altToBase[altId] = baseId
@@ -494,17 +498,16 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 			end
 
 			local updated = {}
-			for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
-				if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
-					for buffId in pairs(cat.buffs) do
-						if changed[buffId] then
-							if not addon.db["buffTrackerHidden"][buffId] then
-								updateBuff(catId, buffId)
-							elseif activeBuffFrames[catId] and activeBuffFrames[catId][buffId] then
-								activeBuffFrames[catId][buffId]:Hide()
-							end
-							updated[catId] = true
+			for spellId in pairs(changed) do
+				for catId in pairs(spellToCat[spellId] or {}) do
+					local cat = addon.db["buffTrackerCategories"][catId]
+					if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
+						if not addon.db["buffTrackerHidden"][spellId] then
+							updateBuff(catId, spellId)
+						elseif activeBuffFrames[catId] and activeBuffFrames[catId][spellId] then
+							activeBuffFrames[catId][spellId]:Hide()
 						end
+						updated[catId] = true
 					end
 				end
 			end
@@ -658,6 +661,7 @@ local function handleDragDrop(src, dst)
 	end
 	table.insert(addon.db["buffTrackerOrder"][dCat], insertPos, sBuff)
 
+	rebuildAltMapping()
 	refreshTree(selectedCategory)
 	scanBuffs()
 end
