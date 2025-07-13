@@ -26,13 +26,9 @@ addon.functions.InitDBValue("buffTrackerCategories", {
 		x = 0,
 		y = 0,
 		size = 36,
-		direction = "RIGHT",
-		trackType = "BUFF",
-		allowedSpecs = {},
-		allowedClasses = {},
-		allowedRoles = {},
-		buffs = {},
-	},
+                direction = "RIGHT",
+                buffs = {},
+        },
 })
 addon.functions.InitDBValue("buffTrackerEnabled", {})
 addon.functions.InitDBValue("buffTrackerLocked", {})
@@ -45,14 +41,14 @@ addon.functions.InitDBValue("buffTrackerSoundsEnabled", {})
 if type(addon.db["buffTrackerSelectedCategory"]) ~= "number" then addon.db["buffTrackerSelectedCategory"] = 1 end
 
 for _, cat in pairs(addon.db["buffTrackerCategories"]) do
-	if not cat.trackType then cat.trackType = "BUFF" end
-	if not cat.allowedSpecs then cat.allowedSpecs = {} end
-	if not cat.allowedClasses then cat.allowedClasses = {} end
-	if not cat.allowedRoles then cat.allowedRoles = {} end
-	for _, buff in pairs(cat.buffs or {}) do
-		if not buff.altIDs then buff.altIDs = {} end
-		if buff.showWhenMissing == nil then buff.showWhenMissing = false end
-		if buff.showAlways == nil then buff.showAlways = false end
-		if buff.glow == nil then buff.glow = false end
-	end
+        for _, buff in pairs(cat.buffs or {}) do
+                if not buff.altIDs then buff.altIDs = {} end
+                if buff.showWhenMissing == nil then buff.showWhenMissing = false end
+                if buff.showAlways == nil then buff.showAlways = false end
+                if buff.glow == nil then buff.glow = false end
+                if not buff.trackType then buff.trackType = "BUFF" end
+                if not buff.allowedSpecs then buff.allowedSpecs = {} end
+                if not buff.allowedClasses then buff.allowedClasses = {} end
+                if not buff.allowedRoles then buff.allowedRoles = {} end
+        end
 end
