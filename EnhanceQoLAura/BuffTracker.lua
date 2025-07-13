@@ -742,18 +742,21 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	typeDrop:SetValue(buff.trackType or "BUFF")
 	typeDrop:SetRelativeWidth(0.4)
 	wrapper:AddChild(typeDrop)
+	wrapper:AddChild(addon.functions.createSpacerAce())
 
 	local specDrop = addon.functions.createDropdownAce(L["ShowForSpec"], specNames, nil, function(self, event, key, checked)
 		buff.allowedSpecs = buff.allowedSpecs or {}
 		buff.allowedSpecs[key] = checked or nil
 		scanBuffs()
 	end)
+
 	specDrop:SetMultiselect(true)
 	for specID, val in pairs(buff.allowedSpecs or {}) do
 		if val then specDrop:SetItemValue(specID, true) end
 	end
-	specDrop:SetRelativeWidth(0.48)
+	specDrop:SetRelativeWidth(0.7)
 	wrapper:AddChild(specDrop)
+	wrapper:AddChild(addon.functions.createSpacerAce())
 
 	local classDrop = addon.functions.createDropdownAce(L["ShowForClass"], classNames, nil, function(self, event, key, checked)
 		buff.allowedClasses = buff.allowedClasses or {}
@@ -764,8 +767,9 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	for c, val in pairs(buff.allowedClasses or {}) do
 		if val then classDrop:SetItemValue(c, true) end
 	end
-	classDrop:SetRelativeWidth(0.48)
+	classDrop:SetRelativeWidth(0.7)
 	wrapper:AddChild(classDrop)
+	wrapper:AddChild(addon.functions.createSpacerAce())
 
 	local roleDrop = addon.functions.createDropdownAce(L["ShowForRole"], roleNames, nil, function(self, event, key, checked)
 		buff.allowedRoles = buff.allowedRoles or {}
@@ -776,8 +780,9 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	for r, val in pairs(buff.allowedRoles or {}) do
 		if val then roleDrop:SetItemValue(r, true) end
 	end
-	roleDrop:SetRelativeWidth(0.5)
+	roleDrop:SetRelativeWidth(0.7)
 	wrapper:AddChild(roleDrop)
+	wrapper:AddChild(addon.functions.createSpacerAce())
 
 	-- if IsSpellKnown(buffId) or IsSpellKnownOrOverridesKnown(buffId) then
 	-- 	local cbCast = addon.functions.createCheckboxAce(L["buffTrackerCastOnClick"], buff.castOnClick, function(_, _, val)
@@ -854,7 +859,7 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 	treeGroup = AceGUI:Create("EQOL_DragTreeGroup")
 	treeGroup:SetFullHeight(true)
 	treeGroup:SetFullWidth(true)
-	treeGroup:SetTreeWidth(260, true)
+	treeGroup:SetTreeWidth(200, true)
 	treeGroup:SetTree(getCategoryTree())
 	treeGroup:SetCallback("OnGroupSelected", function(widget, _, value)
 		-- Handle click on pseudo‑node for adding new categories
