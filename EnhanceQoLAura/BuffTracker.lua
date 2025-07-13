@@ -148,13 +148,13 @@ local function updatePositions(id)
 end
 
 local function applyLockState()
-       for id, anchor in pairs(anchors) do
-               if not addon.db["buffTrackerEnabled"][id] then
-                       anchor:Hide()
-               elseif addon.db["buffTrackerLocked"][id] then
-                       anchor:RegisterForDrag()
-                       anchor:SetMovable(false)
-                       anchor:EnableMouse(false)
+	for id, anchor in pairs(anchors) do
+		if not addon.db["buffTrackerEnabled"][id] then
+			anchor:Hide()
+		elseif addon.db["buffTrackerLocked"][id] then
+			anchor:RegisterForDrag()
+			anchor:SetMovable(false)
+			anchor:EnableMouse(false)
 			anchor:SetScript("OnDragStart", nil)
 			anchor:SetScript("OnDragStop", nil)
 			anchor:SetBackdropColor(0, 0, 0, 0)
@@ -492,7 +492,7 @@ local function getCategoryTree()
 			return a.name < b.name
 		end)
 		for _, info in ipairs(buffs) do
-			table.insert(node.children, { value = catId .. "\001" .. info.id, text = info.name .. " (" .. info.id .. ")" })
+			table.insert(node.children, { value = catId .. "\001" .. info.id, text = info.name .. " (" .. info.id .. ")", icon = info.icon or (C_Spell.GetSpellInfo(info.id)).iconID })
 		end
 		table.insert(tree, node)
 	end
@@ -510,10 +510,10 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 	local cat = getCategory(catId)
 	if not cat then return end
 
-       local listGroup = addon.functions.createContainer("InlineGroup", "List")
-       listGroup:SetTitle(L["TrackedBuffs"])
-       listGroup:SetFullWidth(true)
-       container:AddChild(listGroup)
+	local listGroup = addon.functions.createContainer("InlineGroup", "List")
+	listGroup:SetTitle(L["TrackedBuffs"])
+	listGroup:SetFullWidth(true)
+	container:AddChild(listGroup)
 
 	local buffData = {}
 	for id, data in pairs(cat.buffs) do
@@ -678,7 +678,7 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 	for specID, val in pairs(cat.allowedSpecs or {}) do
 		if val then specDrop:SetItemValue(specID, true) end
 	end
-       specDrop:SetRelativeWidth(0.48)
+	specDrop:SetRelativeWidth(0.48)
 	core:AddChild(specDrop)
 
 	local classDrop = addon.functions.createDropdownAce(L["ShowForClass"], classNames, nil, function(self, event, key, checked)
@@ -690,7 +690,7 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 	for c, val in pairs(cat.allowedClasses or {}) do
 		if val then classDrop:SetItemValue(c, true) end
 	end
-       classDrop:SetRelativeWidth(0.48)
+	classDrop:SetRelativeWidth(0.48)
 	core:AddChild(classDrop)
 
 	local roleDrop = addon.functions.createDropdownAce(L["ShowForRole"], roleNames, nil, function(self, event, key, checked)
@@ -705,7 +705,7 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 	roleDrop:SetRelativeWidth(0.5)
 	core:AddChild(roleDrop)
 
-       local spellEdit = addon.functions.createEditboxAce(L["SpellID"], nil, function(self, _, text)
+	local spellEdit = addon.functions.createEditboxAce(L["SpellID"], nil, function(self, _, text)
 		local id = tonumber(text)
 		if id then
 			addBuff(catId, id)
@@ -715,8 +715,8 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 		end
 		self:SetText("")
 	end)
-       spellEdit:SetRelativeWidth(0.6)
-       core:AddChild(spellEdit)
+	spellEdit:SetRelativeWidth(0.6)
+	core:AddChild(spellEdit)
 
 	local delBtn = addon.functions.createButtonAce(L["DeleteCategory"], 150, function()
 		addon.db["buffTrackerCategories"][catId] = nil
@@ -859,14 +859,17 @@ end
 
 function addon.Aura.functions.addBuffTrackerOptions(container)
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+	wrapper:SetFullHeight(true)
 	container:AddChild(wrapper)
 
-       local left = addon.functions.createContainer("SimpleGroup", "Fill")
-       left:SetWidth(220)
-       wrapper:AddChild(left)
+	local left = addon.functions.createContainer("SimpleGroup", "Fill")
+	left:SetWidth(220)
+	left:SetFullHeight(true)
+	wrapper:AddChild(left)
 
 	local right = addon.functions.createContainer("ScrollFrame", "Flow")
 	right:SetRelativeWidth(0.7)
+	right:SetFullHeight(true)
 	wrapper:AddChild(right)
 
 	treeGroup = AceGUI:Create("TreeGroup")
@@ -874,6 +877,9 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 	treeGroup:SetFullWidth(true)
 	treeGroup:SetTree(getCategoryTree())
 	treeGroup:SetCallback("OnGroupSelected", function(widget, _, value)
+		if right and right.frame then
+			right.frame:Show()   -- ensure the scroll container becomes visible
+		end
 		local catId, buffId = strsplit("\001", value)
 		catId = tonumber(catId)
 		selectedCategory = catId
@@ -910,7 +916,15 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 	end)
 	left:AddChild(addIcon)
 
-	treeGroup:SelectByValue(selectedCategory)
+	-- ensure the first category is selected and options shown
+	local ok = treeGroup:SelectByValue(tostring(selectedCategory))
+	if not ok then
+	    -- fallback: pick first root node from current tree
+	    local tree = treeGroup.tree
+	    if tree and tree[1] and tree[1].value then
+	        treeGroup:SelectByValue(tree[1].value)
+	    end
+	end
 end
 
 for id in pairs(addon.db["buffTrackerCategories"]) do
