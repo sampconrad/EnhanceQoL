@@ -1,5 +1,7 @@
 local AceGUI = LibStub("AceGUI-3.0")
 local GetMouseFocus = _G.GetMouseFoci
+local GetCursorPosition = _G.GetCursorPosition
+local UIParent = _G.UIParent
 
 --[[ DragTreeGroup - simple TreeGroup extension with drag-and-drop
      Dragging is started with a left-click while holding ALT.
@@ -12,6 +14,33 @@ local Type, Version = "EQOL_DragTreeGroup", 3
 local function Constructor()
 	local tree = AceGUI:Create("TreeGroup")
 	tree.type = Type
+
+	local function showDragIcon(texture)
+		if not tree.dragIcon then
+			tree.dragIcon = CreateFrame("Frame", nil, UIParent)
+			tree.dragIcon:SetSize(18, 18)
+			tree.dragIcon:SetFrameStrata("TOOLTIP")
+			local tex = tree.dragIcon:CreateTexture(nil, "OVERLAY")
+			tex:SetAllPoints()
+			tree.dragIcon.texture = tex
+		end
+
+		tree.dragIcon.texture:SetTexture(texture)
+		tree.dragIcon:SetScript("OnUpdate", function(f)
+			local x, y = GetCursorPosition()
+			local scale = UIParent:GetEffectiveScale()
+			f:ClearAllPoints()
+			f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
+		end)
+		tree.dragIcon:Show()
+	end
+
+	local function hideDragIcon()
+		if tree.dragIcon then
+			tree.dragIcon:SetScript("OnUpdate", nil)
+			tree.dragIcon:Hide()
+		end
+	end
 
 	if not tree.origCreateButton then tree.origCreateButton = tree.CreateButton end
 
@@ -29,6 +58,7 @@ local function Constructor()
 				frame.obj.dragging = true
 				frame.obj.dragButton = frame
 				frame:LockHighlight()
+				if frame.icon then showDragIcon(frame.icon:GetTexture()) end
 			elseif oldMouseDown then
 				oldMouseDown(frame, button)
 			end
@@ -47,6 +77,7 @@ local function Constructor()
 					obj.dragButton:UnlockHighlight()
 					obj.dragButton = nil
 				end
+				hideDragIcon()
 				local src = obj.dragSource
 				obj.dragSource = nil
 				local target = findTarget(obj)
