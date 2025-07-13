@@ -836,18 +836,17 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	wrapper:AddChild(typeDrop)
 	wrapper:AddChild(addon.functions.createSpacerAce())
 
-	local specDrop = addon.functions.createDropdownAce(L["ShowForSpec"], specNames, specOrder, function(self, event, key, checked)
-		buff.allowedSpecs = buff.allowedSpecs or {}
-		buff.allowedSpecs[key] = checked or nil
+	local roleDrop = addon.functions.createDropdownAce(L["ShowForRole"], roleNames, nil, function(self, event, key, checked)
+		buff.allowedRoles = buff.allowedRoles or {}
+		buff.allowedRoles[key] = checked or nil
 		scanBuffs()
 	end)
-
-	specDrop:SetMultiselect(true)
-	for specID, val in pairs(buff.allowedSpecs or {}) do
-		if val then specDrop:SetItemValue(specID, true) end
+	roleDrop:SetMultiselect(true)
+	for r, val in pairs(buff.allowedRoles or {}) do
+		if val then roleDrop:SetItemValue(r, true) end
 	end
-	specDrop:SetRelativeWidth(0.7)
-	wrapper:AddChild(specDrop)
+	roleDrop:SetRelativeWidth(0.7)
+	wrapper:AddChild(roleDrop)
 	wrapper:AddChild(addon.functions.createSpacerAce())
 
 	local classDrop = addon.functions.createDropdownAce(L["ShowForClass"], classNames, nil, function(self, event, key, checked)
@@ -863,17 +862,18 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	wrapper:AddChild(classDrop)
 	wrapper:AddChild(addon.functions.createSpacerAce())
 
-	local roleDrop = addon.functions.createDropdownAce(L["ShowForRole"], roleNames, nil, function(self, event, key, checked)
-		buff.allowedRoles = buff.allowedRoles or {}
-		buff.allowedRoles[key] = checked or nil
+	local specDrop = addon.functions.createDropdownAce(L["ShowForSpec"], specNames, specOrder, function(self, event, key, checked)
+		buff.allowedSpecs = buff.allowedSpecs or {}
+		buff.allowedSpecs[key] = checked or nil
 		scanBuffs()
 	end)
-	roleDrop:SetMultiselect(true)
-	for r, val in pairs(buff.allowedRoles or {}) do
-		if val then roleDrop:SetItemValue(r, true) end
+
+	specDrop:SetMultiselect(true)
+	for specID, val in pairs(buff.allowedSpecs or {}) do
+		if val then specDrop:SetItemValue(specID, true) end
 	end
-	roleDrop:SetRelativeWidth(0.7)
-	wrapper:AddChild(roleDrop)
+	specDrop:SetRelativeWidth(0.7)
+	wrapper:AddChild(specDrop)
 	wrapper:AddChild(addon.functions.createSpacerAce())
 
 	-- if IsSpellKnown(buffId) or IsSpellKnownOrOverridesKnown(buffId) then
