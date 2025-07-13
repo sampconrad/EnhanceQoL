@@ -472,7 +472,7 @@ local function getCategoryTree()
 			return a.name < b.name
 		end)
 		for _, info in ipairs(buffs) do
-			table.insert(node.children, { value = catId .. "\001" .. info.id, text = info.name .. " (" .. info.id .. ")", icon = info.icon or (C_Spell.GetSpellInfo(info.id)).iconID })
+			table.insert(node.children, { value = catId .. "\001" .. info.id, text = info.name, icon = info.icon or (C_Spell.GetSpellInfo(info.id)).iconID })
 		end
 		table.insert(tree, node)
 	end
@@ -494,7 +494,7 @@ end
 function addon.Aura.functions.buildCategoryOptions(container, catId)
 	local cat = getCategory(catId)
 	if not cat then return end
-        local core = addon.functions.createContainer("InlineGroup", "Flow")
+	local core = addon.functions.createContainer("InlineGroup", "Flow")
 	container:AddChild(core)
 
 	local enableCB = addon.functions.createCheckboxAce(L["EnableBuffTracker"]:format(cat.name), addon.db["buffTrackerEnabled"][catId], function(self, _, val)
@@ -632,26 +632,29 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	addon.db["buffTrackerSounds"][catId] = addon.db["buffTrackerSounds"][catId] or {}
 	addon.db["buffTrackerSoundsEnabled"][catId] = addon.db["buffTrackerSoundsEnabled"][catId] or {}
 
-	local cbElement = addon.functions.createCheckboxAce(
-		L["buffTrackerSoundsEnabled"],
-		addon.db["buffTrackerSoundsEnabled"][catId][buffId],
-		function(_, _, val) addon.db["buffTrackerSoundsEnabled"][catId][buffId] = val end
-	)
+	local cbElement = addon.functions.createCheckboxAce(L["buffTrackerSoundsEnabled"], addon.db["buffTrackerSoundsEnabled"][catId][buffId], function(_, _, val)
+		addon.db["buffTrackerSoundsEnabled"][catId][buffId] = val
+		container:ReleaseChildren()
+		addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+	end)
 	wrapper:AddChild(cbElement)
 
-	local soundList = {}
-	for sname in pairs(addon.Aura.sounds or {}) do
-		soundList[sname] = sname
+	if addon.db["buffTrackerSoundsEnabled"][catId][buffId] then
+		local soundList = {}
+		for sname in pairs(addon.Aura.sounds or {}) do
+			soundList[sname] = sname
+		end
+		local list, order = addon.functions.prepareListForDropdown(soundList)
+		local dropSound = addon.functions.createDropdownAce(L["SoundFile"], list, order, function(self, _, val)
+			addon.db["buffTrackerSounds"][catId][buffId] = val
+			self:SetValue(val)
+			local file = addon.Aura.sounds and addon.Aura.sounds[val]
+			if file then PlaySoundFile(file, "Master") end
+		end)
+		dropSound:SetValue(addon.db["buffTrackerSounds"][catId][buffId])
+		wrapper:AddChild(dropSound)
+		wrapper:AddChild(addon.functions.createSpacerAce())
 	end
-	local list, order = addon.functions.prepareListForDropdown(soundList)
-	local dropSound = addon.functions.createDropdownAce(L["SoundFile"], list, order, function(self, _, val)
-		addon.db["buffTrackerSounds"][catId][buffId] = val
-		self:SetValue(val)
-		local file = addon.Aura.sounds and addon.Aura.sounds[val]
-		if file then PlaySoundFile(file, "Master") end
-	end)
-	dropSound:SetValue(addon.db["buffTrackerSounds"][catId][buffId])
-	wrapper:AddChild(dropSound)
 
 	local cbMissing, cbAlways
 	cbMissing = addon.functions.createCheckboxAce(L["buffTrackerShowWhenMissing"], buff.showWhenMissing, function(_, _, val)
