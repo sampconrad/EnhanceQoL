@@ -26,28 +26,39 @@ local activeBuffFrames = {}
 
 local LSM = LibStub("LibSharedMedia-3.0")
 
--- build list of all specialization IDs with their names
 local specNames = {}
+local specOrder = {}
 local classNames = {}
+
+-- gather and sort classes alphabetically
+local classes = {}
 for classID = 1, GetNumClasses() do
 	local className, classTag = select(1, GetClassInfo(classID))
-	local numSpecs = C_SpecializationInfo.GetNumSpecializationsForClassID(classID)
+	table.insert(classes, { id = classID, name = className, tag = classTag })
+end
+table.sort(classes, function(a, b) return a.name < b.name end)
+
+-- build specialization names and order grouped by class
+for _, classInfo in ipairs(classes) do
+	local numSpecs = C_SpecializationInfo.GetNumSpecializationsForClassID(classInfo.id)
 	for i = 1, numSpecs do
-		local specID, specName, _, specIcon = GetSpecializationInfoForClassID(classID, i)
-		specNames[specID] = string.format("|T%s:14:14|t %s (%s)", specIcon, specName, className)
+		local specID, specName, _, specIcon = GetSpecializationInfoForClassID(classInfo.id, i)
+		specNames[specID] = string.format("|T%s:14:14|t %s (%s)", specIcon, specName, classInfo.name)
+		table.insert(specOrder, specID)
 	end
-	local coords = CLASS_ICON_TCOORDS[classTag]
+
+	local coords = CLASS_ICON_TCOORDS[classInfo.tag]
 	if coords then
-		classNames[classTag] = string.format(
+		classNames[classInfo.tag] = string.format(
 			"|TInterface\\GLUES\\CHARACTERCREATE\\UI-CharacterCreate-Classes:14:14:0:0:256:256:%d:%d:%d:%d|t %s",
 			coords[1] * 256,
 			coords[2] * 256,
 			coords[3] * 256,
 			coords[4] * 256,
-			className
+			classInfo.name
 		)
 	else
-		classNames[classTag] = className
+		classNames[classInfo.tag] = classInfo.name
 	end
 end
 
@@ -744,7 +755,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	wrapper:AddChild(typeDrop)
 	wrapper:AddChild(addon.functions.createSpacerAce())
 
-	local specDrop = addon.functions.createDropdownAce(L["ShowForSpec"], specNames, nil, function(self, event, key, checked)
+	local specDrop = addon.functions.createDropdownAce(L["ShowForSpec"], specNames, specOrder, function(self, event, key, checked)
 		buff.allowedSpecs = buff.allowedSpecs or {}
 		buff.allowedSpecs[key] = checked or nil
 		scanBuffs()
