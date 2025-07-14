@@ -32,6 +32,7 @@ manual-changelog:
 
 move-folders:
   EnhanceQoL/EnhanceQoL: EnhanceQoL
+  EnhanceQoL/EnhanceQoLAura: EnhanceQoLAura
   EnhanceQoL/EnhanceQoLDrinkMacro: EnhanceQoLDrinkMacro
   EnhanceQoL/EnhanceQoLMouse: EnhanceQoLMouse
   EnhanceQoL/EnhanceQoLMythicPlus: EnhanceQoLMythicPlus
