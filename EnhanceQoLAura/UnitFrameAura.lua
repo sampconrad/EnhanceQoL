@@ -9,6 +9,7 @@ end
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 
 addon.Aura.unitFrame = {}
+local AceGUI = addon.AceGUI
 
 local trackerTreeGroup
 local selectedTracker = addon.db.unitFrameAuraSelectedTracker or 1
@@ -91,7 +92,7 @@ local function UpdateTrackedBuffs(frame, unit)
 		local showTime = addon.db.unitFrameAuraShowTime
 		AuraUtil.ForEachAura(unit, "HELPFUL", nil, function(aura)
 			local spellId = aura.spellId
-			if (tracker.spells and tracker.spells[spellId]) or addon.Aura.defaults.defensiveSpellIDs[spellId] then
+			if tracker.spells and tracker.spells[spellId] then
 				index = index + 1
 				local iconFrame = ensureIcon(frame, tId, index)
 				iconFrame.icon:SetTexture(aura.icon)
@@ -167,20 +168,6 @@ local function RefreshAll()
 end
 
 addon.Aura.unitFrame.RefreshAll = RefreshAll
-
-local function getMergedAuraIDs()
-	local merged = {}
-	for id, name in pairs(addon.Aura.defaults.defensiveSpellIDs or {}) do
-		local info = C_Spell.GetSpellInfo(id)
-		merged[id] = string.format("%s (%d)", info.name or name or "Spell", id)
-	end
-	for _, tracker in pairs(addon.db.unitFrameAuraTrackers or {}) do
-		for id, val in pairs(tracker.spells or {}) do
-			merged[id] = val
-		end
-	end
-	return merged
-end
 
 -- Hook the global update function once; Blizzard calls this for every CompactUnitFrame
 hooksecurefunc("CompactUnitFrame_UpdateAuras", function(frame)

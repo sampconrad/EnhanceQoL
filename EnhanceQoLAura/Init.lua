@@ -12,7 +12,56 @@ if not addon.db["unitFrameAuraTrackers"] then
 			name = "Default",
 			anchor = addon.db.unitFrameAuraAnchor or "CENTER",
 			direction = addon.db.unitFrameAuraDirection or "RIGHT",
-			spells = addon.db.unitFrameAuraIDs or {},
+			spells = addon.db.unitFrameAuraIDs or { -- [235313] = "Blazing Barrier", -- Mage
+				[1022] = "Blessing of Protection", -- Paladin
+				[6940] = "Blessing of Sacrifice", -- Paladin
+				[204018] = "Blessing of Spellwarding", -- Paladin
+				[212800] = "Blur", -- Demon Hunter
+				[45182] = "Cheating Death", -- Rogue (talent)
+				[31224] = "Cloak of Shadows", -- Rogue
+				[122278] = "Dampen Harm", -- Monk
+				[108416] = "Dark Pact", -- Warlock
+				[19236] = "Desperate Prayer", -- Priest
+				[290109] = "Desperate Prayer", -- Priest (PvP talent aura)
+				[118038] = "Die by the Sword", -- Warrior
+				[122783] = "Diffuse Magic", -- Monk
+				[47585] = "Dispersion", -- Priest (Shadow)
+				[403876] = "Divine Protection", -- Paladin (DF rework)
+				[642] = "Divine Shield", -- Paladin
+				[184364] = "Enraged Regeneration", -- Warrior (Fury)
+				[5277] = "Evasion", -- Rogue
+				[586] = "Fade", -- Priest
+				[1966] = "Feint", -- Rogue
+				[115203] = "Fortifying Brew", -- Monk (Brewmaster/MW talent)
+				[383883] = "Fury of the Sun King", -- Priest (Holy talent)
+				[47788] = "Guardian Spirit", -- Priest (Holy)
+				[11426] = "Ice Barrier", -- Mage (Frost)
+				[414658] = "Ice Cold", -- Mage (talent)
+				[48792] = "Icebound Fortitude", -- Death Knight
+				[102342] = "Ironbark", -- Druid (Resto on target)
+				[116849] = "Life Cocoon", -- Monk (Mistweaver)
+				[363916] = "Obsidian Scales", -- Evoker
+				[33206] = "Pain Suppression", -- Priest (Discipline)
+				[235450] = "Prismatic Barrier", -- Mage (Arcane)
+				[374348] = "Renewing Blaze", -- Evoker
+				[184662] = "Shield of Vengeance", -- Paladin (Ret)
+				[23920] = "Spell Reflection", -- Warrior
+				[61336] = "Survival Instincts", -- Druid (Feral/Guardian)
+				[190514] = "Survival of the Fittest", -- Hunter (BM/MM)
+				[190515] = "Survival of the Fittest", -- Hunter (Survival)
+				[357170] = "Time Dilation", -- Evoker (Preservation on target)
+				[122470] = "Touch of Karma", -- Monk (Windwalker)
+				[104773] = "Unending Resolve", -- Warlock
+				[173189] = "Unending Resolve", -- Warlock (Glyph / alt aura)
+				[401238] = "Writhing Ward", -- Death Knight (talent)
+				[114893] = "Stone Bulwark", -- Shaman (PvP talent)
+				[462844] = "Stone Bulwark", -- Shaman (DF redesign)
+				[65116] = "Stoneform", -- Dwarf racial
+				[432496] = "Holy Bulwark", -- Paladin (Holy talent)
+				[377842] = "Ursine Vigor", -- Druid (Guardian talent)
+				[200851] = "Rage of the Sleeper", -- Rage of the Sleeper
+				[22812] = "Barkskin", -- Barkskin,
+			},
 		},
 	}
 end
@@ -31,58 +80,6 @@ addon.LAura = {} -- Locales for aura
 
 -- Default defensive abilities tracked on unit frames
 addon.Aura.defaults = {}
--- IDs here are placeholders and should be replaced with actual spell IDs
-addon.Aura.defaults.defensiveSpellIDs = {
-	[235313] = "Blazing Barrier", -- Mage
-	[1022] = "Blessing of Protection", -- Paladin
-	[6940] = "Blessing of Sacrifice", -- Paladin
-	[204018] = "Blessing of Spellwarding", -- Paladin
-	[212800] = "Blur", -- Demon Hunter
-	[45182] = "Cheating Death", -- Rogue (talent)
-	[31224] = "Cloak of Shadows", -- Rogue
-	[122278] = "Dampen Harm", -- Monk
-	[108416] = "Dark Pact", -- Warlock
-	[19236] = "Desperate Prayer", -- Priest
-	[290109] = "Desperate Prayer", -- Priest (PvP talent aura)
-	[118038] = "Die by the Sword", -- Warrior
-	[122783] = "Diffuse Magic", -- Monk
-	[47585] = "Dispersion", -- Priest (Shadow)
-	[403876] = "Divine Protection", -- Paladin (DF rework)
-	[642] = "Divine Shield", -- Paladin
-	[184364] = "Enraged Regeneration", -- Warrior (Fury)
-	[5277] = "Evasion", -- Rogue
-	[586] = "Fade", -- Priest
-	[1966] = "Feint", -- Rogue
-	[115203] = "Fortifying Brew", -- Monk (Brewmaster/MW talent)
-	[383883] = "Fury of the Sun King", -- Priest (Holy talent)
-	[47788] = "Guardian Spirit", -- Priest (Holy)
-	[11426] = "Ice Barrier", -- Mage (Frost)
-	[414658] = "Ice Cold", -- Mage (talent)
-	[48792] = "Icebound Fortitude", -- Death Knight
-	[102342] = "Ironbark", -- Druid (Resto on target)
-	[116849] = "Life Cocoon", -- Monk (Mistweaver)
-	[363916] = "Obsidian Scales", -- Evoker
-	[33206] = "Pain Suppression", -- Priest (Discipline)
-	[235450] = "Prismatic Barrier", -- Mage (Arcane)
-	[374348] = "Renewing Blaze", -- Evoker
-	[184662] = "Shield of Vengeance", -- Paladin (Ret)
-	[23920] = "Spell Reflection", -- Warrior
-	[61336] = "Survival Instincts", -- Druid (Feral/Guardian)
-	[190514] = "Survival of the Fittest", -- Hunter (BM/MM)
-	[190515] = "Survival of the Fittest", -- Hunter (Survival)
-	[357170] = "Time Dilation", -- Evoker (Preservation on target)
-	[122470] = "Touch of Karma", -- Monk (Windwalker)
-	[104773] = "Unending Resolve", -- Warlock
-	[173189] = "Unending Resolve", -- Warlock (Glyph / alt aura)
-	[401238] = "Writhing Ward", -- Death Knight (talent)
-	[114893] = "Stone Bulwark", -- Shaman (PvP talent)
-	[462844] = "Stone Bulwark", -- Shaman (DF redesign)
-	[65116] = "Stoneform", -- Dwarf racial
-	[432496] = "Holy Bulwark", -- Paladin (Holy talent)
-	[377842] = "Ursine Vigor", -- Druid (Guardian talent)
-	[200851] = "Rage of the Sleeper", -- Rage of the Sleeper
-	[22812] = "Barkskin", -- Barkskin
-}
 
 addon.functions.InitDBValue("AuraCooldownTrackerBarHeight", 30)
 addon.functions.InitDBValue("AuraSafedZones", {})
