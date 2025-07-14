@@ -6,6 +6,23 @@ else
 	error(parentAddonName .. " is not loaded")
 end
 
+if not addon.db["unitFrameAuraTrackers"] then
+	addon.db["unitFrameAuraTrackers"] = {
+		[1] = {
+			name = "Default",
+			anchor = addon.db.unitFrameAuraAnchor or "CENTER",
+			direction = addon.db.unitFrameAuraDirection or "RIGHT",
+			spells = addon.db.unitFrameAuraIDs or {},
+		},
+	}
+end
+
+for _, tracker in pairs(addon.db["unitFrameAuraTrackers"]) do
+	if not tracker.anchor then tracker.anchor = "CENTER" end
+	if not tracker.direction then tracker.direction = "RIGHT" end
+	if not tracker.spells then tracker.spells = {} end
+end
+
 addon.Aura = {}
 addon.Aura.functions = {}
 addon.Aura.variables = {}
@@ -99,6 +116,8 @@ addon.functions.InitDBValue("unitFrameAuraAnchor", "CENTER")
 addon.functions.InitDBValue("unitFrameAuraDirection", "RIGHT")
 addon.functions.InitDBValue("unitFrameAuraIconSize", 20)
 addon.functions.InitDBValue("unitFrameAuraShowTime", false)
+addon.functions.InitDBValue("unitFrameAuraTrackers", nil)
+addon.functions.InitDBValue("unitFrameAuraSelectedTracker", 1)
 
 if type(addon.db["buffTrackerSelectedCategory"]) ~= "number" then addon.db["buffTrackerSelectedCategory"] = 1 end
 
