@@ -18,10 +18,7 @@ for _, cat in pairs(addon.db["buffTrackerCategories"]) do
 		if not buff.allowedSpecs then buff.allowedSpecs = {} end
 		if not buff.allowedClasses then buff.allowedClasses = {} end
 		if not buff.allowedRoles then buff.allowedRoles = {} end
-		if buff.stackOp == nil then buff.stackOp = nil end
-		if buff.stackVal == nil then buff.stackVal = nil end
-		if buff.timeOp == nil then buff.timeOp = nil end
-		if buff.timeVal == nil then buff.timeVal = nil end
+		if not buff.conditions then buff.conditions = { join = "AND", conditions = {} } end
 	end
 end
 
@@ -36,6 +33,12 @@ local timeTicker
 local refreshTimeTicker
 
 local LSM = LibStub("LibSharedMedia-3.0")
+
+local function isNumber(val)
+	if type(val) == "number" then return true end
+	if type(val) == "string" then return tonumber(val) ~= nil end
+	return false
+end
 
 local specNames = {}
 local specOrder = {}
@@ -125,25 +128,92 @@ function addon.Aura.functions.BuildSoundTable()
 end
 addon.Aura.functions.BuildSoundTable()
 
-local function stackConditionMet(buff, aura)
-	if not buff or not buff.stackOp or not buff.stackVal then return true end
-	local stacks = aura and aura.applications or 0
-	if buff.stackOp == ">" then
-		return stacks > buff.stackVal
+local function evaluateCondition(cond, aura)
+	if not cond or not cond.type then return true end
+	if cond.type == "missing" then
+		local missing = aura == nil
+		local val = cond.value
+		if cond.operator == "~=" or cond.operator == "!=" then return missing ~= val end
+		return missing == val
+	elseif cond.type == "stack" then
+		if not isNumber(cond.value) then return true end
+		local stacks = aura and aura.applications or 0
+		local val = tonumber(cond.value) or 0
+		if cond.operator == ">" then
+			return stacks > val
+		elseif cond.operator == "<" then
+			return stacks < val
+		elseif cond.operator == ">=" then
+			return stacks >= val
+		elseif cond.operator == "<=" then
+			return stacks <= val
+		elseif cond.operator == "~=" or cond.operator == "!=" then
+			return stacks ~= val
+		end
+		return stacks == val
+	elseif cond.type == "time" then
+		if not aura or not aura.duration or aura.duration <= 0 then return false end
+		if not isNumber(cond.value) then return true end
+		local remaining = aura.expirationTime - GetTime()
+		local val = tonumber(cond.value) or 0
+		if cond.operator == ">" then
+			return remaining > val
+		elseif cond.operator == "<" then
+			return remaining < val
+		elseif cond.operator == ">=" then
+			return remaining >= val
+		elseif cond.operator == "<=" then
+			return remaining <= val
+		elseif cond.operator == "~=" or cond.operator == "!=" then
+			return remaining ~= val
+		end
+		return remaining == val
+	end
+	return true
+end
+
+local function evaluateGroup(group, aura)
+	if not group then return true end
+	local join = group.join or "AND"
+	local children = group.conditions or {}
+	if #children == 0 then return true end
+	if join == "AND" then
+		for _, child in ipairs(children) do
+			local ok = child.join and evaluateGroup(child, aura) or evaluateCondition(child, aura)
+			if not ok then return false end
+		end
+		return true
 	else
-		return stacks < buff.stackVal
+		for _, child in ipairs(children) do
+			local ok = child.join and evaluateGroup(child, aura) or evaluateCondition(child, aura)
+			if ok then return true end
+		end
+		return false
 	end
 end
 
-local function timeConditionMet(buff, aura)
-	if not buff or not buff.timeOp or not buff.timeVal then return true end
-	if not aura or not aura.duration or aura.duration <= 0 then return false end
-	local remaining = aura.expirationTime - GetTime()
-	if buff.timeOp == ">" then
-		return remaining > buff.timeVal
-	else
-		return remaining < buff.timeVal
+local function hasMissingCondition(group)
+	if not group then return false end
+	for _, child in ipairs(group.conditions or {}) do
+		if child.join then
+			if hasMissingCondition(child) then return true end
+		elseif child.type == "missing" then
+			return true
+		end
 	end
+	return false
+end
+
+local function hasTimeCondition(group)
+	if not group then return false end
+	for _, child in ipairs(group.conditions or {}) do
+		if child.join then
+			if hasTimeCondition(child) then return true end
+		elseif child.type == "time" then
+			return true
+		end
+	end
+	return false
 end
 
 local function getCategory(id) return addon.db["buffTrackerCategories"][id] end
@@ -354,7 +424,7 @@ local function updateBuff(catId, id, changedId)
 	local buff = cat and cat.buffs and cat.buffs[id]
 	local key = catId .. ":" .. id
 	local before = timedAuras[key] ~= nil
-	if buff and buff.timeOp and buff.timeVal then
+	if buff and hasTimeCondition(buff.conditions) then
 		timedAuras[key] = { catId = catId, buffId = id }
 	else
 		timedAuras[key] = nil
@@ -392,7 +462,9 @@ local function updateBuff(catId, id, changedId)
 		end
 	end
 
-	if aura and (not stackConditionMet(buff, aura) or not timeConditionMet(buff, aura)) then aura = nil end
+	local condOk = evaluateGroup(buff and buff.conditions, aura)
+	if aura == nil and not hasMissingCondition(buff and buff.conditions) then condOk = false end
+	local displayAura = condOk and aura or nil
 
 	activeBuffFrames[catId] = activeBuffFrames[catId] or {}
 	local frame = activeBuffFrames[catId][id]
@@ -439,13 +511,34 @@ local function updateBuff(catId, id, changedId)
 			ActionButton_HideOverlayGlow(frame)
 		end
 		frame:Show()
-	elseif buff and buff.showWhenMissing then
-		if aura then
-			if frame then
-				frame.isActive = false
-				ActionButton_HideOverlayGlow(frame)
-				frame:Hide()
+	elseif condOk then
+		if displayAura then
+			local icon = buff and buff.icon or displayAura.icon
+			local showTimer = buff and buff.showTimerText
+			if showTimer == nil then showTimer = addon.db["buffTrackerShowTimerText"] end
+			if showTimer == nil then showTimer = true end
+			if not frame then
+				frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, false, id, showTimer)
+				activeBuffFrames[catId][id] = frame
+			else
+				frame.cd:SetHideCountdownNumbers(not showTimer)
 			end
+			frame.icon:SetTexture(icon)
+			frame.icon:SetDesaturated(false)
+			frame.icon:SetAlpha(1)
+			if displayAura.duration and displayAura.duration > 0 then
+				frame.cd:SetCooldown(displayAura.expirationTime - displayAura.duration, displayAura.duration)
+			else
+				frame.cd:Clear()
+			end
+			if not wasShown then playBuffSound(catId, id, triggeredId) end
+			frame.isActive = true
+			if buff.glow then
+				ActionButton_ShowOverlayGlow(frame)
+			else
+				ActionButton_HideOverlayGlow(frame)
+			end
+			frame:Show()
 		else
 			local icon = buff.icon
 			local shouldSecure = buff.castOnClick and (IsSpellKnown(id) or IsSpellKnownOrOverridesKnown(id))
@@ -467,7 +560,7 @@ local function updateBuff(catId, id, changedId)
 				frame:RegisterForClicks("AnyUp", "AnyDown")
 			end
 			if not wasShown then playBuffSound(catId, id, triggeredId) end
-			frame.isActive = true
+			frame.isActive = hasMissingCondition(buff and buff.conditions)
 			if buff.glow then
 				ActionButton_ShowOverlayGlow(frame)
 			else
@@ -476,39 +569,10 @@ local function updateBuff(catId, id, changedId)
 			frame:Show()
 		end
 	else
-		if aura then
-			local icon = buff and buff.icon or aura.icon
-			local showTimer = buff and buff.showTimerText
-			if showTimer == nil then showTimer = addon.db["buffTrackerShowTimerText"] end
-			if showTimer == nil then showTimer = true end
-			if not frame then
-				frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, false, id, showTimer)
-				activeBuffFrames[catId][id] = frame
-			else
-				frame.cd:SetHideCountdownNumbers(not showTimer)
-			end
-			frame.icon:SetTexture(icon)
-			frame.icon:SetDesaturated(false)
-			frame.icon:SetAlpha(1)
-			if aura.duration and aura.duration > 0 then
-				frame.cd:SetCooldown(aura.expirationTime - aura.duration, aura.duration)
-			else
-				frame.cd:Clear()
-			end
-			if not wasShown then playBuffSound(catId, id, triggeredId) end
-			frame.isActive = true
-			if buff.glow then
-				ActionButton_ShowOverlayGlow(frame)
-			else
-				ActionButton_HideOverlayGlow(frame)
-			end
-			frame:Show()
-		else
-			if frame then
-				frame.isActive = false
-				ActionButton_HideOverlayGlow(frame)
-				frame:Hide()
-			end
+		if frame then
+			frame.isActive = false
+			ActionButton_HideOverlayGlow(frame)
+			frame:Hide()
 		end
 	end
 
@@ -666,15 +730,11 @@ local function addBuff(catId, id)
 		name = spellData.name,
 		icon = spellData.iconID,
 		altIDs = {},
-		showWhenMissing = false,
 		showAlways = false,
 		glow = false,
 		castOnClick = false,
 		trackType = "BUFF",
-		stackOp = nil,
-		stackVal = nil,
-		timeOp = nil,
-		timeVal = nil,
+		conditions = { join = "AND", conditions = {} },
 		allowedSpecs = {},
 		allowedClasses = {},
 		allowedRoles = {},
@@ -934,31 +994,11 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 		wrapper:AddChild(addon.functions.createSpacerAce())
 	end
 
-	local missingRow = addon.functions.createContainer("SimpleGroup", "Flow")
-	missingRow:SetFullWidth(true)
-	local cbMissing, cbAlways
-	cbMissing = addon.functions.createCheckboxAce(L["buffTrackerShowWhenMissing"], buff.showWhenMissing, function(_, _, val)
-		buff.showWhenMissing = val
-		if val then
-			buff.showAlways = false
-			if cbAlways then cbAlways:SetValue(false) end
-		end
-		scanBuffs()
-	end)
-	cbMissing:SetRelativeWidth(0.5)
-	missingRow:AddChild(cbMissing)
-
-	cbAlways = addon.functions.createCheckboxAce(L["buffTrackerAlwaysShow"], buff.showAlways, function(_, _, val)
+	local alwaysCB = addon.functions.createCheckboxAce(L["buffTrackerAlwaysShow"], buff.showAlways, function(_, _, val)
 		buff.showAlways = val
-		if val then
-			buff.showWhenMissing = false
-			if cbMissing then cbMissing:SetValue(false) end
-		end
 		scanBuffs()
 	end)
-	cbAlways:SetRelativeWidth(0.5)
-	missingRow:AddChild(cbAlways)
-	wrapper:AddChild(missingRow)
+	wrapper:AddChild(alwaysCB)
 
 	local cbGlow = addon.functions.createCheckboxAce(L["buffTrackerGlow"], buff.glow, function(_, _, val)
 		buff.glow = val
@@ -991,56 +1031,116 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	wrapper:AddChild(typeDrop)
 	wrapper:AddChild(addon.functions.createSpacerAce())
 
-	local stackRow = addon.functions.createContainer("SimpleGroup", "Flow")
-	stackRow:SetFullWidth(true)
-	local lblStacks = AceGUI:Create("Label")
-	lblStacks:SetText(L["buffTrackerShowWhenStacks"])
-	lblStacks:SetRelativeWidth(0.4)
-	stackRow:AddChild(lblStacks)
+	local function buildGroupUI(parent, group)
+		group.join = group.join or "AND"
 
-	local dropStack = addon.functions.createDropdownAce(nil, { [">"] = ">", ["<"] = "<" }, nil, function(self, _, val)
-		buff.stackOp = val
-		scanBuffs()
-	end)
-	dropStack:SetValue(buff.stackOp)
-	dropStack:SetRelativeWidth(0.2)
-	stackRow:AddChild(dropStack)
+		local joinDrop = addon.functions.createDropdownAce(L["JoinType"], { AND = "AND", OR = "OR" }, nil, function(_, _, val)
+			group.join = val
+			container:ReleaseChildren()
+			addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+			scanBuffs()
+		end)
+		joinDrop:SetValue(group.join)
+		parent:AddChild(joinDrop)
 
-	local editStack = addon.functions.createEditboxAce(nil, buff.stackVal and tostring(buff.stackVal) or "", function(self, _, text)
-		local num = tonumber(text)
-		buff.stackVal = num
-		scanBuffs()
-	end)
-	editStack:SetRelativeWidth(0.4)
-	stackRow:AddChild(editStack)
+		for idx, child in ipairs(group.conditions or {}) do
+			if child.join then
+				local sub = addon.functions.createContainer("InlineGroup", "List")
+				parent:AddChild(sub)
+				buildGroupUI(sub, child)
 
-	wrapper:AddChild(stackRow)
-	wrapper:AddChild(addon.functions.createSpacerAce())
+				local rem = addon.functions.createButtonAce(L["Remove"], 80, function()
+					table.remove(group.conditions, idx)
+					container:ReleaseChildren()
+					addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+					scanBuffs()
+				end)
+				sub:AddChild(rem)
+			else
+				local row = addon.functions.createContainer("SimpleGroup", "Flow")
+				row:SetFullWidth(true)
+				local typeDrop = addon.functions.createDropdownAce(nil, { missing = L["ConditionMissing"], stack = L["ConditionStacks"], time = L["ConditionTime"] }, nil, function(_, _, val)
+					child.type = val
+					if val ~= "missing" and (child.value == nil or type(child.value) ~= "number") then
+						child.value = 0
+					elseif val == "missing" and type(child.value) ~= "boolean" then
+						child.value = true
+					end
+					container:ReleaseChildren()
+					addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+					scanBuffs()
+				end)
+				typeDrop:SetValue(child.type)
+				typeDrop:SetRelativeWidth(0.3)
+				row:AddChild(typeDrop)
 
-	local timeRow = addon.functions.createContainer("SimpleGroup", "Flow")
-	timeRow:SetFullWidth(true)
-	local lblTime = AceGUI:Create("Label")
-	lblTime:SetText(L["buffTrackerShowWhenTime"])
-	lblTime:SetRelativeWidth(0.4)
-	timeRow:AddChild(lblTime)
+				local ops = { [">"] = ">", ["<"] = "<", [">="] = ">=", ["<="] = "<=", ["=="] = "==", ["!="] = "!=" }
+				if child.type == "missing" then ops = { ["=="] = "==", ["!="] = "!=" } end
+				local opDrop = addon.functions.createDropdownAce(nil, ops, nil, function(_, _, val)
+					child.operator = val
+					scanBuffs()
+				end)
+				opDrop:SetValue(child.operator)
+				opDrop:SetRelativeWidth(0.2)
+				row:AddChild(opDrop)
 
-	local dropTime = addon.functions.createDropdownAce(nil, { [">"] = ">", ["<"] = "<" }, nil, function(self, _, val)
-		buff.timeOp = val
-		scanBuffs()
-	end)
-	dropTime:SetValue(buff.timeOp)
-	dropTime:SetRelativeWidth(0.2)
-	timeRow:AddChild(dropTime)
+				if child.type == "missing" then
+					local boolDrop = addon.functions.createDropdownAce(nil, { ["true"] = L["True"], ["false"] = L["False"] }, nil, function(_, _, val)
+						child.value = val == "true"
+						scanBuffs()
+					end)
+					boolDrop:SetValue(tostring(child.value))
+					boolDrop:SetRelativeWidth(0.3)
+					row:AddChild(boolDrop)
+				else
+					local valEdit = addon.functions.createEditboxAce(nil, child.value and tostring(child.value) or "", function(self, _, text)
+						local num = tonumber(text)
+						child.value = num
+						scanBuffs()
+					end)
+					valEdit:SetRelativeWidth(0.3)
+					row:AddChild(valEdit)
+				end
 
-	local editTime = addon.functions.createEditboxAce(nil, buff.timeVal and tostring(buff.timeVal) or "", function(self, _, text)
-		local num = tonumber(text)
-		buff.timeVal = num
-		scanBuffs()
-	end)
-	editTime:SetRelativeWidth(0.4)
-	timeRow:AddChild(editTime)
+				local remIcon = AceGUI:Create("Icon")
+				remIcon:SetLabel("")
+				remIcon:SetImage("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+				remIcon:SetImageSize(16, 16)
+				remIcon:SetRelativeWidth(0.2)
+				remIcon:SetHeight(16)
+				remIcon:SetCallback("OnClick", function()
+					table.remove(group.conditions, idx)
+					container:ReleaseChildren()
+					addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+					scanBuffs()
+				end)
+				row:AddChild(remIcon)
 
-	wrapper:AddChild(timeRow)
+				parent:AddChild(row)
+			end
+		end
+
+		local addRow = addon.functions.createContainer("SimpleGroup", "Flow")
+		addRow:SetFullWidth(true)
+		local addCond = addon.functions.createButtonAce(L["AddCondition"], 120, function()
+			table.insert(group.conditions, { type = "missing", operator = "==", value = true })
+			container:ReleaseChildren()
+			addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+			scanBuffs()
+		end)
+		addRow:AddChild(addCond)
+
+		local addGrp = addon.functions.createButtonAce(L["AddGroup"], 120, function()
+			table.insert(group.conditions, { join = "AND", conditions = {} })
+			container:ReleaseChildren()
+			addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+			scanBuffs()
+		end)
+		addRow:AddChild(addGrp)
+		parent:AddChild(addRow)
+	end
+
+	buildGroupUI(wrapper, buff.conditions or { join = "AND", conditions = {} })
 	wrapper:AddChild(addon.functions.createSpacerAce())
 
 	local roleDrop = addon.functions.createDropdownAce(L["ShowForRole"], roleNames, nil, function(self, event, key, checked)

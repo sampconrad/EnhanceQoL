@@ -45,14 +45,20 @@ if type(addon.db["buffTrackerSelectedCategory"]) ~= "number" then addon.db["buff
 for _, cat in pairs(addon.db["buffTrackerCategories"]) do
 	for _, buff in pairs(cat.buffs or {}) do
 		if not buff.altIDs then buff.altIDs = {} end
-		if buff.showWhenMissing == nil then buff.showWhenMissing = false end
 		if buff.showAlways == nil then buff.showAlways = false end
 		if buff.glow == nil then buff.glow = false end
 		if not buff.trackType then buff.trackType = "BUFF" end
-		if buff.stackOp == nil then buff.stackOp = nil end
-		if buff.stackVal == nil then buff.stackVal = nil end
-		if buff.timeOp == nil then buff.timeOp = nil end
-		if buff.timeVal == nil then buff.timeVal = nil end
+		if not buff.conditions then
+			buff.conditions = { join = "AND", conditions = {} }
+			if buff.showWhenMissing then table.insert(buff.conditions.conditions, { type = "missing", operator = "==", value = true }) end
+			if buff.stackOp and buff.stackVal then table.insert(buff.conditions.conditions, { type = "stack", operator = buff.stackOp, value = buff.stackVal }) end
+			if buff.timeOp and buff.timeVal then table.insert(buff.conditions.conditions, { type = "time", operator = buff.timeOp, value = buff.timeVal }) end
+		end
+		buff.showWhenMissing = nil
+		buff.stackOp = nil
+		buff.stackVal = nil
+		buff.timeOp = nil
+		buff.timeVal = nil
 		if not buff.allowedSpecs then buff.allowedSpecs = {} end
 		if not buff.allowedClasses then buff.allowedClasses = {} end
 		if not buff.allowedRoles then buff.allowedRoles = {} end
