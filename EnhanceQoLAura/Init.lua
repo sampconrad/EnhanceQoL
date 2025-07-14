@@ -66,10 +66,22 @@ if not addon.db["unitFrameAuraTrackers"] then
 	}
 end
 
-for _, tracker in pairs(addon.db["unitFrameAuraTrackers"]) do
+for tId, tracker in pairs(addon.db["unitFrameAuraTrackers"]) do
 	if not tracker.anchor then tracker.anchor = "CENTER" end
 	if not tracker.direction then tracker.direction = "RIGHT" end
 	if not tracker.spells then tracker.spells = {} end
+	addon.db.unitFrameAuraOrder[tId] = addon.db.unitFrameAuraOrder[tId] or {}
+	local newSpells = {}
+	for id, info in pairs(tracker.spells) do
+		if type(info) == "string" then
+			local spellData = C_Spell.GetSpellInfo(id)
+			newSpells[id] = { name = spellData and spellData.name or info, icon = spellData and spellData.iconID }
+		else
+			newSpells[id] = info
+		end
+		if not tContains(addon.db.unitFrameAuraOrder[tId], id) then table.insert(addon.db.unitFrameAuraOrder[tId], id) end
+	end
+	tracker.spells = newSpells
 end
 
 addon.Aura = {}
@@ -115,6 +127,7 @@ addon.functions.InitDBValue("unitFrameAuraIconSize", 20)
 addon.functions.InitDBValue("unitFrameAuraShowTime", false)
 addon.functions.InitDBValue("unitFrameAuraTrackers", nil)
 addon.functions.InitDBValue("unitFrameAuraSelectedTracker", 1)
+addon.functions.InitDBValue("unitFrameAuraOrder", {})
 
 if type(addon.db["buffTrackerSelectedCategory"]) ~= "number" then addon.db["buffTrackerSelectedCategory"] = 1 end
 

@@ -26,14 +26,24 @@ local function ensureIcon(frame, tracker, index)
 		local iconFrame = CreateFrame("Frame", nil, frame)
 		iconFrame:SetSize(addon.db.unitFrameAuraIconSize or ICON_SIZE, addon.db.unitFrameAuraIconSize or ICON_SIZE)
 		iconFrame:SetFrameLevel(frame:GetFrameLevel() + 10)
+
 		local tex = iconFrame:CreateTexture(nil, "OVERLAY")
 		tex:SetAllPoints(iconFrame)
 		iconFrame.icon = tex
+
+		local cd = CreateFrame("Cooldown", nil, iconFrame, "CooldownFrameTemplate")
+		cd:SetAllPoints(iconFrame)
+		cd:SetDrawEdge(false)
+		cd:SetDrawBling(false)
+		cd:SetSwipeColor(0, 0, 0, 0.6)
+		iconFrame.cd = cd
+
 		local timer = iconFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		timer:SetPoint("BOTTOMRIGHT", iconFrame, "BOTTOMRIGHT", -1, 1)
 		timer:SetTextColor(1, 1, 1)
 		timer:SetShadowOffset(1, -1)
 		iconFrame.time = timer
+
 		pool[index] = iconFrame
 	end
 	pool[index]:SetSize(addon.db.unitFrameAuraIconSize or ICON_SIZE, addon.db.unitFrameAuraIconSize or ICON_SIZE)
@@ -89,14 +99,23 @@ local function UpdateTrackedBuffs(frame, unit)
 
 	for tId, tracker in pairs(addon.db.unitFrameAuraTrackers) do
 		local index = 0
-		local showTime = addon.db.unitFrameAuraShowTime
 		AuraUtil.ForEachAura(unit, "HELPFUL", nil, function(aura)
 			local spellId = aura.spellId
-			if tracker.spells and tracker.spells[spellId] then
+			local data = tracker.spells and tracker.spells[spellId]
+			if data then
 				index = index + 1
 				local iconFrame = ensureIcon(frame, tId, index)
 				iconFrame.icon:SetTexture(aura.icon)
 				iconFrame.expirationTime = aura.expirationTime
+				if aura.expirationTime and aura.duration and aura.duration > 0 then
+					iconFrame.cd:SetCooldown(aura.expirationTime - aura.duration, aura.duration)
+				else
+					iconFrame.cd:Clear()
+				end
+
+				local showTime = data.showTimer
+				if showTime == nil then showTime = addon.db.unitFrameAuraShowTime end
+				iconFrame.showTimer = showTime
 				if showTime and aura.expirationTime and aura.duration and aura.duration > 0 then
 					local remain = math.floor(aura.expirationTime - GetTime())
 					iconFrame.time:SetText(remain)
@@ -119,7 +138,7 @@ local function updateFrameTimes(frame)
 	if not frame or not frame.EQOLTrackedAura then return end
 	for _, trackerPool in pairs(frame.EQOLTrackedAura) do
 		for _, icon in ipairs(trackerPool) do
-			if icon:IsShown() and icon.expirationTime and addon.db.unitFrameAuraShowTime then
+			if icon:IsShown() and icon.expirationTime and icon.showTimer then
 				local remain = math.floor(icon.expirationTime - GetTime())
 				if remain > 0 then
 					icon.time:SetText(remain)
@@ -139,7 +158,21 @@ local function manageTicker()
 		timeTicker:Cancel()
 		timeTicker = nil
 	end
-	if addon.db.unitFrameAuraShowTime then
+
+	local needTicker = addon.db.unitFrameAuraShowTime
+	if not needTicker then
+		for _, tracker in pairs(addon.db.unitFrameAuraTrackers or {}) do
+			for _, data in pairs(tracker.spells or {}) do
+				if data.showTimer then
+					needTicker = true
+					break
+				end
+			end
+			if needTicker then break end
+		end
+	end
+
+	if needTicker then
 		timeTicker = C_Timer.NewTicker(1, function()
 			if CompactRaidFrameContainer and CompactRaidFrameContainer.GetFrames then
 				for frame in CompactRaidFrameContainer:GetFrames() do
@@ -177,11 +210,108 @@ hooksecurefunc("CompactUnitFrame_UpdateAuras", function(frame)
 end)
 manageTicker()
 
+local function addSpell(tId, spellId)
+	local info = C_Spell.GetSpellInfo(spellId)
+	if not info then return end
+
+	local tracker = addon.db.unitFrameAuraTrackers[tId]
+	if not tracker then return end
+
+	tracker.spells[spellId] = tracker.spells[spellId] or { name = info.name, icon = info.iconID }
+
+	addon.db.unitFrameAuraOrder[tId] = addon.db.unitFrameAuraOrder[tId] or {}
+	if not tContains(addon.db.unitFrameAuraOrder[tId], spellId) then table.insert(addon.db.unitFrameAuraOrder[tId], spellId) end
+end
+
+local function removeSpell(tId, spellId)
+	local tracker = addon.db.unitFrameAuraTrackers[tId]
+	if not tracker then return end
+	tracker.spells[spellId] = nil
+	if addon.db.unitFrameAuraOrder[tId] then
+		for i, v in ipairs(addon.db.unitFrameAuraOrder[tId]) do
+			if v == spellId then
+				table.remove(addon.db.unitFrameAuraOrder[tId], i)
+				break
+			end
+		end
+	end
+end
+
+local function handleDragDrop(src, dst)
+	if not src or not dst then return end
+
+	local sT, _, sSpell = strsplit("\001", src)
+	local dT, _, dSpell = strsplit("\001", dst)
+	sT = tonumber(sT)
+	dT = tonumber(dT)
+	if not sSpell then return end
+	sSpell = tonumber(sSpell)
+	if dSpell then dSpell = tonumber(dSpell) end
+
+	local srcTracker = addon.db.unitFrameAuraTrackers[sT]
+	local dstTracker = addon.db.unitFrameAuraTrackers[dT]
+	if not srcTracker or not dstTracker then return end
+
+	local data = srcTracker.spells[sSpell]
+	if not data then return end
+
+	srcTracker.spells[sSpell] = nil
+	addon.db.unitFrameAuraOrder[sT] = addon.db.unitFrameAuraOrder[sT] or {}
+	for i, v in ipairs(addon.db.unitFrameAuraOrder[sT]) do
+		if v == sSpell then
+			table.remove(addon.db.unitFrameAuraOrder[sT], i)
+			break
+		end
+	end
+
+	dstTracker.spells[sSpell] = data
+	addon.db.unitFrameAuraOrder[dT] = addon.db.unitFrameAuraOrder[dT] or {}
+	local insertPos = #addon.db.unitFrameAuraOrder[dT] + 1
+	if dSpell then
+		for i, v in ipairs(addon.db.unitFrameAuraOrder[dT]) do
+			if v == dSpell then
+				insertPos = i
+				break
+			end
+		end
+	end
+	table.insert(addon.db.unitFrameAuraOrder[dT], insertPos, sSpell)
+
+	refreshTree(selectedTracker)
+	RefreshAll()
+end
+
 local function getTrackerTree()
 	local tree = {}
 	for id, tracker in pairs(addon.db.unitFrameAuraTrackers or {}) do
-		table.insert(tree, { value = id, text = tracker.name or ("Tracker " .. id) })
+		local node = { value = id, text = tracker.name or ("Tracker " .. id), children = {} }
+
+		local spells = {}
+		for sid, info in pairs(tracker.spells or {}) do
+			local name = info.name or tostring(sid)
+			table.insert(spells, { id = sid, name = name, icon = info.icon or (C_Spell.GetSpellInfo(sid) or {}).iconID })
+		end
+
+		addon.db.unitFrameAuraOrder[id] = addon.db.unitFrameAuraOrder[id] or {}
+		local orderIndex = {}
+		for idx, sid in ipairs(addon.db.unitFrameAuraOrder[id]) do
+			orderIndex[sid] = idx
+		end
+
+		table.sort(spells, function(a, b)
+			local ia = orderIndex[a.id] or math.huge
+			local ib = orderIndex[b.id] or math.huge
+			if ia ~= ib then return ia < ib end
+			return a.name < b.name
+		end)
+
+		for _, info in ipairs(spells) do
+			table.insert(node.children, { value = id .. "\001" .. info.id, text = info.name, icon = info.icon })
+		end
+
+		table.insert(tree, node)
 	end
+
 	table.sort(tree, function(a, b) return a.value < b.value end)
 	table.insert(tree, { value = "ADD_TRACKER", text = "|cff00ff00+ " .. (L["AddTracker"] or "Add Tracker") })
 	return tree
@@ -231,33 +361,41 @@ local function buildTrackerOptions(container, id)
 
 	local drop
 	local function refresh()
-		local list, order = addon.functions.prepareListForDropdown(tracker.spells)
+		local tmp = {}
+		for sid, info in pairs(tracker.spells) do
+			local name = info.name or tostring(sid)
+			tmp[sid] = string.format("%s (%d)", name, sid)
+		end
+		local list, order = addon.functions.prepareListForDropdown(tmp)
 		drop:SetList(list, order)
 		drop:SetValue(nil)
 		RefreshAll()
+		refreshTree(id)
 	end
 
 	local edit = addon.functions.createEditboxAce(L["AddSpellID"], nil, function(self, _, text)
-		local id = tonumber(text)
-		if id then
-			local info = C_Spell.GetSpellInfo(id)
-			if info then
-				tracker.spells[id] = string.format("%s (%d)", info.name, id)
-				refresh()
-			end
+		local sid = tonumber(text)
+		if sid then
+			addSpell(id, sid)
+			refresh()
 		end
 		self:SetText("")
 	end)
 	core:AddChild(edit)
 
-	local list, order = addon.functions.prepareListForDropdown(tracker.spells)
+	local tmp = {}
+	for sid, info in pairs(tracker.spells) do
+		local name = info.name or tostring(sid)
+		tmp[sid] = string.format("%s (%d)", name, sid)
+	end
+	local list, order = addon.functions.prepareListForDropdown(tmp)
 	drop = addon.functions.createDropdownAce(L["TrackedAuras"], list, order, nil)
 	core:AddChild(drop)
 
 	local btn = addon.functions.createButtonAce(REMOVE, 100, function()
 		local sel = drop:GetValue()
 		if sel then
-			tracker.spells[sel] = nil
+			removeSpell(id, sel)
 			refresh()
 		end
 	end)
@@ -279,12 +417,39 @@ local function buildTrackerOptions(container, id)
 	core:AddChild(delBtn)
 end
 
+local function buildSpellOptions(container, tId, spellId)
+	local tracker = addon.db.unitFrameAuraTrackers[tId]
+	local info = tracker and tracker.spells and tracker.spells[spellId]
+	if not info then return end
+
+	local core = addon.functions.createContainer("InlineGroup", "Flow")
+	container:AddChild(core)
+
+	local label = AceGUI:Create("Label")
+	label:SetText((info.name or "") .. " (" .. spellId .. ")")
+	core:AddChild(label)
+
+	local cb = addon.functions.createCheckboxAce(L["ShowTimeRemaining"], info.showTimer == nil and addon.db.unitFrameAuraShowTime or info.showTimer, function(_, _, val)
+		info.showTimer = val
+		manageTicker()
+		RefreshAll()
+	end)
+	core:AddChild(cb)
+
+	local delBtn = addon.functions.createButtonAce(L["DeleteAura"], 150, function()
+		removeSpell(tId, spellId)
+		refreshTree(tId)
+		container:ReleaseChildren()
+	end)
+	core:AddChild(delBtn)
+end
+
 function addon.Aura.functions.addUnitFrameAuraOptions(container)
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
 	wrapper:SetFullHeight(true)
 	container:AddChild(wrapper)
 
-	trackerTreeGroup = AceGUI:Create("TreeGroup")
+	trackerTreeGroup = AceGUI:Create("EQOL_DragTreeGroup")
 	trackerTreeGroup:SetFullHeight(true)
 	trackerTreeGroup:SetFullWidth(true)
 	trackerTreeGroup:SetTreeWidth(200, true)
@@ -299,17 +464,24 @@ function addon.Aura.functions.addUnitFrameAuraOptions(container)
 			return
 		end
 
-		local id = tonumber(value)
-		selectedTracker = id
-		addon.db.unitFrameAuraSelectedTracker = id
+		local tId, _, sId = strsplit("\001", value)
+		tId = tonumber(tId)
+		selectedTracker = tId
+		addon.db.unitFrameAuraSelectedTracker = tId
 		widget:ReleaseChildren()
 
 		local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
 		scroll:SetFullWidth(true)
 		scroll:SetFullHeight(true)
 		widget:AddChild(scroll)
-		buildTrackerOptions(scroll, id)
+
+		if sId then
+			buildSpellOptions(scroll, tId, tonumber(sId))
+		else
+			buildTrackerOptions(scroll, tId)
+		end
 	end)
+	trackerTreeGroup:SetCallback("OnDragDrop", function(_, _, src, dst) handleDragDrop(src, dst) end)
 
 	wrapper:AddChild(trackerTreeGroup)
 
