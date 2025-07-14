@@ -237,6 +237,8 @@ local function removeSpell(tId, spellId)
 	end
 end
 
+local refreshTree -- forward declaration
+
 local function handleDragDrop(src, dst)
 	if not src or not dst then return end
 
@@ -317,10 +319,10 @@ local function getTrackerTree()
 	return tree
 end
 
-local function refreshTree(selectValue)
-	if not trackerTreeGroup then return end
-	trackerTreeGroup:SetTree(getTrackerTree())
-	if selectValue then trackerTreeGroup:SelectByValue(tostring(selectValue)) end
+function refreshTree(selectValue)
+        if not trackerTreeGroup then return end
+        trackerTreeGroup:SetTree(getTrackerTree())
+        if selectValue then trackerTreeGroup:SelectByValue(tostring(selectValue)) end
 end
 
 local function buildTrackerOptions(container, id)
@@ -359,19 +361,10 @@ local function buildTrackerOptions(container, id)
 	dirDrop:SetValue(tracker.direction or "RIGHT")
 	core:AddChild(dirDrop)
 
-	local drop
-	local function refresh()
-		local tmp = {}
-		for sid, info in pairs(tracker.spells) do
-			local name = info.name or tostring(sid)
-			tmp[sid] = string.format("%s (%d)", name, sid)
-		end
-		local list, order = addon.functions.prepareListForDropdown(tmp)
-		drop:SetList(list, order)
-		drop:SetValue(nil)
-		RefreshAll()
-		refreshTree(id)
-	end
+       local function refresh()
+               RefreshAll()
+               refreshTree(id)
+       end
 
 	local edit = addon.functions.createEditboxAce(L["AddSpellID"], nil, function(self, _, text)
 		local sid = tonumber(text)
@@ -383,23 +376,6 @@ local function buildTrackerOptions(container, id)
 	end)
 	core:AddChild(edit)
 
-	local tmp = {}
-	for sid, info in pairs(tracker.spells) do
-		local name = info.name or tostring(sid)
-		tmp[sid] = string.format("%s (%d)", name, sid)
-	end
-	local list, order = addon.functions.prepareListForDropdown(tmp)
-	drop = addon.functions.createDropdownAce(L["TrackedAuras"], list, order, nil)
-	core:AddChild(drop)
-
-	local btn = addon.functions.createButtonAce(REMOVE, 100, function()
-		local sel = drop:GetValue()
-		if sel then
-			removeSpell(id, sel)
-			refresh()
-		end
-	end)
-	core:AddChild(btn)
 
 	local nameEdit = addon.functions.createEditboxAce(L["TrackerName"], tracker.name, function(_, _, text)
 		if text ~= "" then tracker.name = text end
@@ -436,12 +412,26 @@ local function buildSpellOptions(container, tId, spellId)
 	end)
 	core:AddChild(cb)
 
-	local delBtn = addon.functions.createButtonAce(L["DeleteAura"], 150, function()
-		removeSpell(tId, spellId)
-		refreshTree(tId)
-		container:ReleaseChildren()
-	end)
-	core:AddChild(delBtn)
+       local delBtn = addon.functions.createButtonAce(L["DeleteAura"], 150, function()
+               local auraName = info.name or tostring(spellId)
+               StaticPopupDialogs["EQOL_DELETE_UNITFRAME_AURA"] = StaticPopupDialogs["EQOL_DELETE_UNITFRAME_AURA"]
+                       or {
+                               text = L["DeleteAuraConfirm"],
+                               button1 = YES,
+                               button2 = CANCEL,
+                               timeout = 0,
+                               whileDead = true,
+                               hideOnEscape = true,
+                               preferredIndex = 3,
+                       }
+               StaticPopupDialogs["EQOL_DELETE_UNITFRAME_AURA"].OnAccept = function()
+                       removeSpell(tId, spellId)
+                       refreshTree(tId)
+                       container:ReleaseChildren()
+               end
+               StaticPopup_Show("EQOL_DELETE_UNITFRAME_AURA", auraName)
+       end)
+       core:AddChild(delBtn)
 end
 
 function addon.Aura.functions.addUnitFrameAuraOptions(container)
