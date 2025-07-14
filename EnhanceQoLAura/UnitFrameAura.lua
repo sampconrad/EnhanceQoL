@@ -33,12 +33,12 @@ local function ensureIcon(frame, tracker, index)
 		tex:SetAllPoints(iconFrame)
 		iconFrame.icon = tex
 
-		local cd = CreateFrame("Cooldown", nil, iconFrame, "CooldownFrameTemplate")
-		cd:SetAllPoints(iconFrame)
-		cd:SetDrawEdge(false)
-		cd:SetDrawBling(false)
-		cd:SetHideCountdownNumbers(true)
-		iconFrame.cd = cd
+               local cd = CreateFrame("Cooldown", nil, iconFrame, "CooldownFrameTemplate")
+               cd:SetAllPoints(iconFrame)
+               cd:SetDrawEdge(false)
+               cd:SetDrawBling(false)
+               cd:SetHideCountdownNumbers(true)
+               iconFrame.cd = cd
 
 		local timer = iconFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		timer:SetPoint("BOTTOMRIGHT", iconFrame, "BOTTOMRIGHT", -1, 1)
@@ -49,10 +49,11 @@ local function ensureIcon(frame, tracker, index)
 		pool[index] = iconFrame
 	end
 	local trackerData = addon.db.unitFrameAuraTrackers and addon.db.unitFrameAuraTrackers[tracker] or {}
-	local size = trackerData.iconSize or addon.db.unitFrameAuraIconSize or ICON_SIZE
-	pool[index]:SetSize(size, size)
-	pool[index].time:SetFont(addon.variables.defaultFont, size * 0.6, "OUTLINE")
-	return pool[index]
+        local size = trackerData.iconSize or addon.db.unitFrameAuraIconSize or ICON_SIZE
+        local scale = trackerData.timerScale or addon.db.unitFrameAuraTimerScale or 0.6
+        pool[index]:SetSize(size, size)
+        pool[index].time:SetFont(addon.variables.defaultFont, size * scale, "OUTLINE")
+        return pool[index]
 end
 
 local function hideUnusedIcons(frame, tracker, used)
@@ -119,11 +120,21 @@ local function UpdateTrackedBuffs(frame, unit)
 						iconFrame.cd:Clear()
 					end
 
-					local showTime = data.showTimer
-					if showTime == nil then showTime = addon.db.unitFrameAuraShowTime end
-					iconFrame.cd:SetHideCountdownNumbers(not showTime)
-					iconFrame.showTimer = showTime
-					if iconFrame.time then iconFrame.time:Hide() end
+                                       local showTime = data.showTimer
+                                       if showTime == nil then showTime = addon.db.unitFrameAuraShowTime end
+                                       iconFrame.cd:SetHideCountdownNumbers(true)
+                                       iconFrame.showTimer = showTime
+                                       if showTime then
+                                               local remain = aura.expirationTime and aura.expirationTime > GetTime() and math.floor(aura.expirationTime - GetTime()) or nil
+                                               if remain and remain > 0 then
+                                                       iconFrame.time:SetText(remain)
+                                                       iconFrame.time:Show()
+                                               else
+                                                       iconFrame.time:Hide()
+                                               end
+                                       elseif iconFrame.time then
+                                               iconFrame.time:Hide()
+                                       end
 
 					-- local showSwipe = data.showSwipe
 					-- if showSwipe == nil then showSwipe = addon.db.unitFrameAuraShowSwipe end
@@ -162,42 +173,42 @@ local function updateFrameTimes(frame)
 	end
 end
 
--- local function manageTicker()
--- 	if timeTicker then
--- 		timeTicker:Cancel()
--- 		timeTicker = nil
--- 	end
+local function manageTicker()
+    if timeTicker then
+        timeTicker:Cancel()
+        timeTicker = nil
+    end
 
--- 	local needTicker = addon.db.unitFrameAuraShowTime
--- 	if not needTicker then
--- 		for _, tracker in pairs(addon.db.unitFrameAuraTrackers or {}) do
--- 			for _, data in pairs(tracker.spells or {}) do
--- 				if data.showTimer then
--- 					needTicker = true
--- 					break
--- 				end
--- 			end
--- 			if needTicker then break end
--- 		end
--- 	end
+    local needTicker = addon.db.unitFrameAuraShowTime
+    if not needTicker then
+        for _, tracker in pairs(addon.db.unitFrameAuraTrackers or {}) do
+            for _, data in pairs(tracker.spells or {}) do
+                if data.showTimer then
+                    needTicker = true
+                    break
+                end
+            end
+            if needTicker then break end
+        end
+    end
 
--- 	if needTicker then
--- 		timeTicker = C_Timer.NewTicker(1, function()
--- 			if CompactRaidFrameContainer and CompactRaidFrameContainer.GetFrames then
--- 				for frame in CompactRaidFrameContainer:GetFrames() do
--- 					updateFrameTimes(frame)
--- 				end
--- 			end
--- 			for i = 1, 5 do
--- 				local f = _G["CompactPartyFrameMember" .. i]
--- 				if f then updateFrameTimes(f) end
--- 			end
--- 		end)
--- 	end
--- end
+    if needTicker then
+        timeTicker = C_Timer.NewTicker(1, function()
+            if CompactRaidFrameContainer and CompactRaidFrameContainer.GetFrames then
+                for frame in CompactRaidFrameContainer:GetFrames() do
+                    updateFrameTimes(frame)
+                end
+            end
+            for i = 1, 5 do
+                local f = _G["CompactPartyFrameMember" .. i]
+                if f then updateFrameTimes(f) end
+            end
+        end)
+    end
+end
 
 local function RefreshAll()
-	-- manageTicker()
+        manageTicker()
 	if CompactRaidFrameContainer and CompactRaidFrameContainer.GetFrames then
 		for frame in CompactRaidFrameContainer:GetFrames() do
 			UpdateTrackedBuffs(frame, frame.unit)
@@ -213,11 +224,11 @@ addon.Aura.unitFrame.RefreshAll = RefreshAll
 
 -- Hook the global update function once; Blizzard calls this for every CompactUnitFrame
 hooksecurefunc("CompactUnitFrame_UpdateAuras", function(frame)
-	-- 'displayedUnit' is the unit token Blizzard uses; fall back to frame.unit
-	local unit = frame and frame.displayedUnit or frame.unit
-	if unit then UpdateTrackedBuffs(frame, unit) end
+        -- 'displayedUnit' is the unit token Blizzard uses; fall back to frame.unit
+        local unit = frame and frame.displayedUnit or frame.unit
+        if unit then UpdateTrackedBuffs(frame, unit) end
 end)
--- manageTicker()
+manageTicker()
 
 local function addSpell(tId, spellId)
 	local info = C_Spell.GetSpellInfo(spellId)
@@ -396,7 +407,21 @@ local function buildTrackerOptions(container, id)
 			RefreshAll()
 		end
 	)
-	core:AddChild(sizeSlider)
+        core:AddChild(sizeSlider)
+
+        local timerSlider = addon.functions.createSliderAce(
+                L["TimerTextScale"] .. ": " .. (tracker.timerScale or addon.db.unitFrameAuraTimerScale or 0.6),
+                tracker.timerScale or addon.db.unitFrameAuraTimerScale or 0.6,
+                0.1,
+                2,
+                0.05,
+                function(self, _, val)
+                        tracker.timerScale = val
+                        self:SetLabel(L["TimerTextScale"] .. ": " .. string.format("%.2f", val))
+                        RefreshAll()
+                end
+        )
+        core:AddChild(timerSlider)
 
 	local edit = addon.functions.createEditboxAce(L["AddSpellID"], nil, function(self, _, text)
 		local sid = tonumber(text)
@@ -489,8 +514,9 @@ function addon.Aura.functions.addUnitFrameAuraOptions(container)
 				name = "Tracker " .. newId,
 				anchor = "CENTER",
 				direction = "RIGHT",
-				iconSize = addon.db.unitFrameAuraIconSize or ICON_SIZE,
-				spells = {},
+                                iconSize = addon.db.unitFrameAuraIconSize or ICON_SIZE,
+                                timerScale = addon.db.unitFrameAuraTimerScale or 0.6,
+                                spells = {},
 			}
 			addon.db.unitFrameAuraEnabled[newId] = true
 			selectedTracker = newId

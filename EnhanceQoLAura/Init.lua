@@ -72,10 +72,11 @@ if not addon.db["unitFrameAuraTrackers"] then
 end
 
 for tId, tracker in pairs(addon.db["unitFrameAuraTrackers"]) do
-	if not tracker.anchor then tracker.anchor = "CENTER" end
-	if not tracker.direction then tracker.direction = "RIGHT" end
-	if not tracker.iconSize then tracker.iconSize = addon.db.unitFrameAuraIconSize or 20 end
-	if not tracker.spells then tracker.spells = {} end
+        if not tracker.anchor then tracker.anchor = "CENTER" end
+        if not tracker.direction then tracker.direction = "RIGHT" end
+        if not tracker.iconSize then tracker.iconSize = addon.db.unitFrameAuraIconSize or 20 end
+        if not tracker.timerScale then tracker.timerScale = addon.db.unitFrameAuraTimerScale or 0.6 end
+        if not tracker.spells then tracker.spells = {} end
 	addon.db.unitFrameAuraOrder[tId] = addon.db.unitFrameAuraOrder[tId] or {}
 	local newSpells = {}
 	for id, info in pairs(tracker.spells) do
@@ -131,6 +132,7 @@ addon.functions.InitDBValue("unitFrameAuraIDs", {})
 addon.functions.InitDBValue("unitFrameAuraAnchor", "CENTER")
 addon.functions.InitDBValue("unitFrameAuraDirection", "RIGHT")
 addon.functions.InitDBValue("unitFrameAuraIconSize", 20)
+addon.functions.InitDBValue("unitFrameAuraTimerScale", 0.6)
 addon.functions.InitDBValue("unitFrameAuraShowTime", false)
 addon.functions.InitDBValue("unitFrameAuraShowSwipe", true)
 addon.functions.InitDBValue("unitFrameAuraTrackers", nil)
