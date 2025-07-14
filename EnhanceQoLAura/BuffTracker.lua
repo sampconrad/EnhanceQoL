@@ -34,6 +34,12 @@ local refreshTimeTicker
 
 local LSM = LibStub("LibSharedMedia-3.0")
 
+local function isNumber(val)
+	if type(val) == "number" then return true end
+	if type(val) == "string" then return tonumber(val) ~= nil end
+	return false
+end
+
 local specNames = {}
 local specOrder = {}
 local classNames = {}
@@ -130,6 +136,7 @@ local function evaluateCondition(cond, aura)
 		if cond.operator == "~=" or cond.operator == "!=" then return missing ~= val end
 		return missing == val
 	elseif cond.type == "stack" then
+		if not isNumber(cond.value) then return true end
 		local stacks = aura and aura.applications or 0
 		local val = tonumber(cond.value) or 0
 		if cond.operator == ">" then
@@ -146,6 +153,7 @@ local function evaluateCondition(cond, aura)
 		return stacks == val
 	elseif cond.type == "time" then
 		if not aura or not aura.duration or aura.duration <= 0 then return false end
+		if not isNumber(cond.value) then return true end
 		local remaining = aura.expirationTime - GetTime()
 		local val = tonumber(cond.value) or 0
 		if cond.operator == ">" then
@@ -1087,7 +1095,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 				else
 					local valEdit = addon.functions.createEditboxAce(nil, child.value and tostring(child.value) or "", function(self, _, text)
 						local num = tonumber(text)
-						child.value = num or text
+						child.value = num
 						scanBuffs()
 					end)
 					valEdit:SetRelativeWidth(0.3)
