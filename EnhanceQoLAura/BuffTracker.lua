@@ -258,14 +258,19 @@ local function applySize(id)
 end
 
 local function applyTimerText()
-	for _, frames in pairs(activeBuffFrames) do
-		for _, frame in pairs(frames) do
-			if frame.cd then frame.cd:SetHideCountdownNumbers(not addon.db["buffTrackerShowTimerText"]) end
+	for catId, frames in pairs(activeBuffFrames) do
+		local cat = getCategory(catId)
+		for buffId, frame in pairs(frames) do
+			local buff = cat and cat.buffs and cat.buffs[buffId]
+			local show = buff and buff.showTimerText
+			if show == nil then show = addon.db["buffTrackerShowTimerText"] end
+			if show == nil then show = true end
+			if frame.cd then frame.cd:SetHideCountdownNumbers(not show) end
 		end
 	end
 end
 
-local function createBuffFrame(icon, parent, size, castOnClick, spellID)
+local function createBuffFrame(icon, parent, size, castOnClick, spellID, showTimerText)
 	local frameType = castOnClick and "Button" or "Frame"
 	-- local template = castOnClick and "SecureActionButtonTemplate" or nil
 	local template = nil
@@ -281,7 +286,10 @@ local function createBuffFrame(icon, parent, size, castOnClick, spellID)
 	local cd = CreateFrame("Cooldown", nil, frame, "CooldownFrameTemplate")
 	cd:SetAllPoints(frame)
 	cd:SetDrawEdge(false)
-	cd:SetHideCountdownNumbers(not addon.db["buffTrackerShowTimerText"])
+	local show = showTimerText
+	if show == nil then show = addon.db["buffTrackerShowTimerText"] end
+	if show == nil then show = true end
+	cd:SetHideCountdownNumbers(not show)
 	frame.cd = cd
 
 	local overlay = CreateFrame("Frame", nil, frame)
@@ -370,9 +378,14 @@ local function updateBuff(catId, id, changedId)
 
 	if buff and buff.showAlways then
 		local icon = buff.icon or (aura and aura.icon)
+		local showTimer = buff.showTimerText
+		if showTimer == nil then showTimer = addon.db["buffTrackerShowTimerText"] end
+		if showTimer == nil then showTimer = true end
 		if not frame then
-			frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, false, id)
+			frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, false, id, showTimer)
 			activeBuffFrames[catId][id] = frame
+		else
+			frame.cd:SetHideCountdownNumbers(not showTimer)
 		end
 		frame.icon:SetTexture(icon)
 		if aura then
@@ -411,9 +424,14 @@ local function updateBuff(catId, id, changedId)
 		else
 			local icon = buff.icon
 			local shouldSecure = buff.castOnClick and (IsSpellKnown(id) or IsSpellKnownOrOverridesKnown(id))
+			local showTimer = buff.showTimerText
+			if showTimer == nil then showTimer = addon.db["buffTrackerShowTimerText"] end
+			if showTimer == nil then showTimer = true end
 			if not frame or frame.castOnClick ~= shouldSecure then
-				frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, shouldSecure, id)
+				frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, shouldSecure, id, showTimer)
 				activeBuffFrames[catId][id] = frame
+			else
+				frame.cd:SetHideCountdownNumbers(not showTimer)
 			end
 			frame.icon:SetTexture(icon)
 			frame.icon:SetDesaturated(false)
@@ -435,9 +453,14 @@ local function updateBuff(catId, id, changedId)
 	else
 		if aura then
 			local icon = buff and buff.icon or aura.icon
+			local showTimer = buff and buff.showTimerText
+			if showTimer == nil then showTimer = addon.db["buffTrackerShowTimerText"] end
+			if showTimer == nil then showTimer = true end
 			if not frame then
-				frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, false, id)
+				frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, false, id, showTimer)
 				activeBuffFrames[catId][id] = frame
+			else
+				frame.cd:SetHideCountdownNumbers(not showTimer)
 			end
 			frame.icon:SetTexture(icon)
 			frame.icon:SetDesaturated(false)
@@ -472,7 +495,10 @@ local function updateBuff(catId, id, changedId)
 			frame.auraInstanceID = nil
 		end
 
-		if addon.db["buffTrackerShowStacks"] and aura and aura.applications and aura.applications > 1 then
+		local showStacks = buff and buff.showStacks
+		if showStacks == nil then showStacks = addon.db["buffTrackerShowStacks"] end
+		if showStacks == nil then showStacks = true end
+		if showStacks and aura and aura.applications and aura.applications > 1 then
 			frame.count:SetText(aura.applications)
 			frame.count:Show()
 		else
@@ -586,6 +612,10 @@ local function addBuff(catId, id)
 	local cat = getCategory(catId)
 	if not cat then return end
 
+	local defStacks = addon.db["buffTrackerShowStacks"]
+	if defStacks == nil then defStacks = true end
+	local defTimer = addon.db["buffTrackerShowTimerText"]
+	if defTimer == nil then defTimer = true end
 	cat.buffs[id] = {
 		name = spellData.name,
 		icon = spellData.iconID,
@@ -600,6 +630,8 @@ local function addBuff(catId, id)
 		allowedSpecs = {},
 		allowedClasses = {},
 		allowedRoles = {},
+		showStacks = defStacks,
+		showTimerText = defTimer,
 	}
 
 	if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
@@ -886,16 +918,20 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	end)
 	wrapper:AddChild(cbGlow)
 
-	local cbStacks = addon.functions.createCheckboxAce(L["buffTrackerShowStacks"], addon.db["buffTrackerShowStacks"], function(_, _, val)
-		addon.db["buffTrackerShowStacks"] = val
+	local cbStacks = addon.functions.createCheckboxAce(L["buffTrackerShowStacks"], buff.showStacks == nil and addon.db["buffTrackerShowStacks"] or buff.showStacks, function(_, _, val)
+		buff.showStacks = val
 		scanBuffs()
 	end)
 	wrapper:AddChild(cbStacks)
 
-	local cbTimer = addon.functions.createCheckboxAce(L["buffTrackerShowTimerText"], addon.db["buffTrackerShowTimerText"], function(_, _, val)
-		addon.db["buffTrackerShowTimerText"] = val
-		applyTimerText()
-	end)
+	local cbTimer = addon.functions.createCheckboxAce(
+		L["buffTrackerShowTimerText"],
+		buff.showTimerText == nil and (addon.db["buffTrackerShowTimerText"] ~= nil and addon.db["buffTrackerShowTimerText"] or true) or buff.showTimerText,
+		function(_, _, val)
+			buff.showTimerText = val
+			applyTimerText()
+		end
+	)
 	wrapper:AddChild(cbTimer)
 
 	local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"] }, nil, function(self, _, val)
