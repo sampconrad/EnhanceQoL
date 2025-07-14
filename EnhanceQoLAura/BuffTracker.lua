@@ -442,6 +442,7 @@ local function updateBuff(catId, id, changedId)
 	end
 
 	local condOk = evaluateGroup(buff and buff.conditions, aura)
+	if aura == nil and not hasMissingCondition(buff and buff.conditions) then condOk = false end
 	if not condOk then aura = nil end
 
 	activeBuffFrames[catId] = activeBuffFrames[catId] or {}
@@ -1073,22 +1074,26 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 				typeDrop:SetRelativeWidth(0.3)
 				row:AddChild(typeDrop)
 
-				local opDrop = addon.functions.createDropdownAce(
-					nil,
-					{ [">"] = ">", ["<"] = "<", [">="] = ">=", ["<="] = "<=", ["=="] = "==", ["!="] = "!=" },
-					nil,
-					function(_, _, val) child.operator = val end
-				)
+				local ops = { [">"] = ">", ["<"] = "<", [">="] = ">=", ["<="] = "<=", ["=="] = "==", ["!="] = "!=" }
+				if child.type == "missing" then ops = { ["=="] = "==", ["!="] = "!=" } end
+				local opDrop = addon.functions.createDropdownAce(nil, ops, nil, function(_, _, val) child.operator = val end)
 				opDrop:SetValue(child.operator)
 				opDrop:SetRelativeWidth(0.2)
 				row:AddChild(opDrop)
 
-				local valEdit = addon.functions.createEditboxAce(nil, child.value and tostring(child.value) or "", function(self, _, text)
-					local num = tonumber(text)
-					child.value = num or text
-				end)
-				valEdit:SetRelativeWidth(0.3)
-				row:AddChild(valEdit)
+				if child.type == "missing" then
+					local boolDrop = addon.functions.createDropdownAce(nil, { ["true"] = L["True"], ["false"] = L["False"] }, nil, function(_, _, val) child.value = val == "true" end)
+					boolDrop:SetValue(tostring(child.value))
+					boolDrop:SetRelativeWidth(0.3)
+					row:AddChild(boolDrop)
+				else
+					local valEdit = addon.functions.createEditboxAce(nil, child.value and tostring(child.value) or "", function(self, _, text)
+						local num = tonumber(text)
+						child.value = num or text
+					end)
+					valEdit:SetRelativeWidth(0.3)
+					row:AddChild(valEdit)
+				end
 
 				local remIcon = AceGUI:Create("Icon")
 				remIcon:SetLabel("")
