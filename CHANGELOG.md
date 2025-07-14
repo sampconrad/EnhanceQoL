@@ -15,6 +15,7 @@
   - Unit-Frame settings have been moved into their own *Unit Frame* category.
 ### 🐛 Fixed
 - Performance issue when *Hide buffs on raid-style frames* was enabled.
+- Error in TOC-Files
 
 ## [3.27.0] – 2025-07-11
 ### ✨ Added
