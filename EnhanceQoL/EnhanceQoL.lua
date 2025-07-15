@@ -2371,6 +2371,25 @@ local function addLootFrame(container, d)
 			type = "CheckBox",
 			callback = function(self, _, value) addon.db["autoHideBossBanner"] = value end,
 		},
+		{
+			parent = "",
+			var = "hideAzeriteToast",
+			text = L["hideAzeriteToast"],
+			desc = L["hideAzeriteToastDesc"],
+			type = "CheckBox",
+			callback = function(self, _, value)
+				addon.db["hideAzeriteToast"] = value
+				if value then
+					if AzeriteLevelUpToast then
+						AzeriteLevelUpToast:UnregisterAllEvents()
+						AzeriteLevelUpToast:Hide()
+					end
+				else
+					addon.variables.requireReload = true
+					addon.functions.checkReloadFrame()
+				end
+			end,
+		},
 	}
 
 	table.sort(data, function(a, b)
@@ -3114,6 +3133,7 @@ local function initMisc()
 	addon.functions.InitDBValue("autoCancelCinematic", false)
 	addon.functions.InitDBValue("ignoreTalkingHead", false)
 	addon.functions.InitDBValue("autoHideBossBanner", false)
+	addon.functions.InitDBValue("hideAzeriteToast", false)
 	addon.functions.InitDBValue("hiddenLandingPages", {})
 	addon.functions.InitDBValue("hideMinimapButton", false)
 	addon.functions.InitDBValue("hideBagsBar", false)
@@ -3164,6 +3184,10 @@ local function initMisc()
 	hooksecurefunc(BossBanner, "PlayBanner", function(self)
 		if addon.db["autoHideBossBanner"] then self:Hide() end
 	end)
+	if addon.db["hideAzeriteToast"] and AzeriteLevelUpToast then
+		AzeriteLevelUpToast:UnregisterAllEvents()
+		AzeriteLevelUpToast:Hide()
+	end
 	_G.CompactRaidFrameManager:SetScript("OnShow", function(self) addon.functions.toggleRaidTools(addon.db["hideRaidTools"], self) end)
 	ExpansionLandingPageMinimapButton:HookScript("OnShow", function(self)
 		local id = addon.variables.landingPageReverse[self.title]

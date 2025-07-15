@@ -100,6 +100,7 @@ Each action bar can be set to appear only on mouseover:
 - **Open the character frame when upgrading items at the vendor** (Open the character frame when upgrading items at the vendor).
 - **Quick loot items** (Quick loot items).
 - **Automatically hide Boss Banner** (Automatically hide Boss Banner).
+- **Disable Azerite power toast** (Disable Azerite power toast).
 - **Instant Catalyst button** (Instant Catalyst button).
 - **Enable custom loot toasts** (Enable custom loot toasts): suppresses the default toast frame and only shows messages for items that pass your filters.
 - **Set item level thresholds per rarity** (Set item level thresholds per rarity): choose minimum item levels per quality before a toast appears.
