@@ -11,10 +11,11 @@ addon.Aura.functions = {}
 addon.Aura.variables = {}
 addon.Aura.sounds = {}
 addon.LAura = {} -- Locales for aura
+local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 
 addon.functions.InitDBValue("buffTrackerCategories", {
 	[1] = {
-		name = "Example",
+		name = string.format("%s", L["Example"]),
 		point = "CENTER",
 		x = 0,
 		y = 0,
