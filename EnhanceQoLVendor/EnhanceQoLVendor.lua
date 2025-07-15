@@ -226,14 +226,7 @@ local function registerEvents(frame)
 end
 
 local function eventHandler(self, event, ...)
-	if eventHandlers[event] then
-		if addon.Performance and addon.Performance.MeasurePerformance then
-			addon.Performance.MeasurePerformance(addonName, event, eventHandlers[event], ...)
-		else
-			-- Normale Event-Verarbeitung
-			eventHandlers[event](...)
-		end
-	end
+	if eventHandlers[event] then eventHandlers[event](...) end
 end
 
 registerEvents(frameLoad)
