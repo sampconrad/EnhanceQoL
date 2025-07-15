@@ -99,6 +99,7 @@ Each action bar can be set to appear only on mouseover:
 - **Automatically confirm to sell tradeable loot** (Automatically confirm to sell tradeable loot within the trade window time frame).
 - **Open the character frame when upgrading items at the vendor** (Open the character frame when upgrading items at the vendor).
 - **Quick loot items** (Quick loot items).
+- **Automatically hide Boss Banner** (Automatically hide Boss Banner).
 - **Instant Catalyst button** (Instant Catalyst button).
 - **Enable custom loot toasts** (Enable custom loot toasts): suppresses the default toast frame and only shows messages for items that pass your filters.
 - **Set item level thresholds per rarity** (Set item level thresholds per rarity): choose minimum item levels per quality before a toast appears.
