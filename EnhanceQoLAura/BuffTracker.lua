@@ -586,36 +586,49 @@ local function updateBuff(catId, id, changedId)
 				ActionButton_HideOverlayGlow(frame)
 			end
 			frame:Show()
-		else
-			local icon = buff.icon
-			local shouldSecure = buff.castOnClick and (IsSpellKnown(id) or IsSpellKnownOrOverridesKnown(id))
-			local showTimer = buff.showTimerText
-			if showTimer == nil then showTimer = addon.db["buffTrackerShowTimerText"] end
-			if showTimer == nil then showTimer = true end
-			if not frame or frame.castOnClick ~= shouldSecure then
-				frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, shouldSecure, id, showTimer)
-				activeBuffFrames[catId][id] = frame
-			else
-				frame.cd:SetHideCountdownNumbers(not showTimer)
-			end
-			frame.icon:SetTexture(icon)
-			frame.icon:SetDesaturated(false)
-			frame.icon:SetAlpha(1)
-			frame.cd:Clear()
-			if shouldSecure then
-				frame:EnableMouse(true)
-				frame:RegisterForClicks("AnyUp", "AnyDown")
-			end
-			if not wasShown then playBuffSound(catId, id, triggeredId) end
-			frame.isActive = hasMissingCondition(buff and buff.conditions)
-			if buff.glow then
-				ActionButton_ShowOverlayGlow(frame)
-			else
-				ActionButton_HideOverlayGlow(frame)
-			end
-			frame:Show()
-		end
-	else
+                else
+                        local icon = buff.icon
+                        local shouldSecure = buff.castOnClick and (IsSpellKnown(id) or IsSpellKnownOrOverridesKnown(id))
+                        local showTimer = buff.showTimerText
+                        if showTimer == nil then showTimer = addon.db["buffTrackerShowTimerText"] end
+                        if showTimer == nil then showTimer = true end
+                        if not frame or frame.castOnClick ~= shouldSecure then
+                                frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, shouldSecure, id, showTimer)
+                                activeBuffFrames[catId][id] = frame
+                        else
+                                frame.cd:SetHideCountdownNumbers(not showTimer)
+                        end
+                        frame.icon:SetTexture(icon)
+                        local cdStart, cdDur, cdEnable, modRate
+                        if buff.showCooldown then cdStart, cdDur, cdEnable, modRate = getSpellCooldown(id) end
+                        if buff.showCooldown and cdEnable and cdDur and cdDur > 0 and cdStart > 0 and (cdStart + cdDur) > GetTime() then
+                                frame.cd:SetCooldown(cdStart, cdDur, modRate)
+                                frame.icon:SetDesaturated(true)
+                                frame.icon:SetAlpha(0.5)
+                                frame.cd:SetScript("OnCooldownDone", function()
+                                        frame.icon:SetDesaturated(false)
+                                        frame.icon:SetAlpha(1)
+                                end)
+                        else
+                                frame.cd:Clear()
+                                frame.cd:SetScript("OnCooldownDone", nil)
+                                frame.icon:SetDesaturated(false)
+                                frame.icon:SetAlpha(1)
+                        end
+                        if shouldSecure then
+                                frame:EnableMouse(true)
+                                frame:RegisterForClicks("AnyUp", "AnyDown")
+                        end
+                        if not wasShown then playBuffSound(catId, id, triggeredId) end
+                        frame.isActive = hasMissingCondition(buff and buff.conditions)
+                        if buff.glow then
+                                ActionButton_ShowOverlayGlow(frame)
+                        else
+                                ActionButton_HideOverlayGlow(frame)
+                        end
+                        frame:Show()
+                end
+        else
 		if frame then
 			frame.isActive = false
 			ActionButton_HideOverlayGlow(frame)
@@ -709,7 +722,7 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 		end
 	end
 
-	if event == "UNIT_AURA" and unit == "player" then
+        if event == "UNIT_AURA" and unit == "player" then
 		local eventInfo = ...
 		if eventInfo then
 			local changed = {}
@@ -753,13 +766,30 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 			end
 			return
 		end
-	end
+        end
 
-	scanBuffs()
+        if event == "SPELL_UPDATE_COOLDOWN" then
+                local updated = {}
+                for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
+                        if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
+                                for id, buff in pairs(cat.buffs) do
+                                        if buff.showCooldown then
+                                                updateBuff(catId, id)
+                                                updated[catId] = true
+                                        end
+                                end
+                        end
+                end
+                for catId in pairs(updated) do updatePositions(catId) end
+                return
+        end
+
+        scanBuffs()
 end)
 eventFrame:RegisterUnitEvent("UNIT_AURA", "player")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
+eventFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
 
 local function addBuff(catId, id)
 	-- get spell name and icon once
