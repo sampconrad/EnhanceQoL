@@ -782,6 +782,7 @@ local function removeBuff(catId, id)
 	cat.buffs[id] = nil
 	addon.db["buffTrackerHidden"][id] = nil
 	addon.db["buffTrackerSounds"][catId][id] = nil
+	if addon.db["buffTrackerSoundsEnabled"] and addon.db["buffTrackerSoundsEnabled"][catId] then addon.db["buffTrackerSoundsEnabled"][catId][id] = nil end
 	if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
 	for i, v in ipairs(addon.db["buffTrackerOrder"][catId]) do
 		if v == id then
@@ -1088,8 +1089,16 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 			}
 		StaticPopupDialogs["EQOL_DELETE_CATEGORY"].OnShow = function(self) self:SetFrameStrata("FULLSCREEN_DIALOG") end
 		StaticPopupDialogs["EQOL_DELETE_CATEGORY"].OnAccept = function()
+			-- clean up all buff data for this category
+			for buffId in pairs(addon.db["buffTrackerCategories"][catId].buffs or {}) do
+				addon.db["buffTrackerHidden"][buffId] = nil
+			end
 			addon.db["buffTrackerCategories"][catId] = nil
 			addon.db["buffTrackerOrder"][catId] = nil
+			addon.db["buffTrackerSounds"][catId] = nil
+			addon.db["buffTrackerSoundsEnabled"][catId] = nil
+			addon.db["buffTrackerEnabled"][catId] = nil
+			addon.db["buffTrackerLocked"][catId] = nil
 			if anchors[catId] then
 				anchors[catId]:Hide()
 				anchors[catId] = nil
