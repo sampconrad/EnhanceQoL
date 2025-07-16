@@ -240,6 +240,14 @@ local function rebuildAltMapping()
 	end
 end
 
+local function getNextCategoryId()
+	local max = 0
+	for id in pairs(addon.db["buffTrackerCategories"]) do
+		if type(id) == "number" and id > max then max = id end
+	end
+	return max + 1
+end
+
 local function ensureAnchor(id)
 	if anchors[id] then return anchors[id] end
 
@@ -823,6 +831,8 @@ local function exportCategory(catId, forChat)
 	local data = {
 		category = cat,
 		order = addon.db["buffTrackerOrder"][catId] or {},
+		sounds = addon.db["buffTrackerSounds"][catId] or {},
+		soundsEnabled = addon.db["buffTrackerSoundsEnabled"][catId] or {},
 		version = 1,
 	}
 	local serializer = LibStub("AceSerializer-3.0")
@@ -846,14 +856,29 @@ local function importCategory(encoded)
 	local cat = data.category or data.cat or data
 	if type(cat) ~= "table" then return end
 	sanitiseCategory(cat)
-	local newId = (#addon.db["buffTrackerCategories"] or 0) + 1
+	local newId = getNextCategoryId()
 	addon.db["buffTrackerCategories"][newId] = cat
 	addon.db["buffTrackerOrder"][newId] = data.order or {}
 	addon.db["buffTrackerEnabled"][newId] = true
 	addon.db["buffTrackerLocked"][newId] = false
+
+	addon.db["buffTrackerSounds"][newId] = {}
+	addon.db["buffTrackerSoundsEnabled"][newId] = {}
+	local missing = {}
+	if type(data.sounds) == "table" and type(data.soundsEnabled) == "table" then
+		for id, sound in pairs(data.sounds) do
+			if addon.Aura.sounds[sound] then
+				addon.db["buffTrackerSounds"][newId][id] = sound
+				if data.soundsEnabled[id] then addon.db["buffTrackerSoundsEnabled"][newId][id] = true end
+			else
+				table.insert(missing, tostring(sound))
+			end
+		end
+	end
 	ensureAnchor(newId)
 	rebuildAltMapping()
 	scanBuffs()
+	if #missing > 0 then print((L["ImportCategoryMissingSounds"] or "Missing sounds: %s"):format(table.concat(missing, ", "))) end
 	return newId
 end
 
@@ -1036,6 +1061,7 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 				preferredIndex = 3,
 			}
 		StaticPopupDialogs["EQOL_EXPORT_CATEGORY"].OnShow = function(self)
+			self:SetFrameStrata("FULLSCREEN_DIALOG")
 			self.editBox:SetText(data)
 			self.editBox:HighlightText()
 			self.editBox:SetFocus()
@@ -1056,6 +1082,7 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 				hideOnEscape = true,
 				preferredIndex = 3,
 			}
+		StaticPopupDialogs["EQOL_DELETE_CATEGORY"].OnShow = function(self) self:SetFrameStrata("FULLSCREEN_DIALOG") end
 		StaticPopupDialogs["EQOL_DELETE_CATEGORY"].OnAccept = function()
 			addon.db["buffTrackerCategories"][catId] = nil
 			addon.db["buffTrackerOrder"][catId] = nil
@@ -1405,7 +1432,7 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 		-- Handle click on pseudo‑node for adding new categories
 		if value == "ADD_CATEGORY" then
 			-- create a new category with default settings
-			local newId = (#addon.db["buffTrackerCategories"] or 0) + 1
+			local newId = getNextCategoryId()
 			addon.db["buffTrackerCategories"][newId] = {
 				name = L["NewCategoryName"] or "New",
 				point = "CENTER",
@@ -1417,6 +1444,8 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 			}
 			addon.db["buffTrackerEnabled"][newId] = true
 			addon.db["buffTrackerLocked"][newId] = false
+			addon.db["buffTrackerSounds"][newId] = {}
+			addon.db["buffTrackerSoundsEnabled"][newId] = {}
 			ensureAnchor(newId)
 			refreshTree(newId)
 			return -- don’t build options for pseudo‑node
@@ -1457,6 +1486,7 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 				preferredIndex = 3,
 			}
 		StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnShow = function(self)
+			self:SetFrameStrata("FULLSCREEN_DIALOG")
 			self.editBox:SetText("")
 			self.editBox:SetFocus()
 		end

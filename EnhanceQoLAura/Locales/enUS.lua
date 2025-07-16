@@ -46,3 +46,4 @@ L["AlternativeSpellInfo"] = "Alternative spell IDs are treated as the same aura.
 L["ExportCategory"] = "Export Category"
 L["ImportCategory"] = "Import Category"
 L["ImportCategoryError"] = "Invalid category string"
+L["ImportCategoryMissingSounds"] = "The following sound files were not imported: %s"
