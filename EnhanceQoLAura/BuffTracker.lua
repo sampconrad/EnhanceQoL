@@ -706,6 +706,19 @@ local function scanBuffs()
 	refreshTimeTicker()
 end
 
+local function collectActiveAuras()
+    for _, filter in ipairs({ "HELPFUL", "HARMFUL" }) do
+        local i = 1
+        local aura = C_UnitAuras.GetAuraDataByIndex("player", i, filter)
+        while aura do
+            local base = altToBase[aura.spellId] or aura.spellId
+            auraInstanceMap[aura.auraInstanceID] = { buffId = base }
+            i = i + 1
+            aura = C_UnitAuras.GetAuraDataByIndex("player", i, filter)
+        end
+    end
+end
+
 addon.Aura.buffAnchors = anchors
 addon.Aura.scanBuffs = scanBuffs
 
@@ -720,13 +733,14 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 				anchor:Hide()
 			end
 		end
-		if event == "PLAYER_LOGIN" then
+			if event == "PLAYER_LOGIN" then
 			addon.Aura.functions.BuildSoundTable()
 			rebuildAltMapping()
+			collectActiveAuras()
 			C_Timer.After(1, scanBuffs)
 			return
-		end
-	end
+end
+end
 
 	if event == "UNIT_AURA" and unit == "player" then
 		local eventInfo = ...
