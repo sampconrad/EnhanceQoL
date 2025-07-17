@@ -113,6 +113,17 @@ local function addResourceFrame(container)
 		end
 
 		local anchorPoints = {
+			TOPLEFT = "TOPLEFT",
+			TOP = "TOP",
+			TOPRIGHT = "TOPRIGHT",
+			LEFT = "LEFT",
+			CENTER = "CENTER",
+			RIGHT = "RIGHT",
+			BOTTOMLEFT = "BOTTOMLEFT",
+			BOTTOM = "BOTTOM",
+			BOTTOMRIGHT = "BOTTOMRIGHT",
+		}
+		local anchorOrder = {
 			"TOPLEFT",
 			"TOP",
 			"TOPRIGHT",
@@ -144,14 +155,14 @@ local function addResourceFrame(container)
 			dropFrame:SetValue(info.relativeFrame or "UIParent")
 			parent:AddChild(dropFrame)
 
-			local dropPoint = addon.functions.createDropdownAce("Point", anchorPoints, nil, function(self, _, val)
+			local dropPoint = addon.functions.createDropdownAce("Point", anchorPoints, anchorOrder, function(self, _, val)
 				info.point = val
 				if addon.Aura.ResourceBars then addon.Aura.ResourceBars.Refresh() end
 			end)
 			dropPoint:SetValue(info.point or "TOPLEFT")
 			parent:AddChild(dropPoint)
 
-			local dropRelPoint = addon.functions.createDropdownAce("Relative Point", anchorPoints, nil, function(self, _, val)
+			local dropRelPoint = addon.functions.createDropdownAce("Relative Point", anchorPoints, anchorOrder, function(self, _, val)
 				info.relativePoint = val
 				if addon.Aura.ResourceBars then addon.Aura.ResourceBars.Refresh() end
 			end)
