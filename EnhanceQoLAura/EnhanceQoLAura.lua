@@ -13,12 +13,12 @@ end
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 local AceGUI = addon.AceGUI
 
-local resourceBarsLoaded = false
+local resourceBarsLoaded = addon.Aura.ResourceBars ~= nil
 local function LoadResourceBars()
-	if not resourceBarsLoaded then
-		addon.Aura.ResourceBars = dofile("Interface/AddOns/" .. addonName .. "/ResourceBars.lua")
-		resourceBarsLoaded = true
-	end
+        if not resourceBarsLoaded then
+                addon.Aura.ResourceBars = addon.Aura.ResourceBars or {}
+                resourceBarsLoaded = true
+        end
 end
 
 local function addResourceFrame(container)
