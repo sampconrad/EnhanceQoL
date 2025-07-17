@@ -410,6 +410,14 @@ local function setPowerbars()
 	end
 end
 
+local resourceBarsLoaded = addon.Aura.ResourceBars ~= nil
+local function LoadResourceBars()
+	if not resourceBarsLoaded then
+		addon.Aura.ResourceBars = addon.Aura.ResourceBars or {}
+		resourceBarsLoaded = true
+	end
+end
+
 local function eventHandler(self, event, unit, arg1)
 	if event == "UNIT_DISPLAYPOWER" and unit == "player" then
 		setPowerbars()
@@ -426,6 +434,12 @@ local function eventHandler(self, event, unit, arg1)
 		updatePowerBar(arg1)
 	elseif event == "UNIT_MAXPOWER" and powerbar[arg1] and powerbar[arg1]:IsShown() then
 		updatePowerBar(arg1)
+	elseif event == "PLAYER_LOGIN" then
+		if addon.db["enableResourceFrame"] then
+			LoadResourceBars()
+			addon.Aura.ResourceBars.EnableResourceBars()
+		end
+		frameAnchor:UnregisterEvent("PLAYER_LOGIN")
 	end
 end
 
@@ -440,6 +454,7 @@ function ResourceBars.EnableResourceBars()
 	frameAnchor:RegisterEvent("PLAYER_ENTERING_WORLD")
 	frameAnchor:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
 	frameAnchor:RegisterEvent("TRAIT_CONFIG_UPDATED")
+	frameAnchor:RegisterEvent("PLAYER_LOGIN")
 	frameAnchor:SetScript("OnEvent", eventHandler)
 	frameAnchor:Hide()
 

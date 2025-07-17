@@ -13,14 +13,6 @@ end
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 local AceGUI = addon.AceGUI
 
-local resourceBarsLoaded = addon.Aura.ResourceBars ~= nil
-local function LoadResourceBars()
-	if not resourceBarsLoaded then
-		addon.Aura.ResourceBars = addon.Aura.ResourceBars or {}
-		resourceBarsLoaded = true
-	end
-end
-
 local function addResourceFrame(container)
 	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
 	scroll:SetFullWidth(true)
@@ -40,7 +32,6 @@ local function addResourceFrame(container)
 			func = function(self, _, value)
 				addon.db["enableResourceFrame"] = value
 				if value then
-					LoadResourceBars()
 					addon.Aura.ResourceBars.EnableResourceBars()
 				elseif addon.Aura.ResourceBars and addon.Aura.ResourceBars.DisableResourceBars then
 					addon.Aura.ResourceBars.DisableResourceBars()
@@ -286,7 +277,4 @@ function addon.Aura.functions.treeCallback(container, group)
 	end
 end
 
-if addon.db["enableResourceFrame"] then
-	LoadResourceBars()
-	addon.Aura.ResourceBars.EnableResourceBars()
-end
+
