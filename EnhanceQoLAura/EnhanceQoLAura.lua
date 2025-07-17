@@ -259,14 +259,16 @@ local function addResourceFrame(container)
 						end)
 						container:AddChild(sFont)
 
-						local frames = {}
-						for k, v in pairs(baseFrameList) do
-							frames[k] = v
-						end
-						frames.EQOLHealthBar = "EQOLHealthBar"
-						for _, t in ipairs(addon.Aura.ResourceBars.classPowerTypes) do
-							if dbSpec[t] and dbSpec[t].enabled ~= false then frames["EQOL" .. t .. "Bar"] = "EQOL" .. t .. "Bar" end
-						end
+                                                local frames = {}
+                                                for k, v in pairs(baseFrameList) do
+                                                        frames[k] = v
+                                                end
+                                                frames.EQOLHealthBar = "EQOLHealthBar"
+                                                for _, t in ipairs(addon.Aura.ResourceBars.classPowerTypes) do
+                                                        if t ~= real and dbSpec[t] and dbSpec[t].enabled ~= false then
+                                                                frames["EQOL" .. t .. "Bar"] = "EQOL" .. t .. "Bar"
+                                                        end
+                                                end
 
 						addAnchorOptions(real, container, cfg.anchor, frames)
 					end
