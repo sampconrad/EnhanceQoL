@@ -24,6 +24,6 @@ locales.xml
 Init.lua
 ..\EnhanceQoL\widgets\DragTreeGroup.lua
 
-EnhanceQoLAura.lua
 ResourceBars.lua
+EnhanceQoLAura.lua
 BuffTracker.lua
