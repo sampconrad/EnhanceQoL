@@ -222,13 +222,13 @@ local function addResourceFrame(container)
 
 					local cfg = dbSpec[real]
 					local label = _G[real] or real
-					local cb = addon.functions.createCheckboxAce(label, cfg.enabled, function(self, _, val)
-						cfg.enabled = val
-						addon.Aura.ResourceBars.Refresh()
-						container:ReleaseChildren()
-						addResourceFrame(container)
-						buildSpec(tabContainerMain, val)
-					end)
+                                        local cb = addon.functions.createCheckboxAce(label, cfg.enabled, function(self, _, val)
+                                                cfg.enabled = val
+                                                addon.Aura.ResourceBars.Refresh()
+                                                container:ReleaseChildren()
+                                                addResourceFrame(container)
+                                                buildSpec(tabContainerMain, specIndex)
+                                        end)
 					container:AddChild(cb)
 
 					if cfg.enabled then
