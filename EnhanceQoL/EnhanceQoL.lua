@@ -3278,11 +3278,16 @@ local function initUnitFrame()
 	end
 	hooksecurefunc("CompactUnitFrame_SetUpFrame", DisableBlizzBuffs)
 
-	local function TruncateFrameName(cuf)
-		if not addon.db["unitFrameTruncateNames"] then return end
-		if not addon.db["unitFrameMaxNameLength"] then return end
-		if cuf and cuf.name and cuf.name:GetText() then
-			local name = cuf.name:GetText()
+        local function TruncateFrameName(cuf)
+                if not addon.db["unitFrameTruncateNames"] then return end
+                if not addon.db["unitFrameMaxNameLength"] then return end
+                if cuf
+                        and cuf.name
+                        and type(cuf.name.GetText) == "function"
+                        and type(cuf.name.SetText) == "function"
+                        and cuf.name:GetText()
+                then
+                        local name = cuf.name:GetText()
 			-- Remove server names before truncation
 			local shortName = strsplit("-", name)
 			if #shortName > addon.db["unitFrameMaxNameLength"] then shortName = strsub(shortName, 1, addon.db["unitFrameMaxNameLength"]) end
