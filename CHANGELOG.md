@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.30.1] – 2025-07-16
+### 🐛 Fixed
+- **Aura Tracker on Login without Duration**
+  - Fallback condition added when sometimes Timer-Texts are missing during login
+
 ## [3.30.0] – 2025-07-16
 ### ✨ Added
 - **Aura Tracker**
