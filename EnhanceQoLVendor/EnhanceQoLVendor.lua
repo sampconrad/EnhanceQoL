@@ -11,6 +11,16 @@ local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Vendor")
 local lastEbox = nil
 local sellMoreButton
 local hasMoreItems = false
+local sellMarkLookup = {}
+local updateSellMarks
+
+local function inventoryOpen()
+	if ContainerFrameCombinedBags:IsShown() then return true end
+	for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
+		if frame:IsShown() then return true end
+	end
+	return false
+end
 
 local function updateSellMoreButton()
 	if not sellMoreButton then return end
@@ -61,9 +71,7 @@ local function sellItems(items)
 	sellNextItem()
 end
 
-local function checkItem()
-	hasMoreItems = false
-	updateSellMoreButton()
+local function lookupItems()
 	local _, avgItemLevelEquipped = GetAverageItemLevel()
 	local itemsToSell = {}
 	for bag = 0, NUM_TOTAL_EQUIPPED_BAG_SLOTS do
@@ -158,6 +166,15 @@ local function checkItem()
 			end
 		end
 	end
+	return itemsToSell
+end
+
+local function checkItem()
+	hasMoreItems = false
+	updateSellMoreButton()
+	local _, avgItemLevelEquipped = GetAverageItemLevel()
+	local itemsToSell = lookupItems() or {}
+
 	if #itemsToSell > 0 then
 		if addon.db["vendorOnly12Items"] then
 			if #itemsToSell > 12 then hasMoreItems = true end
@@ -470,6 +487,22 @@ local function addGeneralFrame(container)
 			desc = L["vendorAltClickIncludeDesc"],
 			var = "vendorAltClickInclude",
 		},
+		{
+			text = L["vendorShowSellOverlay"],
+			var = "vendorShowSellOverlay",
+			func = function(self, _, checked)
+				addon.db["vendorShowSellOverlay"] = checked
+				if inventoryOpen() then updateSellMarks() end
+			end,
+		},
+		{
+			text = L["vendorShowSellTooltip"],
+			var = "vendorShowSellTooltip",
+			func = function(self, _, checked)
+				addon.db["vendorShowSellTooltip"] = checked
+				if inventoryOpen() then updateSellMarks() end
+			end,
+		},
 	}
 	table.sort(data, function(a, b) return a.text < b.text end)
 
@@ -521,6 +554,70 @@ function addon.Vendor.functions.treeCallback(container, group)
 	end
 end
 
+function updateSellMarks()
+	local overlay = addon.db["vendorShowSellOverlay"]
+	local tooltip = addon.db["vendorShowSellTooltip"]
+
+	if not overlay and not tooltip then
+		local frames = { ContainerFrameCombinedBags }
+		for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
+			table.insert(frames, frame)
+		end
+
+		for _, frame in ipairs(frames) do
+			if frame and frame:IsShown() then
+				for _, itemButton in frame:EnumerateValidItems() do
+					if itemButton.ItemMarkSell then
+						itemButton.ItemMarkSell:Hide()
+						itemButton.SellOverlay:Hide()
+					end
+				end
+			end
+		end
+		wipe(sellMarkLookup)
+		return
+	end
+
+	wipe(sellMarkLookup)
+
+	local items = lookupItems() or {}
+	for _, v in ipairs(items) do
+		sellMarkLookup[v.bag .. "_" .. v.slot] = true
+	end
+
+	local frames = { ContainerFrameCombinedBags }
+	for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
+		table.insert(frames, frame)
+	end
+
+	for _, frame in ipairs(frames) do
+		if frame and frame:IsShown() then
+			for _, itemButton in frame:EnumerateValidItems() do
+				local bag = itemButton:GetBagID()
+				local slot = itemButton:GetID()
+				local key = bag .. "_" .. slot
+				if overlay and sellMarkLookup[key] then
+					if not itemButton.ItemMarkSell then
+						itemButton.ItemMarkSell = itemButton:CreateTexture(nil, "OVERLAY", nil, 7)
+						itemButton.ItemMarkSell:SetTexture("Interface\\AddOns\\EnhanceQoLVendor\\Art\\sell.tga")
+						itemButton.ItemMarkSell:SetSize(24, 24)
+						itemButton.ItemMarkSell:SetVertexColor(0, 1, 1, 1)
+						itemButton.ItemMarkSell:SetPoint("CENTER", itemButton, "CENTER", 1, 1)
+						itemButton.SellOverlay = itemButton:CreateTexture(nil, "OVERLAY", nil, 6)
+						itemButton.SellOverlay:SetAllPoints()
+						itemButton.SellOverlay:SetColorTexture(1, 0, 0, 0.45)
+					end
+					itemButton.ItemMarkSell:Show()
+					itemButton.SellOverlay:Show()
+				elseif itemButton.ItemMarkSell then
+					itemButton.ItemMarkSell:Hide()
+					itemButton.SellOverlay:Hide()
+				end
+			end
+		end
+	end
+end
+
 local function AltClickHook(self, button)
 	if not addon.db["vendorAltClickInclude"] then return end
 	if not IsAltKeyDown() or not (button == "LeftButton" or button == "RightButton") then return end
@@ -547,9 +644,30 @@ local function AltClickHook(self, button)
 						print(REMOVE .. ":", id, name)
 					end
 				end
+				updateSellMarks()
 			end)
 		end
 	end
 end
 
 hooksecurefunc(_G.ContainerFrameItemButtonMixin, "OnModifiedClick", AltClickHook)
+
+hooksecurefunc(ContainerFrameCombinedBags, "UpdateItems", updateSellMarks)
+for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
+	hooksecurefunc(frame, "UpdateItems", updateSellMarks)
+end
+
+if TooltipDataProcessor then
+	TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
+		if not addon.db["vendorShowSellTooltip"] then return end
+		if not data or not tooltip.GetOwner then return end
+		local oTooltip = tooltip.GetOwner and tooltip:GetOwner()
+		if not oTooltip or not oTooltip.GetBagID or not oTooltip.GetID then return end
+		local bagID = oTooltip:GetBagID()
+		local slotIndex = oTooltip:GetID()
+		if bagID and slotIndex then
+			local key = bagID .. "_" .. slotIndex
+			if sellMarkLookup[key] then tooltip:AddLine(L["vendorWillBeSold"], 1, 0, 0) end
+		end
+	end)
+end

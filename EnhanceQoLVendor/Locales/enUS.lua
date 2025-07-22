@@ -16,6 +16,8 @@ L["vendorOnly12Items"] = "Limits the number of items sold per transaction to 12,
 L["vendorOnly12ItemsDesc"] = 'Adds a "Sell next" Button to the Merchant to sell the next Batch'
 L["vendorAltClickInclude"] = "Enable Alt-Click add/remove"
 L["vendorAltClickIncludeDesc"] = "Alt+Left-click an item in your inventory to add it to the include list; Alt+Right-click removes it"
+L["vendorShowSellOverlay"] = "Highlight items marked for sale in inventory"
+L["vendorShowSellTooltip"] = "Show sale marker info in tooltips"
 L["bagFilterUpgradeLevel"] = "Upgrade Level"
 L["upgradeLevelVeteran"] = "Veteran"
 L["upgradeLevelChampion"] = "Champion"
@@ -43,3 +45,4 @@ L["andWord"] = "and"
 L["vendorCraftingExpansions"] = "Include crafting materials (grouped by expansion)"
 
 L["vendorSellNext"] = "Sell next"
+L["vendorWillBeSold"] = "Marked for sale"
