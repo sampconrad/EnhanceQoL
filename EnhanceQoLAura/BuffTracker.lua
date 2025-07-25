@@ -1874,44 +1874,45 @@ for _, ev in ipairs({
 	ChatFrame_AddMessageEventFilter(ev, EQOL_ChatFilter)
 end
 
-local origSetItemRef = SetItemRef
-function SetItemRef(link, text, button, frame, ...)
-	local label = link:match("^garrmission:eqolaura:(.+)")
-	if label then
-		local pktID = pending[label]
-		if pktID and incoming[pktID] then
-			StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"] = StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"]
-				or {
-					text = L["ImportCategory"],
-					button1 = ACCEPT,
-					button2 = CANCEL,
-					timeout = 0,
-					whileDead = true,
-					hideOnEscape = true,
-					preferredIndex = 3,
-					OnAccept = function(_, data)
-						local encoded = incoming[data]
-						incoming[data] = nil
-						pending[label] = nil
-						local newId = importCategory(encoded)
-						if newId then refreshTree(newId) end
-					end,
-				}
-			StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"].OnShow = function(self, data)
-				local encoded = incoming[data]
-				local name, count = previewImportCategory(encoded or "")
-				if name then
-					self.text:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
-				else
-					self.text:SetText(L["ImportCategory"])
-				end
-			end
-			StaticPopup_Show("EQOL_IMPORT_FROM_SHARE", nil, nil, pktID)
-			return
-		end
-	end
-	origSetItemRef(link, text, button, frame, ...)
+local function HandleEQOLLink(link, text, button, frame)
+       local label = link:match("^garrmission:eqolaura:(.+)")
+       if not label then return end
+
+       local pktID = pending[label]
+       if not (pktID and incoming[pktID]) then return end
+
+       StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"] = StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"]
+               or {
+                       text = L["ImportCategory"],
+                       button1 = ACCEPT,
+                       button2 = CANCEL,
+                       timeout = 0,
+                       whileDead = true,
+                       hideOnEscape = true,
+                       preferredIndex = 3,
+                       OnAccept = function(_, data)
+                               local encoded = incoming[data]
+                               incoming[data] = nil
+                               pending[label] = nil
+                               local newId = importCategory(encoded)
+                               if newId then refreshTree(newId) end
+                       end,
+               }
+
+       StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"].OnShow = function(self, data)
+               local encoded = incoming[data]
+               local name, count = previewImportCategory(encoded or "")
+               if name then
+                       self.text:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
+               else
+                       self.text:SetText(L["ImportCategory"])
+               end
+       end
+
+       StaticPopup_Show("EQOL_IMPORT_FROM_SHARE", nil, nil, pktID)
 end
+
+hooksecurefunc("SetItemRef", HandleEQOLLink)
 
 local function OnComm(prefix, message, dist, sender)
 	if prefix ~= COMM_PREFIX then return end
