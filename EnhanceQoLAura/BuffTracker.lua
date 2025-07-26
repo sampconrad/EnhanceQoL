@@ -15,6 +15,7 @@ local AceGUI = addon.AceGUI
 local bleedList = {
 	-- Cinderbrew Meatery
 	[441413] = true, -- Shredding Sting
+	[438975] = true, -- Shredding Sting - Boss Ability
 	[434773] = true, -- mean mug
 }
 
@@ -1457,6 +1458,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 
 	local groupCore = addon.functions.createContainer("InlineGroup", "List")
 	container:AddChild(groupCore)
+	groupCore:SetFullHeight(true)
 
 	local wrapper = addon.functions.createContainer("SimpleGroup", "List")
 	groupCore:AddChild(wrapper)
