@@ -20,6 +20,17 @@ local framePools = {}
 local activeBars = {}
 local activeOrder = {}
 local altToBase = {}
+local spellToCat = {} -- [spellID] = { [catId]=true, ... }
+
+local function rebuildSpellIndex()
+	wipe(spellToCat)
+	for catId, cat in pairs(addon.db.castTrackerCategories or {}) do
+		for sid in pairs(cat.spells or {}) do
+			spellToCat[sid] = spellToCat[sid] or {}
+			spellToCat[sid][catId] = true
+		end
+	end
+end
 
 local function rebuildAltMapping()
 	wipe(altToBase)
@@ -37,6 +48,7 @@ local function rebuildAltMapping()
 			end
 		end
 	end
+	rebuildSpellIndex()
 end
 local selectedCategory = addon.db["castTrackerSelectedCategory"] or 1
 local treeGroup
@@ -692,14 +704,14 @@ function CastTracker.functions.StartBar(spellId, sourceGUID, catId)
 	bar:SetScript("OnUpdate", BarUpdate)
 	table.insert(activeOrder[catId], bar)
 	CastTracker.functions.LayoutBars(catId)
-       if db.sound then
-               local file = addon.Aura.sounds and addon.Aura.sounds[db.sound]
-               if file then
-                       PlaySoundFile(file, "Master")
-               else
-                       PlaySound(db.sound)
-               end
-       end
+	if db.sound then
+		local file = addon.Aura.sounds and addon.Aura.sounds[db.sound]
+		if file then
+			PlaySoundFile(file, "Master")
+		else
+			PlaySound(db.sound)
+		end
+	end
 end
 
 CastTracker.functions.AcquireBar = AcquireBar
@@ -710,11 +722,13 @@ CastTracker.functions.UpdateActiveBars = UpdateActiveBars
 local function HandleCLEU()
 	local _, subevent, _, sourceGUID, _, sourceFlags, _, destGUID, _, _, _, spellId = CombatLogGetCurrentEventInfo()
 	local baseSpell = altToBase[spellId] or spellId
-	if subevent == "SPELL_CAST_START" then
-		for catId, cat in pairs(addon.db.castTrackerCategories or {}) do
-			if addon.db.castTrackerEnabled[catId] and cat.spells and cat.spells[baseSpell] then CastTracker.functions.StartBar(baseSpell, sourceGUID, catId) end
+	if subevent == "SPELL_CAST_START" or subevent == "SPELL_CHANNEL_START" then
+		local cats = spellToCat[baseSpell]
+		if not cats then return end
+		for catId in pairs(cats) do
+			if addon.db.castTrackerEnabled[catId] then CastTracker.functions.StartBar(baseSpell, sourceGUID, catId) end
 		end
-	elseif subevent == "SPELL_CAST_SUCCESS" or subevent == "SPELL_CAST_FAILED" or subevent == "SPELL_INTERRUPT" then
+	elseif subevent == "SPELL_CAST_SUCCESS" or subevent == "SPELL_CAST_FAILED" or subevent == "SPELL_INTERRUPT" or subevent == "SPELL_CHANNEL_STOP" then
 		for id, bars in pairs(activeBars) do
 			local bar = bars[sourceGUID]
 			if bar and bar.spellId == baseSpell then ReleaseBar(id, bar) end
@@ -724,7 +738,6 @@ local function HandleCLEU()
 			local bar = bars[destGUID]
 			if bar then ReleaseBar(id, bar) end
 		end
-	else
 	end
 end
 
