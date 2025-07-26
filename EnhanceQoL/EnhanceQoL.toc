@@ -43,8 +43,8 @@ Bindings\Slider.xml
 General\functions.lua
 EnhanceQoL.lua
 Submodules\GemHelper.lua
-Submodules\\ChatIM\\UI.lua
-Submodules\\ChatIM\\Core.lua
+Submodules\ChatIM\UI.lua
+Submodules\ChatIM\Core.lua
 Submodules\LootToast.lua
 Submodules\Ignore\Ignore.lua
 Submodules\Ignore\Ignore.xml

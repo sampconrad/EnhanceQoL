@@ -1,18 +1,19 @@
 # Changelog
 
-## [3.34.0] – 2025-07-?
+## [3.34.0] – 2025-07-??
 ### ✨ Added
 - **Umbral Essentia**
-  - Shadowmelt Potion added
+  - The Shadowmelt Potion is now tracked in the *Potion Tracker*.
 - **Fiber Socket**
-  - New Socket type for Legendary Cloak added
+  - Support for the new *Fiber* socket on the legendary cloak.
 ### 🔄 Changed
-- Sell all Junk API changed to a newer and more reliant one
-- **Talent Reminder behaviour for mega dungeon**
-  - Mega-Dungeons like Tazavash now work seperately for Talent reminder
-- **Talent Reminder first load performance**
+- **Sell-all-junk** now uses Blizzard’s newer, more reliable API.
+- **Talent Reminder – mega dungeons**
+  - Mega-dungeons such as *Tazavesh* are handled separately.
+- **Talent Reminder – first-load performance**
+  - Significantly reduced initialisation time.
 ### 🐛 Fixed
-- Name truncation in solo dungeon content fixed
+- Name truncation issue in solo-dungeon content.
 
 ## [3.33.1] – 2025-07-25
 ### 🐛 Fixed
