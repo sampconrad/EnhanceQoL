@@ -692,7 +692,14 @@ function CastTracker.functions.StartBar(spellId, sourceGUID, catId)
 	bar:SetScript("OnUpdate", BarUpdate)
 	table.insert(activeOrder[catId], bar)
 	CastTracker.functions.LayoutBars(catId)
-	if db.sound then PlaySound(db.sound) end
+       if db.sound then
+               local file = addon.Aura.sounds and addon.Aura.sounds[db.sound]
+               if file then
+                       PlaySoundFile(file, "Master")
+               else
+                       PlaySound(db.sound)
+               end
+       end
 end
 
 CastTracker.functions.AcquireBar = AcquireBar
