@@ -4871,7 +4871,6 @@ local eventHandlers = {
 		end
 		if arg1 == "Blizzard_ItemInteractionUI" then addon.functions.toggleInstantCatalystButton(addon.db["instantCatalystEnabled"]) end
 	end,
-	--@debug@
 	["BAG_UPDATE_DELAYED"] = function(arg1)
 		addon.functions.clearTooltipCache()
 		if addon.db["automaticallyOpenContainer"] then
@@ -4880,7 +4879,6 @@ local eventHandlers = {
 			addon.functions.checkForContainer()
 		end
 	end,
-	--@end-debug@
 	-- TODO 11.2: remove BANKFRAME_OPENED handler once legacy support is dropped
 	["BANKFRAME_OPENED"] = function()
 		if not addon.db["showIlvlOnBankFrame"] then return end
