@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.35.0] – 2025-07-28
+### ✨ Added
+- **Cast Tracker**
+  - Track important spell casts in a customisable bar. Organise spells in drag-and-drop categories, choose icons, and add optional sounds.
+  - Ultra-lightweight design with negligible performance impact.
+
+
 ## [3.34.0] – 2025-07-26
 ### ✨ Added
 - **Umbral Essentia**
