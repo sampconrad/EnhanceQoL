@@ -95,6 +95,12 @@ local function UpdateActiveBars(catId)
 		if bar.background then bar.background:SetColorTexture(0, 0, 0, 1) end
 		bar.icon:SetSize(cat.height or 20, cat.height or 20)
 		bar:SetSize(cat.width or 200, cat.height or 20)
+		local fontSize = cat.textSize or addon.db.castTrackerTextSize
+		local tcol = cat.textColor or addon.db.castTrackerTextColor
+		bar.text:SetFont(addon.variables.defaultFont, fontSize, "OUTLINE")
+		bar.time:SetFont(addon.variables.defaultFont, fontSize, "OUTLINE")
+		bar.text:SetTextColor(tcol[1], tcol[2], tcol[3], tcol[4])
+		bar.time:SetTextColor(tcol[1], tcol[2], tcol[3], tcol[4])
 	end
 	CastTracker.functions.LayoutBars(catId)
 end
@@ -200,6 +206,13 @@ local function AcquireBar(catId)
 	end
 	if bar.background then bar.background:SetColorTexture(0, 0, 0, 1) end
 	bar:SetParent(ensureAnchor(catId))
+	local cat = addon.db.castTrackerCategories and addon.db.castTrackerCategories[catId] or {}
+	local fontSize = cat.textSize or addon.db.castTrackerTextSize
+	local tcol = cat.textColor or addon.db.castTrackerTextColor
+	bar.text:SetFont(addon.variables.defaultFont, fontSize, "OUTLINE")
+	bar.time:SetFont(addon.variables.defaultFont, fontSize, "OUTLINE")
+	bar.text:SetTextColor(tcol[1], tcol[2], tcol[3], tcol[4])
+	bar.time:SetTextColor(tcol[1], tcol[2], tcol[3], tcol[4])
 	bar:Show()
 	return bar
 end
@@ -269,7 +282,8 @@ local function importCategory(encoded)
 	cat.width = cat.width or addon.db.castTrackerBarWidth or 200
 	cat.height = cat.height or addon.db.castTrackerBarHeight or 20
 	cat.color = cat.color or addon.db.castTrackerBarColor or { 1, 0.5, 0, 1 }
-	if cat.duration == nil then cat.duration = 0 end
+	cat.textSize = cat.textSize or addon.db.castTrackerTextSize
+	cat.textColor = cat.textColor or addon.db.castTrackerTextColor
 	cat.direction = cat.direction or addon.db.castTrackerBarDirection or "DOWN"
 	if cat.direction ~= "UP" and cat.direction ~= "DOWN" then cat.direction = "DOWN" end
 	cat.spells = cat.spells or {}
@@ -454,11 +468,29 @@ local function buildCategoryOptions(container, catId)
 	end)
 	container:AddChild(sh)
 
-	local dur = addon.functions.createSliderAce(L["CastTrackerDuration"] .. ": " .. (db.duration or 0), db.duration or 0, 0, 10, 0.5, function(self, _, val)
-		db.duration = val
-		self:SetLabel(L["CastTrackerDuration"] .. ": " .. val)
+	local ts = addon.functions.createSliderAce(
+		(L["CastTrackerTextSize"] or "Text Size") .. ": " .. (db.textSize or addon.db.castTrackerTextSize),
+		db.textSize or addon.db.castTrackerTextSize,
+		6,
+		64,
+		1,
+		function(self, _, val)
+			db.textSize = val
+			self:SetLabel((L["CastTrackerTextSize"] or "Text Size") .. ": " .. val)
+			UpdateActiveBars(catId)
+		end
+	)
+	container:AddChild(ts)
+
+	local tcPick = AceGUI:Create("ColorPicker")
+	tcPick:SetLabel(L["CastTrackerTextColor"] or "Text Color")
+	local tcol = db.textColor or addon.db.castTrackerTextColor
+	tcPick:SetColor(tcol[1], tcol[2], tcol[3], tcol[4])
+	tcPick:SetCallback("OnValueChanged", function(_, _, r, g, b, a)
+		db.textColor = { r, g, b, a }
+		UpdateActiveBars(catId)
 	end)
-	container:AddChild(dur)
+	container:AddChild(tcPick)
 
 	local col = AceGUI:Create("ColorPicker")
 	col:SetLabel(L["CastTrackerColor"])
@@ -688,7 +720,7 @@ local function buildSpellOptions(container, catId, spellId)
 	end
 
 	wrapper:AddChild(addon.functions.createSpacerAce())
-	
+
 	spell.altIDs = spell.altIDs or {}
 	for _, altId in ipairs(spell.altIDs) do
 		local row = addon.functions.createContainer("SimpleGroup", "Flow")
@@ -795,7 +827,7 @@ function CastTracker.functions.LayoutBars(catId)
 	end
 end
 
-function CastTracker.functions.StartBar(spellId, sourceGUID, catId, overrideCastTime, castType)
+function CastTracker.functions.StartBar(spellId, sourceGUID, catId, overrideCastTime, castType, suppressSound)
 	local spellData = C_Spell.GetSpellInfo(spellId)
 	local name = spellData and spellData.name
 	local icon = spellData and spellData.iconID
@@ -803,17 +835,18 @@ function CastTracker.functions.StartBar(spellId, sourceGUID, catId, overrideCast
 	castTime = (castTime or 0) / 1000
 	if overrideCastTime and overrideCastTime > 0 then castTime = overrideCastTime end
 	local db = addon.db.castTrackerCategories and addon.db.castTrackerCategories[catId] or {}
-	if db.duration and db.duration > 0 then castTime = db.duration end
 	if castTime <= 0 then return end
 	activeBars[catId] = activeBars[catId] or {}
 	activeOrder[catId] = activeOrder[catId] or {}
 	framePools[catId] = framePools[catId] or {}
 	local key = sourceGUID .. ":" .. spellId
 	local bar = activeBars[catId][key]
-	if bar then ReleaseBar(catId, bar) end
-	bar = AcquireBar(catId)
-	activeBars[catId][key] = bar
-	bar.owner = key
+	if not bar then
+		bar = AcquireBar(catId)
+		activeBars[catId][key] = bar
+		bar.owner = key
+		table.insert(activeOrder[catId], bar)
+	end
 	bar.sourceGUID = sourceGUID
 	bar.spellId = spellId
 	bar.catId = catId
@@ -825,6 +858,12 @@ function CastTracker.functions.StartBar(spellId, sourceGUID, catId, overrideCast
 	else
 		bar.text:SetText(name)
 	end
+	local fontSize = db.textSize or addon.db.castTrackerTextSize
+	local tcol = db.textColor or addon.db.castTrackerTextColor
+	bar.text:SetFont(addon.variables.defaultFont, fontSize, "OUTLINE")
+	bar.time:SetFont(addon.variables.defaultFont, fontSize, "OUTLINE")
+	bar.text:SetTextColor(tcol[1], tcol[2], tcol[3], tcol[4])
+	bar.time:SetTextColor(tcol[1], tcol[2], tcol[3], tcol[4])
 	bar.status:SetMinMaxValues(0, castTime)
 	if castType == "channel" then
 		bar.status:SetValue(castTime)
@@ -838,10 +877,9 @@ function CastTracker.functions.StartBar(spellId, sourceGUID, catId, overrideCast
 	bar.start = GetTime()
 	bar.finish = bar.start + castTime
 	bar:SetScript("OnUpdate", BarUpdate)
-	table.insert(activeOrder[catId], bar)
 	CastTracker.functions.LayoutBars(catId)
 	local soundKey
-	if addon.db.castTrackerSoundsEnabled[catId] and addon.db.castTrackerSoundsEnabled[catId][spellId] then
+	if not suppressSound and addon.db.castTrackerSoundsEnabled[catId] and addon.db.castTrackerSoundsEnabled[catId][spellId] then
 		soundKey = addon.db.castTrackerSounds[catId] and addon.db.castTrackerSounds[catId][spellId]
 	end
 	if soundKey then
@@ -896,8 +934,11 @@ local function HandleUnitChannelStart(unit, castGUID, spellId)
 	if not cats then return end
 	local _, castTime = getCastInfo(unit)
 	castTime = castTime or 0
+	local key = sourceGUID .. ":" .. baseSpell
 	for catId in pairs(cats) do
-		if addon.db.castTrackerEnabled[catId] then CastTracker.functions.StartBar(baseSpell, sourceGUID, catId, castTime, "channel") end
+		local existing = activeBars[catId] and activeBars[catId][key]
+		local suppress = existing and existing.castType == "cast"
+		if addon.db.castTrackerEnabled[catId] then CastTracker.functions.StartBar(baseSpell, sourceGUID, catId, castTime, "channel", suppress) end
 	end
 end
 
@@ -978,7 +1019,8 @@ function CastTracker.functions.addCastTrackerOptions(container)
 				width = addon.db.castTrackerBarWidth,
 				height = addon.db.castTrackerBarHeight,
 				color = addon.db.castTrackerBarColor,
-				duration = 0,
+				textSize = addon.db.castTrackerTextSize,
+				textColor = addon.db.castTrackerTextColor,
 				direction = addon.db.castTrackerBarDirection,
 				spells = {},
 			}

@@ -32,6 +32,8 @@ addon.functions.InitDBValue("castTrackerBarSound", SOUNDKIT.ALARM_CLOCK_WARNING_
 addon.functions.InitDBValue("castTrackerBarDirection", "DOWN")
 addon.functions.InitDBValue("castTrackerSounds", {})
 addon.functions.InitDBValue("castTrackerSoundsEnabled", {})
+addon.functions.InitDBValue("castTrackerTextSize", 12)
+addon.functions.InitDBValue("castTrackerTextColor", { 1, 1, 1, 1 })
 
 addon.functions.InitDBValue("buffTrackerCategories", {
 	[1] = {
@@ -94,16 +96,17 @@ for _, cat in pairs(addon.db["buffTrackerCategories"]) do
 end
 
 addon.functions.InitDBValue("castTrackerCategories", {
-        [1] = {
-                name = string.format("%s", L["Example"]),
-                anchor = { point = "CENTER", x = 0, y = 0 },
-                width = addon.db.castTrackerBarWidth,
-                height = addon.db.castTrackerBarHeight,
-                color = addon.db.castTrackerBarColor,
-                duration = 0,
-                direction = addon.db.castTrackerBarDirection,
-                spells = {},
-        },
+	[1] = {
+		name = string.format("%s", L["Example"]),
+		anchor = { point = "CENTER", x = 0, y = 0 },
+		width = addon.db.castTrackerBarWidth,
+		height = addon.db.castTrackerBarHeight,
+		color = addon.db.castTrackerBarColor,
+		textSize = addon.db.castTrackerTextSize,
+		textColor = addon.db.castTrackerTextColor,
+		direction = addon.db.castTrackerBarDirection,
+		spells = {},
+	},
 })
 addon.functions.InitDBValue("castTrackerEnabled", {})
 addon.functions.InitDBValue("castTrackerLocked", {})
@@ -111,54 +114,56 @@ addon.functions.InitDBValue("castTrackerOrder", {})
 addon.functions.InitDBValue("castTrackerSelectedCategory", 1)
 
 if addon.db["castTracker"] and not addon.db["castTrackerCategories"] then
-        local old = addon.db["castTracker"]
-        addon.db["castTrackerCategories"] = {
-                [1] = {
-                        name = string.format("%s", L["Example"]),
-                        anchor = old.anchor or { point = "CENTER", x = 0, y = 0 },
-                        width = old.width or addon.db.castTrackerBarWidth,
-                        height = old.height or addon.db.castTrackerBarHeight,
-                        color = old.color or addon.db.castTrackerBarColor,
-                        duration = old.duration or 0,
-                        direction = old.direction or addon.db.castTrackerBarDirection,
-                        spells = old.spells or {},
-                },
-        }
-        addon.db["castTracker"] = nil
+	local old = addon.db["castTracker"]
+	addon.db["castTrackerCategories"] = {
+		[1] = {
+			name = string.format("%s", L["Example"]),
+			anchor = old.anchor or { point = "CENTER", x = 0, y = 0 },
+			width = old.width or addon.db.castTrackerBarWidth,
+			height = old.height or addon.db.castTrackerBarHeight,
+			color = old.color or addon.db.castTrackerBarColor,
+			textSize = addon.db.castTrackerTextSize,
+			textColor = addon.db.castTrackerTextColor,
+			direction = old.direction or addon.db.castTrackerBarDirection,
+			spells = old.spells or {},
+		},
+	}
+	addon.db["castTracker"] = nil
 end
 
 for id, cat in pairs(addon.db["castTrackerCategories"] or {}) do
-        cat.anchor = cat.anchor or { point = "CENTER", x = 0, y = 0 }
-        cat.width = cat.width or addon.db.castTrackerBarWidth
-        cat.height = cat.height or addon.db.castTrackerBarHeight
-        cat.color = cat.color or addon.db.castTrackerBarColor
-        if cat.duration == nil then cat.duration = 0 end
-        cat.direction = cat.direction or addon.db.castTrackerBarDirection
-        cat.spells = cat.spells or {}
-        addon.db.castTrackerSounds[id] = addon.db.castTrackerSounds[id] or {}
-        addon.db.castTrackerSoundsEnabled[id] = addon.db.castTrackerSoundsEnabled[id] or {}
-        for sid, spell in pairs(cat.spells) do
-                if type(spell) ~= "table" then
-                        cat.spells[sid] = { altIDs = {} }
-                        spell = cat.spells[sid]
-                else
-                        spell.altIDs = spell.altIDs or {}
-                end
-                if spell.sound then
-                        addon.db.castTrackerSounds[id][sid] = spell.sound
-                        addon.db.castTrackerSoundsEnabled[id][sid] = true
-                        spell.sound = nil
-                elseif cat.sound then
-                        addon.db.castTrackerSounds[id][sid] = cat.sound
-                        addon.db.castTrackerSoundsEnabled[id][sid] = true
-                end
-                if spell.customTextEnabled == nil then spell.customTextEnabled = false end
-                if spell.customText == nil then spell.customText = "" end
-        end
-        cat.sound = nil
-        if addon.db["castTrackerEnabled"][id] == nil then addon.db["castTrackerEnabled"][id] = true end
-        if addon.db["castTrackerLocked"][id] == nil then addon.db["castTrackerLocked"][id] = false end
-        addon.db["castTrackerOrder"][id] = addon.db["castTrackerOrder"][id] or {}
+	cat.anchor = cat.anchor or { point = "CENTER", x = 0, y = 0 }
+	cat.width = cat.width or addon.db.castTrackerBarWidth
+	cat.height = cat.height or addon.db.castTrackerBarHeight
+	cat.color = cat.color or addon.db.castTrackerBarColor
+	cat.textSize = cat.textSize or addon.db.castTrackerTextSize
+	cat.textColor = cat.textColor or addon.db.castTrackerTextColor
+	cat.direction = cat.direction or addon.db.castTrackerBarDirection
+	cat.spells = cat.spells or {}
+	addon.db.castTrackerSounds[id] = addon.db.castTrackerSounds[id] or {}
+	addon.db.castTrackerSoundsEnabled[id] = addon.db.castTrackerSoundsEnabled[id] or {}
+	for sid, spell in pairs(cat.spells) do
+		if type(spell) ~= "table" then
+			cat.spells[sid] = { altIDs = {} }
+			spell = cat.spells[sid]
+		else
+			spell.altIDs = spell.altIDs or {}
+		end
+		if spell.sound then
+			addon.db.castTrackerSounds[id][sid] = spell.sound
+			addon.db.castTrackerSoundsEnabled[id][sid] = true
+			spell.sound = nil
+		elseif cat.sound then
+			addon.db.castTrackerSounds[id][sid] = cat.sound
+			addon.db.castTrackerSoundsEnabled[id][sid] = true
+		end
+		if spell.customTextEnabled == nil then spell.customTextEnabled = false end
+		if spell.customText == nil then spell.customText = "" end
+	end
+	cat.sound = nil
+	if addon.db["castTrackerEnabled"][id] == nil then addon.db["castTrackerEnabled"][id] = true end
+	if addon.db["castTrackerLocked"][id] == nil then addon.db["castTrackerLocked"][id] = false end
+	addon.db["castTrackerOrder"][id] = addon.db["castTrackerOrder"][id] or {}
 end
 
 if type(addon.db["castTrackerSelectedCategory"]) ~= "number" then addon.db["castTrackerSelectedCategory"] = 1 end
