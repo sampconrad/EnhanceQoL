@@ -909,9 +909,11 @@ end
 
 function CastTracker.functions.StartBar(spellId, sourceGUID, catId, overrideCastTime, castType, suppressSound, triggerId)
 	local spellData = C_Spell.GetSpellInfo(spellId)
+	local altSpellData
+	if triggerId and triggerId ~= spellId then altSpellData = C_Spell.GetSpellInfo(triggerId) end
 	local name = spellData and spellData.name
 	local iconSpell = spellData
-	if addon.db.castTrackerUseAltSpellIcon and triggerId and triggerId ~= spellId then iconSpell = C_Spell.GetSpellInfo(triggerId) or iconSpell end
+	if addon.db.castTrackerUseAltSpellIcon and altSpellData then iconSpell = altSpellData end
 	local icon = iconSpell and iconSpell.iconID
 	local castTime = spellData and spellData.castTime
 	castTime = (castTime or 0) / 1000
@@ -943,7 +945,11 @@ function CastTracker.functions.StartBar(spellId, sourceGUID, catId, overrideCast
 	if spellInfo.customTextEnabled and spellInfo.customText and spellInfo.customText ~= "" then
 		bar.text:SetText(spellInfo.customText)
 	else
-		bar.text:SetText(name)
+		if altSpellData and altSpellData.name then
+			bar.text:SetText(altSpellData.name)
+		else
+			bar.text:SetText(name)
+		end
 	end
 	local fontSize = db.textSize or addon.db.castTrackerTextSize
 	local tcol = db.textColor or addon.db.castTrackerTextColor
