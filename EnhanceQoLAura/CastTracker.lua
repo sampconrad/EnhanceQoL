@@ -1005,6 +1005,19 @@ local function HandleUnitChannelStop(unit, castGUID, spellId)
 	end
 end
 
+local function HandleUnitSpellcastStop(unit, castGUID, spellId)
+	local sourceGUID = UnitGUID(unit)
+	if not sourceGUID then return end
+	local baseSpell = altToBase[spellId] or spellId
+	local key = sourceGUID .. ":" .. baseSpell
+	local byCat = activeKeyIndex[key]
+	if byCat then
+		for id, bar in pairs(byCat) do
+			if bar.castType ~= "channel" then ReleaseBar(id, bar) end
+		end
+	end
+end
+
 local eventFrame = CreateFrame("Frame")
 updateEventRegistration = function()
 	local active = false
@@ -1018,10 +1031,14 @@ updateEventRegistration = function()
 		if not eventFrame:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED") then eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED") end
 		if not eventFrame:IsEventRegistered("UNIT_SPELLCAST_CHANNEL_START") then eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START") end
 		if not eventFrame:IsEventRegistered("UNIT_SPELLCAST_CHANNEL_STOP") then eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP") end
+		if not eventFrame:IsEventRegistered("UNIT_SPELLCAST_STOP") then eventFrame:RegisterEvent("UNIT_SPELLCAST_STOP") end
+		if not eventFrame:IsEventRegistered("UNIT_SPELLCAST_INTERRUPTED") then eventFrame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED") end
 	else
 		eventFrame:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 		eventFrame:UnregisterEvent("UNIT_SPELLCAST_CHANNEL_START")
 		eventFrame:UnregisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
+		eventFrame:UnregisterEvent("UNIT_SPELLCAST_STOP")
+		eventFrame:UnregisterEvent("UNIT_SPELLCAST_INTERRUPTED")
 	end
 end
 
@@ -1041,6 +1058,8 @@ function CastTracker.functions.Refresh()
 			HandleUnitChannelStart(...)
 		elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then
 			HandleUnitChannelStop(...)
+		elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_INTERRUPTED" then
+			HandleUnitSpellcastStop(...)
 		end
 	end)
 	updateEventRegistration()

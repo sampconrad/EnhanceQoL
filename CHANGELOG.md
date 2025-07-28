@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.35.1] – 2025-07-29
+### 🐛 Fixed
+- **Cast Tracker**
+  - Bars now disappear reliably when casts are interrupted or cancelled.
+
 ## [3.35.0] – 2025-07-28
 ### ✨ Added
 - **Cast Tracker**
