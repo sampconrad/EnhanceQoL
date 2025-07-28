@@ -19,6 +19,8 @@ local ensureAnchor
 local framePools = {}
 local activeBars = {}
 local activeOrder = {}
+local activeKeyIndex = {}
+local activeSourceIndex = {}
 local altToBase = {}
 local spellToCat = {} -- [spellID] = { [catId]=true, ... }
 local updateEventRegistration
@@ -222,6 +224,15 @@ local function ReleaseBar(catId, bar)
 	bar:SetScript("OnUpdate", nil)
 	bar:Hide()
 	activeBars[catId][bar.owner] = nil
+	if activeKeyIndex[bar.owner] then
+		activeKeyIndex[bar.owner][catId] = nil
+		if not next(activeKeyIndex[bar.owner]) then activeKeyIndex[bar.owner] = nil end
+	end
+	if activeSourceIndex[bar.sourceGUID] and activeSourceIndex[bar.sourceGUID][catId] then
+		activeSourceIndex[bar.sourceGUID][catId][bar.owner] = nil
+		if not next(activeSourceIndex[bar.sourceGUID][catId]) then activeSourceIndex[bar.sourceGUID][catId] = nil end
+		if not next(activeSourceIndex[bar.sourceGUID]) then activeSourceIndex[bar.sourceGUID] = nil end
+	end
 	for i, b in ipairs(activeOrder[catId]) do
 		if b == bar then
 			table.remove(activeOrder[catId], i)
@@ -625,6 +636,15 @@ local function buildCategoryOptions(container, catId)
 			}
 		StaticPopupDialogs["EQOL_DELETE_CAST_CATEGORY"].OnShow = function(self) self:SetFrameStrata("FULLSCREEN_DIALOG") end
 		StaticPopupDialogs["EQOL_DELETE_CAST_CATEGORY"].OnAccept = function()
+			if activeBars[catId] then
+				local toRelease = {}
+				for _, bar in pairs(activeBars[catId]) do
+					table.insert(toRelease, bar)
+				end
+				for _, bar in ipairs(toRelease) do
+					ReleaseBar(catId, bar)
+				end
+			end
 			activeBars[catId] = nil
 			activeOrder[catId] = nil
 			framePools[catId] = nil
@@ -719,8 +739,9 @@ local function buildSpellOptions(container, catId, spellId)
 	wrapper:AddChild(addon.functions.createSpacerAce())
 	local altEdit = addon.functions.createEditboxAce(L["AddAltSpellID"], nil, function(self, _, text)
 		local alt = tonumber(text)
-		if alt then
-			if not tContains(spell.altIDs, alt) then table.insert(spell.altIDs, alt) end
+		if alt and not spell.altHash[alt] then
+			table.insert(spell.altIDs, alt)
+			spell.altHash[alt] = true
 			rebuildAltMapping()
 			self:SetText("")
 			container:ReleaseChildren()
@@ -763,15 +784,18 @@ local function buildSpellOptions(container, catId, spellId)
 		removeIcon:SetRelativeWidth(0.3)
 		removeIcon:SetHeight(16)
 		removeIcon:SetCallback("OnClick", function()
-			for i, v in ipairs(spell.altIDs) do
-				if v == altId then
-					table.remove(spell.altIDs, i)
-					break
+			if spell.altHash[altId] then
+				spell.altHash[altId] = nil
+				for i, v in ipairs(spell.altIDs) do
+					if v == altId then
+						table.remove(spell.altIDs, i)
+						break
+					end
 				end
+				rebuildAltMapping()
+				container:ReleaseChildren()
+				buildSpellOptions(container, catId, spellId)
 			end
-			rebuildAltMapping()
-			container:ReleaseChildren()
-			buildSpellOptions(container, catId, spellId)
 		end)
 		row:AddChild(removeIcon)
 		wrapper:AddChild(row)
@@ -863,6 +887,11 @@ function CastTracker.functions.StartBar(spellId, sourceGUID, catId, overrideCast
 		bar.owner = key
 		table.insert(activeOrder[catId], bar)
 	end
+	activeKeyIndex[key] = activeKeyIndex[key] or {}
+	activeKeyIndex[key][catId] = bar
+	activeSourceIndex[sourceGUID] = activeSourceIndex[sourceGUID] or {}
+	activeSourceIndex[sourceGUID][catId] = activeSourceIndex[sourceGUID][catId] or {}
+	activeSourceIndex[sourceGUID][catId][key] = bar
 	bar.sourceGUID = sourceGUID
 	bar.spellId = spellId
 	bar.catId = catId
@@ -929,14 +958,19 @@ local function HandleCLEU()
 		end
 	elseif subevent == "SPELL_CAST_SUCCESS" or subevent == "SPELL_CAST_FAILED" or subevent == "SPELL_INTERRUPT" then
 		local key = sourceGUID .. ":" .. baseSpell
-		for id, bars in pairs(activeBars) do
-			local bar = bars[key]
-			if bar and bar.castType ~= "channel" then ReleaseBar(id, bar) end
+		local byCat = activeKeyIndex[key]
+		if byCat then
+			for id, bar in pairs(byCat) do
+				if bar.castType ~= "channel" then ReleaseBar(id, bar) end
+			end
 		end
 	elseif subevent == "UNIT_DIED" then
-		for id, bars in pairs(activeBars) do
-			for _, bar in pairs(bars) do
-				if bar.sourceGUID == destGUID then ReleaseBar(id, bar) end
+		local byCat = activeSourceIndex[destGUID]
+		if byCat then
+			for id, bars in pairs(byCat) do
+				for _, bar in pairs(bars) do
+					ReleaseBar(id, bar)
+				end
 			end
 		end
 	end
@@ -963,9 +997,11 @@ local function HandleUnitChannelStop(unit, castGUID, spellId)
 	if not sourceGUID then return end
 	local baseSpell = altToBase[spellId] or spellId
 	local key = sourceGUID .. ":" .. baseSpell
-	for id, bars in pairs(activeBars) do
-		local bar = bars[key]
-		if bar then ReleaseBar(id, bar) end
+	local byCat = activeKeyIndex[key]
+	if byCat then
+		for id, bar in pairs(byCat) do
+			ReleaseBar(id, bar)
+		end
 	end
 end
 
