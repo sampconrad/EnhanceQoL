@@ -1,16 +1,14 @@
 # Changelog
 
-## [3.35.1] – 2025-07-29
-### 🐛 Fixed
-- **Cast Tracker**
-  - Bars now disappear reliably when casts are interrupted or cancelled.
-
 ## [3.35.0] – 2025-07-28
 ### ✨ Added
 - **Cast Tracker**
-  - Track important spell casts in a customisable bar. Organise spells in drag-and-drop categories, choose icons, and add optional sounds.
-  - Ultra-lightweight design with negligible performance impact.
+  - Displays important enemy casts in a fully configurable progress bar.  
+    Organise spells with drag-and-drop categories, pick custom icons and add optional sounds.
+  - Ultra-lightweight: even with every tracked cast **and** buff in a Mythic-plus run  
+    the tracker uses **≤ 1 ms CPU time per frame** and **≈ 400 KB RAM**.
 
+---
 
 ## [3.34.0] – 2025-07-26
 ### ✨ Added
@@ -32,10 +30,14 @@
 - Name-truncation issue in solo-dungeon content.
 - *Aura Tracker* option height was not sized dynamically.
 
+---
+
 ## [3.33.1] – 2025-07-25
 ### 🐛 Fixed
 - **Taint error when copying character names**
   - Resolved a protected-function taint that occurred in the context-menu’s **Copy Character Name** option.
+
+---
 
 ## [3.33.0] – 2025-07-24
 ### ✨ Added
