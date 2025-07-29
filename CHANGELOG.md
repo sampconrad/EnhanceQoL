@@ -2,9 +2,12 @@
 
 ## [3.36.0] – 2025-07-29
 ### ✨ Added
-- **Item Level Position for Bag and Character**
-  - Choose where the item level is shown in Bag/Bank and Characterframe
-
+- **Item-level display position**
+  - You can now choose where the item level appears in your bags/bank and on the Character Frame.
+### 🐛 Fixed
+- **Cross-character gold tracker**
+  - Warband gold was not included; it is now tracked correctly.
+  
 ---
 
 ## [3.35.1] – 2025-07-29
