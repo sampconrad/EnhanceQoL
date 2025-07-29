@@ -1991,8 +1991,8 @@ ShareCategory = function(catId, targetPlayer)
 	local addonEncoded = exportCategory(catId, "addon")
 	if not addonEncoded then return end
 
-	local label = ("%s - %s"):format(UnitName("player"), getCatName(catId))
-	local placeholder = ("[EQOL: %s]"):format(label)
+        local label = ("%s - %s"):format(UnitName("player"), getCatName(catId))
+        local placeholder = ("[EQOLBT: %s]"):format(label)
 	ChatFrame_OpenChat(placeholder)
 
 	local pktID = tostring(time() * 1000):gsub("%D", "")
@@ -2016,7 +2016,7 @@ ShareCategory = function(catId, targetPlayer)
 	AceComm:SendCommMessage(COMM_PREFIX, ("<%s>%s"):format(pktID, addonEncoded), dist, target, "BULK")
 end
 
-local PATTERN = "%[EQOL: ([^%]]+)%]"
+local PATTERN = "%[EQOLBT: ([^%]]+)%]"
 
 local function EQOL_ChatFilter(_, _, msg, ...)
 	local newMsg, hits = msg:gsub(PATTERN, function(label) return ("|Hgarrmission:eqolaura:%s|h|cff00ff88[%s]|h|r"):format(label, label) end)

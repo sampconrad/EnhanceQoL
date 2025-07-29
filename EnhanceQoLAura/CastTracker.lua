@@ -1242,6 +1242,7 @@ local AceComm = LibStub("AceComm-3.0")
 
 local incoming = {}
 local pending = {}
+local pendingSender = {}
 
 local function getCatName(catId)
 	local cat = addon.db.castTrackerCategories and addon.db.castTrackerCategories[catId]
@@ -1252,8 +1253,8 @@ ShareCategory = function(catId, targetPlayer)
 	local addonEncoded = exportCategory(catId, "addon")
 	if not addonEncoded then return end
 
-	local label = ("%s - %s"):format(UnitName("player"), getCatName(catId))
-	local placeholder = ("[EQOL: %s]"):format(label)
+        local label = ("%s - %s"):format(UnitName("player"), getCatName(catId))
+        local placeholder = ("[EQOLCT: %s]"):format(label)
 	ChatFrame_OpenChat(placeholder)
 
 	local pktID = tostring(time() * 1000):gsub("%D", "")
@@ -1277,11 +1278,18 @@ ShareCategory = function(catId, targetPlayer)
 	AceComm:SendCommMessage(COMM_PREFIX, ("<%s>%s"):format(pktID, addonEncoded), dist, target, "BULK")
 end
 
-local PATTERN = "%[EQOL: ([^%]]+)%]"
+local PATTERN = "%[EQOLCT: ([^%]]+)%]"
 
-local function EQOL_ChatFilter(_, _, msg, ...)
-	local newMsg, hits = msg:gsub(PATTERN, function(label) return ("|Hgarrmission:eqolcast:%s|h|cff00ff88[%s]|h|r"):format(label, label) end)
-	if hits > 0 then return false, newMsg, ... end
+local function EQOL_ChatFilter(_, _, msg, sender, ...)
+        local newMsg, hits = msg:gsub(PATTERN, function(label)
+                local pktID = pendingSender[sender]
+                if pktID then
+                        pending[label] = pktID
+                        pendingSender[sender] = nil
+                end
+                return ("|Hgarrmission:eqolcast:%s|h|cff00ff88[%s]|h|r"):format(label, label)
+        end)
+        if hits > 0 then return false, newMsg, sender, ... end
 end
 
 for _, ev in ipairs({
@@ -1341,10 +1349,11 @@ end
 hooksecurefunc("SetItemRef", HandleEQOLLink)
 
 local function OnComm(prefix, message, dist, sender)
-	if prefix ~= COMM_PREFIX then return end
-	local pktID, payload = message:match("^<(%d+)>(.+)")
-	if not pktID then return end
-	incoming[pktID] = payload
+        if prefix ~= COMM_PREFIX then return end
+        local pktID, payload = message:match("^<(%d+)>(.+)")
+        if not pktID then return end
+        incoming[pktID] = payload
+        pendingSender[sender] = pktID
 end
 
 AceComm:RegisterComm(COMM_PREFIX, OnComm)
