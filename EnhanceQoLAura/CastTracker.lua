@@ -343,7 +343,7 @@ local function importCategory(encoded)
 	local newId = getNextCategoryId()
 	addon.db.castTrackerCategories[newId] = cat
 	addon.db.castTrackerOrder[newId] = data.order or {}
-	addon.db.castTrackerEnabled[newId] = true
+        addon.db.castTrackerEnabled[newId] = false
 	addon.db.castTrackerLocked[newId] = false
 	addon.db.castTrackerSounds[newId] = {}
 	addon.db.castTrackerSoundsEnabled[newId] = {}
@@ -1155,7 +1155,7 @@ function CastTracker.functions.addCastTrackerOptions(container)
 				spells = {},
 				allowedRoles = {},
 			}
-			addon.db.castTrackerEnabled[newId] = true
+                        addon.db.castTrackerEnabled[newId] = false
 			addon.db.castTrackerLocked[newId] = false
 			addon.db.castTrackerOrder[newId] = {}
 			ensureAnchor(newId)

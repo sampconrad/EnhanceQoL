@@ -162,7 +162,7 @@ for id, cat in pairs(addon.db["castTrackerCategories"] or {}) do
 		if spell.customText == nil then spell.customText = "" end
 	end
 	cat.sound = nil
-	if addon.db["castTrackerEnabled"][id] == nil then addon.db["castTrackerEnabled"][id] = true end
+        if addon.db["castTrackerEnabled"][id] == nil then addon.db["castTrackerEnabled"][id] = false end
 	if addon.db["castTrackerLocked"][id] == nil then addon.db["castTrackerLocked"][id] = false end
 	addon.db["castTrackerOrder"][id] = addon.db["castTrackerOrder"][id] or {}
 end
