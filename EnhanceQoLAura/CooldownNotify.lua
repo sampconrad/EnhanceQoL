@@ -65,7 +65,20 @@ local function OnUpdate(_, update)
 				local cat = addon.db.cooldownNotifyCategories[cd.catId] or {}
 				local threshold = cat.remainingCooldownWhenNotified or 0
 				if remaining <= threshold then
-					if not IsAnimatingCooldown(cd.name, cd.catId) then table.insert(animating, { cd.texture, cd.name, cd.catId, cd.id }) end
+					if not IsAnimatingCooldown(cd.name, cd.catId) then
+						table.insert(animating, {
+							cd.texture,
+							cd.name,
+							cd.catId,
+							cd.id,
+							cat.fadeInTime or 0.3,
+							cat.fadeOutTime or 0.7,
+							cat.maxAlpha or 0.7,
+							cat.animScale or 1.5,
+							cat.iconSize or 75,
+							cat.holdTime or 0,
+						})
+					end
 					cooldowns[i] = nil
 				end
 			else
@@ -84,12 +97,12 @@ local function OnUpdate(_, update)
 		runtimer = runtimer + update
 		local info = animating[1]
 		local cat = addon.db.cooldownNotifyCategories[info[3]] or {}
-		local fadeInTime = cat.fadeInTime or 0.3
-		local fadeOutTime = cat.fadeOutTime or 0.7
-		local maxAlpha = cat.maxAlpha or 0.7
-		local animScale = cat.animScale or 1.5
-		local iconSize = cat.iconSize or 75
-		local holdTime = cat.holdTime or 0
+		local fadeInTime = info[5] or 0.3
+		local fadeOutTime = info[6] or 0.7
+		local maxAlpha = info[7] or 0.7
+		local animScale = info[8] or 1.5
+		local iconSize = info[9] or 75
+		local holdTime = info[10] or 0
 		if runtimer > (fadeInTime + holdTime + fadeOutTime) then
 			table.remove(animating, 1)
 			runtimer = 0
@@ -264,10 +277,10 @@ function CN:SPELL_UPDATE_COOLDOWN(spellID)
 	local found = false
 	for catId, cat in pairs(addon.db.cooldownNotifyCategories or {}) do
 		if addon.db.cooldownNotifyEnabled[catId] then
-                       -- only handle spells for this category
-                       if cat.spells and cat.spells[spellID] then
-                               local cd = C_Spell.GetSpellCooldown(spellID)
-                               if cd.isEnabled ~= 0 and cd.duration and cd.duration > 2 then
+			-- only handle spells for this category
+			if cat.spells and cat.spells[spellID] then
+				local cd = C_Spell.GetSpellCooldown(spellID)
+				if cd.isEnabled ~= 0 and cd.duration and cd.duration > 2 then
 					local key = spellID .. ":" .. catId
 					cooldowns[key] = {
 						start = cd.startTime,
@@ -442,7 +455,18 @@ local function buildCategoryOptions(container, catId)
 		end
 		tex = tex or "Interface\\Icons\\INV_Misc_QuestionMark"
 		name = name or L["Test"] or "Test"
-		table.insert(animating, { tex, name, catId, 0 })
+		table.insert(animating, {
+			tex,
+			name,
+			catId,
+			0,
+			cat.fadeInTime or 0.3,
+			cat.fadeOutTime or 0.7,
+			cat.maxAlpha or 0.7,
+			cat.animScale or 1.5,
+			cat.iconSize or 75,
+			cat.holdTime or 0,
+		})
 		if not DCP:GetScript("OnUpdate") then
 			DCP:SetScript("OnUpdate", OnUpdate)
 			DCP:Show()
