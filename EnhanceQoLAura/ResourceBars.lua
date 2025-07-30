@@ -1,3 +1,4 @@
+--@debug@
 local parentAddonName = "EnhanceQoL"
 local addonName, addon = ...
 
@@ -580,7 +581,6 @@ local function createPowerBar(type, anchor)
 	if a.point then
 		local rel = resolveAnchor(a, type)
 		if rel and rel:GetName() ~= "UIParent" then allowMove = false end
-		if type == "ENERGY" then print(a.point, rel:GetName(), a.relativePoint or a.point, a.x or 0, a.y or 0) end
 		bar:SetPoint(a.point, rel, a.relativePoint or a.point, a.x or 0, a.y or 0)
 	elseif anchor then
 		bar:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, 0)
@@ -860,3 +860,4 @@ end
 function ResourceBars.Refresh() setPowerbars() end
 
 return ResourceBars
+--@end-debug@
