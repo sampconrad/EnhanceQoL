@@ -198,6 +198,14 @@ local function ensureAnchor(id)
 	return anchor
 end
 
+local function changeAnchorName(id)
+	local anchor = ensureAnchor(id)
+	if not anchor then return end
+	local cat = addon.db.cooldownNotifyCategories[id]
+	if not cat then return end
+	if anchor.text then anchor.text:SetText(L["DragToPosition"]:format("|cffffd700" .. (cat.name or "") .. "|r")) end
+end
+
 local function applyLockState()
 	for id, anchor in pairs(anchors) do
 		if not addon.db.cooldownNotifyEnabled[id] then
@@ -390,6 +398,18 @@ local function buildCategoryOptions(container, catId)
 		applyLockState()
 	end)
 	group:AddChild(lockCB)
+
+	local nameEdit = addon.functions.createEditboxAce(L["CategoryName"], cat.name, function(self, _, text)
+		if text ~= "" then
+			cat.name = text
+			changeAnchorName(catId)
+		end
+
+		refreshTree(catId)
+		container:ReleaseChildren()
+		buildCategoryOptions(container, catId)
+	end)
+	group:AddChild(nameEdit)
 
 	local showNameCB = addon.functions.createCheckboxAce(L["ShowCooldownName"], cat.showName, function(_, _, val)
 		cat.showName = val
