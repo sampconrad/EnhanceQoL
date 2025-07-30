@@ -27,8 +27,9 @@ for _, cat in pairs(addon.db["buffTrackerCategories"]) do
 		if not buff.allowedSpecs then buff.allowedSpecs = {} end
 		if not buff.allowedClasses then buff.allowedClasses = {} end
 		if not buff.allowedRoles then buff.allowedRoles = {} end
-		if buff.showCooldown == nil then buff.showCooldown = false end
-		if not buff.conditions then buff.conditions = { join = "AND", conditions = {} } end
+               if buff.showCooldown == nil then buff.showCooldown = false end
+               if buff.showGCD == nil then buff.showGCD = false end
+               if not buff.conditions then buff.conditions = { join = "AND", conditions = {} } end
 	end
 	cat.allowedSpecs = nil
 	cat.allowedClasses = nil
@@ -592,31 +593,61 @@ local function updateBuff(catId, id, changedId, firstScan)
 			frame.icon:SetAlpha(1)
 			if not wasActive then playBuffSound(catId, id, triggeredId) end
 			frame.isActive = true
-		else
-			if buff.showCooldown then
-				local spellInfo = getSpellCooldown(id)
-				local cdStart = spellInfo.startTime
-				local cdDur = spellInfo.duration
-				local cdEnable = spellInfo.isEnabled
-				local modRate = spellInfo.modRate
-				frame.cd:SetReverse(false)
-				if cdEnable and cdDur and cdDur > 0 and cdStart > 0 and (cdStart + cdDur) > GetTime() then
-					frame.cd:SetCooldown(cdStart, cdDur, modRate)
-					frame.icon:SetDesaturated(true)
-					frame.icon:SetAlpha(0.5)
-					frame.cd:SetScript("OnCooldownDone", CDResetScript)
-				else
-					frame.cd:Clear()
-					frame.cd:SetScript("OnCooldownDone", nil)
-					frame.icon:SetDesaturated(false)
-					frame.icon:SetAlpha(1)
-				end
-			else
-				frame.cd:Clear()
-				frame.cd:SetScript("OnCooldownDone", nil)
-				frame.icon:SetDesaturated(true)
-				frame.icon:SetAlpha(0.5)
-			end
+               else
+                        frame.cd:SetReverse(false)
+                        if buff.showGCD then
+                                local gcdStart, gcdDur, gcdEnable, gcdRate = getSpellCooldown(61304)
+                                if gcdEnable and gcdDur and gcdDur > 0 and gcdStart > 0 then
+                                        frame.cd:SetCooldown(gcdStart, gcdDur, gcdRate)
+                                        frame.icon:SetDesaturated(true)
+                                        frame.icon:SetAlpha(0.5)
+                                        frame.cd:SetScript("OnCooldownDone", CDResetScript)
+                                elseif buff.showCooldown then
+                                        local spellInfo = getSpellCooldown(id)
+                                        local cdStart = spellInfo.startTime
+                                        local cdDur = spellInfo.duration
+                                        local cdEnable = spellInfo.isEnabled
+                                        local modRate = spellInfo.modRate
+                                        if cdEnable and cdDur and cdDur > 0 and cdStart > 0 and (cdStart + cdDur) > GetTime() then
+                                                frame.cd:SetCooldown(cdStart, cdDur, modRate)
+                                                frame.icon:SetDesaturated(true)
+                                                frame.icon:SetAlpha(0.5)
+                                                frame.cd:SetScript("OnCooldownDone", CDResetScript)
+                                        else
+                                                frame.cd:Clear()
+                                                frame.cd:SetScript("OnCooldownDone", nil)
+                                                frame.icon:SetDesaturated(false)
+                                                frame.icon:SetAlpha(1)
+                                        end
+                                else
+                                        frame.cd:Clear()
+                                        frame.cd:SetScript("OnCooldownDone", nil)
+                                        frame.icon:SetDesaturated(true)
+                                        frame.icon:SetAlpha(0.5)
+                                end
+                        elseif buff.showCooldown then
+                                local spellInfo = getSpellCooldown(id)
+                                local cdStart = spellInfo.startTime
+                                local cdDur = spellInfo.duration
+                                local cdEnable = spellInfo.isEnabled
+                                local modRate = spellInfo.modRate
+                                if cdEnable and cdDur and cdDur > 0 and cdStart > 0 and (cdStart + cdDur) > GetTime() then
+                                        frame.cd:SetCooldown(cdStart, cdDur, modRate)
+                                        frame.icon:SetDesaturated(true)
+                                        frame.icon:SetAlpha(0.5)
+                                        frame.cd:SetScript("OnCooldownDone", CDResetScript)
+                                else
+                                        frame.cd:Clear()
+                                        frame.cd:SetScript("OnCooldownDone", nil)
+                                        frame.icon:SetDesaturated(false)
+                                        frame.icon:SetAlpha(1)
+                                end
+                        else
+                                frame.cd:Clear()
+                                frame.cd:SetScript("OnCooldownDone", nil)
+                                frame.icon:SetDesaturated(true)
+                                frame.icon:SetAlpha(0.5)
+                        end
 			frame.isActive = false
 		end
 		if buff.glow then
@@ -675,25 +706,43 @@ local function updateBuff(catId, id, changedId, firstScan)
 				frame.cd:SetHideCountdownNumbers(not showTimer)
 			end
 			frame.icon:SetTexture(icon)
-			local cdStart, cdDur, cdEnable, modRate
-			if buff.showCooldown then
-				local spellInfo = getSpellCooldown(id)
-				cdStart = spellInfo.startTime
-				cdDur = spellInfo.duration
-				cdEnable = spellInfo.isEnabled
-				modRate = spellInfo.modRate
-			end
-			if buff.showCooldown and cdEnable and cdDur and cdDur > 0 and cdStart > 0 and (cdStart + cdDur) > GetTime() then
-				frame.cd:SetCooldown(cdStart, cdDur, modRate)
-				frame.icon:SetDesaturated(true)
-				frame.icon:SetAlpha(0.5)
-				frame.cd:SetScript("OnCooldownDone", CDResetScript)
-			else
-				frame.cd:Clear()
-				frame.cd:SetScript("OnCooldownDone", nil)
-				frame.icon:SetDesaturated(false)
-				frame.icon:SetAlpha(1)
-			end
+                        local cdStart, cdDur, cdEnable, modRate
+                        if buff.showCooldown then
+                                local spellInfo = getSpellCooldown(id)
+                                cdStart = spellInfo.startTime
+                                cdDur = spellInfo.duration
+                                cdEnable = spellInfo.isEnabled
+                                modRate = spellInfo.modRate
+                        end
+                        if buff.showGCD then
+                                local gcdStart, gcdDur, gcdEnable, gcdRate = getSpellCooldown(61304)
+                                if gcdEnable and gcdDur and gcdDur > 0 and gcdStart > 0 then
+                                        frame.cd:SetCooldown(gcdStart, gcdDur, gcdRate)
+                                        frame.icon:SetDesaturated(true)
+                                        frame.icon:SetAlpha(0.5)
+                                        frame.cd:SetScript("OnCooldownDone", CDResetScript)
+                                elseif buff.showCooldown and cdEnable and cdDur and cdDur > 0 and cdStart > 0 and (cdStart + cdDur) > GetTime() then
+                                        frame.cd:SetCooldown(cdStart, cdDur, modRate)
+                                        frame.icon:SetDesaturated(true)
+                                        frame.icon:SetAlpha(0.5)
+                                        frame.cd:SetScript("OnCooldownDone", CDResetScript)
+                                else
+                                        frame.cd:Clear()
+                                        frame.cd:SetScript("OnCooldownDone", nil)
+                                        frame.icon:SetDesaturated(false)
+                                        frame.icon:SetAlpha(1)
+                                end
+                        elseif buff.showCooldown and cdEnable and cdDur and cdDur > 0 and cdStart > 0 and (cdStart + cdDur) > GetTime() then
+                                frame.cd:SetCooldown(cdStart, cdDur, modRate)
+                                frame.icon:SetDesaturated(true)
+                                frame.icon:SetAlpha(0.5)
+                                frame.cd:SetScript("OnCooldownDone", CDResetScript)
+                        else
+                                frame.cd:Clear()
+                                frame.cd:SetScript("OnCooldownDone", nil)
+                                frame.icon:SetDesaturated(false)
+                                frame.icon:SetAlpha(1)
+                        end
 			if shouldSecure then
 				frame:EnableMouse(true)
 				frame:RegisterForClicks("AnyUp", "AnyDown")
@@ -948,20 +997,20 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 				local cat = addon.db["buffTrackerCategories"][catId]
 				if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
 					local buff = cat.buffs[baseSpell]
-					if buff and buff.showCooldown then
-						updateBuff(catId, baseSpell)
-						needsLayout[catId] = true
-					end
+                                       if buff and (buff.showCooldown or buff.showGCD) then
+                                               updateBuff(catId, baseSpell)
+                                               needsLayout[catId] = true
+                                       end
 				end
 			end
 		else
 			for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
 				if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
 					for id, buff in pairs(cat.buffs) do
-						if buff.showCooldown then
-							updateBuff(catId, id)
-							needsLayout[catId] = true
-						end
+                                               if buff.showCooldown or buff.showGCD then
+                                                       updateBuff(catId, id)
+                                                       needsLayout[catId] = true
+                                               end
 					end
 				end
 			end
@@ -1022,9 +1071,10 @@ local function addBuff(catId, id)
 		altIDs = {},
 		showAlways = false,
 		glow = false,
-		castOnClick = false,
-		showCooldown = false,
-		showCharges = addon.db["buffTrackerShowCharges"] or false,
+               castOnClick = false,
+               showCooldown = false,
+               showGCD = false,
+               showCharges = addon.db["buffTrackerShowCharges"] or false,
 		trackType = "BUFF",
 		conditions = { join = "AND", conditions = {} },
 		allowedSpecs = {},
@@ -1102,19 +1152,21 @@ local function sanitiseCategory(cat)
 	cat.allowedRoles = nil
 	for _, buff in pairs(cat.buffs or {}) do
 		if not buff.altIDs then buff.altIDs = {} end
-		if buff.showAlways == nil then buff.showAlways = false end
-		if buff.glow == nil then buff.glow = false end
-		if buff.castOnClick == nil then buff.castOnClick = false end
-		if not buff.trackType then buff.trackType = "BUFF" end
-		if not buff.allowedSpecs then buff.allowedSpecs = {} end
-		if not buff.allowedClasses then buff.allowedClasses = {} end
-		if not buff.allowedRoles then buff.allowedRoles = {} end
-		if not buff.conditions then buff.conditions = { join = "AND", conditions = {} } end
-		if buff.showStacks == nil then
-			local def = addon.db["buffTrackerShowStacks"]
-			if def == nil then def = true end
-			buff.showStacks = def
-		end
+                if buff.showAlways == nil then buff.showAlways = false end
+                if buff.glow == nil then buff.glow = false end
+                if buff.castOnClick == nil then buff.castOnClick = false end
+                if not buff.trackType then buff.trackType = "BUFF" end
+                if not buff.allowedSpecs then buff.allowedSpecs = {} end
+                if not buff.allowedClasses then buff.allowedClasses = {} end
+                if not buff.allowedRoles then buff.allowedRoles = {} end
+                if not buff.conditions then buff.conditions = { join = "AND", conditions = {} } end
+                if buff.showCooldown == nil then buff.showCooldown = false end
+                if buff.showGCD == nil then buff.showGCD = false end
+                if buff.showStacks == nil then
+                        local def = addon.db["buffTrackerShowStacks"]
+                        if def == nil then def = true end
+                        buff.showStacks = def
+                end
 		if buff.showTimerText == nil then
 			local def = addon.db["buffTrackerShowTimerText"]
 			if def == nil then def = true end
@@ -1499,26 +1551,35 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 		wrapper:AddChild(addon.functions.createSpacerAce())
 	end
 
-	local cbCooldown = addon.functions.createCheckboxAce(L["buffTrackerShowCooldown"], buff.showCooldown, function(_, _, val)
-		buff.showCooldown = val
-		scanBuffs()
-	end)
-	local cbCharges = addon.functions.createCheckboxAce(L["buffTrackerShowCharges"], buff.showCharges == nil and addon.db["buffTrackerShowCharges"] or buff.showCharges, function(_, _, val)
-		buff.showCharges = val
-		scanBuffs()
-	end)
+       local cbGCD
+       local cbCooldown = addon.functions.createCheckboxAce(L["buffTrackerShowCooldown"], buff.showCooldown, function(_, _, val)
+               buff.showCooldown = val
+               cbGCD:SetDisabled(not val)
+               scanBuffs()
+       end)
+       cbGCD = addon.functions.createCheckboxAce(L["buffTrackerShowGCD"], buff.showGCD, function(_, _, val)
+               buff.showGCD = val
+               scanBuffs()
+       end)
+       local cbCharges = addon.functions.createCheckboxAce(L["buffTrackerShowCharges"], buff.showCharges == nil and addon.db["buffTrackerShowCharges"] or buff.showCharges, function(_, _, val)
+               buff.showCharges = val
+               scanBuffs()
+       end)
 
 	local alwaysCB = addon.functions.createCheckboxAce(L["buffTrackerAlwaysShow"], buff.showAlways, function(_, _, val)
 		buff.showAlways = val
-		cbCooldown:SetDisabled(not val)
-		cbCharges:SetDisabled(not val)
+               cbCooldown:SetDisabled(not val)
+               cbGCD:SetDisabled(not val or not buff.showCooldown)
+               cbCharges:SetDisabled(not val)
 		scanBuffs()
 	end)
-	wrapper:AddChild(alwaysCB)
-	cbCooldown:SetDisabled(not buff.showAlways)
-	cbCharges:SetDisabled(not buff.showAlways)
-	wrapper:AddChild(cbCooldown)
-	wrapper:AddChild(cbCharges)
+       wrapper:AddChild(alwaysCB)
+       cbCooldown:SetDisabled(not buff.showAlways)
+       cbGCD:SetDisabled(not buff.showAlways or not buff.showCooldown)
+       cbCharges:SetDisabled(not buff.showAlways)
+       wrapper:AddChild(cbCooldown)
+       wrapper:AddChild(cbGCD)
+       wrapper:AddChild(cbCharges)
 
 	local cbGlow = addon.functions.createCheckboxAce(L["buffTrackerGlow"], buff.glow, function(_, _, val)
 		buff.glow = val
