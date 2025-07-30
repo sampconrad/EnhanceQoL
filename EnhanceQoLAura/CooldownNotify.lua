@@ -245,76 +245,6 @@ end)
 
 CN.frame = DCP
 
-function CN.functions.addCooldownNotifyOptions(container)
-    local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-    container:AddChild(wrapper)
-
-    local tree = {}
-    for catId, cat in pairs(addon.db.cooldownNotifyCategories or {}) do
-        local text = cat.name
-        if addon.db.cooldownNotifyEnabled[catId] == false then text = "|cff808080" .. text .. "|r" end
-        table.insert(tree, { value = catId, text = text })
-    end
-    table.insert(tree, { value = "ADD_CATEGORY", text = L["Add Category"] })
-    table.insert(tree, { value = "IMPORT_CATEGORY", text = L["ImportCategory"] })
-
-    local treeGroup = AceGUI:Create("TreeGroup")
-    treeGroup:SetTree(tree)
-    treeGroup:SetCallback("OnGroupSelected", function(widget, _, value)
-        if value == "ADD_CATEGORY" then
-            local newId = 1
-            for id in pairs(addon.db.cooldownNotifyCategories) do if id >= newId then newId = id + 1 end end
-            addon.db.cooldownNotifyCategories[newId] = {
-                name = L["NewCategoryName"] or "New",
-                anchor = { point = "CENTER", x = 0, y = 0 },
-                iconSize = 75,
-                fadeInTime = 0.3,
-                fadeOutTime = 0.7,
-                holdTime = 0,
-                animScale = 1.5,
-                showName = true,
-                spells = {}, items = {}, pets = {},
-            }
-            addon.db.cooldownNotifyEnabled[newId] = true
-            widget:SetTree(getCategoryTree())
-            widget:SelectByValue(tostring(newId))
-            return
-        elseif value == "IMPORT_CATEGORY" then
-            StaticPopupDialogs["EQOL_IMPORT_CATEGORY"] = StaticPopupDialogs["EQOL_IMPORT_CATEGORY"] or {
-                text = L["ImportCategory"],
-                button1 = ACCEPT,
-                button2 = CANCEL,
-                hasEditBox = true,
-                editBoxWidth = 320,
-                timeout = 0,
-                whileDead = true,
-                hideOnEscape = true,
-                preferredIndex = 3,
-            }
-            StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnShow = function(self)
-                self.editBox:SetText("")
-                self.editBox:SetFocus()
-                self.text:SetText(L["ImportCategory"])
-            end
-            StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnAccept = function(self)
-                local text = self.editBox:GetText()
-                local id = importCategory(text)
-                if id then widget:SetTree(getCategoryTree()); widget:SelectByValue(tostring(id)) else print(L["ImportCategoryError"] or "Invalid string") end
-            end
-            StaticPopup_Show("EQOL_IMPORT_CATEGORY")
-            return
-        end
-        local catId = tonumber(value)
-        widget:ReleaseChildren()
-        buildCategoryOptions(widget, catId)
-    end)
-    wrapper:AddChild(treeGroup)
-    treeGroup:SetFullHeight(true)
-    treeGroup:SetFullWidth(true)
-    treeGroup:SetTreeWidth(200, true)
-    local ok = treeGroup:SelectByValue(tostring(addon.db.cooldownNotifySelectedCategory or 1))
-    if not ok and tree[1] and tree[1].value then treeGroup:SelectByValue(tree[1].value) end
-end
 
 local function getCategoryTree()
     local tree = {}
@@ -390,6 +320,71 @@ local function buildCategoryOptions(container, catId)
 
     local shareBtn = addon.functions.createButtonAce(L["ShareCategory"] or "Share Category", 150, function() ShareCategory(catId) end)
     group:AddChild(shareBtn)
+end
+
+
+function CN.functions.addCooldownNotifyOptions(container)
+    local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+    container:AddChild(wrapper)
+
+    local tree = getCategoryTree()
+
+    local treeGroup = AceGUI:Create("TreeGroup")
+    treeGroup:SetTree(tree)
+    treeGroup:SetCallback("OnGroupSelected", function(widget, _, value)
+        if value == "ADD_CATEGORY" then
+            local newId = 1
+            for id in pairs(addon.db.cooldownNotifyCategories) do if id >= newId then newId = id + 1 end end
+            addon.db.cooldownNotifyCategories[newId] = {
+                name = L["NewCategoryName"] or "New",
+                anchor = { point = "CENTER", x = 0, y = 0 },
+                iconSize = 75,
+                fadeInTime = 0.3,
+                fadeOutTime = 0.7,
+                holdTime = 0,
+                animScale = 1.5,
+                showName = true,
+                spells = {}, items = {}, pets = {},
+            }
+            addon.db.cooldownNotifyEnabled[newId] = true
+            widget:SetTree(getCategoryTree())
+            widget:SelectByValue(tostring(newId))
+            return
+        elseif value == "IMPORT_CATEGORY" then
+            StaticPopupDialogs["EQOL_IMPORT_CATEGORY"] = StaticPopupDialogs["EQOL_IMPORT_CATEGORY"] or {
+                text = L["ImportCategory"],
+                button1 = ACCEPT,
+                button2 = CANCEL,
+                hasEditBox = true,
+                editBoxWidth = 320,
+                timeout = 0,
+                whileDead = true,
+                hideOnEscape = true,
+                preferredIndex = 3,
+            }
+            StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnShow = function(self)
+                self.editBox:SetText("")
+                self.editBox:SetFocus()
+                self.text:SetText(L["ImportCategory"])
+            end
+            StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnAccept = function(self)
+                local text = self.editBox:GetText()
+                local id = importCategory(text)
+                if id then widget:SetTree(getCategoryTree()); widget:SelectByValue(tostring(id)) else print(L["ImportCategoryError"] or "Invalid string") end
+            end
+            StaticPopup_Show("EQOL_IMPORT_CATEGORY")
+            return
+        end
+        local catId = tonumber(value)
+        widget:ReleaseChildren()
+        buildCategoryOptions(widget, catId)
+    end)
+    wrapper:AddChild(treeGroup)
+    treeGroup:SetFullHeight(true)
+    treeGroup:SetFullWidth(true)
+    treeGroup:SetTreeWidth(200, true)
+    local ok = treeGroup:SelectByValue(tostring(addon.db.cooldownNotifySelectedCategory or 1))
+    if not ok and tree[1] and tree[1].value then treeGroup:SelectByValue(tree[1].value) end
 end
 
 local ShareCategory -- forward declaration
