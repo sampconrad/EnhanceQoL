@@ -43,6 +43,7 @@ local buffInstances = {}
 local altToBase = {}
 local spellToCat = {}
 local chargeSpells = {}
+local gcdSpells = {}
 
 local timedAuras = {}
 local timeTicker
@@ -260,13 +261,14 @@ end
 local function getCategory(id) return addon.db["buffTrackerCategories"][id] end
 
 local function rebuildAltMapping()
-	wipe(altToBase)
-	wipe(spellToCat)
-	wipe(chargeSpells)
-	for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
-		for baseId, buff in pairs(cat.buffs or {}) do
-			spellToCat[baseId] = spellToCat[baseId] or {}
-			spellToCat[baseId][catId] = true
+        wipe(altToBase)
+        wipe(spellToCat)
+        wipe(chargeSpells)
+        wipe(gcdSpells)
+        for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
+                for baseId, buff in pairs(cat.buffs or {}) do
+                        spellToCat[baseId] = spellToCat[baseId] or {}
+                        spellToCat[baseId][catId] = true
 
 			buff.altHash = {}
 			if buff.altIDs then
@@ -276,15 +278,16 @@ local function rebuildAltMapping()
 				end
 			end
 
-			local info = C_Spell and C_Spell.GetSpellCharges and C_Spell.GetSpellCharges(baseId)
-			if info and info.maxCharges and info.maxCharges > 0 then
-				chargeSpells[baseId] = true
-				buff.hasCharges = true
-			else
-				buff.hasCharges = false
-			end
-		end
-	end
+                        local info = C_Spell and C_Spell.GetSpellCharges and C_Spell.GetSpellCharges(baseId)
+                        if info and info.maxCharges and info.maxCharges > 0 then
+                                chargeSpells[baseId] = true
+                                buff.hasCharges = true
+                        else
+                                buff.hasCharges = false
+                        end
+                        if buff.showGCD then gcdSpells[baseId] = true end
+                end
+        end
 end
 
 local function getNextCategoryId()
@@ -987,34 +990,47 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 		end
 	end
 
-	if event == "SPELL_UPDATE_COOLDOWN" then
-		local changedSpell = unit
-		local needsLayout = {}
+        if event == "SPELL_UPDATE_COOLDOWN" then
+                local changedSpell = unit
+                local needsLayout = {}
 
-		if changedSpell then
-			local baseSpell = altToBase[changedSpell] or changedSpell
-			for catId in pairs(spellToCat[baseSpell] or {}) do
-				local cat = addon.db["buffTrackerCategories"][catId]
-				if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
-					local buff = cat.buffs[baseSpell]
-                                       if buff and (buff.showCooldown or buff.showGCD) then
-                                               updateBuff(catId, baseSpell)
-                                               needsLayout[catId] = true
-                                       end
-				end
-			end
-		else
-			for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
-				if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
-					for id, buff in pairs(cat.buffs) do
-                                               if buff.showCooldown or buff.showGCD then
-                                                       updateBuff(catId, id)
-                                                       needsLayout[catId] = true
-                                               end
-					end
-				end
-			end
-		end
+                if changedSpell then
+                        local baseSpell = altToBase[changedSpell] or changedSpell
+                        for catId in pairs(spellToCat[baseSpell] or {}) do
+                                local cat = addon.db["buffTrackerCategories"][catId]
+                                if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
+                                        local buff = cat.buffs[baseSpell]
+                                        if buff and (buff.showCooldown or buff.showGCD) then
+                                                updateBuff(catId, baseSpell)
+                                                needsLayout[catId] = true
+                                        end
+                                end
+                        end
+                else
+                        for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
+                                if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
+                                        for id, buff in pairs(cat.buffs) do
+                                                if buff.showCooldown or buff.showGCD then
+                                                        updateBuff(catId, id)
+                                                        needsLayout[catId] = true
+                                                end
+                                        end
+                                end
+                        end
+                end
+
+                for spellId in pairs(gcdSpells) do
+                        for catId in pairs(spellToCat[spellId] or {}) do
+                                local cat = addon.db["buffTrackerCategories"][catId]
+                                if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
+                                        local buff = cat.buffs[spellId]
+                                        if buff and buff.showGCD then
+                                                updateBuff(catId, spellId)
+                                                needsLayout[catId] = true
+                                        end
+                                end
+                        end
+                end
 
 		for catId in pairs(needsLayout) do
 			updatePositions(catId)
@@ -1559,6 +1575,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
        end)
        cbGCD = addon.functions.createCheckboxAce(L["buffTrackerShowGCD"], buff.showGCD, function(_, _, val)
                buff.showGCD = val
+               rebuildAltMapping()
                scanBuffs()
        end)
        local cbCharges = addon.functions.createCheckboxAce(L["buffTrackerShowCharges"], buff.showCharges == nil and addon.db["buffTrackerShowCharges"] or buff.showCharges, function(_, _, val)
