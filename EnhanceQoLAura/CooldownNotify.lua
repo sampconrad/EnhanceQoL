@@ -235,13 +235,20 @@ end
 function applyAnchor(id)
 	local cat = addon.db.cooldownNotifyCategories[id]
 	if not cat then return end
-	local anchor = ensureAnchor(id)
-	anchor:ClearAllPoints()
-	anchor:SetPoint(cat.anchor.point, UIParent, cat.anchor.point, cat.anchor.x, cat.anchor.y)
-	if DCP:IsShown() and currentCatId == id then
-		DCP:ClearAllPoints()
-		DCP:SetPoint(cat.anchor.point or "CENTER", UIParent, cat.anchor.point or "CENTER", cat.anchor.x or 0, cat.anchor.y or 0)
-	end
+       local anchor = ensureAnchor(id)
+       anchor:ClearAllPoints()
+       anchor:SetPoint(cat.anchor.point, UIParent, cat.anchor.point, cat.anchor.x, cat.anchor.y)
+
+       if DCP:IsShown() then
+               if currentCatId == id then
+                       DCP:ClearAllPoints()
+                       DCP:SetPoint(cat.anchor.point or "CENTER", UIParent, cat.anchor.point or "CENTER", cat.anchor.x or 0, cat.anchor.y or 0)
+               end
+       else
+               -- Update the cooldown frame position so it spawns at the new anchor
+               DCP:ClearAllPoints()
+               DCP:SetPoint(cat.anchor.point or "CENTER", UIParent, cat.anchor.point or "CENTER", cat.anchor.x or 0, cat.anchor.y or 0)
+       end
 end
 
 function CN:SPELL_UPDATE_COOLDOWN(spellID)
