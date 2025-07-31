@@ -104,6 +104,7 @@ L["talentReminderEnabledDesc"] = "Only checks in %s difficulty in preparation fo
 L["talentReminderLoadOnReadyCheck"] = "Only check talents on %s"
 L["talentReminderSoundOnDifference"] = "Play a sound if talents differ from the saved setup"
 L["talentReminderShowActiveBuild"] = "Show active talent build name"
+L["Unknown"] = "Unknown"
 L["talentReminderActiveBuildTextSize"] = "Text Size"
 L["WrongTalents"] = "Wrong Talents"
 L["ActualTalents"] = "Current Talents"
