@@ -237,19 +237,19 @@ activeBuildFrame.text = activeBuildFrame:CreateFontString(nil, "OVERLAY", "GameF
 activeBuildFrame.text:SetPoint("CENTER")
 
 local function applyActiveBuildLock()
-       if addon.db["talentReminderActiveBuildLocked"] then
-               activeBuildFrame:SetScript("OnDragStart", nil)
-               activeBuildFrame:SetScript("OnDragStop", nil)
-       else
-               activeBuildFrame:SetScript("OnDragStart", activeBuildFrame.StartMoving)
-               activeBuildFrame:SetScript("OnDragStop", function(self)
-                       self:StopMovingOrSizing()
-                       local point, _, _, xOfs, yOfs = self:GetPoint()
-                       addon.db["talentReminderActiveBuildPoint"] = point
-                       addon.db["talentReminderActiveBuildX"] = xOfs
-                       addon.db["talentReminderActiveBuildY"] = yOfs
-               end)
-       end
+	if addon.db["talentReminderActiveBuildLocked"] then
+		activeBuildFrame:SetScript("OnDragStart", nil)
+		activeBuildFrame:SetScript("OnDragStop", nil)
+	else
+		activeBuildFrame:SetScript("OnDragStart", activeBuildFrame.StartMoving)
+		activeBuildFrame:SetScript("OnDragStop", function(self)
+			self:StopMovingOrSizing()
+			local point, _, _, xOfs, yOfs = self:GetPoint()
+			addon.db["talentReminderActiveBuildPoint"] = point
+			addon.db["talentReminderActiveBuildX"] = xOfs
+			addon.db["talentReminderActiveBuildY"] = yOfs
+		end)
+	end
 end
 applyActiveBuildLock()
 
@@ -264,30 +264,49 @@ local function restoreActiveBuildPosition()
 end
 
 local function updateActiveTalentText()
-       if not (addon.db["talentReminderEnabled"] and addon.db["talentReminderShowActiveBuild"]) then
-               activeBuildFrame:Hide()
-               return
-       end
-       local only = addon.db["talentReminderActiveBuildShowOnly"] or 1
-       if only == 2 and not IsInInstance() then
-               activeBuildFrame:Hide()
-               return
-       elseif only == 3 and not UnitInRaid("player") then
-               activeBuildFrame:Hide()
-               return
-       end
-       local actTalent = C_ClassTalents.GetLastSelectedSavedConfigID(addon.MythicPlus.variables.currentSpecID)
-	if actTalent then
-		local curName = GetConfigName(actTalent)
-
-		activeBuildFrame.text:SetText(string.format("Talentbuild: %s", curName))
-	else
-		activeBuildFrame.text:SetText(string.format("Talentbuild: %s", L["Unknown"]))
+	if not (addon.db["talentReminderEnabled"] and addon.db["talentReminderShowActiveBuild"]) then
+		activeBuildFrame:Hide()
+		return
 	end
-       activeBuildFrame.text:SetFont(addon.variables.defaultFont, addon.db["talentReminderActiveBuildSize"], "OUTLINE")
-       restoreActiveBuildPosition()
-       applyActiveBuildLock()
-       activeBuildFrame:Show()
+	local allowedLocations = {}
+	local foundOptions = false
+	for c, val in pairs(addon.db["talentReminderActiveBuildShowOnly"] or {}) do
+		if val then
+			allowedLocations[c] = true
+			foundOptions = true
+		end
+	end
+
+	local doIt = false
+
+	if foundOptions then
+		activeBuildFrame:Hide()
+		if not IsInInstance() and allowedLocations[1] then
+			doIt = true
+		elseif IsInInstance() and allowedLocations[2] then
+			doIt = true
+		elseif select(2, GetInstanceInfo()) == "raid" and allowedLocations[3] then
+			doIt = true
+		end
+	else
+		doIt = true
+	end
+
+	if doIt then
+		local actTalent
+		if addon.MythicPlus.variables.currentSpecID then actTalent = C_ClassTalents.GetLastSelectedSavedConfigID(addon.MythicPlus.variables.currentSpecID) end
+		if actTalent then
+			local curName = GetConfigName(actTalent)
+
+			activeBuildFrame.text:SetText(string.format("Talentbuild: %s", curName))
+		else
+			activeBuildFrame.text:SetText(string.format("Talentbuild: %s", L["Unknown"]))
+		end
+		activeBuildFrame.text:SetFont(addon.variables.defaultFont, addon.db["talentReminderActiveBuildSize"], "OUTLINE")
+		restoreActiveBuildPosition()
+		applyActiveBuildLock()
+		activeBuildFrame:Show()
+	end
 end
 
 addon.MythicPlus.functions.updateActiveTalentText = updateActiveTalentText
