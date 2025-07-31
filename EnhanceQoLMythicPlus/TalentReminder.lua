@@ -228,6 +228,88 @@ local function showWarning(info)
 end
 
 local frameLoad = CreateFrame("Frame")
+local activeBuildFrame = CreateFrame("Frame", nil, UIParent)
+activeBuildFrame:SetSize(200, 20)
+activeBuildFrame:SetMovable(true)
+activeBuildFrame:EnableMouse(true)
+activeBuildFrame:RegisterForDrag("LeftButton")
+activeBuildFrame.text = activeBuildFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+activeBuildFrame.text:SetPoint("CENTER")
+
+local function applyActiveBuildLock()
+	if addon.db["talentReminderActiveBuildLocked"] then
+		activeBuildFrame:SetScript("OnDragStart", nil)
+		activeBuildFrame:SetScript("OnDragStop", nil)
+	else
+		activeBuildFrame:SetScript("OnDragStart", activeBuildFrame.StartMoving)
+		activeBuildFrame:SetScript("OnDragStop", function(self)
+			self:StopMovingOrSizing()
+			local point, _, _, xOfs, yOfs = self:GetPoint()
+			addon.db["talentReminderActiveBuildPoint"] = point
+			addon.db["talentReminderActiveBuildX"] = xOfs
+			addon.db["talentReminderActiveBuildY"] = yOfs
+		end)
+	end
+end
+applyActiveBuildLock()
+
+local function restoreActiveBuildPosition()
+	local point = addon.db["talentReminderActiveBuildPoint"]
+	local xOfs = addon.db["talentReminderActiveBuildX"]
+	local yOfs = addon.db["talentReminderActiveBuildY"]
+	if point then
+		activeBuildFrame:ClearAllPoints()
+		activeBuildFrame:SetPoint(point, UIParent, point, xOfs, yOfs)
+	end
+end
+
+local function updateActiveTalentText()
+	if not (addon.db["talentReminderEnabled"] and addon.db["talentReminderShowActiveBuild"]) then
+		activeBuildFrame:Hide()
+		return
+	end
+	local allowedLocations = {}
+	local foundOptions = false
+	for c, val in pairs(addon.db["talentReminderActiveBuildShowOnly"] or {}) do
+		if val then
+			allowedLocations[c] = true
+			foundOptions = true
+		end
+	end
+
+	local doIt = false
+
+	if foundOptions then
+		activeBuildFrame:Hide()
+		if not IsInInstance() and allowedLocations[1] then
+			doIt = true
+		elseif IsInInstance() and allowedLocations[2] then
+			doIt = true
+		elseif select(2, GetInstanceInfo()) == "raid" and allowedLocations[3] then
+			doIt = true
+		end
+	else
+		doIt = true
+	end
+
+	if doIt then
+		local actTalent
+		if addon.MythicPlus.variables.currentSpecID then actTalent = C_ClassTalents.GetLastSelectedSavedConfigID(addon.MythicPlus.variables.currentSpecID) end
+		if actTalent then
+			local curName = GetConfigName(actTalent)
+
+			activeBuildFrame.text:SetText(string.format("Talentbuild: %s", curName))
+		else
+			activeBuildFrame.text:SetText(string.format("Talentbuild: %s", L["Unknown"]))
+		end
+		activeBuildFrame.text:SetFont(addon.variables.defaultFont, addon.db["talentReminderActiveBuildSize"], "OUTLINE")
+		restoreActiveBuildPosition()
+		applyActiveBuildLock()
+		activeBuildFrame:Show()
+	end
+end
+
+addon.MythicPlus.functions.updateActiveTalentText = updateActiveTalentText
 
 local function checkLoadout(isReadycheck)
 	if nil == addon.MythicPlus.variables.currentSpecID then addon.MythicPlus.variables.currentSpecID = PlayerUtil.GetCurrentSpecID() end
@@ -281,6 +363,7 @@ local function checkLoadout(isReadycheck)
 	elseif (ChangeTalentUIPopup and ChangeTalentUIPopup:IsVisible()) or (ChangeTalentUIWarning and ChangeTalentUIWarning:IsVisible()) then
 		deleteFrame(ChangeTalentUIPopup)
 	end
+	updateActiveTalentText()
 end
 
 function addon.MythicPlus.functions.checkLoadout() checkLoadout() end
@@ -333,12 +416,14 @@ local eventHandlers = {
 		checkLoadout()
 		addon.MythicPlus.functions.checkRemovedLoadout()
 		addon.MythicPlus.functions.refreshTalentFrameIfOpen()
+		updateActiveTalentText()
 	end,
 	["TRAIT_CONFIG_DELETED"] = function(arg1)
 		addon.MythicPlus.functions.getAllLoadouts()
 		checkLoadout()
 		addon.MythicPlus.functions.checkRemovedLoadout()
 		addon.MythicPlus.functions.refreshTalentFrameIfOpen()
+		updateActiveTalentText()
 	end,
 	["TRAIT_CONFIG_UPDATED"] = function()
 		C_Timer.After(0.2, function()
@@ -346,15 +431,21 @@ local eventHandlers = {
 			checkLoadout()
 			addon.MythicPlus.functions.checkRemovedLoadout()
 			addon.MythicPlus.functions.refreshTalentFrameIfOpen()
+			updateActiveTalentText()
 		end)
 	end,
 	["READY_CHECK"] = function()
 		if addon.db["talentReminderLoadOnReadyCheck"] then checkLoadout(true) end
+		updateActiveTalentText()
 	end,
 	["ZONE_CHANGED"] = function()
 		if IsInInstance() then checkLoadout() end
+		updateActiveTalentText()
 	end,
-	["ZONE_CHANGED_NEW_AREA"] = function() checkLoadout() end,
+	["ZONE_CHANGED_NEW_AREA"] = function()
+		checkLoadout()
+		updateActiveTalentText()
+	end,
 	["PLAYER_ENTERING_WORLD"] = function()
 		if firstLoad then
 			firstLoad = false
@@ -362,6 +453,7 @@ local eventHandlers = {
 				addon.MythicPlus.functions.getAllLoadouts()
 				addon.MythicPlus.functions.checkRemovedLoadout()
 				checkLoadout()
+				updateActiveTalentText()
 				frameLoad:UnregisterEvent("PLAYER_ENTERING_WORLD")
 			end)
 		end
@@ -380,3 +472,4 @@ local function eventHandler(self, event, ...)
 end
 registerEvents(frameLoad)
 frameLoad:SetScript("OnEvent", eventHandler)
+C_Timer.After(0, updateActiveTalentText)

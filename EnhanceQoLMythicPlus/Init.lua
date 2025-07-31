@@ -62,6 +62,13 @@ addon.functions.InitDBValue("mythicPlusBRTrackerY", 0)
 -- Talent Reminder
 addon.functions.InitDBValue("talentReminderEnabled", false)
 addon.functions.InitDBValue("talentReminderSettings", {})
+addon.functions.InitDBValue("talentReminderShowActiveBuild", false)
+addon.functions.InitDBValue("talentReminderActiveBuildPoint", "CENTER")
+addon.functions.InitDBValue("talentReminderActiveBuildX", 0)
+addon.functions.InitDBValue("talentReminderActiveBuildY", 0)
+addon.functions.InitDBValue("talentReminderActiveBuildSize", 14)
+addon.functions.InitDBValue("talentReminderActiveBuildLocked", false)
+addon.functions.InitDBValue("talentReminderActiveBuildShowOnly", 1)
 
 addon.MythicPlus = {}
 addon.MythicPlus.functions = {}

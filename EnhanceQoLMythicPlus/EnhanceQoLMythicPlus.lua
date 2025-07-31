@@ -225,14 +225,14 @@ local function createButtons()
 					if addon.MythicPlus.variables.breakIt then
 						self:Cancel()
 						C_PartyInfo.DoCountdown(0)
--- TODO 11.2: use C_ChatInfo.SendChatMessage
+						-- TODO 11.2: use C_ChatInfo.SendChatMessage
 						if addon.db["noChatOnPullTimer"] == false then SendChatMessage("PULL Canceled", "Party") end
 						C_ChatInfo.SendAddonMessage("D4", ("PT\t%s\t%d"):format(0, instanceId), IsInGroup(2) and "INSTANCE_CHAT" or "RAID")
 					end
 
 					if x == 0 then
 						self:Cancel()
--- TODO 11.2: use C_ChatInfo.SendChatMessage
+						-- TODO 11.2: use C_ChatInfo.SendChatMessage
 						addon.MythicPlus.variables.handled = false
 						if addon.db["noChatOnPullTimer"] == false then SendChatMessage(">>PULL NOW<<", "Party") end
 						if addon.db["autoKeyStart"] == false then
@@ -256,7 +256,7 @@ local function createButtons()
 							else
 								addon.MythicPlus.Buttons["PullTimer"]:SetText(L["Pull"] .. " (" .. x .. ")")
 							end
--- TODO 11.2: use C_ChatInfo.SendChatMessage
+							-- TODO 11.2: use C_ChatInfo.SendChatMessage
 						end
 						if addon.MythicPlus.variables.breakIt == false then
 							if addon.db["noChatOnPullTimer"] == false then SendChatMessage(format("PULL in %ds", x), "Party") end
@@ -1146,6 +1146,16 @@ local function addTalentFrame(container)
 				addon.MythicPlus.functions.checkLoadout()
 			end,
 		})
+		table.insert(data, {
+			text = L["talentReminderShowActiveBuild"],
+			var = "talentReminderShowActiveBuild",
+			func = function(self, _, value)
+				addon.db["talentReminderShowActiveBuild"] = value
+				addon.MythicPlus.functions.updateActiveTalentText()
+				container:ReleaseChildren()
+				addTalentFrame(container)
+			end,
+		})
 	end
 
 	for _, cbData in ipairs(data) do
@@ -1155,6 +1165,49 @@ local function addTalentFrame(container)
 		if cbData.desc then desc = cbData.desc end
 		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc, desc)
 		groupCore:AddChild(cbElement)
+	end
+
+	if addon.db["talentReminderEnabled"] then
+		if addon.db["talentReminderShowActiveBuild"] then
+			local sliderSize = addon.functions.createSliderAce(
+				L["talentReminderActiveBuildTextSize"] .. ": " .. addon.db["talentReminderActiveBuildSize"],
+				addon.db["talentReminderActiveBuildSize"],
+				6,
+				64,
+				1,
+				function(self, _, value2)
+					addon.db["talentReminderActiveBuildSize"] = value2
+					addon.MythicPlus.functions.updateActiveTalentText()
+					self:SetLabel(L["talentReminderActiveBuildTextSize"] .. ": " .. value2)
+				end
+			)
+			groupCore:AddChild(sliderSize)
+
+			local cbLock = addon.functions.createCheckboxAce(L["talentReminderLockActiveBuild"], addon.db["talentReminderActiveBuildLocked"], function(self, _, value)
+				addon.db["talentReminderActiveBuildLocked"] = value
+				addon.MythicPlus.functions.updateActiveTalentText()
+			end)
+			groupCore:AddChild(cbLock)
+
+			local list, order = addon.functions.prepareListForDropdown({
+				[1] = L["talentReminderShowActiveBuildOutside"],
+				[2] = L["talentReminderShowActiveBuildInstance"],
+				[3] = L["talentReminderShowActiveBuildRaid"],
+			})
+
+			local dropShow = addon.functions.createDropdownAce(L["talentReminderShowActiveBuildDropdown"], list, order, function(self, event, key, value)
+				addon.db["talentReminderActiveBuildShowOnly"] = addon.db["talentReminderActiveBuildShowOnly"] or {}
+				addon.db["talentReminderActiveBuildShowOnly"][key] = value or nil
+				addon.MythicPlus.functions.updateActiveTalentText()
+			end)
+			dropShow:SetMultiselect(true)
+			for c, val in pairs(addon.db["talentReminderActiveBuildShowOnly"] or {}) do
+				if val then dropShow:SetItemValue(c, true) end
+			end
+			dropShow:SetFullWidth(false)
+			dropShow:SetWidth(200)
+			groupCore:AddChild(dropShow)
+		end
 	end
 
 	if addon.db["talentReminderEnabled"] then
