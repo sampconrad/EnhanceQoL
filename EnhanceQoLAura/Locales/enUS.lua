@@ -10,6 +10,7 @@ L["EnableCooldownNotify"] = 'Enable Cooldown Notify "%s"'
 L["GrowthDirection"] = "Growth Direction"
 L["AddSpellID"] = "Add Spell ID"
 L["TrackTrinketSlot"] = "Track Trinket Slot %d"
+L["TrinketSlot"] = "Trinket Slot %d"
 L["buffTrackerLocked"] = "Lock the tracker's position"
 L["buffTrackerIconSizeHeadline"] = "Icon Size"
 L["buffTrackerSpacingHeadline"] = "Spacing"

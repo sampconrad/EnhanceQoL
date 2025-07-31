@@ -1142,8 +1142,7 @@ function addon.Aura.functions.addTrinketBuff(catId, slot)
        if not itemID then return end
 
        local icon = GetInventoryItemTexture("player", slot)
-       local itemName = GetItemInfo(itemID)
-       if not itemName then itemName = L["TrackTrinketSlot"]:format(slot == 13 and 1 or 2) end
+       local itemName = L["TrinketSlot"]:format(slot == 13 and 1 or 2)
 
        local id = -slot
        local cat = getCategory(catId)
@@ -1635,7 +1634,9 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	wrapper:SetFullHeight(true)
 
 	local label = AceGUI:Create("Label")
-	label:SetText((buff.name or "") .. " (" .. buffId .. ")")
+	local buffText = buff.name or ""
+	if buff.trackType ~= "ITEM" then buffText = buffText .. " (" .. buffId .. ")" end
+	label:SetText(buffText)
 	wrapper:AddChild(label)
 
 	addon.db["buffTrackerSounds"][catId] = addon.db["buffTrackerSounds"][catId] or {}
