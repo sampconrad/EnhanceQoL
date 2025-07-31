@@ -1364,10 +1364,10 @@ local function getCategoryTree()
 		local text = cat.name
 		if addon.db["buffTrackerEnabled"] and addon.db["buffTrackerEnabled"][catId] == false then text = "|cff808080" .. text .. "|r" end
 		local node = { value = catId, text = text, children = {} }
-		local buffs = {}
-		for id, data in pairs(cat.buffs) do
-			table.insert(buffs, { id = id, name = data.name })
-		end
+               local buffs = {}
+               for id, data in pairs(cat.buffs) do
+                       table.insert(buffs, { id = id, name = data.name, icon = data.icon })
+               end
 		if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
 		local orderIndex = {}
 		for idx, bid in ipairs(addon.db["buffTrackerOrder"][catId]) do
@@ -1379,9 +1379,14 @@ local function getCategoryTree()
 			if ia ~= ib then return ia < ib end
 			return a.name < b.name
 		end)
-		for _, info in ipairs(buffs) do
-			table.insert(node.children, { value = catId .. "\001" .. info.id, text = info.name, icon = info.icon or (C_Spell.GetSpellInfo(info.id)).iconID })
-		end
+               for _, info in ipairs(buffs) do
+                       local icon = info.icon
+                       if not icon then
+                               local spell = C_Spell.GetSpellInfo(info.id)
+                               if spell then icon = spell.iconID end
+                       end
+                       table.insert(node.children, { value = catId .. "\001" .. info.id, text = info.name, icon = icon })
+               end
 		table.insert(tree, node)
 	end
 	table.sort(tree, function(a, b) return a.value < b.value end)
