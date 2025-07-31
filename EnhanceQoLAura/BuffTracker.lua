@@ -543,62 +543,62 @@ local function updateBuff(catId, id, changedId, firstScan)
 	if firstScan == nil then firstScan = false end
 	local cat = getCategory(catId)
 	local buff = cat and cat.buffs and cat.buffs[id]
-        local tType = buff and buff.trackType or (cat and cat.trackType) or "BUFF"
-        local key = catId .. ":" .. id
-        local before = timedAuras[key] ~= nil
-        if buff and hasTimeCondition(buff.conditions) then
-                timedAuras[key] = { catId = catId, buffId = id }
-        else
-                timedAuras[key] = nil
-        end
-        if before ~= (timedAuras[key] ~= nil) and refreshTimeTicker then refreshTimeTicker() end
-        if buff and not buffAllowed(buff) then
-                if activeBuffFrames[catId] and activeBuffFrames[catId][id] then activeBuffFrames[catId][id]:Hide() end
-                return
-        end
+	local tType = buff and buff.trackType or (cat and cat.trackType) or "BUFF"
+	local key = catId .. ":" .. id
+	local before = timedAuras[key] ~= nil
+	if buff and hasTimeCondition(buff.conditions) then
+		timedAuras[key] = { catId = catId, buffId = id }
+	else
+		timedAuras[key] = nil
+	end
+	if before ~= (timedAuras[key] ~= nil) and refreshTimeTicker then refreshTimeTicker() end
+	if buff and not buffAllowed(buff) then
+		if activeBuffFrames[catId] and activeBuffFrames[catId][id] then activeBuffFrames[catId][id]:Hide() end
+		return
+	end
 
-        if tType == "ITEM" and buff and buff.slot then
-                activeBuffFrames[catId] = activeBuffFrames[catId] or {}
-                local frame = activeBuffFrames[catId][id]
-                local showTimer = buff.showTimerText
-                if showTimer == nil then showTimer = addon.db["buffTrackerShowTimerText"] end
-                if showTimer == nil then showTimer = true end
-                local icon = GetInventoryItemTexture("player", buff.slot) or buff.icon
-                if not frame then
-                        frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, false, id, showTimer)
-                        activeBuffFrames[catId][id] = frame
-                else
-                        frame.cd:SetHideCountdownNumbers(not showTimer)
-                end
-                frame.icon:SetTexture(icon)
-                buff.icon = icon
-                local cdStart, cdDur, cdEnable = GetInventoryItemCooldown("player", buff.slot)
-                if cdEnable and cdDur and cdDur > 0 and cdStart > 0 and (cdStart + cdDur) > GetTime() then
-                        frame.cd:SetCooldown(cdStart, cdDur)
-                        frame.icon:SetDesaturated(true)
-                        frame.icon:SetAlpha(0.5)
-                        frame.cd:SetScript("OnCooldownDone", CDResetScript)
-                        frame.isActive = true
-                else
-                        frame.cd:Clear()
-                        frame.cd:SetScript("OnCooldownDone", nil)
-                        frame.icon:SetDesaturated(false)
-                        frame.icon:SetAlpha(1)
-                        frame.isActive = false
-                end
-                if buff.glow then
-                        if frame.isActive then
-                                ActionButton_ShowOverlayGlow(frame)
-                        else
-                                ActionButton_HideOverlayGlow(frame)
-                        end
-                else
-                        ActionButton_HideOverlayGlow(frame)
-                end
-                frame:Show()
-                buffInstances[key] = nil
-                return
-        end
+	if tType == "ITEM" and buff and buff.slot then
+		activeBuffFrames[catId] = activeBuffFrames[catId] or {}
+		local frame = activeBuffFrames[catId][id]
+		local showTimer = buff.showTimerText
+		if showTimer == nil then showTimer = addon.db["buffTrackerShowTimerText"] end
+		if showTimer == nil then showTimer = true end
+		local icon = GetInventoryItemTexture("player", buff.slot) or buff.icon
+		if not frame then
+			frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, false, id, showTimer)
+			activeBuffFrames[catId][id] = frame
+		else
+			frame.cd:SetHideCountdownNumbers(not showTimer)
+		end
+		frame.icon:SetTexture(icon)
+		buff.icon = icon
+		local cdStart, cdDur, cdEnable = GetInventoryItemCooldown("player", buff.slot)
+		if cdEnable and cdDur and cdDur > 0 and cdStart > 0 and (cdStart + cdDur) > GetTime() then
+			frame.cd:SetCooldown(cdStart, cdDur)
+			frame.icon:SetDesaturated(true)
+			frame.icon:SetAlpha(0.5)
+			frame.cd:SetScript("OnCooldownDone", CDResetScript)
+			frame.isActive = true
+		else
+			frame.cd:Clear()
+			frame.cd:SetScript("OnCooldownDone", nil)
+			frame.icon:SetDesaturated(false)
+			frame.icon:SetAlpha(1)
+			frame.isActive = false
+		end
+		if buff.glow then
+			if frame.isActive then
+				ActionButton_ShowOverlayGlow(frame)
+			else
+				ActionButton_HideOverlayGlow(frame)
+			end
+		else
+			ActionButton_HideOverlayGlow(frame)
+		end
+		frame:Show()
+		buffInstances[key] = nil
+		return
+	end
 
 	local aura
 	local triggeredId = id
@@ -1053,8 +1053,8 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 		return
 	end
 
-       if event == "SPELL_UPDATE_CHARGES" then
-               local needsLayout = {}
+	if event == "SPELL_UPDATE_CHARGES" then
+		local needsLayout = {}
 
 		for spellId in pairs(chargeSpells) do
 			for catId in pairs(spellToCat[spellId] or {}) do
@@ -1072,15 +1072,15 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 		for catId in pairs(needsLayout) do
 			updatePositions(catId)
 		end
-               return
-       end
+		return
+	end
 
-       if event == "BAG_UPDATE_COOLDOWN" or event == "PLAYER_EQUIPMENT_CHANGED" then
-               scanBuffs()
-               return
-       end
+	if event == "BAG_UPDATE_COOLDOWN" or event == "PLAYER_EQUIPMENT_CHANGED" then
+		scanBuffs()
+		return
+	end
 
-       scanBuffs()
+	scanBuffs()
 end)
 eventFrame:RegisterUnitEvent("UNIT_AURA", "player")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
@@ -1138,51 +1138,51 @@ local function addBuff(catId, id)
 end
 
 function addon.Aura.functions.addTrinketBuff(catId, slot)
-       local itemID = GetInventoryItemID("player", slot)
-       if not itemID then return end
+	local itemID = GetInventoryItemID("player", slot)
+	if not itemID then return end
 
-       local icon = GetInventoryItemTexture("player", slot)
-       local itemName = L["TrinketSlot"]:format(slot == 13 and 1 or 2)
+	local icon = GetInventoryItemTexture("player", slot)
+	local itemName = L["TrinketSlot"]:format(slot == 13 and 1 or 2)
 
-       local id = -slot
-       local cat = getCategory(catId)
-       if not cat then return end
+	local id = -slot
+	local cat = getCategory(catId)
+	if not cat then return end
 
-       local defTimer = addon.db["buffTrackerShowTimerText"]
-       if defTimer == nil then defTimer = true end
+	local defTimer = addon.db["buffTrackerShowTimerText"]
+	if defTimer == nil then defTimer = true end
 
-       cat.buffs[id] = {
-               name = itemName,
-               icon = icon,
-               altIDs = {},
-               showAlways = true,
-               glow = false,
-               castOnClick = false,
-               showCooldown = true,
-               showCharges = false,
-               trackType = "ITEM",
-               slot = slot,
-               conditions = { join = "AND", conditions = {} },
-               allowedSpecs = {},
-               allowedClasses = {},
-               allowedRoles = {},
-               showStacks = false,
-               showTimerText = defTimer,
-               customTextEnabled = false,
-               customTextPosition = "TOP",
-               customText = "",
-               customTextUseStacks = false,
-               customTextBase = 1,
-               customTextMin = 0,
-       }
+	cat.buffs[id] = {
+		name = itemName,
+		icon = icon,
+		altIDs = {},
+		showAlways = true,
+		glow = false,
+		castOnClick = false,
+		showCooldown = true,
+		showCharges = false,
+		trackType = "ITEM",
+		slot = slot,
+		conditions = { join = "AND", conditions = {} },
+		allowedSpecs = {},
+		allowedClasses = {},
+		allowedRoles = {},
+		showStacks = false,
+		showTimerText = defTimer,
+		customTextEnabled = false,
+		customTextPosition = "TOP",
+		customText = "",
+		customTextUseStacks = false,
+		customTextBase = 1,
+		customTextMin = 0,
+	}
 
-       if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
-       if not tContains(addon.db["buffTrackerOrder"][catId], id) then table.insert(addon.db["buffTrackerOrder"][catId], id) end
+	if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
+	if not tContains(addon.db["buffTrackerOrder"][catId], id) then table.insert(addon.db["buffTrackerOrder"][catId], id) end
 
-       addon.db["buffTrackerHidden"][id] = nil
+	addon.db["buffTrackerHidden"][id] = nil
 
-       rebuildAltMapping()
-       scanBuffs()
+	rebuildAltMapping()
+	scanBuffs()
 end
 
 local function removeBuff(catId, id)
@@ -1363,10 +1363,10 @@ local function getCategoryTree()
 		local text = cat.name
 		if addon.db["buffTrackerEnabled"] and addon.db["buffTrackerEnabled"][catId] == false then text = "|cff808080" .. text .. "|r" end
 		local node = { value = catId, text = text, children = {} }
-               local buffs = {}
-               for id, data in pairs(cat.buffs) do
-                       table.insert(buffs, { id = id, name = data.name, icon = data.icon })
-               end
+		local buffs = {}
+		for id, data in pairs(cat.buffs) do
+			table.insert(buffs, { id = id, name = data.name, icon = data.icon })
+		end
 		if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
 		local orderIndex = {}
 		for idx, bid in ipairs(addon.db["buffTrackerOrder"][catId]) do
@@ -1378,14 +1378,14 @@ local function getCategoryTree()
 			if ia ~= ib then return ia < ib end
 			return a.name < b.name
 		end)
-               for _, info in ipairs(buffs) do
-                       local icon = info.icon
-                       if not icon then
-                               local spell = C_Spell.GetSpellInfo(info.id)
-                               if spell then icon = spell.iconID end
-                       end
-                       table.insert(node.children, { value = catId .. "\001" .. info.id, text = info.name, icon = icon })
-               end
+		for _, info in ipairs(buffs) do
+			local icon = info.icon
+			if not icon then
+				local spell = C_Spell.GetSpellInfo(info.id)
+				if spell then icon = spell.iconID end
+			end
+			table.insert(node.children, { value = catId .. "\001" .. info.id, text = info.name, icon = icon })
+		end
 		table.insert(tree, node)
 	end
 	table.sort(tree, function(a, b) return a.value < b.value end)
@@ -1532,24 +1532,24 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 		end
 		self:SetText("")
 	end)
-       spellEdit:SetRelativeWidth(0.6)
-       core:AddChild(spellEdit)
+	spellEdit:SetRelativeWidth(0.6)
+	core:AddChild(spellEdit)
 
-       local trinket1Btn = addon.functions.createButtonAce(L["TrackTrinketSlot"]:format(1), 150, function()
-               addon.Aura.functions.addTrinketBuff(catId, 13)
-               refreshTree(catId)
-               container:ReleaseChildren()
-               addon.Aura.functions.buildCategoryOptions(container, catId)
-       end)
-       core:AddChild(trinket1Btn)
+	local trinket1Btn = addon.functions.createButtonAce(L["TrackTrinketSlot"]:format(1), 150, function()
+		addon.Aura.functions.addTrinketBuff(catId, 13)
+		refreshTree(catId)
+		container:ReleaseChildren()
+		addon.Aura.functions.buildCategoryOptions(container, catId)
+	end)
+	core:AddChild(trinket1Btn)
 
-       local trinket2Btn = addon.functions.createButtonAce(L["TrackTrinketSlot"]:format(2), 150, function()
-               addon.Aura.functions.addTrinketBuff(catId, 14)
-               refreshTree(catId)
-               container:ReleaseChildren()
-               addon.Aura.functions.buildCategoryOptions(container, catId)
-       end)
-       core:AddChild(trinket2Btn)
+	local trinket2Btn = addon.functions.createButtonAce(L["TrackTrinketSlot"]:format(2), 150, function()
+		addon.Aura.functions.addTrinketBuff(catId, 14)
+		refreshTree(catId)
+		container:ReleaseChildren()
+		addon.Aura.functions.buildCategoryOptions(container, catId)
+	end)
+	core:AddChild(trinket2Btn)
 
 	local exportBtn = addon.functions.createButtonAce(L["ExportCategory"], 150, function()
 		local data = exportCategory(catId)
@@ -1642,62 +1642,65 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	addon.db["buffTrackerSounds"][catId] = addon.db["buffTrackerSounds"][catId] or {}
 	addon.db["buffTrackerSoundsEnabled"][catId] = addon.db["buffTrackerSoundsEnabled"][catId] or {}
 
-	local cbElement = addon.functions.createCheckboxAce(L["buffTrackerSoundsEnabled"], addon.db["buffTrackerSoundsEnabled"][catId][buffId], function(_, _, val)
-		addon.db["buffTrackerSoundsEnabled"][catId][buffId] = val
-		container:ReleaseChildren()
-		addon.Aura.functions.buildBuffOptions(container, catId, buffId)
-	end)
-	wrapper:AddChild(cbElement)
-
-	if addon.db["buffTrackerSoundsEnabled"][catId][buffId] then
-		local soundList = {}
-		for sname in pairs(addon.Aura.sounds or {}) do
-			soundList[sname] = sname
-		end
-		local list, order = addon.functions.prepareListForDropdown(soundList)
-		local dropSound = addon.functions.createDropdownAce(L["SoundFile"], list, order, function(self, _, val)
-			addon.db["buffTrackerSounds"][catId][buffId] = val
-			self:SetValue(val)
-			local file = addon.Aura.sounds and addon.Aura.sounds[val]
-			if file then PlaySoundFile(file, "Master") end
+	if buff.trackType ~= "ITEM" then
+		local cbElement = addon.functions.createCheckboxAce(L["buffTrackerSoundsEnabled"], addon.db["buffTrackerSoundsEnabled"][catId][buffId], function(_, _, val)
+			addon.db["buffTrackerSoundsEnabled"][catId][buffId] = val
+			container:ReleaseChildren()
+			addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 		end)
-		dropSound:SetValue(addon.db["buffTrackerSounds"][catId][buffId])
-		wrapper:AddChild(dropSound)
-		wrapper:AddChild(addon.functions.createSpacerAce())
-	end
+		wrapper:AddChild(cbElement)
 
+		if addon.db["buffTrackerSoundsEnabled"][catId][buffId] then
+			local soundList = {}
+			for sname in pairs(addon.Aura.sounds or {}) do
+				soundList[sname] = sname
+			end
+			local list, order = addon.functions.prepareListForDropdown(soundList)
+			local dropSound = addon.functions.createDropdownAce(L["SoundFile"], list, order, function(self, _, val)
+				addon.db["buffTrackerSounds"][catId][buffId] = val
+				self:SetValue(val)
+				local file = addon.Aura.sounds and addon.Aura.sounds[val]
+				if file then PlaySoundFile(file, "Master") end
+			end)
+			dropSound:SetValue(addon.db["buffTrackerSounds"][catId][buffId])
+			wrapper:AddChild(dropSound)
+			wrapper:AddChild(addon.functions.createSpacerAce())
+		end
+	end
 	local cbCooldown = addon.functions.createCheckboxAce(L["buffTrackerShowCooldown"], buff.showCooldown, function(_, _, val)
 		buff.showCooldown = val
 		scanBuffs()
 	end)
-	local cbCharges = addon.functions.createCheckboxAce(L["buffTrackerShowCharges"], buff.showCharges == nil and addon.db["buffTrackerShowCharges"] or buff.showCharges, function(_, _, val)
-		buff.showCharges = val
-		scanBuffs()
-	end)
+	if buff.trackType ~= "ITEM" then
+		local cbCharges = addon.functions.createCheckboxAce(L["buffTrackerShowCharges"], buff.showCharges == nil and addon.db["buffTrackerShowCharges"] or buff.showCharges, function(_, _, val)
+			buff.showCharges = val
+			scanBuffs()
+		end)
 
-	local alwaysCB = addon.functions.createCheckboxAce(L["buffTrackerAlwaysShow"], buff.showAlways, function(_, _, val)
-		buff.showAlways = val
-		cbCooldown:SetDisabled(not val)
-		cbCharges:SetDisabled(not val)
-		scanBuffs()
-	end)
-	wrapper:AddChild(alwaysCB)
-	cbCooldown:SetDisabled(not buff.showAlways)
-	cbCharges:SetDisabled(not buff.showAlways)
-	wrapper:AddChild(cbCooldown)
-	wrapper:AddChild(cbCharges)
+		local alwaysCB = addon.functions.createCheckboxAce(L["buffTrackerAlwaysShow"], buff.showAlways, function(_, _, val)
+			buff.showAlways = val
+			cbCooldown:SetDisabled(not val)
+			cbCharges:SetDisabled(not val)
+			scanBuffs()
+		end)
+		wrapper:AddChild(alwaysCB)
+		cbCooldown:SetDisabled(not buff.showAlways)
+		cbCharges:SetDisabled(not buff.showAlways)
+		wrapper:AddChild(cbCooldown)
+		wrapper:AddChild(cbCharges)
 
-	local cbGlow = addon.functions.createCheckboxAce(L["buffTrackerGlow"], buff.glow, function(_, _, val)
-		buff.glow = val
-		scanBuffs()
-	end)
-	wrapper:AddChild(cbGlow)
+		local cbGlow = addon.functions.createCheckboxAce(L["buffTrackerGlow"], buff.glow, function(_, _, val)
+			buff.glow = val
+			scanBuffs()
+		end)
+		wrapper:AddChild(cbGlow)
 
-	local cbStacks = addon.functions.createCheckboxAce(L["buffTrackerShowStacks"], buff.showStacks == nil and addon.db["buffTrackerShowStacks"] or buff.showStacks, function(_, _, val)
-		buff.showStacks = val
-		scanBuffs()
-	end)
-	wrapper:AddChild(cbStacks)
+		local cbStacks = addon.functions.createCheckboxAce(L["buffTrackerShowStacks"], buff.showStacks == nil and addon.db["buffTrackerShowStacks"] or buff.showStacks, function(_, _, val)
+			buff.showStacks = val
+			scanBuffs()
+		end)
+		wrapper:AddChild(cbStacks)
+	end
 
 	local cbTimer = addon.functions.createCheckboxAce(
 		L["buffTrackerShowTimerText"],
@@ -1709,188 +1712,190 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	)
 	wrapper:AddChild(cbTimer)
 
-	local cbText = addon.functions.createCheckboxAce(L["buffTrackerShowCustomText"], buff.customTextEnabled, function(_, _, val)
-		buff.customTextEnabled = val
-		container:ReleaseChildren()
-		addon.Aura.functions.buildBuffOptions(container, catId, buffId)
-		scanBuffs()
-	end)
-	wrapper:AddChild(cbText)
-
-	if buff.customTextEnabled then
-		local posDrop = addon.functions.createDropdownAce(L["buffTrackerCustomTextPosition"], { TOP = "TOP", LEFT = "LEFT", RIGHT = "RIGHT", BOTTOM = "BOTTOM" }, nil, function(_, _, val)
-			buff.customTextPosition = val
-			scanBuffs()
-		end)
-		posDrop:SetValue(buff.customTextPosition or "TOP")
-		posDrop:SetRelativeWidth(0.4)
-		wrapper:AddChild(posDrop)
-
-		local txtEdit = addon.functions.createEditboxAce(L["buffTrackerCustomText"], buff.customText or "", function(self, _, text)
-			buff.customText = text
-			scanBuffs()
-		end)
-		txtEdit:SetRelativeWidth(0.6)
-		wrapper:AddChild(txtEdit)
-
-		local cbMult = addon.functions.createCheckboxAce(L["buffTrackerCustomTextMultiply"], buff.customTextUseStacks, function(_, _, val)
-			buff.customTextUseStacks = val
+	if buff.trackType ~= "ITEM" then
+		local cbText = addon.functions.createCheckboxAce(L["buffTrackerShowCustomText"], buff.customTextEnabled, function(_, _, val)
+			buff.customTextEnabled = val
 			container:ReleaseChildren()
 			addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 			scanBuffs()
 		end)
-		wrapper:AddChild(cbMult)
+		wrapper:AddChild(cbText)
 
-		if buff.customTextUseStacks then
-			local info = AceGUI:Create("Label")
-			info:SetText(L["buffTrackerCustomTextInfo"] or "")
-			info:SetFullWidth(true)
-			info:SetFont(addon.variables.defaultFont, 10, "OUTLINE")
-			wrapper:AddChild(info)
-			wrapper:AddChild(addon.functions.createSpacerAce())
-			local baseEdit = addon.functions.createEditboxAce(L["buffTrackerCustomTextBase"], tostring(buff.customTextBase or 1), function(self, _, text)
-				local num = tonumber(text)
-				if num then buff.customTextBase = num end
+		if buff.customTextEnabled then
+			local posDrop = addon.functions.createDropdownAce(L["buffTrackerCustomTextPosition"], { TOP = "TOP", LEFT = "LEFT", RIGHT = "RIGHT", BOTTOM = "BOTTOM" }, nil, function(_, _, val)
+				buff.customTextPosition = val
 				scanBuffs()
 			end)
-			baseEdit:SetRelativeWidth(0.3)
-			wrapper:AddChild(baseEdit)
+			posDrop:SetValue(buff.customTextPosition or "TOP")
+			posDrop:SetRelativeWidth(0.4)
+			wrapper:AddChild(posDrop)
 
-			local minEdit = addon.functions.createEditboxAce(L["buffTrackerCustomTextMin"], tostring(buff.customTextMin or 0), function(self, _, text)
-				local num = tonumber(text)
-				if num then
-					buff.customTextMin = num
-				else
-					buff.customTextMin = 0
-				end
+			local txtEdit = addon.functions.createEditboxAce(L["buffTrackerCustomText"], buff.customText or "", function(self, _, text)
+				buff.customText = text
 				scanBuffs()
 			end)
-			minEdit:SetRelativeWidth(0.3)
-			wrapper:AddChild(minEdit)
-			wrapper:AddChild(addon.functions.createSpacerAce())
-		end
-	end
+			txtEdit:SetRelativeWidth(0.6)
+			wrapper:AddChild(txtEdit)
 
-       local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"], ITEM = L["Item"] }, nil, function(self, _, val)
-               buff.trackType = val
-               scanBuffs()
-       end)
-	typeDrop:SetValue(buff.trackType or "BUFF")
-	typeDrop:SetRelativeWidth(0.4)
-	wrapper:AddChild(typeDrop)
-	wrapper:AddChild(addon.functions.createSpacerAce())
+			local cbMult = addon.functions.createCheckboxAce(L["buffTrackerCustomTextMultiply"], buff.customTextUseStacks, function(_, _, val)
+				buff.customTextUseStacks = val
+				container:ReleaseChildren()
+				addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+				scanBuffs()
+			end)
+			wrapper:AddChild(cbMult)
 
-	local function buildGroupUI(parent, group)
-		group.join = group.join or "AND"
-
-		local joinDrop = addon.functions.createDropdownAce(L["JoinType"], { AND = "AND", OR = "OR" }, nil, function(_, _, val)
-			group.join = val
-			container:ReleaseChildren()
-			addon.Aura.functions.buildBuffOptions(container, catId, buffId)
-			scanBuffs()
-		end)
-		joinDrop:SetValue(group.join)
-		parent:AddChild(joinDrop)
-
-		for idx, child in ipairs(group.conditions or {}) do
-			if child.join then
-				local sub = addon.functions.createContainer("InlineGroup", "List")
-				parent:AddChild(sub)
-				buildGroupUI(sub, child)
-
-				local rem = addon.functions.createButtonAce(L["Remove"], 80, function()
-					table.remove(group.conditions, idx)
-					container:ReleaseChildren()
-					addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+			if buff.customTextUseStacks then
+				local info = AceGUI:Create("Label")
+				info:SetText(L["buffTrackerCustomTextInfo"] or "")
+				info:SetFullWidth(true)
+				info:SetFont(addon.variables.defaultFont, 10, "OUTLINE")
+				wrapper:AddChild(info)
+				wrapper:AddChild(addon.functions.createSpacerAce())
+				local baseEdit = addon.functions.createEditboxAce(L["buffTrackerCustomTextBase"], tostring(buff.customTextBase or 1), function(self, _, text)
+					local num = tonumber(text)
+					if num then buff.customTextBase = num end
 					scanBuffs()
 				end)
-				sub:AddChild(rem)
-			else
-				local row = addon.functions.createContainer("SimpleGroup", "Flow")
-				row:SetFullWidth(true)
-				local typeDrop = addon.functions.createDropdownAce(nil, { missing = L["ConditionMissing"], stack = L["ConditionStacks"], time = L["ConditionTime"] }, nil, function(_, _, val)
-					child.type = val
-					if val ~= "missing" and (child.value == nil or type(child.value) ~= "number") then
-						child.value = 0
-					elseif val == "missing" and type(child.value) ~= "boolean" then
-						child.value = true
+				baseEdit:SetRelativeWidth(0.3)
+				wrapper:AddChild(baseEdit)
+
+				local minEdit = addon.functions.createEditboxAce(L["buffTrackerCustomTextMin"], tostring(buff.customTextMin or 0), function(self, _, text)
+					local num = tonumber(text)
+					if num then
+						buff.customTextMin = num
+					else
+						buff.customTextMin = 0
 					end
-					container:ReleaseChildren()
-					addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 					scanBuffs()
 				end)
-				typeDrop:SetValue(child.type)
-				typeDrop:SetRelativeWidth(0.3)
-				row:AddChild(typeDrop)
-
-				local ops = { [">"] = ">", ["<"] = "<", [">="] = ">=", ["<="] = "<=", ["=="] = "==", ["!="] = "!=" }
-				if child.type == "missing" then ops = { ["=="] = "==", ["!="] = "!=" } end
-				local opDrop = addon.functions.createDropdownAce(nil, ops, nil, function(_, _, val)
-					child.operator = val
-					scanBuffs()
-				end)
-				opDrop:SetValue(child.operator)
-				opDrop:SetRelativeWidth(0.2)
-				row:AddChild(opDrop)
-
-				if child.type == "missing" then
-					local boolDrop = addon.functions.createDropdownAce(nil, { ["true"] = L["True"], ["false"] = L["False"] }, nil, function(_, _, val)
-						child.value = val == "true"
-						scanBuffs()
-					end)
-					boolDrop:SetValue(tostring(child.value))
-					boolDrop:SetRelativeWidth(0.3)
-					row:AddChild(boolDrop)
-				else
-					local valEdit = addon.functions.createEditboxAce(nil, child.value and tostring(child.value) or "", function(self, _, text)
-						local num = tonumber(text)
-						child.value = num
-						scanBuffs()
-					end)
-					valEdit:SetRelativeWidth(0.3)
-					row:AddChild(valEdit)
-				end
-
-				local remIcon = AceGUI:Create("Icon")
-				remIcon:SetLabel("")
-				remIcon:SetImage("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-				remIcon:SetImageSize(16, 16)
-				remIcon:SetRelativeWidth(0.2)
-				remIcon:SetHeight(16)
-				remIcon:SetCallback("OnClick", function()
-					table.remove(group.conditions, idx)
-					container:ReleaseChildren()
-					addon.Aura.functions.buildBuffOptions(container, catId, buffId)
-					scanBuffs()
-				end)
-				row:AddChild(remIcon)
-
-				parent:AddChild(row)
+				minEdit:SetRelativeWidth(0.3)
+				wrapper:AddChild(minEdit)
+				wrapper:AddChild(addon.functions.createSpacerAce())
 			end
 		end
 
-		local addRow = addon.functions.createContainer("SimpleGroup", "Flow")
-		addRow:SetFullWidth(true)
-		local addCond = addon.functions.createButtonAce(L["AddCondition"], 120, function()
-			table.insert(group.conditions, { type = "missing", operator = "==", value = true })
-			container:ReleaseChildren()
-			addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+		local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"], ITEM = L["Item"] }, nil, function(self, _, val)
+			buff.trackType = val
 			scanBuffs()
 		end)
-		addRow:AddChild(addCond)
+		typeDrop:SetValue(buff.trackType or "BUFF")
+		typeDrop:SetRelativeWidth(0.4)
+		wrapper:AddChild(typeDrop)
+		wrapper:AddChild(addon.functions.createSpacerAce())
 
-		local addGrp = addon.functions.createButtonAce(L["AddGroup"], 120, function()
-			table.insert(group.conditions, { join = "AND", conditions = {} })
-			container:ReleaseChildren()
-			addon.Aura.functions.buildBuffOptions(container, catId, buffId)
-			scanBuffs()
-		end)
-		addRow:AddChild(addGrp)
-		parent:AddChild(addRow)
+		local function buildGroupUI(parent, group)
+			group.join = group.join or "AND"
+
+			local joinDrop = addon.functions.createDropdownAce(L["JoinType"], { AND = "AND", OR = "OR" }, nil, function(_, _, val)
+				group.join = val
+				container:ReleaseChildren()
+				addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+				scanBuffs()
+			end)
+			joinDrop:SetValue(group.join)
+			parent:AddChild(joinDrop)
+
+			for idx, child in ipairs(group.conditions or {}) do
+				if child.join then
+					local sub = addon.functions.createContainer("InlineGroup", "List")
+					parent:AddChild(sub)
+					buildGroupUI(sub, child)
+
+					local rem = addon.functions.createButtonAce(L["Remove"], 80, function()
+						table.remove(group.conditions, idx)
+						container:ReleaseChildren()
+						addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+						scanBuffs()
+					end)
+					sub:AddChild(rem)
+				else
+					local row = addon.functions.createContainer("SimpleGroup", "Flow")
+					row:SetFullWidth(true)
+					local typeDrop = addon.functions.createDropdownAce(nil, { missing = L["ConditionMissing"], stack = L["ConditionStacks"], time = L["ConditionTime"] }, nil, function(_, _, val)
+						child.type = val
+						if val ~= "missing" and (child.value == nil or type(child.value) ~= "number") then
+							child.value = 0
+						elseif val == "missing" and type(child.value) ~= "boolean" then
+							child.value = true
+						end
+						container:ReleaseChildren()
+						addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+						scanBuffs()
+					end)
+					typeDrop:SetValue(child.type)
+					typeDrop:SetRelativeWidth(0.3)
+					row:AddChild(typeDrop)
+
+					local ops = { [">"] = ">", ["<"] = "<", [">="] = ">=", ["<="] = "<=", ["=="] = "==", ["!="] = "!=" }
+					if child.type == "missing" then ops = { ["=="] = "==", ["!="] = "!=" } end
+					local opDrop = addon.functions.createDropdownAce(nil, ops, nil, function(_, _, val)
+						child.operator = val
+						scanBuffs()
+					end)
+					opDrop:SetValue(child.operator)
+					opDrop:SetRelativeWidth(0.2)
+					row:AddChild(opDrop)
+
+					if child.type == "missing" then
+						local boolDrop = addon.functions.createDropdownAce(nil, { ["true"] = L["True"], ["false"] = L["False"] }, nil, function(_, _, val)
+							child.value = val == "true"
+							scanBuffs()
+						end)
+						boolDrop:SetValue(tostring(child.value))
+						boolDrop:SetRelativeWidth(0.3)
+						row:AddChild(boolDrop)
+					else
+						local valEdit = addon.functions.createEditboxAce(nil, child.value and tostring(child.value) or "", function(self, _, text)
+							local num = tonumber(text)
+							child.value = num
+							scanBuffs()
+						end)
+						valEdit:SetRelativeWidth(0.3)
+						row:AddChild(valEdit)
+					end
+
+					local remIcon = AceGUI:Create("Icon")
+					remIcon:SetLabel("")
+					remIcon:SetImage("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+					remIcon:SetImageSize(16, 16)
+					remIcon:SetRelativeWidth(0.2)
+					remIcon:SetHeight(16)
+					remIcon:SetCallback("OnClick", function()
+						table.remove(group.conditions, idx)
+						container:ReleaseChildren()
+						addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+						scanBuffs()
+					end)
+					row:AddChild(remIcon)
+
+					parent:AddChild(row)
+				end
+			end
+
+			local addRow = addon.functions.createContainer("SimpleGroup", "Flow")
+			addRow:SetFullWidth(true)
+			local addCond = addon.functions.createButtonAce(L["AddCondition"], 120, function()
+				table.insert(group.conditions, { type = "missing", operator = "==", value = true })
+				container:ReleaseChildren()
+				addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+				scanBuffs()
+			end)
+			addRow:AddChild(addCond)
+
+			local addGrp = addon.functions.createButtonAce(L["AddGroup"], 120, function()
+				table.insert(group.conditions, { join = "AND", conditions = {} })
+				container:ReleaseChildren()
+				addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+				scanBuffs()
+			end)
+			addRow:AddChild(addGrp)
+			parent:AddChild(addRow)
+		end
+
+		buildGroupUI(wrapper, buff.conditions or { join = "AND", conditions = {} })
+		wrapper:AddChild(addon.functions.createSpacerAce())
 	end
-
-	buildGroupUI(wrapper, buff.conditions or { join = "AND", conditions = {} })
-	wrapper:AddChild(addon.functions.createSpacerAce())
 
 	local roleDrop = addon.functions.createDropdownAce(L["ShowForRole"], roleNames, nil, function(self, event, key, checked)
 		buff.allowedRoles = buff.allowedRoles or {}
@@ -1941,65 +1946,66 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	-- 	wrapper:AddChild(cbCast)
 	-- end
 
-	buff.altIDs = buff.altIDs or {}
-	for _, altId in ipairs(buff.altIDs) do
-		local row = addon.functions.createContainer("SimpleGroup", "Flow")
-		row:SetFullWidth(true)
-		local lbl = AceGUI:Create("Label")
-		local altInfo = C_Spell.GetSpellInfo(altId)
-		if altInfo then
-			lbl:SetText(L["AltSpellIDs"] .. ": " .. altInfo.name .. " (" .. altId .. ")")
-		else
-			lbl:SetText(L["AltSpellIDs"] .. ": " .. altId)
-		end
-		lbl:SetRelativeWidth(0.7)
-		row:AddChild(lbl)
-
-		local removeIcon = AceGUI:Create("Icon")
-		removeIcon:SetLabel("")
-		removeIcon:SetImage("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-		removeIcon:SetImageSize(16, 16)
-		removeIcon:SetRelativeWidth(0.3)
-		removeIcon:SetHeight(16)
-		removeIcon:SetCallback("OnClick", function()
-			for i, v in ipairs(buff.altIDs) do
-				if v == altId then
-					table.remove(buff.altIDs, i)
-					break
-				end
+	if buff.trackType ~= "ITEM" then
+		buff.altIDs = buff.altIDs or {}
+		for _, altId in ipairs(buff.altIDs) do
+			local row = addon.functions.createContainer("SimpleGroup", "Flow")
+			row:SetFullWidth(true)
+			local lbl = AceGUI:Create("Label")
+			local altInfo = C_Spell.GetSpellInfo(altId)
+			if altInfo then
+				lbl:SetText(L["AltSpellIDs"] .. ": " .. altInfo.name .. " (" .. altId .. ")")
+			else
+				lbl:SetText(L["AltSpellIDs"] .. ": " .. altId)
 			end
-			rebuildAltMapping()
-			container:ReleaseChildren()
-			addon.Aura.functions.buildBuffOptions(container, catId, buffId)
-		end)
-		row:AddChild(removeIcon)
-		wrapper:AddChild(row)
-	end
+			lbl:SetRelativeWidth(0.7)
+			row:AddChild(lbl)
 
-	local altEdit = addon.functions.createEditboxAce(L["AddAltSpellID"], nil, function(self, _, text)
-		local alt = tonumber(text)
-		if alt then
-			if not tContains(buff.altIDs, alt) then table.insert(buff.altIDs, alt) end
-			rebuildAltMapping()
-			self:SetText("")
-			container:ReleaseChildren()
-			addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+			local removeIcon = AceGUI:Create("Icon")
+			removeIcon:SetLabel("")
+			removeIcon:SetImage("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+			removeIcon:SetImageSize(16, 16)
+			removeIcon:SetRelativeWidth(0.3)
+			removeIcon:SetHeight(16)
+			removeIcon:SetCallback("OnClick", function()
+				for i, v in ipairs(buff.altIDs) do
+					if v == altId then
+						table.remove(buff.altIDs, i)
+						break
+					end
+				end
+				rebuildAltMapping()
+				container:ReleaseChildren()
+				addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+			end)
+			row:AddChild(removeIcon)
+			wrapper:AddChild(row)
 		end
-	end)
-	wrapper:AddChild(altEdit)
 
-	local infoIcon = AceGUI:Create("Icon")
-	infoIcon:SetImage("Interface\\FriendsFrame\\InformationIcon")
-	infoIcon:SetImageSize(16, 16)
-	infoIcon:SetWidth(16)
-	infoIcon:SetCallback("OnEnter", function(widget)
-		GameTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
-		GameTooltip:SetText(L["AlternativeSpellInfo"])
-		GameTooltip:Show()
-	end)
-	infoIcon:SetCallback("OnLeave", function() GameTooltip:Hide() end)
-	wrapper:AddChild(infoIcon)
+		local altEdit = addon.functions.createEditboxAce(L["AddAltSpellID"], nil, function(self, _, text)
+			local alt = tonumber(text)
+			if alt then
+				if not tContains(buff.altIDs, alt) then table.insert(buff.altIDs, alt) end
+				rebuildAltMapping()
+				self:SetText("")
+				container:ReleaseChildren()
+				addon.Aura.functions.buildBuffOptions(container, catId, buffId)
+			end
+		end)
+		wrapper:AddChild(altEdit)
 
+		local infoIcon = AceGUI:Create("Icon")
+		infoIcon:SetImage("Interface\\FriendsFrame\\InformationIcon")
+		infoIcon:SetImageSize(16, 16)
+		infoIcon:SetWidth(16)
+		infoIcon:SetCallback("OnEnter", function(widget)
+			GameTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
+			GameTooltip:SetText(L["AlternativeSpellInfo"])
+			GameTooltip:Show()
+		end)
+		infoIcon:SetCallback("OnLeave", function() GameTooltip:Hide() end)
+		wrapper:AddChild(infoIcon)
+	end
 	wrapper:AddChild(addon.functions.createSpacerAce())
 
 	local delBtn = addon.functions.createButtonAce(L["DeleteAura"], 150, function()
