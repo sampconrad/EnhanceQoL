@@ -179,13 +179,14 @@ addon.functions.InitDBValue("cooldownNotifyCategories", {
 		iconSize = 75,
 		fadeInTime = 0.3,
 		fadeOutTime = 0.7,
-		holdTime = 0,
-		animScale = 1.5,
-		showName = true,
-		spells = {},
-		items = {},
-		pets = {},
-	},
+                holdTime = 0,
+                animScale = 1.5,
+                showName = true,
+                useAdvancedTracking = true,
+                spells = {},
+                items = {},
+                pets = {},
+        },
 })
 addon.functions.InitDBValue("cooldownNotifyEnabled", {})
 addon.functions.InitDBValue("cooldownNotifyLocked", {})
