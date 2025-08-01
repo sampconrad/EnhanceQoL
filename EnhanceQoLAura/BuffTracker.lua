@@ -21,14 +21,33 @@ local bleedList = {
 
 local selectedCategory = addon.db["buffTrackerSelectedCategory"] or 1
 
-for _, cat in pairs(addon.db["buffTrackerCategories"]) do
-	for _, buff in pairs(cat.buffs or {}) do
+-- ---------------------------------------------------------------------------
+-- Item buff helpers
+-- ---------------------------------------------------------------------------
+local itemBuffsBySlot = {} -- [slot] = { [catId] = buffId, … }
+local equipScanPending = false
+
+local function registerItemBuff(catId, buffId, slot)
+	itemBuffsBySlot[slot] = itemBuffsBySlot[slot] or {}
+	itemBuffsBySlot[slot][catId] = buffId
+end
+
+local function unregisterItemBuff(catId, slot)
+	if itemBuffsBySlot[slot] then
+		itemBuffsBySlot[slot][catId] = nil
+		if not next(itemBuffsBySlot[slot]) then itemBuffsBySlot[slot] = nil end
+	end
+end
+
+for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
+	for id, buff in pairs(cat.buffs or {}) do
 		if not buff.trackType then buff.trackType = "BUFF" end
 		if not buff.allowedSpecs then buff.allowedSpecs = {} end
 		if not buff.allowedClasses then buff.allowedClasses = {} end
 		if not buff.allowedRoles then buff.allowedRoles = {} end
 		if buff.showCooldown == nil then buff.showCooldown = false end
 		if not buff.conditions then buff.conditions = { join = "AND", conditions = {} } end
+		if buff.trackType == "ITEM" and buff.slot then registerItemBuff(catId, id, buff.slot) end
 	end
 	cat.allowedSpecs = nil
 	cat.allowedClasses = nil
@@ -55,6 +74,32 @@ local function scheduleRescan()
 		rescanTimer = nil
 		addon.Aura.scanBuffs()
 	end)
+end
+
+-- collected rescan of equipped trinkets
+local function scanTrinketSlots()
+	equipScanPending = false
+	local needsLayout = {}
+	for _, slot in ipairs({ 13, 14 }) do
+		if itemBuffsBySlot[slot] then
+			local cdStart, cdDur = GetInventoryItemCooldown("player", slot)
+			if (cdDur and cdDur > 0) or cdStart == 0 then
+				for catId, buffId in pairs(itemBuffsBySlot[slot]) do
+					updateBuff(catId, buffId)
+					needsLayout[catId] = true
+				end
+			end
+		end
+	end
+	for catId in pairs(needsLayout) do
+		updatePositions(catId)
+	end
+end
+
+local function scheduleEquipScan()
+	if equipScanPending then return end
+	equipScanPending = true
+	C_Timer.After(0.10, scanTrinketSlots)
 end
 
 local LSM = LibStub("LibSharedMedia-3.0")
@@ -1077,8 +1122,14 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 		return
 	end
 
-	if event == "BAG_UPDATE_COOLDOWN" or event == "PLAYER_EQUIPMENT_CHANGED" then
-		scanBuffs()
+	if event == "BAG_UPDATE_COOLDOWN" then
+		scheduleEquipScan()
+		return
+	end
+
+	if event == "PLAYER_EQUIPMENT_CHANGED" then
+		local slot = unit
+		if slot == 13 or slot == 14 then scheduleEquipScan() end
 		return
 	end
 
@@ -1178,6 +1229,8 @@ function addon.Aura.functions.addTrinketBuff(catId, slot)
 		customTextMin = 0,
 	}
 
+	registerItemBuff(catId, id, slot)
+
 	if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
 	if not tContains(addon.db["buffTrackerOrder"][catId], id) then table.insert(addon.db["buffTrackerOrder"][catId], id) end
 
@@ -1190,6 +1243,8 @@ end
 local function removeBuff(catId, id)
 	local cat = getCategory(catId)
 	if not cat then return end
+	local buff = cat.buffs[id]
+	if buff and buff.trackType == "ITEM" and buff.slot then unregisterItemBuff(catId, buff.slot) end
 	cat.buffs[id] = nil
 	addon.db["buffTrackerHidden"][id] = nil
 	addon.db["buffTrackerSounds"][catId][id] = nil
@@ -1228,6 +1283,11 @@ local function clearCategoryData(catId)
 		if key:match("^" .. catId .. ":") then
 			auraInstanceMap[inst] = nil
 			buffInstances[key] = nil
+		end
+	end
+	if addon.db["buffTrackerCategories"][catId] then
+		for id, buff in pairs(addon.db["buffTrackerCategories"][catId].buffs or {}) do
+			if buff.trackType == "ITEM" and buff.slot then unregisterItemBuff(catId, buff.slot) end
 		end
 	end
 end
@@ -1317,6 +1377,10 @@ local function importCategory(encoded)
 	addon.db["buffTrackerOrder"][newId] = data.order or {}
 	addon.db["buffTrackerEnabled"][newId] = true
 	addon.db["buffTrackerLocked"][newId] = false
+
+	for id, buff in pairs(cat.buffs or {}) do
+		if buff.trackType == "ITEM" and buff.slot then registerItemBuff(newId, id, buff.slot) end
+	end
 
 	addon.db["buffTrackerSounds"][newId] = {}
 	addon.db["buffTrackerSoundsEnabled"][newId] = {}
@@ -1595,8 +1659,9 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 		StaticPopupDialogs["EQOL_DELETE_CATEGORY"].OnShow = function(self) self:SetFrameStrata("FULLSCREEN_DIALOG") end
 		StaticPopupDialogs["EQOL_DELETE_CATEGORY"].OnAccept = function()
 			-- clean up all buff data for this category
-			for buffId in pairs(addon.db["buffTrackerCategories"][catId].buffs or {}) do
+			for buffId, buff in pairs(addon.db["buffTrackerCategories"][catId].buffs or {}) do
 				addon.db["buffTrackerHidden"][buffId] = nil
+				if buff.trackType == "ITEM" and buff.slot then unregisterItemBuff(catId, buff.slot) end
 			end
 			addon.db["buffTrackerCategories"][catId] = nil
 			addon.db["buffTrackerOrder"][catId] = nil
