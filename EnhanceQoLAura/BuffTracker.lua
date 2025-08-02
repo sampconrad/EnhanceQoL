@@ -1980,39 +1980,41 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 			wrapper:AddChild(addon.functions.createSpacerAce())
 		end
 	end
-	local cbCooldown = addon.functions.createCheckboxAce(L["buffTrackerShowCooldown"], buff.showCooldown, function(_, _, val)
-		buff.showCooldown = val
-		scanBuffs()
-	end)
 	if buff.trackType ~= "ITEM" then
-		local cbCharges = addon.functions.createCheckboxAce(L["buffTrackerShowCharges"], buff.showCharges == nil and addon.db["buffTrackerShowCharges"] or buff.showCharges, function(_, _, val)
-			buff.showCharges = val
-			scanBuffs()
-		end)
+		if buff.trackType ~= "ENCHANT" then
+			local cbCooldown = addon.functions.createCheckboxAce(L["buffTrackerShowCooldown"], buff.showCooldown, function(_, _, val)
+				buff.showCooldown = val
+				scanBuffs()
+			end)
+			local cbCharges = addon.functions.createCheckboxAce(L["buffTrackerShowCharges"], buff.showCharges == nil and addon.db["buffTrackerShowCharges"] or buff.showCharges, function(_, _, val)
+				buff.showCharges = val
+				scanBuffs()
+			end)
 
-		local alwaysCB = addon.functions.createCheckboxAce(L["buffTrackerAlwaysShow"], buff.showAlways, function(_, _, val)
-			buff.showAlways = val
-			cbCooldown:SetDisabled(not val)
-			cbCharges:SetDisabled(not val)
-			scanBuffs()
-		end)
-		wrapper:AddChild(alwaysCB)
-		cbCooldown:SetDisabled(not buff.showAlways)
-		cbCharges:SetDisabled(not buff.showAlways)
-		wrapper:AddChild(cbCooldown)
-		wrapper:AddChild(cbCharges)
+			local alwaysCB = addon.functions.createCheckboxAce(L["buffTrackerAlwaysShow"], buff.showAlways, function(_, _, val)
+				buff.showAlways = val
+				cbCooldown:SetDisabled(not val)
+				cbCharges:SetDisabled(not val)
+				scanBuffs()
+			end)
+			wrapper:AddChild(alwaysCB)
+			cbCooldown:SetDisabled(not buff.showAlways)
+			cbCharges:SetDisabled(not buff.showAlways)
+			wrapper:AddChild(cbCooldown)
+			wrapper:AddChild(cbCharges)
+
+			local cbStacks = addon.functions.createCheckboxAce(L["buffTrackerShowStacks"], buff.showStacks == nil and addon.db["buffTrackerShowStacks"] or buff.showStacks, function(_, _, val)
+				buff.showStacks = val
+				scanBuffs()
+			end)
+			wrapper:AddChild(cbStacks)
+		end
 
 		local cbGlow = addon.functions.createCheckboxAce(L["buffTrackerGlow"], buff.glow, function(_, _, val)
 			buff.glow = val
 			scanBuffs()
 		end)
 		wrapper:AddChild(cbGlow)
-
-		local cbStacks = addon.functions.createCheckboxAce(L["buffTrackerShowStacks"], buff.showStacks == nil and addon.db["buffTrackerShowStacks"] or buff.showStacks, function(_, _, val)
-			buff.showStacks = val
-			scanBuffs()
-		end)
-		wrapper:AddChild(cbStacks)
 	end
 
 	local cbTimer = addon.functions.createCheckboxAce(
@@ -2088,13 +2090,15 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 			end
 		end
 
-		local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"] }, nil, function(self, _, val)
-			buff.trackType = val
-			scanBuffs()
-		end)
-		typeDrop:SetValue(buff.trackType or "BUFF")
-		typeDrop:SetRelativeWidth(0.4)
-		wrapper:AddChild(typeDrop)
+		if buff.trackType ~= "ENCHANT" then
+			local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"] }, nil, function(self, _, val)
+				buff.trackType = val
+				scanBuffs()
+			end)
+			typeDrop:SetValue(buff.trackType or "BUFF")
+			typeDrop:SetRelativeWidth(0.4)
+			wrapper:AddChild(typeDrop)
+		end
 		wrapper:AddChild(addon.functions.createSpacerAce())
 
 		local function buildGroupUI(parent, group)
@@ -2273,7 +2277,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	-- 	wrapper:AddChild(cbCast)
 	-- end
 
-	if buff.trackType ~= "ITEM" then
+	if buff.trackType ~= "ITEM" and buff.trackType ~= "ENCHANT" then
 		buff.altIDs = buff.altIDs or {}
 		for _, altId in ipairs(buff.altIDs) do
 			local row = addon.functions.createContainer("SimpleGroup", "Flow")
