@@ -84,10 +84,19 @@ local function scanTrinketSlots()
 	local needsLayout = {}
 	for _, slot in ipairs({ 13, 14 }) do
 		if itemBuffsBySlot[slot] then
-			local cdStart, cdDur = GetInventoryItemCooldown("player", slot)
-			if (cdDur and cdDur > 0) or cdStart == 0 then
+			local itemID = GetInventoryItemID("player", slot)
+			if itemID and C_Item and C_Item.GetItemSpell and C_Item.GetItemSpell(itemID) then
+				local cdStart, cdDur = GetInventoryItemCooldown("player", slot)
+				if (cdDur and cdDur > 0) or cdStart == 0 then
+					for catId, buffId in pairs(itemBuffsBySlot[slot]) do
+						updateBuff(catId, buffId)
+						needsLayout[catId] = true
+					end
+				end
+			else
 				for catId, buffId in pairs(itemBuffsBySlot[slot]) do
-					updateBuff(catId, buffId)
+					if activeBuffFrames[catId] and activeBuffFrames[catId][buffId] then activeBuffFrames[catId][buffId]:Hide() end
+					buffInstances[catId .. ":" .. buffId] = nil
 					needsLayout[catId] = true
 				end
 			end
@@ -595,6 +604,13 @@ function updateBuff(catId, id, changedId, firstScan)
 	end
 
 	if tType == "ITEM" and buff and buff.slot then
+		-- check if the equipped item actually has a usable spell
+		local itemID = GetInventoryItemID("player", buff.slot)
+		if not (itemID and C_Item and C_Item.GetItemSpell and C_Item.GetItemSpell(itemID)) then
+			if activeBuffFrames[catId] and activeBuffFrames[catId][id] then activeBuffFrames[catId][id]:Hide() end
+			buffInstances[key] = nil
+			return
+		end
 		activeBuffFrames[catId] = activeBuffFrames[catId] or {}
 		local frame = activeBuffFrames[catId][id]
 		local showTimer = buff.showTimerText
