@@ -4788,6 +4788,21 @@ local function setAllHooks()
 	initSocial()
 	initLootToast()
 	initBagsFrame()
+
+	local LSM = LibStub("LibSharedMedia-3.0")
+	local lsmSoundDirty = false
+	LSM:RegisterCallback("LibSharedMedia_Registered", function(event, mediaType, ...)
+		if mediaType == "sound" then
+			if not lsmSoundDirty then
+				lsmSoundDirty = true
+				C_Timer.After(1, function()
+					lsmSoundDirty = false
+					if addon.Aura and addon.Aura.functions and addon.Aura.functions.BuildSoundTable then addon.Aura.functions.BuildSoundTable() end
+					if addon.ChatIM and addon.ChatIM.BuildSoundTable then addon.ChatIM:BuildSoundTable() end
+				end)
+			end
+		end
+	end)
 end
 
 function loadMain()
@@ -4882,7 +4897,7 @@ function loadMain()
 	addon.settingsCategory = category
 end
 
--- Erstelle ein Frame für Events
+-- Erstelle ein Frame f��r Events
 local frameLoad = CreateFrame("Frame")
 
 local gossipClicked = {}

@@ -9,6 +9,7 @@ else
 end
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
+local LSM = LibStub("LibSharedMedia-3.0")
 local AceGUI = addon.AceGUI
 
 addon.variables.statusTable.groups["aura"] = true
@@ -42,3 +43,4 @@ function addon.Aura.functions.treeCallback(container, group)
 		addon.Aura.CooldownNotify.functions.addCooldownNotifyOptions(container)
 	end
 end
+addon.Aura.functions.BuildSoundTable()

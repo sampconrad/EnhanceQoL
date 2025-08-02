@@ -203,3 +203,13 @@ addon.SharedMedia.sounds = {
 	{ key = "Healthstones", label = "EQOL: |cFF000000|rHealthstones |T538745:16|t", path = voiceoverPath .. "Healthstones.ogg" },
 	{ key = "Big Heal", label = "EQOL: Big Heal", path = voiceoverPath .. "Big Heal.ogg" },
 }
+
+
+-- Sort alphabetically, but ignore the leading "EQOL:" prefix (and any following spaces)
+local function labelKey(lbl)
+	return (lbl:gsub("^EQOL:%s*", "")):lower()
+end
+
+table.sort(addon.SharedMedia.sounds, function(a, b)
+	return labelKey(a.label) < labelKey(b.label)
+end)

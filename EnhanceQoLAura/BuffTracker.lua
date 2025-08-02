@@ -205,16 +205,6 @@ local function buffAllowed(buff)
 	return true
 end
 
-function addon.Aura.functions.BuildSoundTable()
-	local result = {}
-
-	for name, path in pairs(LSM:HashTable("sound")) do
-		result[name] = path
-	end
-	addon.Aura.sounds = result
-end
-addon.Aura.functions.BuildSoundTable()
-
 local function evaluateCondition(cond, aura)
 	if not cond or not cond.type then return true end
 	if cond.type == "missing" then
@@ -1009,10 +999,7 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 				anchor:Hide()
 			end
 		end
-		if event == "PLAYER_LOGIN" then
-			addon.Aura.functions.BuildSoundTable()
-			rebuildAltMapping()
-		end
+		if event == "PLAYER_LOGIN" then rebuildAltMapping() end
 		if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
 			collectActiveAuras()
 			firstScan = true

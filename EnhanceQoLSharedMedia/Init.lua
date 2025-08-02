@@ -24,12 +24,10 @@ local function RegisterEnabledSounds()
 end
 
 local frame = CreateFrame("Frame")
-frame:RegisterEvent("ADDON_LOADED")
+frame:RegisterEvent("PLAYER_LOGIN")
 frame:SetScript("OnEvent", function(self, event, name)
-	if name == addonName then
-		RegisterEnabledSounds()
-		self:UnregisterEvent("ADDON_LOADED")
-	end
+	RegisterEnabledSounds()
+	self:UnregisterEvent("PLAYER_LOGIN")
 end)
 
 function addon.SharedMedia.functions.UpdateSound(key, enabled)
