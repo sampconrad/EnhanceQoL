@@ -6,6 +6,7 @@ else
 	error(parentAddonName .. " is not loaded")
 end
 
+local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_SharedMedia")
 addon.SharedMedia = addon.SharedMedia or {}
 addon.SharedMedia.functions = addon.SharedMedia.functions or {}
 
@@ -27,7 +28,7 @@ local function addSoundFrame(container)
 		cb:SetRelativeWidth(0.8)
 		row:AddChild(cb)
 
-		local btn = addon.functions.createButtonAce("Play", 80, function() PlaySoundFile(sound.path) end)
+		local btn = addon.functions.createButtonAce(L["Play"], 80, function() PlaySoundFile(sound.path) end)
 		btn:SetRelativeWidth(0.2)
 		row:AddChild(btn)
 

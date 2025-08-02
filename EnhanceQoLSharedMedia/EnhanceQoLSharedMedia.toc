@@ -22,4 +22,5 @@
 
 EnhanceQoLSharedMedia.lua
 Init.lua
+locales.xml
 UI.lua
