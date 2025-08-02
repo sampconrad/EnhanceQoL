@@ -4548,6 +4548,8 @@ local function CreateUI()
 			addon.Aura.functions.treeCallback(container, group)
 		elseif string.match(group, "^sound") then
 			addon.Sounds.functions.treeCallback(container, group)
+		elseif string.match(group, "^sharedmedia") then
+			addon.SharedMedia.functions.treeCallback(container, group)
 		elseif string.match(group, "^mouse") then
 			addon.Mouse.functions.treeCallback(container, group)
 		elseif string.match(group, "^move") then
