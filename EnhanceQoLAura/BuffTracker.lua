@@ -758,9 +758,23 @@ function updateBuff(catId, id, changedId, firstScan)
 		local frame = activeBuffFrames[catId][id]
 		local icon = GetInventoryItemTexture("player", buff.slot) or buff.icon
 		buff.icon = icon
-		local mhHas, _, _, _, ohHas = GetWeaponEnchantInfo()
-		local hasEnchant = (buff.slot == 16 and mhHas) or (buff.slot == 17 and ohHas)
-		local aura = hasEnchant and {} or nil
+		local mhHas, mhExp, _, _, ohHas, ohExp, _, _, rhHas, rhExp = GetWeaponEnchantInfo()
+		local hasEnchant, exp = false, 0
+		if buff.slot == 16 then
+			hasEnchant, exp = mhHas, mhExp
+		elseif buff.slot == 17 then
+			hasEnchant, exp = ohHas, ohExp
+		else
+			hasEnchant, exp = rhHas, rhExp
+		end
+		local aura
+		if hasEnchant then
+			aura = {}
+			if exp and exp > 0 then
+				aura.duration = exp / 1000
+				aura.expirationTime = GetTime() + aura.duration
+			end
+		end
 		local condOk = evaluateGroup(buff and buff.conditions, aura)
 		if aura == nil and not hasMissingCondition(buff and buff.conditions) then condOk = false end
 		if not condOk then
@@ -783,17 +797,23 @@ function updateBuff(catId, id, changedId, firstScan)
 			frame.cd:SetHideCountdownNumbers(not showTimer)
 		end
 		frame.icon:SetTexture(icon)
+		frame.cd:SetReverse(false)
 		if hasEnchant then
 			frame.icon:SetDesaturated(false)
 			frame.icon:SetAlpha(1)
+			if aura and aura.duration and aura.duration > 0 then
+				frame.cd:SetCooldown(aura.expirationTime - aura.duration, aura.duration)
+			else
+				frame.cd:Clear()
+			end
 			if not frame.isActive then playBuffSound(catId, id) end
 			frame.isActive = true
 		else
+			frame.cd:Clear()
 			frame.icon:SetDesaturated(true)
 			frame.icon:SetAlpha(0.5)
 			frame.isActive = false
 		end
-		frame.cd:Clear()
 		if buff.glow then
 			if frame.isActive then
 				ActionButton_ShowOverlayGlow(frame)
