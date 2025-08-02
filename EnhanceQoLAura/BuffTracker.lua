@@ -753,6 +753,46 @@ function updateBuff(catId, id, changedId, firstScan)
 		frame:Show()
 		buffInstances[key] = nil
 		return
+	elseif tType == "ENCHANT" and buff and buff.slot then
+		activeBuffFrames[catId] = activeBuffFrames[catId] or {}
+		local frame = activeBuffFrames[catId][id]
+		local showTimer = buff.showTimerText
+		if showTimer == nil then showTimer = addon.db["buffTrackerShowTimerText"] end
+		if showTimer == nil then showTimer = true end
+		local icon = GetInventoryItemTexture("player", buff.slot) or buff.icon
+		if not frame then
+			frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, false, id, showTimer)
+			activeBuffFrames[catId][id] = frame
+		else
+			frame.cd:SetHideCountdownNumbers(not showTimer)
+		end
+		frame.icon:SetTexture(icon)
+		buff.icon = icon
+		local mhHas, _, _, _, ohHas = GetWeaponEnchantInfo()
+		local hasEnchant = (buff.slot == 16 and mhHas) or (buff.slot == 17 and ohHas)
+		if hasEnchant then
+			frame.icon:SetDesaturated(false)
+			frame.icon:SetAlpha(1)
+			if not frame.isActive then playBuffSound(catId, id) end
+			frame.isActive = true
+		else
+			frame.icon:SetDesaturated(true)
+			frame.icon:SetAlpha(0.5)
+			frame.isActive = false
+		end
+		frame.cd:Clear()
+		if buff.glow then
+			if frame.isActive then
+				ActionButton_ShowOverlayGlow(frame)
+			else
+				ActionButton_HideOverlayGlow(frame)
+			end
+		else
+			ActionButton_HideOverlayGlow(frame)
+		end
+		frame:Show()
+		buffInstances[key] = nil
+		return
 	end
 
 	local aura
@@ -1363,6 +1403,54 @@ function addon.Aura.functions.addTrinketBuff(catId, slot)
 	scanBuffs()
 end
 
+function addon.Aura.functions.addWeaponEnchantBuff(catId, slot)
+	local icon = GetInventoryItemTexture("player", slot)
+	local itemName = L[slot == 16 and "Mainhand" or "Offhand"]
+
+	local id = -slot
+	local cat = getCategory(catId)
+	if not cat then return end
+
+	local defTimer = addon.db["buffTrackerShowTimerText"]
+	if defTimer == nil then defTimer = true end
+
+	cat.buffs[id] = {
+		name = itemName,
+		icon = icon,
+		altIDs = {},
+		showAlways = true,
+		glow = false,
+		castOnClick = false,
+		showCooldown = false,
+		showCharges = false,
+		trackType = "ENCHANT",
+		slot = slot,
+		conditions = { join = "AND", conditions = {} },
+		allowedSpecs = {},
+		allowedClasses = {},
+		allowedRoles = {},
+		allowedInstances = {},
+		showStacks = false,
+		showTimerText = defTimer,
+		customTextEnabled = false,
+		customTextPosition = "TOP",
+		customText = "",
+		customTextUseStacks = false,
+		customTextBase = 1,
+		customTextMin = 0,
+	}
+
+	registerEnchantBuff(catId, id, slot)
+
+	if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
+	if not tContains(addon.db["buffTrackerOrder"][catId], id) then table.insert(addon.db["buffTrackerOrder"][catId], id) end
+
+	addon.db["buffTrackerHidden"][id] = nil
+
+	rebuildAltMapping()
+	scanBuffs()
+end
+
 local function removeBuff(catId, id)
 	local cat = getCategory(catId)
 	if not cat then return end
@@ -1754,6 +1842,22 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 		addon.Aura.functions.buildCategoryOptions(container, catId)
 	end)
 	core:AddChild(trinket2Btn)
+
+	local mhEnchantBtn = addon.functions.createButtonAce(L["TrackMainhandEnchant"], 150, function()
+		addon.Aura.functions.addWeaponEnchantBuff(catId, 16)
+		refreshTree(catId)
+		container:ReleaseChildren()
+		addon.Aura.functions.buildCategoryOptions(container, catId)
+	end)
+	core:AddChild(mhEnchantBtn)
+
+	local ohEnchantBtn = addon.functions.createButtonAce(L["TrackOffhandEnchant"], 150, function()
+		addon.Aura.functions.addWeaponEnchantBuff(catId, 17)
+		refreshTree(catId)
+		container:ReleaseChildren()
+		addon.Aura.functions.buildCategoryOptions(container, catId)
+	end)
+	core:AddChild(ohEnchantBtn)
 
 	local exportBtn = addon.functions.createButtonAce(L["ExportCategory"], 150, function()
 		local data = exportCategory(catId)
