@@ -32,6 +32,7 @@
 - Cast Tracker now processes only mobs **actually fighting the player/group**.
 - Unit-frame name truncation no longer affects nameplates.
 - Nested conditions in *Aura Tracker* now evaluate correctly.
+- **Gem Helper** had very rare situations throwing an error
 
 ---
 

@@ -123,7 +123,17 @@ local function layoutButtons()
 
 	local x, y = PAD, -PAD -- start offsets (negative y for TOPLEFT anchoring)
 
-	table.sort(gemButtons, function(a, b) return a.itemName < b.itemName end)
+	table.sort(gemButtons, function(a, b)
+		if a.itemName and b.itemName then
+			return a.itemName < b.itemName
+		elseif a.itemName then
+			return true
+		elseif b.itemName then
+			return false
+		else
+			return false
+		end
+	end)
 	local usedRows = 1
 	for _, btn in ipairs(gemButtons) do
 		btn:ClearAllPoints()
