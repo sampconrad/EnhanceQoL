@@ -347,6 +347,12 @@ local function evaluateCondition(cond, aura)
 			return remaining ~= val
 		end
 		return remaining == val
+	elseif cond.type == "enchant" then
+		if not isNumber(cond.value) then return true end
+		local eid = aura and aura.enchantID
+		local val = tonumber(cond.value) or 0
+		if cond.operator == "~=" or cond.operator == "!=" then return eid ~= val end
+		return eid == val
 	end
 	return true
 end
@@ -758,18 +764,18 @@ function updateBuff(catId, id, changedId, firstScan)
 		local frame = activeBuffFrames[catId][id]
 		local icon = GetInventoryItemTexture("player", buff.slot) or buff.icon
 		buff.icon = icon
-		local mhHas, mhExp, _, mID, ohHas, ohExp, _, oID, rhHas, rhExp = GetWeaponEnchantInfo()
-		local hasEnchant, exp = false, 0
+		local mhHas, mhExp, _, mID, ohHas, ohExp, _, oID, rhHas, rhExp, _, rID = GetWeaponEnchantInfo()
+		local hasEnchant, exp, eID = false, 0, nil
 		if buff.slot == 16 then
-			hasEnchant, exp = mhHas, mhExp
+			hasEnchant, exp, eID = mhHas, mhExp, mID
 		elseif buff.slot == 17 then
-			hasEnchant, exp = ohHas, ohExp
+			hasEnchant, exp, eID = ohHas, ohExp, oID
 		else
-			hasEnchant, exp = rhHas, rhExp
+			hasEnchant, exp, eID = rhHas, rhExp, rID
 		end
 		local aura
 		if hasEnchant then
-			aura = {}
+			aura = { enchantID = eID }
 			if exp and exp > 0 then
 				aura.duration = exp / 1000
 				aura.expirationTime = GetTime() + aura.duration
@@ -2191,7 +2197,11 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 					local row = addon.functions.createContainer("SimpleGroup", "Flow")
 					row:SetFullWidth(true)
 					local typeDropOptions = { missing = L["ConditionMissing"], time = L["ConditionTime"] }
-					if buff.trackType ~= "ENCHANT" then typeDropOptions["stack"] = L["ConditionStacks"] end
+					if buff.trackType ~= "ENCHANT" then
+						typeDropOptions["stack"] = L["ConditionStacks"]
+					else
+						typeDropOptions["enchant"] = L["ConditionEnchantID"]
+					end
 
 					local typeDrop = addon.functions.createDropdownAce(nil, typeDropOptions, nil, function(_, _, val)
 						child.type = val
@@ -2200,6 +2210,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 						elseif val == "missing" and type(child.value) ~= "boolean" then
 							child.value = true
 						end
+						if val == "enchant" and child.operator ~= "==" and child.operator ~= "!=" then child.operator = "==" end
 						container:ReleaseChildren()
 						addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 						scanBuffs()
@@ -2209,7 +2220,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 					row:AddChild(typeDrop)
 
 					local ops = { [">"] = ">", ["<"] = "<", [">="] = ">=", ["<="] = "<=", ["=="] = "==", ["!="] = "!=" }
-					if child.type == "missing" then ops = { ["=="] = "==", ["!="] = "!=" } end
+					if child.type == "missing" or child.type == "enchant" then ops = { ["=="] = "==", ["!="] = "!=" } end
 					local opDrop = addon.functions.createDropdownAce(nil, ops, nil, function(_, _, val)
 						child.operator = val
 						scanBuffs()
@@ -2233,6 +2244,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 							scanBuffs()
 						end)
 						valEdit:SetRelativeWidth(0.3)
+						if child.type == "enchant" then valEdit.editbox:SetNumeric(true) end
 						row:AddChild(valEdit)
 					end
 
