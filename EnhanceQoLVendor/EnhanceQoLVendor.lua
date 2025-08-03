@@ -283,9 +283,9 @@ local function addVendorFrame(container, type)
 			lIlvl = addon.Vendor.variables.avgItemLevelEquipped - sValue2
 		end
 
-		labelHeadlineExplain:SetText("|cffffd700" .. L["labelExplainedline"]:format(iqColor, lIlvl, table.concat(text, " " .. L["andWord"] .. " ")) .. "|r")
-		wrapper:DoLayout()
-		updateSellMarks()
+                labelHeadlineExplain:SetText("|cffffd700" .. L["labelExplainedline"]:format(iqColor, lIlvl, table.concat(text, " " .. L["andWord"] .. " ")) .. "|r")
+                wrapper:DoLayout()
+                updateSellMarks(nil, true)
 	end
 
 	local groupCore = addon.functions.createContainer("InlineGroup", "List")
@@ -361,8 +361,8 @@ local function addVendorFrame(container, type)
 		end
 		local list, order = addon.functions.prepareListForDropdown(expList, true)
 		local dropCrafting = addon.functions.createDropdownAce(L["vendorCraftingExpansions"], list, order, function(self, event, key, checked)
-			addon.db["vendor" .. value .. "CraftingExpansions"][key] = checked or nil
-			updateSellMarks()
+                        addon.db["vendor" .. value .. "CraftingExpansions"][key] = checked or nil
+                        updateSellMarks(nil, true)
 		end)
 		dropCrafting:SetMultiselect(true)
 		for id, val in pairs(addon.db["vendor" .. value .. "CraftingExpansions"]) do
@@ -387,7 +387,7 @@ local function addVendorFrame(container, type)
 		groupInfo:SetFullWidth(true)
 		labelHeadlineExplain:SetFullWidth(true)
 	end
-	updateSellMarks()
+        updateSellMarks(nil, true)
 end
 
 local function addInExcludeFrame(container, type)
@@ -421,9 +421,9 @@ local function addInExcludeFrame(container, type)
 					addon.db[dbValue][eItem:GetItemID()] = eItem:GetItemName()
 					print(ADD .. ":", eItem:GetItemID(), eItem:GetItemName())
 					local list, order = addon.functions.prepareListForDropdown(addon.db[dbValue])
-					dropIncludeList:SetList(list, order)
-					dropIncludeList:SetValue(nil) -- Setze die Auswahl zurück
-					updateSellMarks()
+                                        dropIncludeList:SetList(list, order)
+                                        dropIncludeList:SetValue(nil) -- Setze die Auswahl zurück
+                                        updateSellMarks(nil, true)
 				end
 				eBox:SetText("")
 			end)
@@ -459,9 +459,9 @@ local function addInExcludeFrame(container, type)
 				addon.db[dbValue][selectedValue] = nil -- Entferne aus der Datenbank
 				-- Aktualisiere die Dropdown-Liste
 				local list, order = addon.functions.prepareListForDropdown(addon.db[dbValue])
-				dropIncludeList:SetList(list, order)
-				dropIncludeList:SetValue(nil) -- Setze die Auswahl zurück
-				updateSellMarks()
+                                dropIncludeList:SetList(list, order)
+                                dropIncludeList:SetValue(nil) -- Setze die Auswahl zurück
+                                updateSellMarks(nil, true)
 			end
 		end
 	end)
@@ -517,8 +517,8 @@ local function addGeneralFrame(container)
 			text = L["vendorShowSellOverlay"],
 			var = "vendorShowSellOverlay",
 			func = function(self, _, checked)
-				addon.db["vendorShowSellOverlay"] = checked
-				if inventoryOpen() then updateSellMarks() end
+                                addon.db["vendorShowSellOverlay"] = checked
+                                if inventoryOpen() then updateSellMarks(nil, true) end
 				container:ReleaseChildren()
 				addGeneralFrame(container)
 			end,
@@ -527,8 +527,8 @@ local function addGeneralFrame(container)
 			text = L["vendorShowSellTooltip"],
 			var = "vendorShowSellTooltip",
 			func = function(self, _, checked)
-				addon.db["vendorShowSellTooltip"] = checked
-				if inventoryOpen() then updateSellMarks() end
+                                addon.db["vendorShowSellTooltip"] = checked
+                                if inventoryOpen() then updateSellMarks(nil, true) end
 			end,
 		},
 	}
@@ -538,8 +538,8 @@ local function addGeneralFrame(container)
 			text = L["vendorShowSellHighContrast"],
 			var = "vendorShowSellHighContrast",
 			func = function(self, _, checked)
-				addon.db["vendorShowSellHighContrast"] = checked
-				if inventoryOpen() then updateSellMarks() end
+                                addon.db["vendorShowSellHighContrast"] = checked
+                                if inventoryOpen() then updateSellMarks(nil, true) end
 			end,
 		})
 	end
@@ -594,9 +594,11 @@ function addon.Vendor.functions.treeCallback(container, group)
 	end
 end
 
-function updateSellMarks()
-	local overlay = addon.db["vendorShowSellOverlay"]
-	local tooltip = addon.db["vendorShowSellTooltip"]
+function updateSellMarks(_, resetCache)
+        if resetCache then wipe(tooltipCache) end
+
+        local overlay = addon.db["vendorShowSellOverlay"]
+        local tooltip = addon.db["vendorShowSellTooltip"]
 
 	if not overlay and not tooltip then
 		local frames = { ContainerFrameCombinedBags }
@@ -694,7 +696,7 @@ local function AltClickHook(self, button)
 						print(REMOVE .. ":", id, name)
 					end
 				end
-				updateSellMarks()
+                                updateSellMarks(nil, true)
 			end)
 		end
 	end
