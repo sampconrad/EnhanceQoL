@@ -33,6 +33,7 @@
 - Unit-frame name truncation no longer affects nameplates.
 - Nested conditions in *Aura Tracker* now evaluate correctly.
 - **Gem Helper** had very rare situations throwing an error
+- **Vendor Sell overlay** was sometimes still shown when changing settings
 
 ---
 
