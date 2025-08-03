@@ -876,7 +876,7 @@ function updateBuff(catId, id, changedId, firstScan)
 			frame.customText:Hide()
 		end
 		frame:Show()
-		if frame.isActive and not wasShown and frame:IsShown() then playBuffSound(catId, id) end
+		if frame.isActive and not wasShown and frame:IsShown() and not firstScan then playBuffSound(catId, id) end
 		buffInstances[key] = nil
 		return
 	end
@@ -945,7 +945,7 @@ function updateBuff(catId, id, changedId, firstScan)
 			end
 			frame.icon:SetDesaturated(false)
 			frame.icon:SetAlpha(1)
-			if not wasActive then playBuffSound(catId, id, triggeredId) end
+			if not wasActive and not firstScan then playBuffSound(catId, id, triggeredId) end
 			frame.isActive = true
 		else
 			frame.cd:SetReverse(false)
@@ -1017,7 +1017,7 @@ function updateBuff(catId, id, changedId, firstScan)
 				ActionButton_HideOverlayGlow(frame)
 			end
 			frame:Show()
-			if displayAura and not wasShown and frame:IsShown() then playBuffSound(catId, id, triggeredId) end
+			if displayAura and not wasShown and frame:IsShown() and not firstScan then playBuffSound(catId, id, triggeredId) end
 		else
 			local icon = buff.icon
 			-- TODO 11.2: Replace IsSpellKnown* usage with C_SpellBook.IsSpellInSpellBook
@@ -1067,7 +1067,7 @@ function updateBuff(catId, id, changedId, firstScan)
 				ActionButton_HideOverlayGlow(frame)
 			end
 			frame:Show()
-			if not wasShown and frame:IsShown() then playBuffSound(catId, id, triggeredId) end
+			if not wasShown and frame:IsShown() and not firstScan then playBuffSound(catId, id, triggeredId) end
 		end
 	else
 		if frame then
