@@ -798,9 +798,9 @@ function updateBuff(catId, id, changedId, firstScan)
 		end
 		frame.icon:SetTexture(icon)
 		frame.cd:SetReverse(false)
+		frame.icon:SetDesaturated(false)
+		frame.icon:SetAlpha(1)
 		if hasEnchant then
-			frame.icon:SetDesaturated(false)
-			frame.icon:SetAlpha(1)
 			if aura and aura.duration and aura.duration > 0 then
 				frame.cd:SetCooldown(aura.expirationTime - aura.duration, aura.duration)
 			else
@@ -810,9 +810,8 @@ function updateBuff(catId, id, changedId, firstScan)
 			frame.isActive = true
 		else
 			frame.cd:Clear()
-			frame.icon:SetDesaturated(true)
-			frame.icon:SetAlpha(0.5)
-			frame.isActive = false
+			if not frame.isActive then playBuffSound(catId, id) end
+			frame.isActive = true
 		end
 		if buff.glow then
 			if frame.isActive then
@@ -822,6 +821,33 @@ function updateBuff(catId, id, changedId, firstScan)
 			end
 		else
 			ActionButton_HideOverlayGlow(frame)
+		end
+		if buff and buff.customTextEnabled and buff.customText and buff.customText ~= "" then
+			local pos = buff.customTextPosition or "TOP"
+			frame.customText:ClearAllPoints()
+			local margin = 2
+			if pos == "TOP" then
+				frame.customText:SetPoint("BOTTOM", frame, "TOP", 0, margin)
+			elseif pos == "BOTTOM" then
+				frame.customText:SetPoint("TOP", frame, "BOTTOM", 0, -margin)
+			elseif pos == "LEFT" then
+				frame.customText:SetPoint("RIGHT", frame, "LEFT", -margin, 0)
+			else
+				frame.customText:SetPoint("LEFT", frame, "RIGHT", margin, 0)
+			end
+
+			local stack = aura and aura.applications or 0
+			local val = stack
+			if buff.customTextUseStacks then
+				val = stack * (buff.customTextBase or 1)
+				if buff.customTextMin and val < buff.customTextMin then val = buff.customTextMin end
+			end
+			local text = tostring(buff.customText)
+			text = text:gsub("<stack>", tostring(val))
+			frame.customText:SetText(text)
+			frame.customText:Show()
+		else
+			frame.customText:Hide()
 		end
 		frame:Show()
 		buffInstances[key] = nil
