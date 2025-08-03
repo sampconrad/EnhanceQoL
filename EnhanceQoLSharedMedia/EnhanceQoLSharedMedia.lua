@@ -235,6 +235,10 @@ addon.SharedMedia.sounds = {
 	{ key = "Will of the Forsaken", label = "EQOL: |cFF000000|rWill of the Forsaken |T136187:16|t", path = voiceoverPath .. "Will of the Forsaken.ogg" },
 	{ key = "Spatial Rift", label = "EQOL: |cFF000000|rSpatial Rift |T1724004:16|t", path = voiceoverPath .. "Spatial Rift.ogg" },
 	{ key = "Darkflight", label = "EQOL: |cFF000000|rDarkflight |T366937:16|t", path = voiceoverPath .. "Darkflight.ogg" },
+	{ key = "Enter Dungeon", label = "EQOL: Enter Dungeon", path = voiceoverPath .. "Enter Dungeon.ogg" },
+	{ key = "Enter Follower Dungeon", label = "EQOL: Enter Follower Dungeon", path = voiceoverPath .. "Enter Follower Dungeon.ogg" },
+	{ key = "Get Mage Food", label = "EQOL: Get Mage Food", path = voiceoverPath .. "Get Mage Food.ogg" },
+	{ key = "Leave Dungeon", label = "EQOL: Leave Dungeon", path = voiceoverPath .. "Leave Dungeon.ogg" },
 }
 
 -- Sort alphabetically, but ignore the leading "EQOL:" prefix (and any following spaces)

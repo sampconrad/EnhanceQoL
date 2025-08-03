@@ -201,6 +201,7 @@ local function hasEnoughMageFood()
 	return false
 end
 
+local soundPlayed = false
 local function checkShow()
 	if not addon.db["mageFoodReminder"] then
 		removeBRFrame()
@@ -211,7 +212,13 @@ local function checkShow()
 	if queuedFollower and IsInLFGDungeon() then
 		if enoughFood then
 			createLeaveFrame()
-			playReminderSound("leave")
+			if soundPlayed == false then
+				soundPlayed = true
+				C_Timer.After(0.3, function()
+					playReminderSound("leave")
+					soundPlayed = false
+				end)
+			end
 		else
 			removeBRFrame()
 		end
@@ -228,7 +235,13 @@ local function checkShow()
 	end
 	if not enoughFood then
 		createBRFrame()
-		playReminderSound("join")
+		if soundPlayed == false then
+			soundPlayed = true
+			C_Timer.After(0.3, function()
+				playReminderSound("join")
+				soundPlayed = false
+			end)
+		end
 	else
 		removeBRFrame()
 	end

@@ -2,6 +2,7 @@
 # It generates speech audio files for each entry.
 # Default Speed: 150
 # Default Pitch -30
+# say -v "Karen (premium)" "[[pbas -60]]Speed"  -r 180
 
 # Numbers
 1;180;"[[pbas -60]]"
@@ -70,6 +71,8 @@ Don't move;;;Don't move
 Drop
 Enrage;170;"[[pbas -60]]"
 Enter
+Enter Dungeon;180;"[[pbas -50]]";Enter Dungeon
+Enter Follower Dungeon;180;"[[pbas -50]]";Enter Follower Dungeon
 Exit;180;"[[pbas -60]]"
 External;180;"[[pbas -60]]"
 Fear;180;"[[pbas -60]]"
@@ -82,6 +85,7 @@ Focus
 Frontal
 Gate;180;"[[pbas -60]]"
 Gather;180;"[[pbas -60]]"
+Get Mage Food;160;"[[pbas -40]]";Get Mage Food
 Green;180;"[[pbas -60]]"
 Go;180;"[[pbas -60]]"
 Grip;180;"[[pbas -60]]"
@@ -98,6 +102,7 @@ Kite;180;"[[pbas -60]]"
 Knock
 Last;180;"[[pbas -60]]"
 Leap;180;"[[pbas -60]]"
+Leave Dungeon;180;"[[pbas -50]]";Leave Dungeon
 Left;180;"[[pbas -60]]"
 Line;180;"[[pbas -60]]"
 Line of Sight;180;"[[pbas -60]]";Line of Sight
