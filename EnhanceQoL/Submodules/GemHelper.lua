@@ -9,11 +9,37 @@ GEM_TYPE_INFO["Blue"] = 9
 GEM_TYPE_INFO["Hydraulic"] = 9
 GEM_TYPE_INFO["Cogwheel"] = 9
 GEM_TYPE_INFO["Meta"] = 9
-GEM_TYPE_INFO["Prismatic"] = 10
+GEM_TYPE_INFO["Prismatic"] = { [9] = true, [10] = true }
 GEM_TYPE_INFO["SingingThunder"] = 9
 GEM_TYPE_INFO["SingingWind"] = 9
 GEM_TYPE_INFO["SingingSea"] = 9
 GEM_TYPE_INFO["Fiber"] = 9
+
+local specialGems = {}
+specialGems[238042] = "Fiber"
+specialGems[238044] = "Fiber"
+specialGems[238045] = "Fiber"
+specialGems[238046] = "Fiber"
+
+specialGems[217113] = "Prismatic" -- Cubic Blasphemia
+specialGems[217114] = "Prismatic" -- Cubic Blasphemia
+specialGems[217115] = "Prismatic" -- Cubic Blasphemia
+
+specialGems[213741] = "Prismatic" -- Culminating Blasphemite
+specialGems[213742] = "Prismatic" -- Culminating Blasphemite
+specialGems[213743] = "Prismatic" -- Culminating Blasphemite
+
+specialGems[213744] = "Prismatic" -- Elusive Blasphemite
+specialGems[213745] = "Prismatic" -- Elusive Blasphemite
+specialGems[213746] = "Prismatic" -- Elusive Blasphemite
+
+specialGems[213738] = "Prismatic" -- Insightful Blasphemite
+specialGems[213739] = "Prismatic" -- Insightful Blasphemite
+specialGems[213740] = "Prismatic" -- Insightful Blasphemite
+
+specialGems[213747] = "Prismatic" -- Enduring Bloodstone
+specialGems[213748] = "Prismatic" -- Cognitive Bloodstone
+specialGems[213749] = "Prismatic" -- Determined Bloodstone
 
 local frame = CreateFrame("Frame")
 
@@ -123,10 +149,20 @@ local function checkGems()
 	clearGemButtons()
 
 	local aSockets = {}
+	local aSocketColors = {}
 	local numSockets = GetNumSockets()
 	for i = 1, numSockets do
 		local gemColor = GetSocketTypes(i)
-		if GEM_TYPE_INFO[gemColor] then aSockets[GEM_TYPE_INFO[gemColor]] = true end
+		aSocketColors[gemColor] = true
+		if GEM_TYPE_INFO[gemColor] then
+			if type(GEM_TYPE_INFO[gemColor]) == "table" then
+				for i in pairs(GEM_TYPE_INFO[gemColor]) do
+					aSockets[i] = true
+				end
+			else
+				aSockets[GEM_TYPE_INFO[gemColor]] = true
+			end
+		end
 	end
 
 	for bag = 0, NUM_TOTAL_EQUIPPED_BAG_SLOTS do
@@ -139,6 +175,9 @@ local function checkGems()
 						local itemLink = eItem:GetItemLink()
 						if not itemLink then return end
 						local itemID = eItem:GetItemID()
+
+						if specialGems[itemID] and not aSocketColors[specialGems[itemID]] then return end
+
 						local itemName, _, _, _, _, _, _, _, _, icon, _, classID, subClassID = C_Item.GetItemInfo(itemID)
 						if classID ~= 3 then return end
 

@@ -84,13 +84,29 @@ local function checkCurrency(tooltip, id)
 	end
 end
 
-local function checkSpell(tooltip, id, name)
+local function checkSpell(tooltip, id, name, isSpell)
+	local first = true
 	if addon.db["TooltipShowSpellID"] then
 		if id then
-			tooltip:AddLine(" ")
+			if first then
+				tooltip:AddLine(" ")
+				first = false
+			end
 			tooltip:AddDoubleLine(name, id)
 		end
 	end
+
+	if addon.db["TooltipShowSpellIcon"] and isSpell then
+		local spellInfo = C_Spell.GetSpellInfo(id)
+		if spellInfo and spellInfo.iconID then
+			if first then
+				tooltip:AddLine(" ")
+				first = false
+			end
+			tooltip:AddDoubleLine(L["IconID"], spellInfo.iconID)
+		end
+	end
+
 	if addon.db["TooltipSpellHideType"] == 1 then return end -- only hide when ON
 	if addon.db["TooltipSpellHideInDungeon"] and select(1, IsInInstance()) == false then return end -- only hide in dungeons
 	if addon.db["TooltipSpellHideInCombat"] and UnitAffectingCombat("player") == false then return end -- only hide in combat
@@ -249,10 +265,10 @@ local function checkUnit(tooltip)
 end
 
 local function CheckReagentBankCount(itemID)
-       -- TODO 11.2: Remove this function as Reagent Bank is removed
-        -- TODO 11.2: IsReagentBankUnlocked removed
+	-- TODO 11.2: Remove this function as Reagent Bank is removed
+	-- TODO 11.2: IsReagentBankUnlocked removed
 	if not IsReagentBankUnlocked then return end
-        -- TODO 11.2: IsReagentBankUnlocked removed
+	-- TODO 11.2: IsReagentBankUnlocked removed
 	local count = 0
 	if IsReagentBankUnlocked() then
 		for i = 1, C_Container.GetContainerNumSlots(REAGENTBANK_CONTAINER) do
@@ -266,17 +282,41 @@ local function CheckReagentBankCount(itemID)
 	return count
 end
 
-local function checkItem(tooltip, id, name)
+local function checkItem(tooltip, id, name, guid)
+	local first = true
 	if addon.db["TooltipShowItemID"] then
 		if id then
-			tooltip:AddLine(" ")
+			if first then
+				tooltip:AddLine(" ")
+				first = false
+			end
 			tooltip:AddDoubleLine(name, id)
+		end
+	end
+	if addon.db["TooltipShowTempEnchant"] and guid then
+		local mhHas, mhExp, _, mhID, ohHas, ohExp, _, ohID, rhHas, rhExp = GetWeaponEnchantInfo()
+		if mhHas and guid == Item:CreateFromEquipmentSlot(16):GetItemGUID() then
+			if mhID then
+				if first then
+					tooltip:AddLine(" ")
+					first = false
+				end
+				tooltip:AddDoubleLine(L["Temp. EnchantID"], mhID)
+			end
+		elseif ohHas and guid == Item:CreateFromEquipmentSlot(17):GetItemGUID() then
+			if ohID then
+				if first then
+					tooltip:AddLine(" ")
+					first = false
+				end
+				tooltip:AddDoubleLine(L["Temp. EnchantID"], ohID)
+			end
 		end
 	end
 	if addon.db["TooltipShowItemCount"] then
 		if id then
-                       -- TODO 11.2: remove reagent bank counting
-                       local rBankCount = CheckReagentBankCount(id) or 0
+			-- TODO 11.2: remove reagent bank counting
+			local rBankCount = CheckReagentBankCount(id) or 0
 			local bagCount = C_Item.GetItemCount(id)
 			local bankCount = C_Item.GetItemCount(id, true)
 			local totalCount = rBankCount + bankCount
@@ -284,10 +324,27 @@ local function checkItem(tooltip, id, name)
 			if addon.db["TooltipShowSeperateItemCount"] then
 				if bagCount > 0 then
 					bankCount = bankCount - bagCount
+
+					if first then
+						tooltip:AddLine(" ")
+						first = false
+					end
 					tooltip:AddDoubleLine(L["Bag"], bagCount)
 				end
-				if bankCount > 0 then tooltip:AddDoubleLine(L["Bank"], bankCount) end
-				if rBankCount > 0 then tooltip:AddDoubleLine(L["Reagentbank"], rBankCount) end
+				if bankCount > 0 then
+					if first then
+						tooltip:AddLine(" ")
+						first = false
+					end
+					tooltip:AddDoubleLine(L["Bank"], bankCount)
+				end
+				if rBankCount > 0 then
+					if first then
+						tooltip:AddLine(" ")
+						first = false
+					end
+					tooltip:AddDoubleLine(L["Reagentbank"], rBankCount)
+				end
 			else
 				tooltip:AddDoubleLine(L["Itemcount"], totalCount)
 			end
@@ -300,12 +357,28 @@ local function checkItem(tooltip, id, name)
 end
 
 local function checkAura(tooltip, id, name)
+	local first = true
 	if addon.db["TooltipShowSpellID"] then
 		if id then
-			tooltip:AddLine(" ")
+			if first then
+				tooltip:AddLine(" ")
+				first = false
+			end
 			tooltip:AddDoubleLine(name, id)
 		end
 	end
+
+	if addon.db["TooltipShowSpellIcon"] then
+		local spellInfo = C_Spell.GetSpellInfo(id)
+		if spellInfo and spellInfo.iconID then
+			if first then
+				tooltip:AddLine(" ")
+				first = false
+			end
+			tooltip:AddDoubleLine(L["IconID"], spellInfo.iconID)
+		end
+	end
+
 	if addon.db["TooltipBuffHideType"] == 1 then return end -- only hide when ON
 	if addon.db["TooltipBuffHideInDungeon"] and select(1, IsInInstance()) == false then return end -- only hide in dungeons
 	if addon.db["TooltipBuffHideInCombat"] and UnitAffectingCombat("player") == false then return end -- only hide in combat
@@ -321,7 +394,7 @@ if TooltipDataProcessor then
 		if kind == "spell" then
 			id = data.id
 			name = L["SpellID"]
-			checkSpell(tooltip, id, name)
+			checkSpell(tooltip, id, name, true)
 			return
 		elseif kind == "macro" then
 			id = data.id
@@ -334,7 +407,7 @@ if TooltipDataProcessor then
 		elseif kind == "item" then
 			id = data.id
 			name = L["ItemID"]
-			checkItem(tooltip, id, name)
+			checkItem(tooltip, id, name, data.guid)
 			return
 		elseif kind == "aura" then
 			id = data.id
@@ -422,6 +495,7 @@ local function addItemFrame(container)
 		{ text = L["TooltipItemHideInCombat"], var = "TooltipItemHideInCombat" },
 		{ text = L["TooltipItemHideInDungeon"], var = "TooltipItemHideInDungeon" },
 		{ text = L["TooltipShowItemID"], var = "TooltipShowItemID" },
+		{ text = L["TooltipShowTempEnchant"], var = "TooltipShowTempEnchant", desc = L["TooltipShowTempEnchantDesc"] },
 		{ text = L["TooltipShowItemCount"], var = "TooltipShowItemCount" },
 		{ text = L["TooltipShowSeperateItemCount"], var = "TooltipShowSeperateItemCount" },
 	}
@@ -429,7 +503,7 @@ local function addItemFrame(container)
 	table.sort(data, function(a, b) return a.text < b.text end)
 
 	for _, cbData in ipairs(data) do
-		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(self, _, value) addon.db[cbData.var] = value end)
+		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(self, _, value) addon.db[cbData.var] = value end, cbData.desc)
 		groupCore:AddChild(cbElement)
 	end
 end
@@ -452,6 +526,7 @@ local function addSpellFrame(container)
 		{ text = L["TooltipSpellHideInCombat"], var = "TooltipSpellHideInCombat" },
 		{ text = L["TooltipSpellHideInDungeon"], var = "TooltipSpellHideInDungeon" },
 		{ text = L["TooltipShowSpellID"], var = "TooltipShowSpellID" },
+		{ text = L["TooltipShowSpellIcon"], var = "TooltipShowSpellIcon" },
 	}
 
 	table.sort(data, function(a, b) return a.text < b.text end)

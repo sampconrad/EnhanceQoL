@@ -1,196 +1,243 @@
+local parentAddonName = "EnhanceQoL"
 local addonName, addon = ...
+if _G[parentAddonName] then
+	addon = _G[parentAddonName]
+else
+	error(parentAddonName .. " is not loaded")
+end
 
-local LSM = LibStub("LibSharedMedia-3.0")
+addon.SharedMedia = addon.SharedMedia or {}
+
 local effectPath = "Interface\\AddOns\\" .. addonName .. "\\Sounds\\Effects\\"
 local voiceoverPath = "Interface\\AddOns\\" .. addonName .. "\\Sounds\\Voiceovers\\"
 
--- Soundeffects
-LSM:Register("sound", "For the Horde", effectPath .. "bloodlust.ogg")
-LSM:Register("sound", "EQOL: Bite", effectPath .. "cartoonbite.ogg")
-LSM:Register("sound", "EQOL: Punch", effectPath .. "gamingpunch.ogg")
+addon.SharedMedia.sounds = {
+	-- Soundeffects
+	{ key = "bloodlust", label = "For the Horde", path = effectPath .. "bloodlust.ogg" },
+	{ key = "cartoonbite", label = "EQOL: Bite", path = effectPath .. "cartoonbite.ogg" },
+	{ key = "gamingpunch", label = "EQOL: Punch", path = effectPath .. "gamingpunch.ogg" },
 
--- Voiceovers
-LSM:Register("sound", "EQOL: 1", voiceoverPath .. "1.ogg")
-LSM:Register("sound", "EQOL: 2", voiceoverPath .. "2.ogg")
-LSM:Register("sound", "EQOL: 3", voiceoverPath .. "3.ogg")
-LSM:Register("sound", "EQOL: 4", voiceoverPath .. "4.ogg")
-LSM:Register("sound", "EQOL: 5", voiceoverPath .. "5.ogg")
-LSM:Register("sound", "EQOL: 6", voiceoverPath .. "6.ogg")
-LSM:Register("sound", "EQOL: 7", voiceoverPath .. "7.ogg")
-LSM:Register("sound", "EQOL: 8", voiceoverPath .. "8.ogg")
-LSM:Register("sound", "EQOL: 9", voiceoverPath .. "9.ogg")
-LSM:Register("sound", "EQOL: 10", voiceoverPath .. "10.ogg")
-LSM:Register("sound", "EQOL: First", voiceoverPath .. "First.ogg")
-LSM:Register("sound", "EQOL: Second", voiceoverPath .. "Second.ogg")
-LSM:Register("sound", "EQOL: Third", voiceoverPath .. "Third.ogg")
-LSM:Register("sound", "EQOL: Fourth", voiceoverPath .. "Fourth.ogg")
-LSM:Register("sound", "EQOL: Fifth", voiceoverPath .. "Fifth.ogg")
-LSM:Register("sound", "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:16|tStar", voiceoverPath .. "Star.ogg")
-LSM:Register("sound", "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_2:16|tCircle", voiceoverPath .. "Circle.ogg")
-LSM:Register("sound", "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:16|tDiamond", voiceoverPath .. "Diamond.ogg")
-LSM:Register("sound", "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_4:16|tTriangle", voiceoverPath .. "Triangle.ogg")
-LSM:Register("sound", "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_5:16|tMoon", voiceoverPath .. "Moon.ogg")
-LSM:Register("sound", "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_6:16|tSquare", voiceoverPath .. "Square.ogg")
-LSM:Register("sound", "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_7:16|tCross", voiceoverPath .. "Cross.ogg")
-LSM:Register("sound", "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:16|tSkull", voiceoverPath .. "Skull.ogg")
-LSM:Register("sound", "EQOL: Adds", voiceoverPath .. "Adds.ogg")
-LSM:Register("sound", "EQOL: Add", voiceoverPath .. "Add.ogg")
-LSM:Register("sound", "EQOL: Affix", voiceoverPath .. "Affix.ogg")
-LSM:Register("sound", "EQOL: AoE", voiceoverPath .. "AoE.ogg")
-LSM:Register("sound", "EQOL: Assist", voiceoverPath .. "Assist.ogg")
-LSM:Register("sound", "EQOL: Avoid", voiceoverPath .. "Avoid.ogg")
-LSM:Register("sound", "EQOL: Back", voiceoverPath .. "Back.ogg")
-LSM:Register("sound", "EQOL: Backup", voiceoverPath .. "Backup.ogg")
-LSM:Register("sound", "EQOL: Bait", voiceoverPath .. "Bait.ogg")
-LSM:Register("sound", "EQOL: Beam", voiceoverPath .. "Beam.ogg")
-LSM:Register("sound", "EQOL: Bleed", voiceoverPath .. "Bleed.ogg")
-LSM:Register("sound", "EQOL: Blue", voiceoverPath .. "Blue.ogg")
-LSM:Register("sound", "EQOL: Bombs", voiceoverPath .. "Bombs.ogg")
-LSM:Register("sound", "EQOL: Boss", voiceoverPath .. "Boss.ogg")
-LSM:Register("sound", "EQOL: Break", voiceoverPath .. "Break.ogg")
-LSM:Register("sound", "EQOL: Buff", voiceoverPath .. "Buff.ogg")
-LSM:Register("sound", "EQOL: CC", voiceoverPath .. "CC.ogg")
-LSM:Register("sound", "EQOL: Chain", voiceoverPath .. "Chain.ogg")
-LSM:Register("sound", "EQOL: Charge", voiceoverPath .. "Charge.ogg")
-LSM:Register("sound", "EQOL: Check", voiceoverPath .. "Check.ogg")
-LSM:Register("sound", "EQOL: Clear", voiceoverPath .. "Clear.ogg")
-LSM:Register("sound", "EQOL: Collect", voiceoverPath .. "Collect.ogg")
-LSM:Register("sound", "EQOL: Dance", voiceoverPath .. "Dance.ogg")
-LSM:Register("sound", "EQOL: Debuff", voiceoverPath .. "Debuff.ogg")
-LSM:Register("sound", "EQOL: Decurse", voiceoverPath .. "Decurse.ogg")
-LSM:Register("sound", "EQOL: Defensive", voiceoverPath .. "Defensive.ogg")
-LSM:Register("sound", "EQOL: Dispell", voiceoverPath .. "Dispell.ogg")
-LSM:Register("sound", "EQOL: Dodge", voiceoverPath .. "Dodge.ogg")
-LSM:Register("sound", "EQOL: Dot", voiceoverPath .. "Dot.ogg")
-LSM:Register("sound", "EQOL: Don't", voiceoverPath .. "Don't.ogg")
-LSM:Register("sound", "EQOL: Don't move", voiceoverPath .. "Don't move.ogg")
-LSM:Register("sound", "EQOL: Drop", voiceoverPath .. "Drop.ogg")
-LSM:Register("sound", "EQOL: Enrage", voiceoverPath .. "Enrage.ogg")
-LSM:Register("sound", "EQOL: Enter", voiceoverPath .. "Enter.ogg")
-LSM:Register("sound", "EQOL: Exit", voiceoverPath .. "Exit.ogg")
-LSM:Register("sound", "EQOL: External", voiceoverPath .. "External.ogg")
-LSM:Register("sound", "EQOL: Fear", voiceoverPath .. "Fear.ogg")
-LSM:Register("sound", "EQOL: Feet", voiceoverPath .. "Feet.ogg")
-LSM:Register("sound", "EQOL: Fixate", voiceoverPath .. "Fixate.ogg")
-LSM:Register("sound", "EQOL: Focus", voiceoverPath .. "Focus.ogg")
-LSM:Register("sound", "EQOL: Frontal", voiceoverPath .. "Frontal.ogg")
-LSM:Register("sound", "EQOL: Gate", voiceoverPath .. "Gate.ogg")
-LSM:Register("sound", "EQOL: Gather", voiceoverPath .. "Gather.ogg")
-LSM:Register("sound", "EQOL: Green", voiceoverPath .. "Green.ogg")
-LSM:Register("sound", "EQOL: Go", voiceoverPath .. "Go.ogg")
-LSM:Register("sound", "EQOL: Grip", voiceoverPath .. "Grip.ogg")
-LSM:Register("sound", "EQOL: Hide", voiceoverPath .. "Hide.ogg")
-LSM:Register("sound", "EQOL: Immunity", voiceoverPath .. "Immunity.ogg")
-LSM:Register("sound", "EQOL: In", voiceoverPath .. "In.ogg")
-LSM:Register("sound", "EQOL: Intermission", voiceoverPath .. "Intermission.ogg")
-LSM:Register("sound", "EQOL: Interrupt", voiceoverPath .. "Interrupt.ogg")
-LSM:Register("sound", "EQOL: Invis", voiceoverPath .. "Invis.ogg")
-LSM:Register("sound", "EQOL: Invisibility", voiceoverPath .. "Invisibility.ogg")
-LSM:Register("sound", "EQOL: Jump", voiceoverPath .. "Jump.ogg")
-LSM:Register("sound", "EQOL: Kick", voiceoverPath .. "Kick.ogg")
-LSM:Register("sound", "EQOL: Kite", voiceoverPath .. "Kite.ogg")
-LSM:Register("sound", "EQOL: Knock", voiceoverPath .. "Knock.ogg")
-LSM:Register("sound", "EQOL: Last", voiceoverPath .. "Last.ogg")
-LSM:Register("sound", "EQOL: Leap", voiceoverPath .. "Leap.ogg")
-LSM:Register("sound", "EQOL: Left", voiceoverPath .. "Left.ogg")
-LSM:Register("sound", "EQOL: Line", voiceoverPath .. "Line.ogg")
-LSM:Register("sound", "EQOL: Line of Sight", voiceoverPath .. "Line of Sight.ogg")
-LSM:Register("sound", "EQOL: Link", voiceoverPath .. "Link.ogg")
-LSM:Register("sound", "EQOL: Linked", voiceoverPath .. "Linked.ogg")
-LSM:Register("sound", "EQOL: LoS", voiceoverPath .. "LoS.ogg")
-LSM:Register("sound", "EQOL: Move", voiceoverPath .. "Move.ogg")
-LSM:Register("sound", "EQOL: Next", voiceoverPath .. "Next.ogg")
-LSM:Register("sound", "EQOL: Nuke", voiceoverPath .. "Nuke.ogg")
-LSM:Register("sound", "EQOL: Orange", voiceoverPath .. "Orange.ogg")
-LSM:Register("sound", "EQOL: Out", voiceoverPath .. "Out.ogg")
-LSM:Register("sound", "EQOL: Overlap", voiceoverPath .. "Overlap.ogg")
-LSM:Register("sound", "EQOL: Poison", voiceoverPath .. "Poison.ogg")
-LSM:Register("sound", "EQOL: Pot", voiceoverPath .. "Pot.ogg")
-LSM:Register("sound", "EQOL: Pull", voiceoverPath .. "Pull.ogg")
-LSM:Register("sound", "EQOL: Purple", voiceoverPath .. "Purple.ogg")
-LSM:Register("sound", "EQOL: Push", voiceoverPath .. "Push.ogg")
-LSM:Register("sound", "EQOL: Ready Check", voiceoverPath .. "Ready Check.ogg")
-LSM:Register("sound", "EQOL: Red", voiceoverPath .. "Red.ogg")
-LSM:Register("sound", "EQOL: Reflect", voiceoverPath .. "Reflect.ogg")
-LSM:Register("sound", "EQOL: Refresh", voiceoverPath .. "Refresh.ogg")
-LSM:Register("sound", "EQOL: Right", voiceoverPath .. "Right.ogg")
-LSM:Register("sound", "EQOL: Root", voiceoverPath .. "Root.ogg")
-LSM:Register("sound", "EQOL: Shield", voiceoverPath .. "Shield.ogg")
-LSM:Register("sound", "EQOL: Soak", voiceoverPath .. "Soak.ogg")
-LSM:Register("sound", "EQOL: Soon", voiceoverPath .. "Soon.ogg")
-LSM:Register("sound", "EQOL: Spawn", voiceoverPath .. "Spawn.ogg")
-LSM:Register("sound", "EQOL: Split", voiceoverPath .. "Split.ogg")
-LSM:Register("sound", "EQOL: Spread", voiceoverPath .. "Spread.ogg")
-LSM:Register("sound", "EQOL: Stack", voiceoverPath .. "Stack.ogg")
-LSM:Register("sound", "EQOL: Stay", voiceoverPath .. "Stay.ogg")
-LSM:Register("sound", "EQOL: Stop", voiceoverPath .. "Stop.ogg")
-LSM:Register("sound", "EQOL: Stopcast", voiceoverPath .. "Stopcast.ogg")
-LSM:Register("sound", "EQOL: Swap", voiceoverPath .. "Swap.ogg")
-LSM:Register("sound", "EQOL: Switch", voiceoverPath .. "Switch.ogg")
-LSM:Register("sound", "EQOL: Stun", voiceoverPath .. "Stun.ogg")
-LSM:Register("sound", "EQOL: Targeted", voiceoverPath .. "Targeted.ogg")
-LSM:Register("sound", "EQOL: Taunt", voiceoverPath .. "Taunt.ogg")
-LSM:Register("sound", "EQOL: Transission", voiceoverPath .. "Transission.ogg")
-LSM:Register("sound", "EQOL: Turn", voiceoverPath .. "Turn.ogg")
-LSM:Register("sound", "EQOL: Use", voiceoverPath .. "Use.ogg")
-LSM:Register("sound", "EQOL: Volley", voiceoverPath .. "Volley.ogg")
-LSM:Register("sound", "EQOL: Wave", voiceoverPath .. "Wave.ogg")
-LSM:Register("sound", "EQOL: Winds", voiceoverPath .. "Winds.ogg")
-LSM:Register("sound", "EQOL: Yellow", voiceoverPath .. "Yellow.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rAMZ |T237510:16|t", voiceoverPath .. "AMZ.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rDarkness |T1305154:16|t", voiceoverPath .. "Darkness.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rBarkskin |T572025:16|t", voiceoverPath .. "Barkskin.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rIronbark |T572025:16|t", voiceoverPath .. "Ironbark.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rIncarnation |T571586:16|t", voiceoverPath .. "Incarnation.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rInnervate |T136048:16|t", voiceoverPath .. "Innervate.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rRage of the Sleeper |T1129695:16|t", voiceoverPath .. "Rage of the Sleeper.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rRoar |T463283:16|t", voiceoverPath .. "Roar.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rTranquility |T136107:16|t", voiceoverPath .. "Tranquility.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rRescue |T4622460:16|t", voiceoverPath .. "Rescue.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rRewind |T4622474:16|t", voiceoverPath .. "Rewind.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSpatial Paradox |T5199645:16|t", voiceoverPath .. "Spatial Paradox.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rTime Dilation |T4622478:16|t", voiceoverPath .. "Time Dilation.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rTime Spiral |T4622479:16|t", voiceoverPath .. "Time Spiral.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rMisdirection |T132180:16|t", voiceoverPath .. "Misdirection.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSpellsteal |T135729:16|t", voiceoverPath .. "Spellsteal.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rChi-Ji |T877514:16|t", voiceoverPath .. "Chi-Ji.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rCocoon |T627485:16|t", voiceoverPath .. "Cocoon.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rRevival |T1020466:16|t", voiceoverPath .. "Revival.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rTiger's Lust |T651727:16|t", voiceoverPath .. "Tiger's Lust.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rAutumn |T3636843:16|t", voiceoverPath .. "Autumn.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rFreedom |T135968:16|t", voiceoverPath .. "Freedom.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rDevotion Aura |T135893:16|t", voiceoverPath .. "Devotion Aura.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rLay on Hands |T135928:16|t", voiceoverPath .. "Lay on Hands.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rProtection |T135964:16|t", voiceoverPath .. "Protection.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSpellwarding |T135880:16|t", voiceoverPath .. "Spellwarding.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSac |T135966:16|t", voiceoverPath .. "Sac.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSpring |T3636844:16|t", voiceoverPath .. "Spring.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSummer |T3636845:16|t", voiceoverPath .. "Summer.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rWinter |T3636846:16|t", voiceoverPath .. "Winter.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rBarrier |T253400:16|t", voiceoverPath .. "Barrier.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rDivine Hymn |T237540:16|t", voiceoverPath .. "Divine Hymn.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rGuardian Spirit |T237542:16|t", voiceoverPath .. "Guardian Spirit.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rPI |T135939:16|t", voiceoverPath .. "PI.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rPower Infusion |T135939:16|t", voiceoverPath .. "Power Infusion.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rPS |T135936:16|t", voiceoverPath .. "PS.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rPain Suppression |T135936:16|t", voiceoverPath .. "Pain Suppression.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rShroud |T635350:16|t", voiceoverPath .. "Shroud.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rTricks |T236283:16|t", voiceoverPath .. "Tricks.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rAscendence |T135791:16|t", voiceoverPath .. "Ascendence.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rHealing Tide |T538569:16|t", voiceoverPath .. "Healing Tide.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSpirit Link |T237586:16|t", voiceoverPath .. "Spirit Link.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSLT |T237586:16|t", voiceoverPath .. "SLT.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rWindrush |T538576:16|t", voiceoverPath .. "Windrush.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSS |T136210:16|t", voiceoverPath .. "SS.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSoulstone |T136210:16|t", voiceoverPath .. "Soulstone.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSummonstone |T136223:16|t", voiceoverPath .. "Summonstone.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rRallying Cry |T132351:16|t", voiceoverPath .. "Rallying Cry.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rStoneform |T136225:16|t", voiceoverPath .. "Stoneform.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rShadowmeld |T132089:16|t", voiceoverPath .. "Shadowmeld.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rWater Walking |T135863:16|t", voiceoverPath .. "Water Walking.ogg")
-LSM:Register("sound", "EQOL: Trinket", voiceoverPath .. "Trinket.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rZephyr |T4630449:16|t", voiceoverPath .. "Zephyr.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rSlow Fall |T135992:16|t", voiceoverPath .. "Slow Fall.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rAura Mastery |T135872:16|t", voiceoverPath .. "Aura Mastery.ogg")
-LSM:Register("sound", "EQOL: |cFF000000|rHealthstones |T538745:16|t", voiceoverPath .. "Healthstones.ogg")
-LSM:Register("sound", "EQOL: Big Heal", voiceoverPath .. "Big Heal.ogg")
+	-- Voiceovers
+	{ key = "1", label = "EQOL: 1", path = voiceoverPath .. "1.ogg" },
+	{ key = "2", label = "EQOL: 2", path = voiceoverPath .. "2.ogg" },
+	{ key = "3", label = "EQOL: 3", path = voiceoverPath .. "3.ogg" },
+	{ key = "4", label = "EQOL: 4", path = voiceoverPath .. "4.ogg" },
+	{ key = "5", label = "EQOL: 5", path = voiceoverPath .. "5.ogg" },
+	{ key = "6", label = "EQOL: 6", path = voiceoverPath .. "6.ogg" },
+	{ key = "7", label = "EQOL: 7", path = voiceoverPath .. "7.ogg" },
+	{ key = "8", label = "EQOL: 8", path = voiceoverPath .. "8.ogg" },
+	{ key = "9", label = "EQOL: 9", path = voiceoverPath .. "9.ogg" },
+	{ key = "10", label = "EQOL: 10", path = voiceoverPath .. "10.ogg" },
+	{ key = "First", label = "EQOL: First", path = voiceoverPath .. "First.ogg" },
+	{ key = "Second", label = "EQOL: Second", path = voiceoverPath .. "Second.ogg" },
+	{ key = "Third", label = "EQOL: Third", path = voiceoverPath .. "Third.ogg" },
+	{ key = "Fourth", label = "EQOL: Fourth", path = voiceoverPath .. "Fourth.ogg" },
+	{ key = "Fifth", label = "EQOL: Fifth", path = voiceoverPath .. "Fifth.ogg" },
+	{ key = "Star", label = "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:16|tStar", path = voiceoverPath .. "Star.ogg" },
+	{ key = "Circle", label = "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_2:16|tCircle", path = voiceoverPath .. "Circle.ogg" },
+	{ key = "Diamond", label = "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:16|tDiamond", path = voiceoverPath .. "Diamond.ogg" },
+	{ key = "Triangle", label = "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_4:16|tTriangle", path = voiceoverPath .. "Triangle.ogg" },
+	{ key = "Moon", label = "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_5:16|tMoon", path = voiceoverPath .. "Moon.ogg" },
+	{ key = "Square", label = "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_6:16|tSquare", path = voiceoverPath .. "Square.ogg" },
+	{ key = "Cross", label = "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_7:16|tCross", path = voiceoverPath .. "Cross.ogg" },
+	{ key = "Skull", label = "EQOL: |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:16|tSkull", path = voiceoverPath .. "Skull.ogg" },
+	{ key = "Adds", label = "EQOL: Adds", path = voiceoverPath .. "Adds.ogg" },
+	{ key = "Add", label = "EQOL: Add", path = voiceoverPath .. "Add.ogg" },
+	{ key = "Affix", label = "EQOL: Affix", path = voiceoverPath .. "Affix.ogg" },
+	{ key = "AoE", label = "EQOL: AoE", path = voiceoverPath .. "AoE.ogg" },
+	{ key = "Assist", label = "EQOL: Assist", path = voiceoverPath .. "Assist.ogg" },
+	{ key = "Avoid", label = "EQOL: Avoid", path = voiceoverPath .. "Avoid.ogg" },
+	{ key = "Back", label = "EQOL: Back", path = voiceoverPath .. "Back.ogg" },
+	{ key = "Backup", label = "EQOL: Backup", path = voiceoverPath .. "Backup.ogg" },
+	{ key = "Bait", label = "EQOL: Bait", path = voiceoverPath .. "Bait.ogg" },
+	{ key = "Beam", label = "EQOL: Beam", path = voiceoverPath .. "Beam.ogg" },
+	{ key = "Bleed", label = "EQOL: Bleed", path = voiceoverPath .. "Bleed.ogg" },
+	{ key = "Blue", label = "EQOL: Blue", path = voiceoverPath .. "Blue.ogg" },
+	{ key = "Bombs", label = "EQOL: Bombs", path = voiceoverPath .. "Bombs.ogg" },
+	{ key = "Boss", label = "EQOL: Boss", path = voiceoverPath .. "Boss.ogg" },
+	{ key = "Break", label = "EQOL: Break", path = voiceoverPath .. "Break.ogg" },
+	{ key = "Buff", label = "EQOL: Buff", path = voiceoverPath .. "Buff.ogg" },
+	{ key = "CC", label = "EQOL: CC", path = voiceoverPath .. "CC.ogg" },
+	{ key = "Chain", label = "EQOL: Chain", path = voiceoverPath .. "Chain.ogg" },
+	{ key = "Charge", label = "EQOL: Charge", path = voiceoverPath .. "Charge.ogg" },
+	{ key = "Check", label = "EQOL: Check", path = voiceoverPath .. "Check.ogg" },
+	{ key = "Clear", label = "EQOL: Clear", path = voiceoverPath .. "Clear.ogg" },
+	{ key = "Collect", label = "EQOL: Collect", path = voiceoverPath .. "Collect.ogg" },
+	{ key = "Dance", label = "EQOL: Dance", path = voiceoverPath .. "Dance.ogg" },
+	{ key = "Debuff", label = "EQOL: Debuff", path = voiceoverPath .. "Debuff.ogg" },
+	{ key = "Decurse", label = "EQOL: Decurse", path = voiceoverPath .. "Decurse.ogg" },
+	{ key = "Defensive", label = "EQOL: Defensive", path = voiceoverPath .. "Defensive.ogg" },
+	{ key = "Dispell", label = "EQOL: Dispell", path = voiceoverPath .. "Dispell.ogg" },
+	{ key = "Dodge", label = "EQOL: Dodge", path = voiceoverPath .. "Dodge.ogg" },
+	{ key = "Dot", label = "EQOL: Dot", path = voiceoverPath .. "Dot.ogg" },
+	{ key = "Don't", label = "EQOL: Don't", path = voiceoverPath .. "Don't.ogg" },
+	{ key = "Don't move", label = "EQOL: Don't move", path = voiceoverPath .. "Don't move.ogg" },
+	{ key = "Drop", label = "EQOL: Drop", path = voiceoverPath .. "Drop.ogg" },
+	{ key = "Enrage", label = "EQOL: Enrage", path = voiceoverPath .. "Enrage.ogg" },
+	{ key = "Enter", label = "EQOL: Enter", path = voiceoverPath .. "Enter.ogg" },
+	{ key = "Exit", label = "EQOL: Exit", path = voiceoverPath .. "Exit.ogg" },
+	{ key = "External", label = "EQOL: External", path = voiceoverPath .. "External.ogg" },
+	{ key = "Fear", label = "EQOL: Fear", path = voiceoverPath .. "Fear.ogg" },
+	{ key = "Feet", label = "EQOL: Feet", path = voiceoverPath .. "Feet.ogg" },
+	{ key = "Fixate", label = "EQOL: Fixate", path = voiceoverPath .. "Fixate.ogg" },
+	{ key = "Focus", label = "EQOL: Focus", path = voiceoverPath .. "Focus.ogg" },
+	{ key = "Frontal", label = "EQOL: Frontal", path = voiceoverPath .. "Frontal.ogg" },
+	{ key = "Gate", label = "EQOL: Gate", path = voiceoverPath .. "Gate.ogg" },
+	{ key = "Gather", label = "EQOL: Gather", path = voiceoverPath .. "Gather.ogg" },
+	{ key = "Green", label = "EQOL: Green", path = voiceoverPath .. "Green.ogg" },
+	{ key = "Go", label = "EQOL: Go", path = voiceoverPath .. "Go.ogg" },
+	{ key = "Grip", label = "EQOL: Grip", path = voiceoverPath .. "Grip.ogg" },
+	{ key = "Hide", label = "EQOL: Hide", path = voiceoverPath .. "Hide.ogg" },
+	{ key = "Immunity", label = "EQOL: Immunity", path = voiceoverPath .. "Immunity.ogg" },
+	{ key = "In", label = "EQOL: In", path = voiceoverPath .. "In.ogg" },
+	{ key = "Intermission", label = "EQOL: Intermission", path = voiceoverPath .. "Intermission.ogg" },
+	{ key = "Interrupt", label = "EQOL: Interrupt", path = voiceoverPath .. "Interrupt.ogg" },
+	{ key = "Invis", label = "EQOL: Invis", path = voiceoverPath .. "Invis.ogg" },
+	{ key = "Invisibility", label = "EQOL: Invisibility", path = voiceoverPath .. "Invisibility.ogg" },
+	{ key = "Jump", label = "EQOL: Jump", path = voiceoverPath .. "Jump.ogg" },
+	{ key = "Kick", label = "EQOL: Kick", path = voiceoverPath .. "Kick.ogg" },
+	{ key = "Kite", label = "EQOL: Kite", path = voiceoverPath .. "Kite.ogg" },
+	{ key = "Knock", label = "EQOL: Knock", path = voiceoverPath .. "Knock.ogg" },
+	{ key = "Last", label = "EQOL: Last", path = voiceoverPath .. "Last.ogg" },
+	{ key = "Leap", label = "EQOL: Leap", path = voiceoverPath .. "Leap.ogg" },
+	{ key = "Left", label = "EQOL: Left", path = voiceoverPath .. "Left.ogg" },
+	{ key = "Line", label = "EQOL: Line", path = voiceoverPath .. "Line.ogg" },
+	{ key = "Line of Sight", label = "EQOL: Line of Sight", path = voiceoverPath .. "Line of Sight.ogg" },
+	{ key = "Link", label = "EQOL: Link", path = voiceoverPath .. "Link.ogg" },
+	{ key = "Linked", label = "EQOL: Linked", path = voiceoverPath .. "Linked.ogg" },
+	{ key = "LoS", label = "EQOL: LoS", path = voiceoverPath .. "LoS.ogg" },
+	{ key = "Move", label = "EQOL: Move", path = voiceoverPath .. "Move.ogg" },
+	{ key = "Next", label = "EQOL: Next", path = voiceoverPath .. "Next.ogg" },
+	{ key = "Nuke", label = "EQOL: Nuke", path = voiceoverPath .. "Nuke.ogg" },
+	{ key = "Orange", label = "EQOL: Orange", path = voiceoverPath .. "Orange.ogg" },
+	{ key = "Out", label = "EQOL: Out", path = voiceoverPath .. "Out.ogg" },
+	{ key = "Overlap", label = "EQOL: Overlap", path = voiceoverPath .. "Overlap.ogg" },
+	{ key = "Poison", label = "EQOL: Poison", path = voiceoverPath .. "Poison.ogg" },
+	{ key = "Pot", label = "EQOL: Pot", path = voiceoverPath .. "Pot.ogg" },
+	{ key = "Pull", label = "EQOL: Pull", path = voiceoverPath .. "Pull.ogg" },
+	{ key = "Purple", label = "EQOL: Purple", path = voiceoverPath .. "Purple.ogg" },
+	{ key = "Push", label = "EQOL: Push", path = voiceoverPath .. "Push.ogg" },
+	{ key = "Ready Check", label = "EQOL: Ready Check", path = voiceoverPath .. "Ready Check.ogg" },
+	{ key = "Red", label = "EQOL: Red", path = voiceoverPath .. "Red.ogg" },
+	{ key = "Reflect", label = "EQOL: Reflect", path = voiceoverPath .. "Reflect.ogg" },
+	{ key = "Refresh", label = "EQOL: Refresh", path = voiceoverPath .. "Refresh.ogg" },
+	{ key = "Right", label = "EQOL: Right", path = voiceoverPath .. "Right.ogg" },
+	{ key = "Root", label = "EQOL: Root", path = voiceoverPath .. "Root.ogg" },
+	{ key = "Shield", label = "EQOL: Shield", path = voiceoverPath .. "Shield.ogg" },
+	{ key = "Soak", label = "EQOL: Soak", path = voiceoverPath .. "Soak.ogg" },
+	{ key = "Soon", label = "EQOL: Soon", path = voiceoverPath .. "Soon.ogg" },
+	{ key = "Spawn", label = "EQOL: Spawn", path = voiceoverPath .. "Spawn.ogg" },
+	{ key = "Split", label = "EQOL: Split", path = voiceoverPath .. "Split.ogg" },
+	{ key = "Spread", label = "EQOL: Spread", path = voiceoverPath .. "Spread.ogg" },
+	{ key = "Stack", label = "EQOL: Stack", path = voiceoverPath .. "Stack.ogg" },
+	{ key = "Stay", label = "EQOL: Stay", path = voiceoverPath .. "Stay.ogg" },
+	{ key = "Stop", label = "EQOL: Stop", path = voiceoverPath .. "Stop.ogg" },
+	{ key = "Stopcast", label = "EQOL: Stopcast", path = voiceoverPath .. "Stopcast.ogg" },
+	{ key = "Swap", label = "EQOL: Swap", path = voiceoverPath .. "Swap.ogg" },
+	{ key = "Switch", label = "EQOL: Switch", path = voiceoverPath .. "Switch.ogg" },
+	{ key = "Stun", label = "EQOL: Stun", path = voiceoverPath .. "Stun.ogg" },
+	{ key = "Targeted", label = "EQOL: Targeted", path = voiceoverPath .. "Targeted.ogg" },
+	{ key = "Taunt", label = "EQOL: Taunt", path = voiceoverPath .. "Taunt.ogg" },
+	{ key = "Transission", label = "EQOL: Transission", path = voiceoverPath .. "Transission.ogg" },
+	{ key = "Turn", label = "EQOL: Turn", path = voiceoverPath .. "Turn.ogg" },
+	{ key = "Use", label = "EQOL: Use", path = voiceoverPath .. "Use.ogg" },
+	{ key = "Volley", label = "EQOL: Volley", path = voiceoverPath .. "Volley.ogg" },
+	{ key = "Wave", label = "EQOL: Wave", path = voiceoverPath .. "Wave.ogg" },
+	{ key = "Winds", label = "EQOL: Winds", path = voiceoverPath .. "Winds.ogg" },
+	{ key = "Yellow", label = "EQOL: Yellow", path = voiceoverPath .. "Yellow.ogg" },
+	{ key = "AMZ", label = "EQOL: |cFF000000|rAMZ |T237510:16|t", path = voiceoverPath .. "AMZ.ogg" },
+	{ key = "Darkness", label = "EQOL: |cFF000000|rDarkness |T1305154:16|t", path = voiceoverPath .. "Darkness.ogg" },
+	{ key = "Barkskin", label = "EQOL: |cFF000000|rBarkskin |T572025:16|t", path = voiceoverPath .. "Barkskin.ogg" },
+	{ key = "Ironbark", label = "EQOL: |cFF000000|rIronbark |T572025:16|t", path = voiceoverPath .. "Ironbark.ogg" },
+	{ key = "Incarnation", label = "EQOL: |cFF000000|rIncarnation |T571586:16|t", path = voiceoverPath .. "Incarnation.ogg" },
+	{ key = "Innervate", label = "EQOL: |cFF000000|rInnervate |T136048:16|t", path = voiceoverPath .. "Innervate.ogg" },
+	{ key = "Rage of the Sleeper", label = "EQOL: |cFF000000|rRage of the Sleeper |T1129695:16|t", path = voiceoverPath .. "Rage of the Sleeper.ogg" },
+	{ key = "Roar", label = "EQOL: |cFF000000|rRoar |T463283:16|t", path = voiceoverPath .. "Roar.ogg" },
+	{ key = "Tranquility", label = "EQOL: |cFF000000|rTranquility |T136107:16|t", path = voiceoverPath .. "Tranquility.ogg" },
+	{ key = "Rescue", label = "EQOL: |cFF000000|rRescue |T4622460:16|t", path = voiceoverPath .. "Rescue.ogg" },
+	{ key = "Rewind", label = "EQOL: |cFF000000|rRewind |T4622474:16|t", path = voiceoverPath .. "Rewind.ogg" },
+	{ key = "Spatial Paradox", label = "EQOL: |cFF000000|rSpatial Paradox |T5199645:16|t", path = voiceoverPath .. "Spatial Paradox.ogg" },
+	{ key = "Time Dilation", label = "EQOL: |cFF000000|rTime Dilation |T4622478:16|t", path = voiceoverPath .. "Time Dilation.ogg" },
+	{ key = "Time Spiral", label = "EQOL: |cFF000000|rTime Spiral |T4622479:16|t", path = voiceoverPath .. "Time Spiral.ogg" },
+	{ key = "Misdirection", label = "EQOL: |cFF000000|rMisdirection |T132180:16|t", path = voiceoverPath .. "Misdirection.ogg" },
+	{ key = "Spellsteal", label = "EQOL: |cFF000000|rSpellsteal |T135729:16|t", path = voiceoverPath .. "Spellsteal.ogg" },
+	{ key = "Chi-Ji", label = "EQOL: |cFF000000|rChi-Ji |T877514:16|t", path = voiceoverPath .. "Chi-Ji.ogg" },
+	{ key = "Cocoon", label = "EQOL: |cFF000000|rCocoon |T627485:16|t", path = voiceoverPath .. "Cocoon.ogg" },
+	{ key = "Revival", label = "EQOL: |cFF000000|rRevival |T1020466:16|t", path = voiceoverPath .. "Revival.ogg" },
+	{ key = "Tiger's Lust", label = "EQOL: |cFF000000|rTiger's Lust |T651727:16|t", path = voiceoverPath .. "Tiger's Lust.ogg" },
+	{ key = "Autumn", label = "EQOL: |cFF000000|rAutumn |T3636843:16|t", path = voiceoverPath .. "Autumn.ogg" },
+	{ key = "Freedom", label = "EQOL: |cFF000000|rFreedom |T135968:16|t", path = voiceoverPath .. "Freedom.ogg" },
+	{ key = "Devotion Aura", label = "EQOL: |cFF000000|rDevotion Aura |T135893:16|t", path = voiceoverPath .. "Devotion Aura.ogg" },
+	{ key = "Lay on Hands", label = "EQOL: |cFF000000|rLay on Hands |T135928:16|t", path = voiceoverPath .. "Lay on Hands.ogg" },
+	{ key = "Protection", label = "EQOL: |cFF000000|rProtection |T135964:16|t", path = voiceoverPath .. "Protection.ogg" },
+	{ key = "Spellwarding", label = "EQOL: |cFF000000|rSpellwarding |T135880:16|t", path = voiceoverPath .. "Spellwarding.ogg" },
+	{ key = "Sac", label = "EQOL: |cFF000000|rSac |T135966:16|t", path = voiceoverPath .. "Sac.ogg" },
+	{ key = "Spring", label = "EQOL: |cFF000000|rSpring |T3636844:16|t", path = voiceoverPath .. "Spring.ogg" },
+	{ key = "Summer", label = "EQOL: |cFF000000|rSummer |T3636845:16|t", path = voiceoverPath .. "Summer.ogg" },
+	{ key = "Winter", label = "EQOL: |cFF000000|rWinter |T3636846:16|t", path = voiceoverPath .. "Winter.ogg" },
+	{ key = "Barrier", label = "EQOL: |cFF000000|rBarrier |T253400:16|t", path = voiceoverPath .. "Barrier.ogg" },
+	{ key = "Divine Hymn", label = "EQOL: |cFF000000|rDivine Hymn |T237540:16|t", path = voiceoverPath .. "Divine Hymn.ogg" },
+	{ key = "Guardian Spirit", label = "EQOL: |cFF000000|rGuardian Spirit |T237542:16|t", path = voiceoverPath .. "Guardian Spirit.ogg" },
+	{ key = "PI", label = "EQOL: |cFF000000|rPI |T135939:16|t", path = voiceoverPath .. "PI.ogg" },
+	{ key = "Power Infusion", label = "EQOL: |cFF000000|rPower Infusion |T135939:16|t", path = voiceoverPath .. "Power Infusion.ogg" },
+	{ key = "PS", label = "EQOL: |cFF000000|rPS |T135936:16|t", path = voiceoverPath .. "PS.ogg" },
+	{ key = "Pain Suppression", label = "EQOL: |cFF000000|rPain Suppression |T135936:16|t", path = voiceoverPath .. "Pain Suppression.ogg" },
+	{ key = "Shroud", label = "EQOL: |cFF000000|rShroud |T635350:16|t", path = voiceoverPath .. "Shroud.ogg" },
+	{ key = "Tricks", label = "EQOL: |cFF000000|rTricks |T236283:16|t", path = voiceoverPath .. "Tricks.ogg" },
+	{ key = "Ascendence", label = "EQOL: |cFF000000|rAscendence |T135791:16|t", path = voiceoverPath .. "Ascendence.ogg" },
+	{ key = "Healing Tide", label = "EQOL: |cFF000000|rHealing Tide |T538569:16|t", path = voiceoverPath .. "Healing Tide.ogg" },
+	{ key = "Spirit Link", label = "EQOL: |cFF000000|rSpirit Link |T237586:16|t", path = voiceoverPath .. "Spirit Link.ogg" },
+	{ key = "SLT", label = "EQOL: |cFF000000|rSLT |T237586:16|t", path = voiceoverPath .. "SLT.ogg" },
+	{ key = "Windrush", label = "EQOL: |cFF000000|rWindrush |T538576:16|t", path = voiceoverPath .. "Windrush.ogg" },
+	{ key = "SS", label = "EQOL: |cFF000000|rSS |T136210:16|t", path = voiceoverPath .. "SS.ogg" },
+	{ key = "Soulstone", label = "EQOL: |cFF000000|rSoulstone |T136210:16|t", path = voiceoverPath .. "Soulstone.ogg" },
+	{ key = "Summonstone", label = "EQOL: |cFF000000|rSummonstone |T136223:16|t", path = voiceoverPath .. "Summonstone.ogg" },
+	{ key = "Rallying Cry", label = "EQOL: |cFF000000|rRallying Cry |T132351:16|t", path = voiceoverPath .. "Rallying Cry.ogg" },
+	{ key = "Stoneform", label = "EQOL: |cFF000000|rStoneform |T136225:16|t", path = voiceoverPath .. "Stoneform.ogg" },
+	{ key = "Shadowmeld", label = "EQOL: |cFF000000|rShadowmeld |T132089:16|t", path = voiceoverPath .. "Shadowmeld.ogg" },
+	{ key = "Water Walking", label = "EQOL: |cFF000000|rWater Walking |T135863:16|t", path = voiceoverPath .. "Water Walking.ogg" },
+	{ key = "Trinket", label = "EQOL: Trinket", path = voiceoverPath .. "Trinket.ogg" },
+	{ key = "Zephyr", label = "EQOL: |cFF000000|rZephyr |T4630449:16|t", path = voiceoverPath .. "Zephyr.ogg" },
+	{ key = "Slow Fall", label = "EQOL: |cFF000000|rSlow Fall |T135992:16|t", path = voiceoverPath .. "Slow Fall.ogg" },
+	{ key = "Aura Mastery", label = "EQOL: |cFF000000|rAura Mastery |T135872:16|t", path = voiceoverPath .. "Aura Mastery.ogg" },
+	{ key = "Healthstones", label = "EQOL: |cFF000000|rHealthstones |T538745:16|t", path = voiceoverPath .. "Healthstones.ogg" },
+	{ key = "Big Heal", label = "EQOL: Big Heal", path = voiceoverPath .. "Big Heal.ogg" },
+	{ key = "Battle Res", label = "EQOL: Battle Res", path = voiceoverPath .. "Battle Res.ogg" },
+	{ key = "Bloodlust", label = "EQOL: Bloodlust", path = voiceoverPath .. "Bloodlust.ogg" },
+	{ key = "Cheat Death", label = "EQOL: Cheat Death", path = voiceoverPath .. "Cheat Death.ogg" },
+	{ key = "Combat Res", label = "EQOL: Combat Res", path = voiceoverPath .. "Combat Res.ogg" },
+	{ key = "Flask", label = "EQOL: Flask", path = voiceoverPath .. "Flask.ogg" },
+	{ key = "Fly", label = "EQOL: Fly", path = voiceoverPath .. "Fly.ogg" },
+	{ key = "Food", label = "EQOL: Food", path = voiceoverPath .. "Food.ogg" },
+	{ key = "Sooth", label = "EQOL: |cFF000000|rSooth |T132163:16|t", path = voiceoverPath .. "Sooth.ogg" },
+	{ key = "Wrath", label = "EQOL: |cFF000000|rWrath |T535045:16|t", path = voiceoverPath .. "Wrath.ogg" },
+	{ key = "Purge", label = "EQOL: |cFF000000|rPurge |T136075:16|t", path = voiceoverPath .. "Purge.ogg" },
+	{ key = "Weapon Enchant", label = "EQOL: Weapon Enchant", path = voiceoverPath .. "Weapon Enchant.ogg" },
+	{ key = "Weapon Oil", label = "EQOL: Weapon Oil", path = voiceoverPath .. "Weapon Oil.ogg" },
+	{ key = "Fireblood", label = "EQOL: |cFF000000|rFireblood |T1786406:16|t", path = voiceoverPath .. "Fireblood.ogg" },
+	{ key = "Ancestral Call", label = "EQOL: |cFF000000|rAncestral Call |T2021574:16|t", path = voiceoverPath .. "Ancestral Call.ogg" },
+	{ key = "Blood Fury", label = "EQOL: |cFF000000|rBlood Fury |T135726:16|t", path = voiceoverPath .. "Blood Fury.ogg" },
+	{ key = "Berserking", label = "EQOL: |cFF000000|rBerserking |T135727:16|t", path = voiceoverPath .. "Berserking.ogg" },
+	{ key = "Regeneratin", label = "EQOL: |cFF000000|rRegeneratin |T1850550:16|t", path = voiceoverPath .. "Regeneratin.ogg" },
+	{ key = "Speed", label = "EQOL: Speed", path = voiceoverPath .. "Speed.ogg" },
+	{ key = "Arcane Torrent", label = "EQOL: |cFF000000|rArcane Torrent |T136222:16|t", path = voiceoverPath .. "Arcane Torrent.ogg" },
+	{ key = "Gift of the Naaru", label = "EQOL: |cFF000000|rGift of the Naaru |T135923:16|t", path = voiceoverPath .. "Gift of the Naaru.ogg" },
+	{ key = "Tail Swipe", label = "EQOL: |cFF000000|rTail Swipe |T4622486:16|t", path = voiceoverPath .. "Tail Swipe.ogg" },
+	{ key = "Wing Buffet", label = "EQOL: |cFF000000|rWing Buffet |T4622488:16|t", path = voiceoverPath .. "Wing Buffet.ogg" },
+	{ key = "Escape Artist", label = "EQOL: |cFF000000|rEscape Artist |T132309:16|t", path = voiceoverPath .. "Escape Artist.ogg" },
+	{ key = "Rocket Jump", label = "EQOL: |cFF000000|rRocket Jump |T370769:16|t", path = voiceoverPath .. "Rocket Jump.ogg" },
+	{ key = "Bull Rush", label = "EQOL: |cFF000000|rBull Rush |T1723987:16|t", path = voiceoverPath .. "Bull Rush.ogg" },
+	{ key = "Will to Survive", label = "EQOL: |cFF000000|rWill to Survive |T136129:16|t", path = voiceoverPath .. "Will to Survive.ogg" },
+	{ key = "Haymaker", label = "EQOL: |cFF000000|rHaymaker |T2447782:16|t", path = voiceoverPath .. "Haymaker.ogg" },
+	{ key = "Emergency Failsafe", label = "EQOL: |cFF000000|rEmergency Failsafe |T3192688:16|t", path = voiceoverPath .. "Emergency Failsafe.ogg" },
+	{ key = "Quaking Palm", label = "EQOL: |cFF000000|rQuaking Palm |T572035:16|t", path = voiceoverPath .. "Quaking Palm.ogg" },
+	{ key = "War Stomp", label = "EQOL: |cFF000000|rWar Stomp |T132368:16|t", path = voiceoverPath .. "War Stomp.ogg" },
+	{ key = "Will of the Forsaken", label = "EQOL: |cFF000000|rWill of the Forsaken |T136187:16|t", path = voiceoverPath .. "Will of the Forsaken.ogg" },
+	{ key = "Spatial Rift", label = "EQOL: |cFF000000|rSpatial Rift |T1724004:16|t", path = voiceoverPath .. "Spatial Rift.ogg" },
+	{ key = "Darkflight", label = "EQOL: |cFF000000|rDarkflight |T366937:16|t", path = voiceoverPath .. "Darkflight.ogg" },
+}
+
+-- Sort alphabetically, but ignore the leading "EQOL:" prefix (and any following spaces)
+local function labelKey(lbl) return (lbl:gsub("^EQOL:%s*", "")):lower() end
+
+table.sort(addon.SharedMedia.sounds, function(a, b) return labelKey(a.label) < labelKey(b.label) end)

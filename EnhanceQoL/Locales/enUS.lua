@@ -82,6 +82,10 @@ L["confirmPatronOrderDialogDesc"] = "Skips the materials confirmation dialog whe
 L["autoChooseQuest"] = "Automatically accept and complete Quests"
 L["confirmTimerRemovalTrade"] = "Automatically confirm to sell tradeable loot within the trade window time frame"
 L["confirmTimerRemovalTradeDesc"] = "Confirms timer removal automatically when trading bound loot"
+L["confirmReplaceEnchant"] = "Automatically accept Enchant Replacement"
+L["confirmReplaceEnchantDesc"] = "Skips the confirmation dialog when replacing an enchant"
+L["confirmSocketReplace"] = "Automatically accept Socket replacement"
+L["confirmSocketReplaceDesc"] = "Skips the confirmation dialog when replacing sockets"
 
 L["General"] = "General"
 L["Character"] = "Character"

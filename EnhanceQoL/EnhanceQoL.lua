@@ -2345,6 +2345,20 @@ local function addMiscFrame(container, d)
 			desc = L["confirmTimerRemovalTradeDesc"],
 			callback = function(self, _, value) addon.db["confirmTimerRemovalTrade"] = value end,
 		},
+		{
+			parent = "",
+			var = "confirmReplaceEnchant",
+			type = "CheckBox",
+			desc = L["confirmReplaceEnchantDesc"],
+			callback = function(self, _, value) addon.db["confirmReplaceEnchant"] = value end,
+		},
+		{
+			parent = "",
+			var = "confirmSocketReplace",
+			type = "CheckBox",
+			desc = L["confirmSocketReplaceDesc"],
+			callback = function(self, _, value) addon.db["confirmSocketReplace"] = value end,
+		},
 
 		{
 			parent = "",
@@ -3289,6 +3303,8 @@ local function initMisc()
 	addon.functions.InitDBValue("confirmTimerRemovalTrade", false)
 	addon.functions.InitDBValue("confirmPatronOrderDialog", false)
 	addon.functions.InitDBValue("deleteItemFillDialog", false)
+	addon.functions.InitDBValue("confirmReplaceEnchant", false)
+	addon.functions.InitDBValue("confirmSocketReplace", false)
 	addon.functions.InitDBValue("hideRaidTools", false)
 	addon.functions.InitDBValue("autoRepair", false)
 	addon.functions.InitDBValue("sellAllJunk", false)
@@ -3322,6 +3338,10 @@ local function initMisc()
 						if order and order.npcCustomerCreatureID and order.npcCustomerCreatureID > 0 then self.button1:Click() end
 					elseif addon.db["confirmTimerRemovalTrade"] and self.which == "CONFIRM_MERCHANT_TRADE_TIMER_REMOVAL" and self.button1 then
 						self.button1:Click()
+					elseif addon.db["confirmReplaceEnchant"] and self.which == "REPLACE_ENCHANT" and self.numButtons > 0 and self.GetButton then
+						self:GetButton(1):Click()
+					elseif addon.db["confirmSocketReplace"] and self.which == "CONFIRM_ACCEPT_SOCKETS" and self.numButtons > 0 and self.GetButton then
+						self:GetButton(1):Click()
 					end
 				end
 			end)
@@ -3430,6 +3450,8 @@ local function initUnitFrame()
 		if not addon.db["unitFrameTruncateNames"] then return end
 		if not addon.db["unitFrameMaxNameLength"] then return end
 		if not cuf then return end
+
+		if cuf.unit and cuf.unit:match("^nameplate") then return end
 
 		local name
 		if cuf.unit and UnitExists(cuf.unit) then
@@ -4548,6 +4570,8 @@ local function CreateUI()
 			addon.Aura.functions.treeCallback(container, group)
 		elseif string.match(group, "^sound") then
 			addon.Sounds.functions.treeCallback(container, group)
+		elseif string.match(group, "^sharedmedia") then
+			addon.SharedMedia.functions.treeCallback(container, group)
 		elseif string.match(group, "^mouse") then
 			addon.Mouse.functions.treeCallback(container, group)
 		elseif string.match(group, "^move") then
@@ -4786,6 +4810,21 @@ local function setAllHooks()
 	initSocial()
 	initLootToast()
 	initBagsFrame()
+
+	local LSM = LibStub("LibSharedMedia-3.0")
+	local lsmSoundDirty = false
+	LSM:RegisterCallback("LibSharedMedia_Registered", function(event, mediaType, ...)
+		if mediaType == "sound" then
+			if not lsmSoundDirty then
+				lsmSoundDirty = true
+				C_Timer.After(1, function()
+					lsmSoundDirty = false
+					if addon.Aura and addon.Aura.functions and addon.Aura.functions.BuildSoundTable then addon.Aura.functions.BuildSoundTable() end
+					if addon.ChatIM and addon.ChatIM.BuildSoundTable then addon.ChatIM:BuildSoundTable() end
+				end)
+			end
+		end
+	end)
 end
 
 function loadMain()
@@ -4880,7 +4919,7 @@ function loadMain()
 	addon.settingsCategory = category
 end
 
--- Erstelle ein Frame für Events
+-- Erstelle ein Frame f��r Events
 local frameLoad = CreateFrame("Frame")
 
 local gossipClicked = {}

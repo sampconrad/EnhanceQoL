@@ -43,11 +43,14 @@ while IFS=';' read -r WORD SPEED PITCH FNAME ICON PNAME || [[ -n "$WORD" ]]; do
   # 2) AIFF -> OGG konvertieren
   ffmpeg -loglevel error -y -i "$OUT" -af "volume=${VOLUME_GAIN_DB}dB" -c:a libvorbis -q:a 4 "$OGG"
 
+  KEY_NAME="${WORD//\"/\\\"}"
+  LABEL_NAME="$NAME_PREFIX$BASENAME"
   if [[ -n "$ICON_SUFFIX" ]]; then
-    printf 'LSM:Register("sound", "EQOL: |cFF000000|r%s %s", %s .. "%s.ogg")\n' "$NAME_PREFIX$BASENAME" "$ICON_SUFFIX" "$PATHW" "$BASENAME"
-  else
-    printf 'LSM:Register("sound", "EQOL: %s", %s .. "%s.ogg")\n' "$NAME_PREFIX$BASENAME" "$PATHW" "$BASENAME"
+    LABEL_NAME="|cFF000000|r${LABEL_NAME} ${ICON_SUFFIX}"
   fi
+  LABEL_ESCAPED="${LABEL_NAME//\"/\\\"}"
+
+  printf '{ key = "%s", label = "EQOL: %s", path = %s .. "%s.ogg" },\n' "$KEY_NAME" "$LABEL_ESCAPED" "$PATHW" "$BASENAME"
   # Optional: AIFF löschen, damit nur OGG übrig bleibt
   rm "$OUT"
 done < "$LIST"

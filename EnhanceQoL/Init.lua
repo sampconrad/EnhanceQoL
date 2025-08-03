@@ -565,7 +565,7 @@ addon.variables.shouldEnchantedChecks = {
 	-- Head
 	[1] = {
 		func = function(ilvl)
-			if ilvl >= 350 and addon.functions.IsPatchLive("horrificVisions") and not addon.functions.IsPatchLive("whispersOfKaresh")  then
+			if ilvl >= 350 and addon.functions.IsPatchLive("horrificVisions") and not GetBuildInfo() == "11.2.0" and not addon.functions.IsPatchLive("whispersOfKaresh")  then
 				-- Horrific vision enchant - Only usable during Season 2 of TWW and after Patchday in the Week of 20.05.2025
 				-- and before the Patchday on 12/13.08.2025
 				return true

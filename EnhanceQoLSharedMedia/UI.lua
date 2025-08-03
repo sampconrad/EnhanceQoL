@@ -1,0 +1,67 @@
+local parentAddonName = "EnhanceQoL"
+local addonName, addon = ...
+if _G[parentAddonName] then
+	addon = _G[parentAddonName]
+else
+	error(parentAddonName .. " is not loaded")
+end
+
+local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_SharedMedia")
+addon.SharedMedia = addon.SharedMedia or {}
+addon.SharedMedia.functions = addon.SharedMedia.functions or {}
+
+local function addSoundFrame(container)
+	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
+
+	local wrapper = addon.functions.createContainer("SimpleGroup", "List")
+	wrapper:SetFullWidth(true)
+	scroll:AddChild(wrapper)
+
+	-- Top row with "Enable All" / "Disable All" buttons
+	local function SetAllSounds(state)
+		for _, snd in ipairs(addon.SharedMedia.sounds or {}) do
+			addon.SharedMedia.functions.UpdateSound(snd.key, state)
+		end
+		container:ReleaseChildren()
+		addSoundFrame(container)
+	end
+
+	local topRow = addon.functions.createContainer("SimpleGroup", "Flow")
+	topRow:SetFullWidth(true)
+
+	local btnEnableAll = addon.functions.createButtonAce(L["Enable All"], 120, function() SetAllSounds(true) end)
+	btnEnableAll:SetRelativeWidth(0.5)
+	topRow:AddChild(btnEnableAll)
+
+	local btnDisableAll = addon.functions.createButtonAce(L["Disable All"], 120, function() SetAllSounds(false) end)
+	btnDisableAll:SetRelativeWidth(0.5)
+	topRow:AddChild(btnDisableAll)
+
+	wrapper:AddChild(topRow)
+
+	wrapper:PauseLayout()
+	for _, sound in ipairs(addon.SharedMedia.sounds or {}) do
+		local row = addon.functions.createContainer("SimpleGroup", "Flow")
+		row:SetFullWidth(true)
+
+		local cb = addon.functions.createCheckboxAce(sound.label, addon.db.sharedMediaSounds[sound.key], function(self, _, value) addon.SharedMedia.functions.UpdateSound(sound.key, value) end)
+		cb:SetRelativeWidth(0.8)
+		row:AddChild(cb)
+
+		local btn = addon.functions.createButtonAce(L["Play"], 80, function() PlaySoundFile(sound.path) end)
+		btn:SetRelativeWidth(0.2)
+		row:AddChild(btn)
+
+		wrapper:AddChild(row)
+	end
+	wrapper:ResumeLayout()
+	scroll:DoLayout()
+end
+
+function addon.SharedMedia.functions.treeCallback(container, group)
+	container:ReleaseChildren()
+	addSoundFrame(container)
+end

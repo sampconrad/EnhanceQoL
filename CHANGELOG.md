@@ -3,22 +3,35 @@
 ## [4.0.0] – 2025-08-02
 ### ✨ Added
 - **EnhanceQoL Shared Media**
-  - New sub-module with **180 +** voice lines and sounds, usable via LibSharedMedia.
+  - New sub-module that ships **200 +** voice lines and SFX via **LibSharedMedia**.
+  - All sounds are **disabled by default**; enable only the ones you want.
 - **Cooldown Notify**
   - Pops up a small alert when an ability is ready.
-  - Works in **blacklist** mode (track everything except excluded spells) or **whitelist** mode (track only selected spells).
+  - Supports **blacklist mode** (track everything except excluded spells) and **whitelist mode** (track only selected spells).
   - Can play a custom sound when the spell comes off cooldown.
 - **Aura Tracker**
-  - New **Spacing** setting to adjust the gap between icons.
-  - Now tracks on-use **trinket cooldowns**.
+  - **Spacing** option to set the gap between icons.
+  - Tracks on-use **trinket cooldowns**.
+  - *Show for Difficulty* filter — choose “Outside World”, “Any Instance”, or specific difficulties.
+  - Tracks **temporary weapon enchants**; optional filter by Enchant ID.
 - **Talent Reminder – Build Info**
-  - Displays the name of the currently active talent build.
-  - Option to show the text **only outside instances**, **only in 5-man/Delves**, or **only in raids**.
+  - Shows the name of the active talent build.
+  - Text can be shown **only outside instances**, **only in 5-mans/Delves**, or **only in raids**.
+- **QoL Prompts**
+  - Auto-confirm **enchant overwrite** and **socket overwrite** dialogs.
+- **Tooltip**
+  - Can display temporary weapon-enchant IDs (stones, oils, imbues, etc.).
+  - Option to show **spell icon ID**.
+### 🔄 Changed
+- **Gem Helper**
+  - Cleaner gem display per socket.
 ### 🐛 Fixed
-- Catalyst charges were not shown correctly near the end of the season.
-- Missing variable check in Aura Tracker cooldown logic caused unnecessary CPU usage — fixed.
-- Frame strata of buffs was **too** high.
-- Cast Tracker now only handles mobs currently **in combat** with the player.
+- Catalyst charges sometimes disappeared near season end.
+- Missing variable in Aura Tracker cooldown logic caused extra CPU load.
+- Buff frame strata was too high.
+- Cast Tracker now processes only mobs **actually fighting the player/group**.
+- Unit-frame name truncation no longer affects nameplates.
+- Nested conditions in *Aura Tracker* now evaluate correctly.
 
 ---
 

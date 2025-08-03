@@ -27,6 +27,7 @@ local allowedSpells = { -- Tinker Engineering
 	[431419] = { duration = 300, isInvis = false, icon = 236873 }, -- Cavedweller's Delight Heal/Mana Pot counts as combat, -- Potion of Silent Footfalls
 	[431418] = { duration = 300, isInvis = false, icon = 5931166 }, -- Algari Mana Potion
 	[431416] = { duration = 300, isInvis = false, isHealpot = true, icon = 5931169 }, -- Algari Healing Potion
+	[1238009] = { duration = 300, isInvis = false, isHealpot = true, icon = 1385244 }, -- Invigorating Healing Potion
 	[460074] = { duration = 300, isInvis = false, isHealpot = true, icon = 135264 }, -- Grotesque Vial
 	[1247091] = { duration = 300, isInvis = false, icon = 132331 }, -- Umbral Essentia - Shadowmeld Potion
 	-- Dragonflight

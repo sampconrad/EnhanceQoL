@@ -16,11 +16,10 @@ ChatIM.soundPath = "Interface\\AddOns\\" .. parentAddonName .. "\\Sounds\\ChatIM
 function ChatIM:BuildSoundTable()
 	local result = {}
 
-	-- LSM:HashTable("sound")  →  { ["Bell"]="path", ["blah"]="path", ... }
 	for name, path in pairs(LSM:HashTable("sound")) do
 		result[name] = path
 	end
-	ChatIM.availableSounds = result -- { "Bell","Cheerfull",... },   { name → path }
+	ChatIM.availableSounds = result
 end
 
 local function shouldPlaySound(sender)
@@ -136,9 +135,6 @@ local function updateRegistration()
 		EnhanceQoL_IMHistory = EnhanceQoL_IMHistory or {}
 		ChatIM.history = EnhanceQoL_IMHistory
 
-		LSM:RegisterCallback("LibSharedMedia_Registered", function(mediaType)
-			if mediaType == "sound" then ChatIM:BuildSoundTable() end
-		end)
 		ChatIM:BuildSoundTable()
 	else
 		frame:UnregisterAllEvents()

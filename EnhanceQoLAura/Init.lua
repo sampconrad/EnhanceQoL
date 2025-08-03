@@ -202,3 +202,13 @@ for _, cat in pairs(addon.db.cooldownNotifyCategories or {}) do
 	cat.spells = cat.spells or {}
 	cat.ignoredSpells = cat.ignoredSpells or {}
 end
+
+function addon.Aura.functions.BuildSoundTable()
+	local LSM = LibStub("LibSharedMedia-3.0")
+	local result = {}
+
+	for name, path in pairs(LSM:HashTable("sound")) do
+		result[name] = path
+	end
+	addon.Aura.sounds = result
+end

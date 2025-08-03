@@ -40,8 +40,10 @@ Avoid;180
 Back;190;"[[pbas -40]]"
 Backup;190;"[[pbas -40]]"
 Bait;180
+Battle Res;190;"[[pbas -60]]";Battle Res
 Beam;190;"[[pbas -40]]"
 Bleed;180
+Bloodlust;190;"[[pbas -60]]"
 Blue;190;"[[pbas -40]]"
 Big Heal;160;"[[pbas -40]]";Big Heal
 Bommbs;160;"[[pbas -40]]";Bombs
@@ -51,9 +53,11 @@ Buff;180;"[[pbas -60]]"
 CC;220
 Chain;180;"[[pbas -60]]"
 Charge;180;"[[pbas -60]]"
+Cheat Death;190;"[[pbas -60]]";Cheat Death
 Check;180;"[[pbas -60]]"
 Clear
 Collect;180;"[[pbas -60]]"
+Combat Res;190;"[[pbas -60]]";Combat Res
 Dance
 Deebuff;180;"[[pbas -60]]";Debuff
 Deecurse;180;;Decurse
@@ -70,6 +74,9 @@ Exit;180;"[[pbas -60]]"
 External;180;"[[pbas -60]]"
 Fear;180;"[[pbas -60]]"
 Feet
+Flask;200;"[[pbas -60]]"
+Fly;140;"[[pbas -60]]"
+Food;200;"[[pbas -60]]"
 Fixate;180
 Focus
 Frontal
@@ -118,6 +125,7 @@ Shield;180;"[[pbas -60]]"
 Soak;200;"[[pbas -60]]"
 Soon
 Spawn;180;"[[pbas -60]]"
+Speed;180;"[[pbas -60]]"
 Split;180;"[[pbas -60]]"
 Spread;170;"[[pbas -60]]"
 Stack;170;"[[pbas -60]]"
@@ -135,6 +143,8 @@ Turn;160;"[[pbas -60]]"
 Use
 Volley;180;"[[pbas -60]]"
 Wave;180;"[[pbas -60]]"
+Weapon Enchant;180;"[[pbas -60]]";Weapon Enchant
+Weapon Oil;180;"[[pbas -60]]";Weapon Oil
 Winds;180;"[[pbas -60]]"
 Yellow;180;"[[pbas -60]]"
 # Abilities
@@ -152,7 +162,9 @@ Incarnation;180;"[[pbas -60]]";;|T571586:16|t
 Innervate;180;"[[pbas -60]]";;|T136048:16|t
 Rage of the Sleeper;190;"[[pbas -20]]";Rage of the Sleeper;|T1129695:16|t
 Roar;190;"[[pbas -20]]";;|T463283:16|t
+Sooth;190;"[[pbas -60]]";;|T132163:16|t
 Trangility;190;"[[pbas -30]]";Tranquility;|T136107:16|t
+Wrath;140;"[[pbas -20]]";;|T535045:16|t
 
 # Evoker
 Rescue;190;"[[pbas -60]]";Rescue;|T4622460:16|t
@@ -204,6 +216,7 @@ Tricks;190;"[[pbas -60]]";;|T236283:16|t
 # Shaman
 Ascendence;180;"[[pbas -40]]";;|T135791:16|t
 Healing Tide;200;"[[pbas -60]]";Healing Tide;|T538569:16|t
+Purge;190;"[[pbas -60]]";;|T136075:16|t
 Spirit Link;180;"[[pbas -60]]";Spirit Link;|T237586:16|t
 SLT;200;"[[pbas -30]]";;|T237586:16|t
 Water Walking;180;"[[pbas -60]]";Water Walking;|T135863:16|t
@@ -215,14 +228,71 @@ SS;180;"[[pbas -40]]";;|T136210:16|t
 Soulstone;180;"[[pbas -60]]";;|T136210:16|t
 Summonstone;180;"[[pbas -60]]";;|T136223:16|t
 
-
 # Warrior
 Rallying Cry;190;"[[pbas -60]]";Rallying Cry;|T132351:16|t
 
 # Racials
 
+# Blood Elf
+Arcane Torrent;200;"[[pbas -60]]";Arcane Torrent;|T136222:16|t
+
+# Dark Iron Dwarf
+Fireblood;180;"[[pbas -60]]";Fireblood;|T1786406:16|t
+
+# Draenei
+Gift of the Naaru;200;"[[pbas -60]]";Gift of the Naaru;|T135923:16|t
+
 # Dwarf
 Stoneform;180;"[[pbas -30]]";Stoneform;|T136225:16|t
 
+# Evoker
+Tail Swipe;190;"[[pbas -60]]";Tail Swipe;|T4622486:16|t
+Wing Buffet;190;"[[pbas -60]]";Wing Buffet;|T4622488:16|t
+
+# Gnome
+Escape Artist;180;"[[pbas -60]]";Escape Artist;|T132309:16|t
+
+# Goblin
+Rocket Jump;180;"[[pbas -60]]";Rocket Jump;|T370769:16|t
+
+# Highmountain Tauren
+Bull Rush;160;"[[pbas -60]]";Bull Rush;|T1723987:16|t
+
+# Human
+Will to Survive;200;"[[pbas -60]]";Will to Survive;|T136129:16|t
+
+# Kul Tiran
+Haymaker;190;"[[pbas -60]]";Haymaker;|T2447782:16|t
+
+# Mag'har Orc
+Ancestral Call;180;"[[pbas -60]]";Ancestral Call;|T2021574:16|t
+
+# Mecha Gnome
+Emergency Failsafe;200;"[[pbas -60]]";Emergency Failsafe;|T3192688:16|t
+
 # Nightelf
 Shadomeld;170;"[[pbas -60]]";Shadowmeld;|T132089:16|t
+
+# Orc
+Blood Fury;180;"[[pbas -60]]";Blood Fury;|T135726:16|t
+
+# Pandaren
+Quaking Palm;190;"[[pbas -60]]";Quaking Palm;|T572035:16|t
+
+# Tauren
+War Stomp;180;"[[pbas -60]]";War Stomp;|T132368:16|t
+
+# Troll
+Berserking;180;"[[pbas -60]]";Berserking;|T135727:16|t
+
+# Undead
+Will of the Forsaken;180;"[[pbas -60]]";Will of the Forsaken;|T136187:16|t
+
+# Voidelf
+Spatial Rift;180;"[[pbas -60]]";Spatial Rift;|T1724004:16|t
+
+# Worgen
+Darkflight;180;"[[pbas -60]]";Darkflight;|T366937:16|t
+
+# Zandalari Troll
+Regeneratin;180;"[[pbas -60]]";Regeneratin;|T1850550:16|t

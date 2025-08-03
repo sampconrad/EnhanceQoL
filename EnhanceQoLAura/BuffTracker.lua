@@ -27,6 +27,11 @@ local selectedCategory = addon.db["buffTrackerSelectedCategory"] or 1
 local itemBuffsBySlot = {} -- [slot] = { [catId] = buffId, … }
 local equipScanPending = false
 
+-- Weapon enchant helpers
+local enchantBuffsBySlot = {} -- [slot] = { [catId] = buffId, … }
+local enchantScanPending = false
+local cachedEnchantIDs = {} -- [slot] = enchantId
+
 local function registerItemBuff(catId, buffId, slot)
 	itemBuffsBySlot[slot] = itemBuffsBySlot[slot] or {}
 	itemBuffsBySlot[slot][catId] = buffId
@@ -39,6 +44,18 @@ local function unregisterItemBuff(catId, slot)
 	end
 end
 
+local function registerEnchantBuff(catId, buffId, slot)
+	enchantBuffsBySlot[slot] = enchantBuffsBySlot[slot] or {}
+	enchantBuffsBySlot[slot][catId] = buffId
+end
+
+local function unregisterEnchantBuff(catId, slot)
+	if enchantBuffsBySlot[slot] then
+		enchantBuffsBySlot[slot][catId] = nil
+		if not next(enchantBuffsBySlot[slot]) then enchantBuffsBySlot[slot] = nil end
+	end
+end
+
 for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
 	for id, buff in pairs(cat.buffs or {}) do
 		if not buff.trackType then buff.trackType = "BUFF" end
@@ -47,7 +64,11 @@ for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
 		if not buff.allowedRoles then buff.allowedRoles = {} end
 		if buff.showCooldown == nil then buff.showCooldown = false end
 		if not buff.conditions then buff.conditions = { join = "AND", conditions = {} } end
-		if buff.trackType == "ITEM" and buff.slot then registerItemBuff(catId, id, buff.slot) end
+		if buff.trackType == "ITEM" and buff.slot then
+			registerItemBuff(catId, id, buff.slot)
+		elseif buff.trackType == "ENCHANT" and buff.slot then
+			registerEnchantBuff(catId, id, buff.slot)
+		end
 	end
 	cat.allowedSpecs = nil
 	cat.allowedClasses = nil
@@ -84,10 +105,19 @@ local function scanTrinketSlots()
 	local needsLayout = {}
 	for _, slot in ipairs({ 13, 14 }) do
 		if itemBuffsBySlot[slot] then
-			local cdStart, cdDur = GetInventoryItemCooldown("player", slot)
-			if (cdDur and cdDur > 0) or cdStart == 0 then
+			local itemID = GetInventoryItemID("player", slot)
+			if itemID and C_Item and C_Item.GetItemSpell and C_Item.GetItemSpell(itemID) then
+				local cdStart, cdDur = GetInventoryItemCooldown("player", slot)
+				if (cdDur and cdDur > 0) or cdStart == 0 then
+					for catId, buffId in pairs(itemBuffsBySlot[slot]) do
+						updateBuff(catId, buffId)
+						needsLayout[catId] = true
+					end
+				end
+			else
 				for catId, buffId in pairs(itemBuffsBySlot[slot]) do
-					updateBuff(catId, buffId)
+					if activeBuffFrames[catId] and activeBuffFrames[catId][buffId] then activeBuffFrames[catId][buffId]:Hide() end
+					buffInstances[catId .. ":" .. buffId] = nil
 					needsLayout[catId] = true
 				end
 			end
@@ -96,6 +126,44 @@ local function scanTrinketSlots()
 	for catId in pairs(needsLayout) do
 		updatePositions(catId)
 	end
+end
+
+local function scanWeaponEnchants()
+	enchantScanPending = false
+	local mhHas, _, _, mhID, ohHas, _, _, ohID = GetWeaponEnchantInfo()
+	local needsLayout = {}
+
+	if enchantBuffsBySlot[16] then
+		local current = mhHas and mhID or nil
+		if cachedEnchantIDs[16] ~= current then
+			cachedEnchantIDs[16] = current
+			for catId, buffId in pairs(enchantBuffsBySlot[16]) do
+				updateBuff(catId, buffId)
+				needsLayout[catId] = true
+			end
+		end
+	end
+
+	if enchantBuffsBySlot[17] then
+		local current = ohHas and ohID or nil
+		if cachedEnchantIDs[17] ~= current then
+			cachedEnchantIDs[17] = current
+			for catId, buffId in pairs(enchantBuffsBySlot[17]) do
+				updateBuff(catId, buffId)
+				needsLayout[catId] = true
+			end
+		end
+	end
+
+	for catId in pairs(needsLayout) do
+		updatePositions(catId)
+	end
+end
+
+local function scheduleEnchantScan()
+	if enchantScanPending then return end
+	enchantScanPending = true
+	C_Timer.After(0.10, scanWeaponEnchants)
 end
 
 local function scheduleEquipScan()
@@ -161,6 +229,37 @@ local roleNames = {
 	DAMAGER = INLINE_DAMAGER_ICON .. " " .. DAMAGER,
 }
 
+local instanceDifficultyGroups = {
+	RAID = { name = LFG_TYPE_RAID, ids = { 3, 4, 5, 6, 7, 9, 14, 15, 16, 17, 151 } },
+	NORMAL = { name = PLAYER_DIFFICULTY1, ids = { 1, 150 } },
+	HEROIC = { name = PLAYER_DIFFICULTY2, ids = { 2 } },
+	MYTHIC = { name = PLAYER_DIFFICULTY6, ids = { 23 } },
+	MYTHIC_PLUS = { name = PLAYER_DIFFICULTY_MYTHIC_PLUS, ids = { 8 } },
+	TIMEWALKING = { name = PLAYER_DIFFICULTY_TIMEWALKER, ids = { 24, 33 } },
+	DELVES = { name = DELVES_LABEL, ids = { 208 } },
+	PVP = { name = PVP, ids = { 29, 34 } },
+	SCENARIO = { name = GUILD_CHALLENGE_TYPE4, ids = { 11, 12, 20, 25, 30, 32, 38, 39, 40, 147, 149, 152, 153, 167, 168, 169, 170, 171 } },
+	OUTSIDE = { name = WORLD, ids = { 0 } },
+}
+
+local instanceDifficultyOrder = { "RAID", "NORMAL", "HEROIC", "MYTHIC", "MYTHIC_PLUS", "PVP", "SCENARIO", "TIMEWALKING", "DELVES", "OUTSIDE" }
+local difficultyToGroup = {}
+local instanceDifficultyNames = {}
+for key, info in pairs(instanceDifficultyGroups) do
+	instanceDifficultyNames[key] = info.name
+	for _, id in ipairs(info.ids) do
+		difficultyToGroup[id] = key
+	end
+end
+
+local currentInstanceGroup
+
+local function updateInstanceGroup()
+	local _, _, diffID = GetInstanceInfo()
+	if nil == diffID then diffID = "" end
+	currentInstanceGroup = difficultyToGroup[diffID]
+end
+
 local DebuffBorderColors = {
 	Magic = { 0.2, 0.6, 1 },
 	Curse = { 0.6, 0, 1 },
@@ -202,18 +301,11 @@ local function buffAllowed(buff)
 		if role == "NONE" then role = addon.variables.unitRole end
 		if not role or not buff.allowedRoles[role] then return false end
 	end
+	if buff.allowedInstances and next(buff.allowedInstances) then
+		if not currentInstanceGroup or not buff.allowedInstances[currentInstanceGroup] then return false end
+	end
 	return true
 end
-
-function addon.Aura.functions.BuildSoundTable()
-	local result = {}
-
-	for name, path in pairs(LSM:HashTable("sound")) do
-		result[name] = path
-	end
-	addon.Aura.sounds = result
-end
-addon.Aura.functions.BuildSoundTable()
 
 local function evaluateCondition(cond, aura)
 	if not cond or not cond.type then return true end
@@ -255,6 +347,12 @@ local function evaluateCondition(cond, aura)
 			return remaining ~= val
 		end
 		return remaining == val
+	elseif cond.type == "enchant" then
+		if not isNumber(cond.value) then return true end
+		local eid = aura and aura.enchantID
+		local val = tonumber(cond.value) or 0
+		if cond.operator == "~=" or cond.operator == "!=" then return eid ~= val end
+		return eid == val
 	end
 	return true
 end
@@ -266,13 +364,23 @@ local function evaluateGroup(group, aura)
 	if #children == 0 then return true end
 	if join == "AND" then
 		for _, child in ipairs(children) do
-			local ok = child.join and evaluateGroup(child, aura) or evaluateCondition(child, aura)
+			local ok
+			if child.join then
+				ok = evaluateGroup(child, aura)
+			else
+				ok = evaluateCondition(child, aura)
+			end
 			if not ok then return false end
 		end
 		return true
 	else
 		for _, child in ipairs(children) do
-			local ok = child.join and evaluateGroup(child, aura) or evaluateCondition(child, aura)
+			local ok
+			if child.join then
+				ok = evaluateGroup(child, aura)
+			else
+				ok = evaluateCondition(child, aura)
+			end
 			if ok then return true end
 		end
 		return false
@@ -340,22 +448,27 @@ local function rebuildAltMapping()
 	wipe(chargeSpells)
 	for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
 		for baseId, buff in pairs(cat.buffs or {}) do
-			spellToCat[baseId] = spellToCat[baseId] or {}
-			spellToCat[baseId][catId] = true
+			if not buff.allowedInstances or not next(buff.allowedInstances) or (currentInstanceGroup and buff.allowedInstances[currentInstanceGroup]) then
+				spellToCat[baseId] = spellToCat[baseId] or {}
+				spellToCat[baseId][catId] = true
 
-			buff.altHash = {}
-			if buff.altIDs then
-				for _, altId in ipairs(buff.altIDs) do
-					altToBase[altId] = baseId
-					buff.altHash[altId] = true
+				buff.altHash = {}
+				if buff.altIDs then
+					for _, altId in ipairs(buff.altIDs) do
+						altToBase[altId] = baseId
+						buff.altHash[altId] = true
+					end
 				end
-			end
 
-			local info = C_Spell and C_Spell.GetSpellCharges and C_Spell.GetSpellCharges(baseId)
-			if info and info.maxCharges and info.maxCharges > 0 then
-				chargeSpells[baseId] = true
-				buff.hasCharges = true
+				local info = C_Spell and C_Spell.GetSpellCharges and C_Spell.GetSpellCharges(baseId)
+				if info and info.maxCharges and info.maxCharges > 0 then
+					chargeSpells[baseId] = true
+					buff.hasCharges = true
+				else
+					buff.hasCharges = false
+				end
 			else
+				buff.altHash = nil
 				buff.hasCharges = false
 			end
 		end
@@ -592,6 +705,14 @@ function updateBuff(catId, id, changedId, firstScan)
 	local buff = cat and cat.buffs and cat.buffs[id]
 	local tType = buff and buff.trackType or (cat and cat.trackType) or "BUFF"
 	local key = catId .. ":" .. id
+	if buff and not buffAllowed(buff) then
+		if timedAuras[key] then
+			timedAuras[key] = nil
+			if refreshTimeTicker then refreshTimeTicker() end
+		end
+		if activeBuffFrames[catId] and activeBuffFrames[catId][id] then activeBuffFrames[catId][id]:Hide() end
+		return
+	end
 	local before = timedAuras[key] ~= nil
 	if buff and hasTimeCondition(buff.conditions) then
 		timedAuras[key] = { catId = catId, buffId = id }
@@ -599,12 +720,15 @@ function updateBuff(catId, id, changedId, firstScan)
 		timedAuras[key] = nil
 	end
 	if before ~= (timedAuras[key] ~= nil) and refreshTimeTicker then refreshTimeTicker() end
-	if buff and not buffAllowed(buff) then
-		if activeBuffFrames[catId] and activeBuffFrames[catId][id] then activeBuffFrames[catId][id]:Hide() end
-		return
-	end
 
 	if tType == "ITEM" and buff and buff.slot then
+		-- check if the equipped item actually has a usable spell
+		local itemID = GetInventoryItemID("player", buff.slot)
+		if not (itemID and C_Item and C_Item.GetItemSpell and C_Item.GetItemSpell(itemID)) then
+			if activeBuffFrames[catId] and activeBuffFrames[catId][id] then activeBuffFrames[catId][id]:Hide() end
+			buffInstances[key] = nil
+			return
+		end
 		activeBuffFrames[catId] = activeBuffFrames[catId] or {}
 		local frame = activeBuffFrames[catId][id]
 		local showTimer = buff.showTimerText
@@ -641,6 +765,105 @@ function updateBuff(catId, id, changedId, firstScan)
 			end
 		else
 			ActionButton_HideOverlayGlow(frame)
+		end
+		frame:Show()
+		buffInstances[key] = nil
+		return
+	elseif tType == "ENCHANT" and buff and buff.slot then
+		activeBuffFrames[catId] = activeBuffFrames[catId] or {}
+		local frame = activeBuffFrames[catId][id]
+		local icon = GetInventoryItemTexture("player", buff.slot) or buff.icon
+		buff.icon = icon
+		local mhHas, mhExp, _, mID, ohHas, ohExp, _, oID, rhHas, rhExp, _, rID = GetWeaponEnchantInfo()
+		local hasEnchant, exp, eID = false, 0, nil
+		if buff.slot == 16 then
+			hasEnchant, exp, eID = mhHas, mhExp, mID
+		elseif buff.slot == 17 then
+			hasEnchant, exp, eID = ohHas, ohExp, oID
+		else
+			hasEnchant, exp, eID = rhHas, rhExp, rID
+		end
+		local aura
+		if hasEnchant then
+			aura = { enchantID = eID }
+			if exp and exp > 0 then
+				aura.duration = exp / 1000
+				aura.expirationTime = GetTime() + aura.duration
+			end
+		end
+		local condOk = evaluateGroup(buff and buff.conditions, aura)
+		if aura == nil and not hasMissingCondition(buff and buff.conditions) then condOk = false end
+		if not condOk then
+			if frame then
+				frame:Hide()
+				frame.isActive = false
+				ActionButton_HideOverlayGlow(frame)
+				frame.cd:Clear()
+			end
+			buffInstances[key] = nil
+			return
+		end
+		local showTimer = buff.showTimerText
+		if showTimer == nil then showTimer = addon.db["buffTrackerShowTimerText"] end
+		if showTimer == nil then showTimer = true end
+		if not frame then
+			frame = createBuffFrame(icon, ensureAnchor(catId), getCategory(catId).size, false, id, showTimer)
+			activeBuffFrames[catId][id] = frame
+		else
+			frame.cd:SetHideCountdownNumbers(not showTimer)
+		end
+		frame.icon:SetTexture(icon)
+		frame.cd:SetReverse(false)
+		frame.icon:SetDesaturated(false)
+		frame.icon:SetAlpha(1)
+		if hasEnchant then
+			if aura and aura.duration and aura.duration > 0 then
+				frame.cd:SetCooldown(aura.expirationTime - aura.duration, aura.duration)
+			else
+				frame.cd:Clear()
+			end
+			if not frame.isActive then playBuffSound(catId, id) end
+			frame.isActive = true
+		else
+			frame.cd:Clear()
+			if not frame.isActive then playBuffSound(catId, id) end
+			frame.isActive = true
+		end
+		if buff.glow then
+			if frame.isActive then
+				ActionButton_ShowOverlayGlow(frame)
+			else
+				ActionButton_HideOverlayGlow(frame)
+			end
+		else
+			ActionButton_HideOverlayGlow(frame)
+		end
+		if buff and buff.customTextEnabled and buff.customText and buff.customText ~= "" then
+			local pos = buff.customTextPosition or "TOP"
+			frame.customText:ClearAllPoints()
+			local margin = 2
+			if pos == "TOP" then
+				frame.customText:SetPoint("BOTTOM", frame, "TOP", 0, margin)
+			elseif pos == "BOTTOM" then
+				frame.customText:SetPoint("TOP", frame, "BOTTOM", 0, -margin)
+			elseif pos == "LEFT" then
+				frame.customText:SetPoint("RIGHT", frame, "LEFT", -margin, 0)
+			else
+				frame.customText:SetPoint("LEFT", frame, "RIGHT", margin, 0)
+			end
+
+			local stack = aura and aura.applications or 0
+			local val = stack
+			if buff.customTextUseStacks then
+				val = stack * (buff.customTextBase or 1)
+				if buff.customTextMin and val < buff.customTextMin then val = buff.customTextMin end
+			end
+			local text = tostring(buff.customText)
+			text = text:gsub("<stack>", tostring(val))
+			frame.customText:SetText(text)
+			frame.customText:Show()
+		else
+			frame.customText:Hide()
 		end
 		frame:Show()
 		buffInstances[key] = nil
@@ -957,8 +1180,13 @@ local function scanBuffs()
 		local cat = addon.db["buffTrackerCategories"][catId]
 		if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
 			for _, id in ipairs(getBuffOrder(catId)) do
+				local buff = cat.buffs[id]
 				if not addon.db["buffTrackerHidden"][id] then
-					updateBuff(catId, id, nil, firstScan)
+					if not buff or not buff.allowedInstances or not next(buff.allowedInstances) or (currentInstanceGroup and buff.allowedInstances[currentInstanceGroup]) then
+						updateBuff(catId, id, nil, firstScan)
+					elseif activeBuffFrames[catId] and activeBuffFrames[catId][id] then
+						activeBuffFrames[catId][id]:Hide()
+					end
 				elseif activeBuffFrames[catId] and activeBuffFrames[catId][id] then
 					activeBuffFrames[catId][id]:Hide()
 				end
@@ -1009,14 +1237,14 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 				anchor:Hide()
 			end
 		end
-		if event == "PLAYER_LOGIN" then
-			addon.Aura.functions.BuildSoundTable()
-			rebuildAltMapping()
-		end
 		if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
-			collectActiveAuras()
 			firstScan = true
-			C_Timer.After(1, scanBuffs)
+			C_Timer.After(1, function()
+				updateInstanceGroup()
+				rebuildAltMapping()
+				collectActiveAuras()
+				scanBuffs()
+			end)
 			return
 		end
 	end
@@ -1129,6 +1357,11 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 		return
 	end
 
+	if event == "UNIT_INVENTORY_CHANGED" and unit == "player" then
+		scheduleEnchantScan()
+		return
+	end
+
 	if event == "PLAYER_EQUIPMENT_CHANGED" then
 		local slot = unit
 		if slot == 13 or slot == 14 then scheduleEquipScan() end
@@ -1145,6 +1378,7 @@ eventFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
 eventFrame:RegisterEvent("SPELL_UPDATE_CHARGES")
 eventFrame:RegisterEvent("BAG_UPDATE_COOLDOWN")
 eventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+eventFrame:RegisterEvent("UNIT_INVENTORY_CHANGED")
 
 local function addBuff(catId, id)
 	-- get spell name and icon once
@@ -1172,6 +1406,7 @@ local function addBuff(catId, id)
 		allowedSpecs = {},
 		allowedClasses = {},
 		allowedRoles = {},
+		allowedInstances = {},
 		showStacks = defStacks,
 		showTimerText = defTimer,
 		customTextEnabled = false,
@@ -1221,6 +1456,7 @@ function addon.Aura.functions.addTrinketBuff(catId, slot)
 		allowedSpecs = {},
 		allowedClasses = {},
 		allowedRoles = {},
+		allowedInstances = {},
 		showStacks = false,
 		showTimerText = defTimer,
 		customTextEnabled = false,
@@ -1242,11 +1478,65 @@ function addon.Aura.functions.addTrinketBuff(catId, slot)
 	scanBuffs()
 end
 
+function addon.Aura.functions.addWeaponEnchantBuff(catId, slot)
+	local icon = GetInventoryItemTexture("player", slot)
+	local itemName = L[slot == 16 and "Mainhand" or "Offhand"]
+
+	local id = -slot
+	local cat = getCategory(catId)
+	if not cat then return end
+
+	local defTimer = addon.db["buffTrackerShowTimerText"]
+	if defTimer == nil then defTimer = true end
+
+	cat.buffs[id] = {
+		name = itemName,
+		icon = icon,
+		altIDs = {},
+		showAlways = true,
+		glow = false,
+		castOnClick = false,
+		showCooldown = false,
+		showCharges = false,
+		trackType = "ENCHANT",
+		slot = slot,
+		conditions = { join = "AND", conditions = {} },
+		allowedSpecs = {},
+		allowedClasses = {},
+		allowedRoles = {},
+		allowedInstances = {},
+		showStacks = false,
+		showTimerText = defTimer,
+		customTextEnabled = false,
+		customTextPosition = "TOP",
+		customText = "",
+		customTextUseStacks = false,
+		customTextBase = 1,
+		customTextMin = 0,
+	}
+
+	registerEnchantBuff(catId, id, slot)
+
+	if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
+	if not tContains(addon.db["buffTrackerOrder"][catId], id) then table.insert(addon.db["buffTrackerOrder"][catId], id) end
+
+	addon.db["buffTrackerHidden"][id] = nil
+
+	rebuildAltMapping()
+	scanBuffs()
+end
+
 local function removeBuff(catId, id)
 	local cat = getCategory(catId)
 	if not cat then return end
 	local buff = cat.buffs[id]
-	if buff and buff.trackType == "ITEM" and buff.slot then unregisterItemBuff(catId, buff.slot) end
+	if buff and buff.slot then
+		if buff.trackType == "ITEM" then
+			unregisterItemBuff(catId, buff.slot)
+		elseif buff.trackType == "ENCHANT" then
+			unregisterEnchantBuff(catId, buff.slot)
+		end
+	end
 	cat.buffs[id] = nil
 	addon.db["buffTrackerHidden"][id] = nil
 	addon.db["buffTrackerSounds"][catId][id] = nil
@@ -1289,7 +1579,11 @@ local function clearCategoryData(catId)
 	end
 	if addon.db["buffTrackerCategories"][catId] then
 		for id, buff in pairs(addon.db["buffTrackerCategories"][catId].buffs or {}) do
-			if buff.trackType == "ITEM" and buff.slot then unregisterItemBuff(catId, buff.slot) end
+			if buff.trackType == "ITEM" and buff.slot then
+				unregisterItemBuff(catId, buff.slot)
+			elseif buff.trackType == "ENCHANT" and buff.slot then
+				unregisterEnchantBuff(catId, buff.slot)
+			end
 		end
 	end
 end
@@ -1309,6 +1603,7 @@ local function sanitiseCategory(cat)
 		if not buff.allowedSpecs then buff.allowedSpecs = {} end
 		if not buff.allowedClasses then buff.allowedClasses = {} end
 		if not buff.allowedRoles then buff.allowedRoles = {} end
+		if not buff.allowedInstances then buff.allowedInstances = {} end
 		if not buff.conditions then buff.conditions = { join = "AND", conditions = {} } end
 		if buff.showCooldown == nil then buff.showCooldown = false end
 		if buff.showStacks == nil then
@@ -1381,7 +1676,11 @@ local function importCategory(encoded)
 	addon.db["buffTrackerLocked"][newId] = false
 
 	for id, buff in pairs(cat.buffs or {}) do
-		if buff.trackType == "ITEM" and buff.slot then registerItemBuff(newId, id, buff.slot) end
+		if buff.trackType == "ITEM" and buff.slot then
+			registerItemBuff(newId, id, buff.slot)
+		elseif buff.trackType == "ENCHANT" and buff.slot then
+			registerEnchantBuff(newId, id, buff.slot)
+		end
 	end
 
 	addon.db["buffTrackerSounds"][newId] = {}
@@ -1619,6 +1918,22 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 	end)
 	core:AddChild(trinket2Btn)
 
+	local mhEnchantBtn = addon.functions.createButtonAce(L["TrackMainhandEnchant"], 150, function()
+		addon.Aura.functions.addWeaponEnchantBuff(catId, 16)
+		refreshTree(catId)
+		container:ReleaseChildren()
+		addon.Aura.functions.buildCategoryOptions(container, catId)
+	end)
+	core:AddChild(mhEnchantBtn)
+
+	local ohEnchantBtn = addon.functions.createButtonAce(L["TrackOffhandEnchant"], 150, function()
+		addon.Aura.functions.addWeaponEnchantBuff(catId, 17)
+		refreshTree(catId)
+		container:ReleaseChildren()
+		addon.Aura.functions.buildCategoryOptions(container, catId)
+	end)
+	core:AddChild(ohEnchantBtn)
+
 	local exportBtn = addon.functions.createButtonAce(L["ExportCategory"], 150, function()
 		local data = exportCategory(catId)
 		if not data then return end
@@ -1663,7 +1978,11 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 			-- clean up all buff data for this category
 			for buffId, buff in pairs(addon.db["buffTrackerCategories"][catId].buffs or {}) do
 				addon.db["buffTrackerHidden"][buffId] = nil
-				if buff.trackType == "ITEM" and buff.slot then unregisterItemBuff(catId, buff.slot) end
+				if buff.trackType == "ITEM" and buff.slot then
+					unregisterItemBuff(catId, buff.slot)
+				elseif buff.trackType == "ENCHANT" and buff.slot then
+					unregisterEnchantBuff(catId, buff.slot)
+				end
 			end
 			addon.db["buffTrackerCategories"][catId] = nil
 			addon.db["buffTrackerOrder"][catId] = nil
@@ -1704,7 +2023,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 
 	local label = AceGUI:Create("Label")
 	local buffText = buff.name or ""
-	if buff.trackType ~= "ITEM" then buffText = buffText .. " (" .. buffId .. ")" end
+	if buff.trackType ~= "ITEM" and buff.trackType ~= "ENCHANT" then buffText = buffText .. " (" .. buffId .. ")" end
 	label:SetText(buffText)
 	wrapper:AddChild(label)
 
@@ -1736,39 +2055,41 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 			wrapper:AddChild(addon.functions.createSpacerAce())
 		end
 	end
-	local cbCooldown = addon.functions.createCheckboxAce(L["buffTrackerShowCooldown"], buff.showCooldown, function(_, _, val)
-		buff.showCooldown = val
-		scanBuffs()
-	end)
 	if buff.trackType ~= "ITEM" then
-		local cbCharges = addon.functions.createCheckboxAce(L["buffTrackerShowCharges"], buff.showCharges == nil and addon.db["buffTrackerShowCharges"] or buff.showCharges, function(_, _, val)
-			buff.showCharges = val
-			scanBuffs()
-		end)
+		if buff.trackType ~= "ENCHANT" then
+			local cbCooldown = addon.functions.createCheckboxAce(L["buffTrackerShowCooldown"], buff.showCooldown, function(_, _, val)
+				buff.showCooldown = val
+				scanBuffs()
+			end)
+			local cbCharges = addon.functions.createCheckboxAce(L["buffTrackerShowCharges"], buff.showCharges == nil and addon.db["buffTrackerShowCharges"] or buff.showCharges, function(_, _, val)
+				buff.showCharges = val
+				scanBuffs()
+			end)
 
-		local alwaysCB = addon.functions.createCheckboxAce(L["buffTrackerAlwaysShow"], buff.showAlways, function(_, _, val)
-			buff.showAlways = val
-			cbCooldown:SetDisabled(not val)
-			cbCharges:SetDisabled(not val)
-			scanBuffs()
-		end)
-		wrapper:AddChild(alwaysCB)
-		cbCooldown:SetDisabled(not buff.showAlways)
-		cbCharges:SetDisabled(not buff.showAlways)
-		wrapper:AddChild(cbCooldown)
-		wrapper:AddChild(cbCharges)
+			local alwaysCB = addon.functions.createCheckboxAce(L["buffTrackerAlwaysShow"], buff.showAlways, function(_, _, val)
+				buff.showAlways = val
+				cbCooldown:SetDisabled(not val)
+				cbCharges:SetDisabled(not val)
+				scanBuffs()
+			end)
+			wrapper:AddChild(alwaysCB)
+			cbCooldown:SetDisabled(not buff.showAlways)
+			cbCharges:SetDisabled(not buff.showAlways)
+			wrapper:AddChild(cbCooldown)
+			wrapper:AddChild(cbCharges)
+
+			local cbStacks = addon.functions.createCheckboxAce(L["buffTrackerShowStacks"], buff.showStacks == nil and addon.db["buffTrackerShowStacks"] or buff.showStacks, function(_, _, val)
+				buff.showStacks = val
+				scanBuffs()
+			end)
+			wrapper:AddChild(cbStacks)
+		end
 
 		local cbGlow = addon.functions.createCheckboxAce(L["buffTrackerGlow"], buff.glow, function(_, _, val)
 			buff.glow = val
 			scanBuffs()
 		end)
 		wrapper:AddChild(cbGlow)
-
-		local cbStacks = addon.functions.createCheckboxAce(L["buffTrackerShowStacks"], buff.showStacks == nil and addon.db["buffTrackerShowStacks"] or buff.showStacks, function(_, _, val)
-			buff.showStacks = val
-			scanBuffs()
-		end)
-		wrapper:AddChild(cbStacks)
 	end
 
 	local cbTimer = addon.functions.createCheckboxAce(
@@ -1806,51 +2127,55 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 			txtEdit:SetRelativeWidth(0.6)
 			wrapper:AddChild(txtEdit)
 
-			local cbMult = addon.functions.createCheckboxAce(L["buffTrackerCustomTextMultiply"], buff.customTextUseStacks, function(_, _, val)
-				buff.customTextUseStacks = val
-				container:ReleaseChildren()
-				addon.Aura.functions.buildBuffOptions(container, catId, buffId)
-				scanBuffs()
-			end)
-			wrapper:AddChild(cbMult)
-
-			if buff.customTextUseStacks then
-				local info = AceGUI:Create("Label")
-				info:SetText(L["buffTrackerCustomTextInfo"] or "")
-				info:SetFullWidth(true)
-				info:SetFont(addon.variables.defaultFont, 10, "OUTLINE")
-				wrapper:AddChild(info)
-				wrapper:AddChild(addon.functions.createSpacerAce())
-				local baseEdit = addon.functions.createEditboxAce(L["buffTrackerCustomTextBase"], tostring(buff.customTextBase or 1), function(self, _, text)
-					local num = tonumber(text)
-					if num then buff.customTextBase = num end
+			if buff.trackType ~= "ENCHANT" then
+				local cbMult = addon.functions.createCheckboxAce(L["buffTrackerCustomTextMultiply"], buff.customTextUseStacks, function(_, _, val)
+					buff.customTextUseStacks = val
+					container:ReleaseChildren()
+					addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 					scanBuffs()
 				end)
-				baseEdit:SetRelativeWidth(0.3)
-				wrapper:AddChild(baseEdit)
+				wrapper:AddChild(cbMult)
 
-				local minEdit = addon.functions.createEditboxAce(L["buffTrackerCustomTextMin"], tostring(buff.customTextMin or 0), function(self, _, text)
-					local num = tonumber(text)
-					if num then
-						buff.customTextMin = num
-					else
-						buff.customTextMin = 0
-					end
-					scanBuffs()
-				end)
-				minEdit:SetRelativeWidth(0.3)
-				wrapper:AddChild(minEdit)
-				wrapper:AddChild(addon.functions.createSpacerAce())
+				if buff.customTextUseStacks then
+					local info = AceGUI:Create("Label")
+					info:SetText(L["buffTrackerCustomTextInfo"] or "")
+					info:SetFullWidth(true)
+					info:SetFont(addon.variables.defaultFont, 10, "OUTLINE")
+					wrapper:AddChild(info)
+					wrapper:AddChild(addon.functions.createSpacerAce())
+					local baseEdit = addon.functions.createEditboxAce(L["buffTrackerCustomTextBase"], tostring(buff.customTextBase or 1), function(self, _, text)
+						local num = tonumber(text)
+						if num then buff.customTextBase = num end
+						scanBuffs()
+					end)
+					baseEdit:SetRelativeWidth(0.3)
+					wrapper:AddChild(baseEdit)
+
+					local minEdit = addon.functions.createEditboxAce(L["buffTrackerCustomTextMin"], tostring(buff.customTextMin or 0), function(self, _, text)
+						local num = tonumber(text)
+						if num then
+							buff.customTextMin = num
+						else
+							buff.customTextMin = 0
+						end
+						scanBuffs()
+					end)
+					minEdit:SetRelativeWidth(0.3)
+					wrapper:AddChild(minEdit)
+					wrapper:AddChild(addon.functions.createSpacerAce())
+				end
 			end
 		end
 
-		local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"], ITEM = L["Item"] }, nil, function(self, _, val)
-			buff.trackType = val
-			scanBuffs()
-		end)
-		typeDrop:SetValue(buff.trackType or "BUFF")
-		typeDrop:SetRelativeWidth(0.4)
-		wrapper:AddChild(typeDrop)
+		if buff.trackType ~= "ENCHANT" then
+			local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"] }, nil, function(self, _, val)
+				buff.trackType = val
+				scanBuffs()
+			end)
+			typeDrop:SetValue(buff.trackType or "BUFF")
+			typeDrop:SetRelativeWidth(0.4)
+			wrapper:AddChild(typeDrop)
+		end
 		wrapper:AddChild(addon.functions.createSpacerAce())
 
 		local function buildGroupUI(parent, group)
@@ -1881,13 +2206,21 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 				else
 					local row = addon.functions.createContainer("SimpleGroup", "Flow")
 					row:SetFullWidth(true)
-					local typeDrop = addon.functions.createDropdownAce(nil, { missing = L["ConditionMissing"], stack = L["ConditionStacks"], time = L["ConditionTime"] }, nil, function(_, _, val)
+					local typeDropOptions = { missing = L["ConditionMissing"], time = L["ConditionTime"] }
+					if buff.trackType ~= "ENCHANT" then
+						typeDropOptions["stack"] = L["ConditionStacks"]
+					else
+						typeDropOptions["enchant"] = L["ConditionEnchantID"]
+					end
+
+					local typeDrop = addon.functions.createDropdownAce(nil, typeDropOptions, nil, function(_, _, val)
 						child.type = val
 						if val ~= "missing" and (child.value == nil or type(child.value) ~= "number") then
 							child.value = 0
 						elseif val == "missing" and type(child.value) ~= "boolean" then
 							child.value = true
 						end
+						if val == "enchant" and child.operator ~= "==" and child.operator ~= "!=" then child.operator = "==" end
 						container:ReleaseChildren()
 						addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 						scanBuffs()
@@ -1897,7 +2230,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 					row:AddChild(typeDrop)
 
 					local ops = { [">"] = ">", ["<"] = "<", [">="] = ">=", ["<="] = "<=", ["=="] = "==", ["!="] = "!=" }
-					if child.type == "missing" then ops = { ["=="] = "==", ["!="] = "!=" } end
+					if child.type == "missing" or child.type == "enchant" then ops = { ["=="] = "==", ["!="] = "!=" } end
 					local opDrop = addon.functions.createDropdownAce(nil, ops, nil, function(_, _, val)
 						child.operator = val
 						scanBuffs()
@@ -1921,6 +2254,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 							scanBuffs()
 						end)
 						valEdit:SetRelativeWidth(0.3)
+						if child.type == "enchant" then valEdit.editbox:SetNumeric(true) end
 						row:AddChild(valEdit)
 					end
 
@@ -2006,6 +2340,20 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	wrapper:AddChild(specDrop)
 	wrapper:AddChild(addon.functions.createSpacerAce())
 
+	local instDrop = addon.functions.createDropdownAce(L["ShowForDifficulty"], instanceDifficultyNames, instanceDifficultyOrder, function(self, event, key, checked)
+		buff.allowedInstances = buff.allowedInstances or {}
+		buff.allowedInstances[key] = checked or nil
+		rebuildAltMapping()
+		scanBuffs()
+	end)
+	instDrop:SetMultiselect(true)
+	for diff, val in pairs(buff.allowedInstances or {}) do
+		if val then instDrop:SetItemValue(diff, true) end
+	end
+	instDrop:SetRelativeWidth(0.7)
+	wrapper:AddChild(instDrop)
+	wrapper:AddChild(addon.functions.createSpacerAce())
+
 	-- TODO 11.2: Replace IsSpellKnown* check with C_SpellBook.IsSpellInSpellBook
 	-- if IsSpellKnown(buffId) or IsSpellKnownOrOverridesKnown(buffId) then
 	-- 	local cbCast = addon.functions.createCheckboxAce(L["buffTrackerCastOnClick"], buff.castOnClick, function(_, _, val)
@@ -2015,7 +2363,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 	-- 	wrapper:AddChild(cbCast)
 	-- end
 
-	if buff.trackType ~= "ITEM" then
+	if buff.trackType ~= "ITEM" and buff.trackType ~= "ENCHANT" then
 		buff.altIDs = buff.altIDs or {}
 		for _, altId in ipairs(buff.altIDs) do
 			local row = addon.functions.createContainer("SimpleGroup", "Flow")
