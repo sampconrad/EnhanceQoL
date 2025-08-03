@@ -810,8 +810,8 @@ function updateBuff(catId, id, changedId, firstScan)
 			frame.isActive = true
 		else
 			frame.cd:Clear()
-			if frame.isActive then playBuffSound(catId, id) end
-			frame.isActive = false
+			if not frame.isActive then playBuffSound(catId, id) end
+			frame.isActive = true
 		end
 		if buff.glow then
 			if frame.isActive then
