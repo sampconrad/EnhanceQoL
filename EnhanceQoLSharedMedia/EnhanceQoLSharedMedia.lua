@@ -239,6 +239,14 @@ addon.SharedMedia.sounds = {
 	{ key = "Enter Follower Dungeon", label = "EQOL: Enter Follower Dungeon", path = voiceoverPath .. "Enter Follower Dungeon.ogg" },
 	{ key = "Get Mage Food", label = "EQOL: Get Mage Food", path = voiceoverPath .. "Get Mage Food.ogg" },
 	{ key = "Leave Dungeon", label = "EQOL: Leave Dungeon", path = voiceoverPath .. "Leave Dungeon.ogg" },
+	{ key = "Check your Talents", label = "EQOL: Check your Talents", path = voiceoverPath .. "Check your Talents.ogg" },
+	{ key = "Watch your Step", label = "EQOL: Watch your Step", path = voiceoverPath .. "Watch your Step.ogg" },
+	{ key = "Wrong Talents", label = "EQOL: Wrong Talents", path = voiceoverPath .. "Wrong Talents.ogg" },
+	{ key = "Buy Food", label = "EQOL: Buy Food", path = voiceoverPath .. "Buy Food.ogg" },
+	{ key = "Consumables", label = "EQOL: Consumables", path = voiceoverPath .. "Consumables.ogg" },
+	{ key = "Potion", label = "EQOL: Potion", path = voiceoverPath .. "Potion.ogg" },
+	{ key = "Repair", label = "EQOL: Repair", path = voiceoverPath .. "Repair.ogg" },
+	{ key = "Watch your Feet", label = "EQOL: Watch your Feet", path = voiceoverPath .. "Watch your Feet.ogg" },
 }
 
 -- Sort alphabetically, but ignore the leading "EQOL:" prefix (and any following spaces)

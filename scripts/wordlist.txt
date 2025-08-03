@@ -51,13 +51,16 @@ Bommbs;160;"[[pbas -40]]";Bombs
 Boss;180;"[[pbas -60]]"
 Break;180;"[[pbas -60]]"
 Buff;180;"[[pbas -60]]"
+Buy Food;160;"[[pbas -60]]";Buy Food
 CC;220
 Chain;180;"[[pbas -60]]"
 Charge;180;"[[pbas -60]]"
 Cheat Death;190;"[[pbas -60]]";Cheat Death
 Check;180;"[[pbas -60]]"
+Check your Talents;180;"[[pbas -50]]";Check your Talents
 Clear
 Collect;180;"[[pbas -60]]"
+Consumables;160;"[[pbas -60]]";Consumables
 Combat Res;190;"[[pbas -60]]";Combat Res
 Dance
 Deebuff;180;"[[pbas -60]]";Debuff
@@ -117,6 +120,7 @@ Out;180;"[[pbas -60]]"
 Overlap;180;"[[pbas -60]]"
 Poison;160;"[[pbas -60]]"
 Pot;180;"[[pbas -60]]"
+Potion;160;"[[pbas -60]]"
 Pull
 Purple;180;"[[pbas -60]]"
 Push;140;"[[pbas -30]]"
@@ -124,6 +128,7 @@ Ready Check;180;"[[pbas -60]]";Ready Check
 Red;180;"[[pbas -60]]"
 Reflect
 Refresh;180;"[[pbas -60]]"
+Repair;180;"[[pbas -60]]"
 Right;180;"[[pbas -60]]"
 Root
 Shield;180;"[[pbas -60]]"
@@ -147,10 +152,13 @@ Trinket;180;"[[pbas -60]]"
 Turn;160;"[[pbas -60]]"
 Use
 Volley;180;"[[pbas -60]]"
+Watch your Feet;190;"[[pbas -50]]";Watch your Feet
+Watch your Step;190;"[[pbas -50]]";Watch your Step
 Wave;180;"[[pbas -60]]"
 Weapon Enchant;180;"[[pbas -60]]";Weapon Enchant
 Weapon Oil;180;"[[pbas -60]]";Weapon Oil
 Winds;180;"[[pbas -60]]"
+Wrong Talents;180;"[[pbas -50]]";Wrong Talents
 Yellow;180;"[[pbas -60]]"
 # Abilities
 

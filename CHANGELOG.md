@@ -24,7 +24,7 @@
   - Auto-confirm dialogs for **enchant overwrite** and **socket overwrite**.
 - **Drink Macro**
   - _Food reminder_ icon is movable (hold **Alt**) and now has a size option.
-
+  - _Food reminder_ add optional sound warning
 ### 🔄 Changed
 - **Gem Helper**
   - Cleaner per-socket gem display.
