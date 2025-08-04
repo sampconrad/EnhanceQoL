@@ -260,7 +260,9 @@ f:SetScript("OnEvent", function(_, event, arg1)
 	elseif event == "AUCTION_HOUSE_SHOW" then
 		local ui = CreateCraftShopperFrame()
 		ui.frame:ClearAllPoints()
-		ui.frame:SetPoint("TOPLEFT", AuctionHouseFrame, "BOTTOMLEFT", 0, -5)
+		ui.frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 5, 0)
+		ui.frame:SetPoint("BOTTOMLEFT", AuctionHouseFrame, "BOTTOMRIGHT", 5, 0)
+
 		ui.ahBuyable:SetValue(true)
 		ui.frame:Show()
 		ui:Refresh()
