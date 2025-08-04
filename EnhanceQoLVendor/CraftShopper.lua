@@ -9,6 +9,8 @@ else
 	error(parentAddonName .. " is not loaded")
 end
 
+local AceGUI = addon.AceGUI
+
 addon.Vendor = addon.Vendor or {}
 addon.Vendor.CraftShopper = addon.Vendor.CraftShopper or {}
 addon.Vendor.CraftShopper.items = addon.Vendor.CraftShopper.items or {}
@@ -93,6 +95,7 @@ local function Rescan()
 		return
 	end
 	addon.Vendor.CraftShopper.items = BuildShoppingList()
+	if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame:Refresh() end
 	scanRunning = false
 end
 
@@ -101,16 +104,111 @@ local function ScheduleRescan()
 	pendingScan = C_Timer.NewTimer(SCAN_DELAY, Rescan)
 end
 
+local function CreateCraftShopperFrame()
+	if addon.Vendor.CraftShopper.frame then return addon.Vendor.CraftShopper.frame end
+	local frame = AceGUI:Create("Frame")
+	frame:SetTitle("Craft Shopper")
+	frame:SetWidth(300)
+	frame:SetHeight(400)
+	frame:SetLayout("List")
+	frame.frame:Hide()
+
+	local search = AceGUI:Create("EditBox")
+	search:SetLabel(SEARCH)
+	search:SetFullWidth(true)
+	search:SetCallback("OnTextChanged", function() frame:Refresh() end)
+	frame.search = search
+	frame:AddChild(search)
+
+	local filterGroup = AceGUI:Create("SimpleGroup")
+	filterGroup:SetFullWidth(true)
+	filterGroup:SetLayout("Flow")
+	frame:AddChild(filterGroup)
+
+	local missingCheck = AceGUI:Create("CheckBox")
+	missingCheck:SetLabel("Missing only")
+	missingCheck:SetCallback("OnValueChanged", function() frame:Refresh() end)
+	frame.missingOnly = missingCheck
+	filterGroup:AddChild(missingCheck)
+
+	local ahCheck = AceGUI:Create("CheckBox")
+	ahCheck:SetLabel("AH Buyable")
+	ahCheck:SetCallback("OnValueChanged", function() frame:Refresh() end)
+	frame.ahBuyable = ahCheck
+	filterGroup:AddChild(ahCheck)
+
+	local scroll = AceGUI:Create("ScrollFrame")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	scroll:SetLayout("List")
+	frame.scroll = scroll
+	frame:AddChild(scroll)
+
+	function frame:Refresh()
+		scroll:ReleaseChildren()
+		local searchText = (search:GetText() or ""):lower()
+		for _, item in ipairs(addon.Vendor.CraftShopper.items) do
+			if not item.hidden and (not missingCheck:GetValue() or item.missing > 0) and (not ahCheck:GetValue() or item.ahBuyable) then
+				local name = C_Item.GetItemInfo(item.itemID) or ("item:" .. item.itemID)
+				if searchText == "" or name:lower():find(searchText, 1, true) then
+					local row = AceGUI:Create("SimpleGroup")
+					row:SetFullWidth(true)
+					row:SetLayout("Flow")
+
+					local label = AceGUI:Create("InteractiveLabel")
+					label:SetText(name)
+					label:SetCallback("OnEnter", function(widget)
+						GameTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
+						GameTooltip:SetItemByID(item.itemID)
+						GameTooltip:Show()
+					end)
+					label:SetCallback("OnLeave", function() GameTooltip:Hide() end)
+					row:AddChild(label)
+
+					local qty = AceGUI:Create("Label")
+					qty:SetText(("%d/%d"):format(item.missing, item.qtyNeeded))
+					row:AddChild(qty)
+
+					local remove = AceGUI:Create("Button")
+					remove:SetText("X")
+					remove:SetWidth(20)
+					remove:SetCallback("OnClick", function()
+						item.hidden = true
+						frame:Refresh()
+					end)
+					row:AddChild(remove)
+
+					scroll:AddChild(row)
+				end
+			end
+		end
+	end
+
+	addon.Vendor.CraftShopper.frame = frame
+	return frame
+end
+
 local f = CreateFrame("Frame")
 f:RegisterEvent("TRACKED_RECIPE_UPDATE") -- parameter 1: ID of recipe - parameter 2: tracked true/false
 f:RegisterEvent("BAG_UPDATE_DELAYED") -- verzögerter Scan, um Event-Flut zu vermeiden
 f:RegisterEvent("CRAFTINGORDERS_ORDER_PLACEMENT_RESPONSE") -- arg1: error code, 0 on success
+f:RegisterEvent("AUCTION_HOUSE_SHOW")
+f:RegisterEvent("AUCTION_HOUSE_CLOSED")
 
 f:SetScript("OnEvent", function(_, event, arg1)
 	if event == "BAG_UPDATE_DELAYED" then
 		ScheduleRescan()
 	elseif event == "CRAFTINGORDERS_ORDER_PLACEMENT_RESPONSE" then
 		if arg1 == 0 and not scanRunning then Rescan() end
+	elseif event == "AUCTION_HOUSE_SHOW" then
+		local ui = CreateCraftShopperFrame()
+		ui.frame:ClearAllPoints()
+		ui.frame:SetPoint("TOPLEFT", AuctionHouseFrame, "BOTTOMLEFT", 0, -5)
+		ui.ahBuyable:SetValue(true)
+		ui.frame:Show()
+		ui:Refresh()
+	elseif event == "AUCTION_HOUSE_CLOSED" then
+		if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame.frame:Hide() end
 	else
 		Rescan()
 	end
