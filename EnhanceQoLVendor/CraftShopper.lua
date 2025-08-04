@@ -62,6 +62,7 @@ local function UnregisterHeavyEvents()
 	end
 	f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
 	f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
+	f:UnregisterEvent("COMMODITY_PURCHASE_SUCCEEDED")
 end
 
 local function isAHBuyable(itemID)
@@ -239,13 +240,12 @@ local function ShowPurchasePopup(item, buyWidget)
 	end)
 
 	buyBtn:SetCallback("OnClick", function()
+		f:RegisterEvent("COMMODITY_PURCHASE_SUCCEEDED")
 		C_AuctionHouse.ConfirmCommoditiesPurchase(item.itemID, item.missing)
 		if popup.ticker then popup.ticker:Cancel() end
 		popup.frame:Hide()
 		AceGUI:Release(popup)
 		pendingPurchase = nil
-		item.hidden = true
-		if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame:Refresh() end
 		buyWidget:SetDisabled(false)
 	end)
 
@@ -255,6 +255,7 @@ local function ShowPurchasePopup(item, buyWidget)
 		popup.frame:Hide()
 		f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
 		f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
+		f:UnregisterEvent("COMMODITY_PURCHASE_SUCCEEDED")
 		AceGUI:Release(popup)
 		pendingPurchase = nil
 		buyWidget:SetDisabled(false)
@@ -271,9 +272,21 @@ local function UpdatePurchasePopup(pricePer, total)
 	if not pendingPurchase then return end
 	f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
 
-	pendingPurchase.popup.text:SetText(("%s x%d\n%s"):format(pendingPurchase.item.name, pendingPurchase.item.missing, GetMoneyString(total)))
-	pendingPurchase.popup.buyBtn:SetDisabled(false)
 	if pendingPurchase.popup.spinner then pendingPurchase.popup.spinner:Hide() end
+
+	local playerMoney = GetMoney()
+	if playerMoney < total then
+		pendingPurchase.popup.text:SetText(L["vendorCraftShopperMissingGold"]:format(GetMoneyString(total - playerMoney)))
+		pendingPurchase.popup.buyBtn.frame:Hide()
+		pendingPurchase.popup.cancelBtn:SetText(CLOSE)
+		pendingPurchase.popup.cancelBtn:SetRelativeWidth(1)
+	else
+		pendingPurchase.popup.text:SetText(("%s x%d\n%s"):format(pendingPurchase.item.name, pendingPurchase.item.missing, GetMoneyString(total)))
+		pendingPurchase.popup.buyBtn:SetDisabled(false)
+		pendingPurchase.popup.buyBtn.frame:Show()
+		pendingPurchase.popup.cancelBtn:SetText(L["vendorCraftShopperCancel"])
+		pendingPurchase.popup.cancelBtn:SetRelativeWidth(0.5)
+	end
 end
 
 local function CreateCraftShopperFrame()
@@ -482,6 +495,7 @@ function ShowCraftShopperFrameIfNeeded()
 		if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame.frame:Hide() end
 		f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
 		f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
+		f:UnregisterEvent("COMMODITY_PURCHASE_SUCCEEDED")
 	end
 end
 
@@ -534,6 +548,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
 			addon.Vendor.CraftShopper.frame.frame:Hide()
 			f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
 			f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
+			f:UnregisterEvent("COMMODITY_PURCHASE_SUCCEEDED")
 		end
 	elseif event == "COMMODITY_PRICE_UPDATED" then
 		UpdatePurchasePopup(arg1, arg2)
@@ -541,6 +556,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
 		if pendingPurchase then
 			f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
 			f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
+			f:UnregisterEvent("COMMODITY_PURCHASE_SUCCEEDED")
 			if pendingPurchase.popup.ticker then pendingPurchase.popup.ticker:Cancel() end
 			if pendingPurchase.popup.spinner then pendingPurchase.popup.spinner:Hide() end
 			pendingPurchase.popup.text:SetText(L["vendorCraftShopperPurchaseFailed"])
@@ -549,6 +565,18 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
 			pendingPurchase.popup.cancelBtn:SetText(OKAY)
 			pendingPurchase.buyWidget:SetDisabled(false)
 		end
+	elseif event == "COMMODITY_PURCHASE_SUCCEEDED" then
+		f:UnregisterEvent("COMMODITY_PURCHASE_SUCCEEDED")
+		f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
+		local itemID = arg1
+		for _, item in ipairs(addon.Vendor.CraftShopper.items) do
+			if item.itemID == itemID then
+				item.hidden = true
+				break
+			end
+		end
+		if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame:Refresh() end
+		ScheduleRescan()
 	else
 		Rescan()
 	end
