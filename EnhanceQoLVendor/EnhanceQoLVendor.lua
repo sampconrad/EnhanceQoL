@@ -493,7 +493,7 @@ local function addGeneralFrame(container)
 					addon.Vendor.CraftShopper.DisableCraftShopper()
 				end
 			end,
-			desc = "vendorCraftShopperEnableDesc",
+			desc = L["vendorCraftShopperEnableDesc"],
 		},
 		{ text = L["vendorSwapAutoSellShift"], var = "vendorSwapAutoSellShift" },
 		{
