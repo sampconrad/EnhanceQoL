@@ -11,6 +11,7 @@ else
 end
 
 local AceGUI = addon.AceGUI
+local f = CreateFrame("Frame")
 
 addon.Vendor = addon.Vendor or {}
 addon.Vendor.CraftShopper = addon.Vendor.CraftShopper or {}
@@ -23,22 +24,36 @@ local SCAN_DELAY = 0.3
 local pendingScan
 local scanRunning
 local pendingPurchase -- data for a running AH commodities purchase
+local ahCache = {} -- [itemID] = true/false
 
 local function isAHBuyable(itemID)
-	if not itemID then return false end
+	if ahCache[itemID] ~= nil then return ahCache[itemID] end
+	local buyable = true
 	local data = C_TooltipInfo.GetItemByID(itemID)
-	local canAHBuy = true
 	if data and data.lines then
-		for i, v in pairs(data.lines) do
-			if v.type == 20 then
-				canAHBuy = false
-				if v.leftText == ITEM_BIND_ON_EQUIP then canAHBuy = false end
-			elseif v.type == 0 and v.leftText == ITEM_CONJURED then
-				canAHBuy = false
+		for _, line in ipairs(data.lines) do
+			if (line.type == 20 and line.leftText == ITEM_BIND_ON_EQUIP) or (line.type == 0 and line.leftText == ITEM_CONJURED) then
+				buyable = false
+				break
 			end
 		end
 	end
-	return canAHBuy
+	ahCache[itemID] = buyable
+	return buyable
+end
+local schemCache = {} -- [recipeID] = schematic
+local schemCacheRecraft = {} -- [recipeID] = schematic
+
+local function getSchematic(recipeID, isRecraft)
+	if isRecraft and schemCacheRecraft[recipeID] then return schemCacheRecraft[recipeID] end
+	if not isRecraft and schemCache[recipeID] then return schemCache[recipeID] end
+	local s = C_TradeSkillUI.GetRecipeSchematic(recipeID, isRecraft)
+	if isRecraft then
+		schemCacheRecraft[recipeID] = s
+	else
+		schemCache[recipeID] = s
+	end
+	return s
 end
 
 local function BuildShoppingList()
@@ -46,7 +61,7 @@ local function BuildShoppingList()
 
 	for _, isRecraft in ipairs(isRecraftTbl) do
 		for _, recipeID in ipairs(C_TradeSkillUI.GetRecipesTracked(isRecraft)) do
-			local schem = C_TradeSkillUI.GetRecipeSchematic(recipeID, isRecraft)
+			local schem = getSchematic(recipeID, isRecraft)
 			if schem and schem.reagentSlotSchematics then
 				for _, slot in ipairs(schem.reagentSlotSchematics) do
 					-- Nur Pflicht-Reagenzien, optional/finishing überspringen:
@@ -120,7 +135,6 @@ local mapQuality = {
 -- When the price is known, the user can confirm or cancel the buy.
 local function ShowPurchasePopup(item, buyWidget)
 	if pendingPurchase then return end -- do not allow multiple parallel purchases
-
 	buyWidget:SetDisabled(true)
 
 	local popup = AceGUI:Create("Window")
@@ -129,6 +143,7 @@ local function ShowPurchasePopup(item, buyWidget)
 	popup:SetHeight(150)
 	popup:SetLayout("List")
 	popup:EnableResize(false)
+	popup.frame:SetFrameStrata("TOOLTIP")
 
 	local text = AceGUI:Create("Label")
 	text:SetFullWidth(true)
@@ -204,13 +219,11 @@ local function ShowPurchasePopup(item, buyWidget)
 	}
 end
 
-local function UpdatePurchasePopup(itemID)
-	if not pendingPurchase or pendingPurchase.item.itemID ~= itemID then return end
+local function UpdatePurchasePopup(pricePer, total)
+	if not pendingPurchase then return end
+	f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
 
-	local itemName = C_Item.GetItemInfo(itemID)
-	local pricePer = C_AuctionHouse.GetCurrentCommodityPricePerUnit(itemID) or 0
-	local total = pricePer * pendingPurchase.item.missing
-	pendingPurchase.popup.text:SetText(("%s x%d\n%s"):format(itemName or ("item:" .. itemID), pendingPurchase.item.missing, GetMoneyString(total)))
+	pendingPurchase.popup.text:SetText(("%s x%d\n%s"):format(pendingPurchase.item.name, pendingPurchase.item.missing, GetMoneyString(total)))
 	pendingPurchase.popup.buyBtn:SetDisabled(false)
 	if pendingPurchase.popup.spinner then pendingPurchase.popup.spinner:Hide() end
 end
@@ -295,6 +308,7 @@ local function CreateCraftShopperFrame()
 			if not item.hidden and (not missingCheck:GetValue() or item.missing > 0) and (not ahCheck:GetValue() or item.ahBuyable) then
 				local name, _, quality = C_Item.GetItemInfo(item.itemID)
 				name = name or ("item:" .. item.itemID)
+				item.name = name
 				if searchText == "" or name:lower():find(searchText, 1, true) then
 					local row = AceGUI:Create("SimpleGroup")
 					row:SetFullWidth(true)
@@ -352,8 +366,9 @@ local function CreateCraftShopperFrame()
 					buy:SetImageSize(20, 20)
 					buy:SetCallback("OnClick", function()
 						if pendingPurchase then return end
-						C_AuctionHouse.StartCommoditiesPurchase(item.itemID, item.missing)
+						f:RegisterEvent("COMMODITY_PRICE_UPDATED")
 						ShowPurchasePopup(item, buy)
+						C_AuctionHouse.StartCommoditiesPurchase(item.itemID, item.missing)
 					end)
 					row:AddChild(buy)
 
@@ -377,15 +392,13 @@ local function CreateCraftShopperFrame()
 	return frame
 end
 
-local f = CreateFrame("Frame")
 f:RegisterEvent("TRACKED_RECIPE_UPDATE") -- parameter 1: ID of recipe - parameter 2: tracked true/false
 f:RegisterEvent("BAG_UPDATE_DELAYED") -- verzögerter Scan, um Event-Flut zu vermeiden
 f:RegisterEvent("CRAFTINGORDERS_ORDER_PLACEMENT_RESPONSE") -- arg1: error code, 0 on success
 f:RegisterEvent("AUCTION_HOUSE_SHOW")
 f:RegisterEvent("AUCTION_HOUSE_CLOSED")
-f:RegisterEvent("COMMODITY_PRICE_UPDATED")
 
-f:SetScript("OnEvent", function(_, event, arg1)
+f:SetScript("OnEvent", function(_, event, arg1, arg2)
 	if event == "BAG_UPDATE_DELAYED" then
 		ScheduleRescan()
 	elseif event == "CRAFTINGORDERS_ORDER_PLACEMENT_RESPONSE" then
@@ -395,14 +408,17 @@ f:SetScript("OnEvent", function(_, event, arg1)
 		ui.frame:ClearAllPoints()
 		ui.frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 5, 0)
 		ui.frame:SetPoint("BOTTOMLEFT", AuctionHouseFrame, "BOTTOMRIGHT", 5, 0)
-
+		ui.frame:SetWidth(300)
 		ui.ahBuyable:SetValue(true)
 		ui.frame:Show()
 		ui:Refresh()
 	elseif event == "AUCTION_HOUSE_CLOSED" then
-		if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame.frame:Hide() end
+		if addon.Vendor.CraftShopper.frame then
+			addon.Vendor.CraftShopper.frame.frame:Hide()
+			f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
+		end
 	elseif event == "COMMODITY_PRICE_UPDATED" then
-		UpdatePurchasePopup(arg1)
+		UpdatePurchasePopup(arg1, arg2)
 	else
 		Rescan()
 	end
