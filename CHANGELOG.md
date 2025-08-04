@@ -27,7 +27,10 @@
 - **Drink Macro**
   - _Food reminder_ icon is movable (hold **Alt**) and now has a size option.
   - _Food reminder_ add optional sound warning for leave and join
-  
+- **Craft Shopper**
+  - Shows a shopping list of missing crafting materials next to the Auction House.
+  - Search and buy each item with a single click.
+
 ### 🔄 Changed
 - **Gem Helper**
   - Cleaner per-socket gem display.
