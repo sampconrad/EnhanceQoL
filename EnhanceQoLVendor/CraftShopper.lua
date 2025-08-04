@@ -164,6 +164,8 @@ local mapQuality = {
 	[3] = Enum.AuctionHouseFilter.RareQuality,
 	[4] = Enum.AuctionHouseFilter.EpicQuality,
 	[5] = Enum.AuctionHouseFilter.LegendaryQuality,
+	[6] = Enum.AuctionHouseFilter.ArtifactQuality,
+	[7] = Enum.AuctionHouseFilter.LegendaryCraftedItemOnly,
 }
 
 -- Shows a small confirmation window for a pending commodity purchase.
@@ -381,7 +383,11 @@ local function CreateCraftShopperFrame()
 					searchBtn:SetCallback("OnLeave", function() GameTooltip:Hide() end)
 					searchBtn:SetCallback("OnClick", function()
 						local itemName, _, quality, _, _, _, _, _, itemEquipLoc, _, _, classID, subclassID = C_Item.GetItemInfo(item.itemID)
-						local qualityFilter = { mapQuality[quality], Enum.AuctionHouseFilter.ExactMatch }
+						local qualityFilter = { Enum.AuctionHouseFilter.ExactMatch }
+						local mappedQuality = mapQuality[quality]
+						if mappedQuality then
+							table.insert(qualityFilter, 1, mappedQuality)
+						end
 						if not itemName then return end
 						local query = {
 							searchString = itemName,
