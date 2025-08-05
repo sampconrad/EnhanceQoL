@@ -189,6 +189,7 @@ local function ShowPurchasePopup(item, buyWidget)
 
 	local popup = CreateFrame("Frame", nil, UIParent, "BasicFrameTemplateWithInset")
 	popup:SetSize(280, 150)
+	popup:SetPoint("TOP", UIParent, "TOP", 0, -200)
 	popup:SetFrameStrata("TOOLTIP")
 	popup:EnableMouse(true)
 	popup:SetMovable(true)
@@ -199,16 +200,19 @@ local function ShowPurchasePopup(item, buyWidget)
 	popup.title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	popup.title:SetPoint("CENTER", popup.TitleBg, "CENTER")
 	popup.title:SetText(L["vendorCraftShopperConfirmPurchase"])
+	popup.title:SetFont(addon.variables.defaultFont, 16, "OUTLINE")
 
 	local text = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	text:SetPoint("TOP", 0, -40)
 	text:SetJustifyH("CENTER")
 	text:SetText(L["vendorCraftShopperWaitingForPrice"])
+	text:SetFont(addon.variables.defaultFont, 14, "OUTLINE")
 	popup.text = text
 
 	local timerLabel = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	timerLabel:SetPoint("TOP", text, "BOTTOM", 0, -10)
 	timerLabel:SetJustifyH("CENTER")
+	timerLabel:SetFont(addon.variables.defaultFont, 14, "OUTLINE")
 	popup.timerLabel = timerLabel
 
 	local buyBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
@@ -304,6 +308,7 @@ local function CreateCraftShopperFrame()
 	frame:SetHeight(400)
 	frame:SetLayout("List")
 	frame.frame:Hide()
+	frame.frame:SetFrameStrata(AuctionHouseFrame:GetFrameStrata())
 
 	local search = AceGUI:Create("EditBox")
 	search:SetLabel(SEARCH)
