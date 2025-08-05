@@ -27,6 +27,7 @@ local scanRunning
 local pendingPurchase -- data for a running AH commodities purchase
 local lastPurchaseItemID -- itemID of the last confirmed commodities purchase
 local ahCache = {} -- [itemID] = true/false
+local purchasedItems = {} -- [itemID] = true for items already bought via quick buy
 
 local ShowCraftShopperFrameIfNeeded -- forward declaration
 
@@ -132,15 +133,18 @@ local function BuildShoppingList()
 	local items = {}
 	for itemID, want in pairs(need) do
 		local owned = C_Item.GetItemCount(itemID, true) -- inkl. Bank
+		if purchasedItems[itemID] and owned >= want.qty then purchasedItems[itemID] = nil end
 		local missing = math.max(want.qty - owned, 0)
-		if missing > 0 then table.insert(items, {
-			itemID = itemID,
-			qtyNeeded = want.qty,
-			owned = owned,
-			missing = missing,
-			ahBuyable = want.canAHBuy,
-			hidden = false,
-		}) end
+		if missing > 0 and not purchasedItems[itemID] then
+			table.insert(items, {
+				itemID = itemID,
+				qtyNeeded = want.qty,
+				owned = owned,
+				missing = missing,
+				ahBuyable = want.canAHBuy,
+				hidden = false,
+			})
+		end
 	end
 	return items
 end
@@ -593,6 +597,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
 					break
 				end
 			end
+			purchasedItems[itemID] = true
 			if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame:Refresh() end
 		end
 		ScheduleRescan()

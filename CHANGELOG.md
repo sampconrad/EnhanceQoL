@@ -46,6 +46,7 @@
 - Nested conditions in _Aura Tracker_ now evaluate correctly.
 - **Gem Helper** could rarely throw an error.
 - **Vendor sell overlay** sometimes remained visible after changing settings.
+- Craft Shopper no longer immediately re-lists items after quick-buying commodities.
 
 ---
 
