@@ -1388,8 +1388,15 @@ local function addUnitFrame(container)
 		container:ReleaseChildren()
 		addUnitFrame(container)
 		addon.functions.togglePlayerFrame(addon.db["hidePlayerFrame"])
+		addon.functions.togglePartyFrameTitle(addon.db["hidePartyFrameTitle"])
 	end, nil)
 	groupCoreUF:AddChild(cbPartyFrameSolo)
+
+	local cbPartyFrameTitle = addon.functions.createCheckboxAce(L["hidePartyFrameTitle"], addon.db["hidePartyFrameTitle"], function(self, _, value)
+		addon.db["hidePartyFrameTitle"] = value
+		addon.functions.togglePartyFrameTitle(value)
+	end, nil)
+	groupCoreUF:AddChild(cbPartyFrameTitle)
 
 	local sliderName
 	local cbTruncate = addon.functions.createCheckboxAce(L["unitFrameTruncateNames"], addon.db.unitFrameTruncateNames, function(self, _, v)
@@ -3413,6 +3420,7 @@ local function initUnitFrame()
 	addon.functions.InitDBValue("hideHitIndicatorPet", false)
 	addon.functions.InitDBValue("hidePlayerFrame", false)
 	addon.functions.InitDBValue("hideRaidFrameBuffs", false)
+	addon.functions.InitDBValue("hidePartyFrameTitle", false)
 	addon.functions.InitDBValue("unitFrameTruncateNames", false)
 	addon.functions.InitDBValue("unitFrameMaxNameLength", addon.variables.unitFrameMaxNameLength)
 	addon.functions.InitDBValue("unitFrameScaleEnabled", false)
@@ -3434,6 +3442,19 @@ local function initUnitFrame()
 		if addon.db["showPartyFrameInSoloContent"] and addon.db["hidePlayerFrame"] then self:Hide() end
 	end)
 	addon.functions.togglePlayerFrame(addon.db["hidePlayerFrame"])
+
+	function addon.functions.togglePartyFrameTitle(value)
+		if not CompactPartyFrameTitle then return end
+		if value then
+			CompactPartyFrameTitle:Hide()
+		else
+			CompactPartyFrameTitle:Show()
+		end
+	end
+	if CompactPartyFrameTitle then CompactPartyFrameTitle:HookScript("OnShow", function(self)
+		if addon.db["hidePartyFrameTitle"] then self:Hide() end
+	end) end
+	addon.functions.togglePartyFrameTitle(addon.db["hidePartyFrameTitle"])
 
 	local function DisableBlizzBuffs(cuf)
 		if addon.db["hideRaidFrameBuffs"] then
