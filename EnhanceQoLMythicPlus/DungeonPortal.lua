@@ -24,6 +24,41 @@ addon.functions.InitDBValue("teleportFavorites", {})
 local GetItemCooldown = C_Item.GetItemCooldown
 local GetItemCount = C_Item.GetItemCount
 
+local function GetCooldownData(spellInfo)
+	if not spellInfo then return end
+
+	local cooldownData
+	if spellInfo.isToy then
+		if spellInfo.toyID then
+			local startTime, duration, enable = GetItemCooldown(spellInfo.toyID)
+			cooldownData = {
+				startTime = startTime,
+				duration = duration,
+				modRate = 1,
+				isEnabled = enable,
+			}
+		end
+	elseif spellInfo.isItem then
+		if spellInfo.itemID then
+			local startTime, duration, enable = GetItemCooldown(spellInfo.itemID)
+			cooldownData = {
+				startTime = startTime,
+				duration = duration,
+				modRate = 1,
+				isEnabled = enable,
+			}
+		end
+	else
+		local spellID = spellInfo.spellID
+		if FindSpellOverrideByID(spellID) and FindSpellOverrideByID(spellID) ~= spellID then
+			spellID = FindSpellOverrideByID(spellID)
+			spellInfo.spellID = spellID
+		end
+		cooldownData = C_Spell.GetSpellCooldown(spellID)
+	end
+	return cooldownData
+end
+
 local function getCurrentSeasonPortal()
 	local cModeIDs = C_ChallengeMode.GetMapTable()
 	local cModeIDLookup = {}
@@ -79,7 +114,13 @@ local function getCurrentSeasonPortal()
 					end
 				end
 			end
-			allSpells[spellID] = { isToy = data.isToy or false, toyID = data.toyID, isItem = data.isItem or false, itemID = data.itemID }
+			allSpells[spellID] = {
+				spellID = spellID,
+				isToy = data.isToy or false,
+				toyID = data.toyID,
+				isItem = data.isItem or false,
+				itemID = data.itemID,
+			}
 		end
 	end
 	portalSpells = filteredPortalSpells
@@ -624,7 +665,7 @@ function checkCooldown()
 	if addon.db["teleportsEnableCompendium"] then CreatePortalCompendium(frameAnchorCompendium, addon.MythicPlus.variables.portalCompendium) end
 	for _, button in pairs(frameAnchor.buttons or {}) do
 		if isKnown[button.spellID] then
-			local cooldownData = C_Spell.GetSpellCooldown(button.spellID)
+			local cooldownData = GetCooldownData(button)
 			if cooldownData and cooldownData.isEnabled then
 				button.cooldownFrame:SetCooldown(cooldownData.startTime, cooldownData.duration, cooldownData.modRate)
 			else
@@ -635,31 +676,7 @@ function checkCooldown()
 
 	for _, button in pairs(frameAnchorCompendium.buttons or {}) do
 		if isKnown[button.spellID] then
-			local cooldownData
-			if button.isToy then
-				if button.toyID then
-					local startTime, duration, enable = GetItemCooldown(button.toyID)
-					cooldownData = {
-						startTime = startTime,
-						duration = duration,
-						modRate = 1,
-						isEnabled = enable,
-					}
-				end
-			elseif button.isItem then
-				if button.itemID then
-					local startTime, duration, enable = GetItemCooldown(button.itemID)
-					cooldownData = {
-						startTime = startTime,
-						duration = duration,
-						modRate = 1,
-						isEnabled = enable,
-					}
-				end
-			else
-				if FindSpellOverrideByID(button.spellID) and FindSpellOverrideByID(button.spellID) ~= button.spellID then button.spellID = FindSpellOverrideByID(button.spellID) end
-				cooldownData = C_Spell.GetSpellCooldown(button.spellID)
-			end
+			local cooldownData = GetCooldownData(button)
 			if cooldownData and cooldownData.isEnabled then
 				button.cooldownFrame:SetCooldown(cooldownData.startTime, cooldownData.duration, cooldownData.modRate)
 			else
@@ -671,31 +688,9 @@ end
 
 local function waitCooldown(arg3)
 	C_Timer.After(0.1, function()
-		local cooldownData
-		if allSpells[arg3].isToy then
-			if allSpells[arg3].toyID then
-				local startTime, duration, enable = GetItemCooldown(allSpells[arg3].toyID)
-				cooldownData = {
-					startTime = startTime,
-					duration = duration,
-					modRate = 1,
-					isEnabled = enable,
-				}
-			end
-		elseif allSpells[arg3].isItem then
-			if allSpells[arg3].itemID then
-				local startTime, duration, enable = GetItemCooldown(allSpells[arg3].itemID)
-				cooldownData = {
-					startTime = startTime,
-					duration = duration,
-					modRate = 1,
-					isEnabled = enable,
-				}
-			end
-		else
-			cooldownData = C_Spell.GetSpellCooldown(arg3)
-		end
-		if cooldownData.duration > 0 then
+		local spellInfo = allSpells[arg3]
+		local cooldownData = GetCooldownData(spellInfo)
+		if cooldownData and cooldownData.duration > 0 then
 			checkCooldown()
 		else
 			waitCooldown(arg3)
