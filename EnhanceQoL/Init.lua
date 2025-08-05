@@ -3,6 +3,7 @@ _G[addonName] = addon
 addon.saveVariables = {} -- Cross-Module variables for DB Save
 addon.saveVariables["hidePlayerFrame"] = false -- Default for hiding the Player Frame
 addon.saveVariables["hideRaidFrameBuffs"] = false -- Default for hiding buffs on raid-style frames
+addon.saveVariables["hidePartyFrameTitle"] = false -- Default for hiding party frame title
 addon.saveVariables["unitFrameTruncateNames"] = false -- Default for truncating unit names
 addon.saveVariables["unitFrameScaleEnabled"] = false -- Default for scaling compact unit frames
 addon.saveVariables["unitFrameScale"] = 1 -- Default scale for compact party frames
@@ -565,7 +566,7 @@ addon.variables.shouldEnchantedChecks = {
 	-- Head
 	[1] = {
 		func = function(ilvl)
-			if ilvl >= 350 and addon.functions.IsPatchLive("horrificVisions") and not GetBuildInfo() == "11.2.0" and not addon.functions.IsPatchLive("whispersOfKaresh")  then
+			if ilvl >= 350 and addon.functions.IsPatchLive("horrificVisions") and not GetBuildInfo() == "11.2.0" and not addon.functions.IsPatchLive("whispersOfKaresh") then
 				-- Horrific vision enchant - Only usable during Season 2 of TWW and after Patchday in the Week of 20.05.2025
 				-- and before the Patchday on 12/13.08.2025
 				return true

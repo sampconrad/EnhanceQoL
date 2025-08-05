@@ -1,9 +1,11 @@
 # Changelog
 
-## [4.0.0] – 2025-08-02
+## [4.0.0] – 2025-08-05
+
 ### ✨ Added
+
 - **EnhanceQoL Shared Media**
-  - New sub-module with **200 +** voice lines and SFX, published via **LibSharedMedia**.
+  - New sub-module with **200+** voice lines and SFX, published via **LibSharedMedia**.
   - All sounds are **disabled by default**; enable only the ones you need.
 - **Cooldown Notify**
   - Pops up a small alert when an ability becomes ready.
@@ -12,13 +14,13 @@
 - **Aura Tracker**
   - **Spacing** slider to adjust the gap between icons.
   - Now tracks on-use **trinket cooldowns**.
-  - _Show for Difficulty_ filter — “Outside World”, “Any Instance”, or specific difficulties.
+  - _Show for Difficulty_ filter — “Outside World,” “Any Instance,” or specific difficulties.
   - Tracks **temporary weapon enchants** with optional Enchant-ID filter.
 - **Talent Reminder**
-  - Use a custom sound to play for wrong talent builds
+  - Custom sound when the wrong build is active.
 - **Talent Reminder – Build Info**
   - Displays the name of the active talent build.
-  - Text can be shown **only outside instances**, **only in 5-man/Delves**, or **only in raids**.
+  - Text can be shown **only outside instances**, **only in 5-mans/Delves**, or **only in raids**.
 - **Tooltip**
   - Can display IDs of temporary weapon enchants (stones, oils, imbues, etc.).
   - Option to show **spell icon ID**.
@@ -26,18 +28,24 @@
   - Auto-confirm dialogs for **enchant overwrite** and **socket overwrite**.
 - **Drink Macro**
   - _Food reminder_ icon is movable (hold **Alt**) and now has a size option.
-  - _Food reminder_ add optional sound warning for leave and join
+  - Optional join/leave sound alerts.
 - **Craft Shopper**
   - Shows a shopping list of missing crafting materials next to the Auction House.
   - Search and buy each item with a single click.
+- **Unit Frames**
+  - Option to hide the party-frame title.
 
 ### 🔄 Changed
+
 - **Gem Helper**
   - Cleaner per-socket gem display.
 - **Drink Macro**
   - Falls back to casting _Conjure Refreshment_ for mages if no food is available.
+- **Dungeon Portal**
+  - Performance improvements.
 
 ### 🐛 Fixed
+
 - Catalyst charges sometimes disappeared near season end.
 - Missing variable in Aura Tracker cooldown logic caused extra CPU load.
 - Buff frame strata was too high.
@@ -46,6 +54,7 @@
 - Nested conditions in _Aura Tracker_ now evaluate correctly.
 - **Gem Helper** could rarely throw an error.
 - **Vendor sell overlay** sometimes remained visible after changing settings.
+- **Dungeon Portal** could occasionally throw a Lua error in combat.
 
 ---
 

@@ -25,7 +25,9 @@ local SCAN_DELAY = 0.3
 local pendingScan
 local scanRunning
 local pendingPurchase -- data for a running AH commodities purchase
+local lastPurchaseItemID -- itemID of the last confirmed commodities purchase
 local ahCache = {} -- [itemID] = true/false
+local purchasedItems = {} -- [itemID] = true for items already bought via quick buy
 
 local ShowCraftShopperFrameIfNeeded -- forward declaration
 
@@ -131,15 +133,18 @@ local function BuildShoppingList()
 	local items = {}
 	for itemID, want in pairs(need) do
 		local owned = C_Item.GetItemCount(itemID, true) -- inkl. Bank
+		if purchasedItems[itemID] and owned >= want.qty then purchasedItems[itemID] = nil end
 		local missing = math.max(want.qty - owned, 0)
-		if missing > 0 then table.insert(items, {
-			itemID = itemID,
-			qtyNeeded = want.qty,
-			owned = owned,
-			missing = missing,
-			ahBuyable = want.canAHBuy,
-			hidden = false,
-		}) end
+		if missing > 0 and not purchasedItems[itemID] then
+			table.insert(items, {
+				itemID = itemID,
+				qtyNeeded = want.qty,
+				owned = owned,
+				missing = missing,
+				ahBuyable = want.canAHBuy,
+				hidden = false,
+			})
+		end
 	end
 	return items
 end
@@ -249,6 +254,7 @@ local function ShowPurchasePopup(item, buyWidget)
 
 	buyBtn:SetScript("OnClick", function()
 		f:RegisterEvent("COMMODITY_PURCHASE_SUCCEEDED")
+		lastPurchaseItemID = item.itemID
 		C_AuctionHouse.ConfirmCommoditiesPurchase(item.itemID, item.missing)
 		if popup.ticker then popup.ticker:Cancel() end
 		popup:Hide()
@@ -568,6 +574,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
 	elseif event == "COMMODITY_PRICE_UPDATED" then
 		UpdatePurchasePopup(arg1, arg2)
 	elseif event == "COMMODITY_PURCHASE_FAILED" or (event == "AUCTION_HOUSE_SHOW_ERROR" and purchaseErrorCodes[arg1]) then
+		lastPurchaseItemID = nil
 		if pendingPurchase then
 			f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
 			f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
@@ -587,14 +594,18 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
 		f:UnregisterEvent("COMMODITY_PURCHASE_SUCCEEDED")
 		f:UnregisterEvent("AUCTION_HOUSE_SHOW_ERROR")
 		f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
-		local itemID = arg1
-		for _, item in ipairs(addon.Vendor.CraftShopper.items) do
-			if item.itemID == itemID then
-				item.hidden = true
-				break
+		local itemID = lastPurchaseItemID
+		lastPurchaseItemID = nil
+		if itemID then
+			for _, item in ipairs(addon.Vendor.CraftShopper.items) do
+				if item.itemID == itemID then
+					item.hidden = true
+					break
+				end
 			end
+			purchasedItems[itemID] = true
+			if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame:Refresh() end
 		end
-		if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame:Refresh() end
 		ScheduleRescan()
 	else
 		Rescan()
