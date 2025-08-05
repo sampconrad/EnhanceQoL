@@ -84,12 +84,20 @@ local function getCurrentSeasonPortal()
 	end
 	portalSpells = filteredPortalSpells
 	mapInfo = filteredMapInfo
-        mapIDInfo = filteredMapID -- TODO 11.2: remove mapIDInfo once mapID param is used
+	mapIDInfo = filteredMapID -- TODO 11.2: remove mapIDInfo once mapID param is used
 end
 
 local isKnown = {}
 local parentFrame = PVEFrame
 local doAfterCombat = false
+
+local function SafeSetSize(frame, width, height)
+	if InCombatLockdown() then
+		doAfterCombat = true
+	else
+		frame:SetSize(width, height)
+	end
+end
 
 local frameAnchor = CreateFrame("Frame", "DungeonTeleportFrame", parentFrame, "BackdropTemplate")
 frameAnchor:SetBackdrop({
@@ -105,7 +113,7 @@ local title = frameAnchor:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge"
 title:SetPoint("TOP", 0, -10)
 local mSeasonTitle = MYTHIC_DUNGEON_SEASON
 title:SetFormattedText(string.gsub(mSeasonTitle, "%s*%b()", ""))
-frameAnchor:SetSize(title:GetStringWidth() + 20, 170) -- Breite x Höhe
+SafeSetSize(frameAnchor, title:GetStringWidth() + 20, 170)
 
 -- Compendium
 local frameAnchorCompendium = CreateFrame("Frame", "DungeonTeleportFrameCompendium", parentFrame, "BackdropTemplate")
@@ -122,7 +130,7 @@ local titleCompendium = frameAnchorCompendium:CreateFontString(nil, "OVERLAY", "
 titleCompendium:SetPoint("TOP", 0, -10)
 local mSeasonTitleCompendium = L["DungeonCompendium"]
 titleCompendium:SetFormattedText(mSeasonTitleCompendium)
-frameAnchorCompendium:SetSize(titleCompendium:GetStringWidth() + 20, 170) -- Breite x Höhe
+SafeSetSize(frameAnchorCompendium, titleCompendium:GetStringWidth() + 20, 170)
 frameAnchorCompendium:SetPoint("TOPLEFT", DungeonTeleportFrame, "TOPRIGHT", 0, 0)
 
 local activeBars = {}
@@ -148,8 +156,8 @@ local function CreatePortalButtonsWithCooldown(frame, spells)
 	local favorites = {}
 	local others = {}
 	for spellID, data in pairs(spells) do
-                -- TODO 11.2: migrate IsSpellKnown to C_SpellBook.IsSpellInSpellBook
-                local known = IsSpellKnown(spellID)
+		-- TODO 11.2: migrate IsSpellKnown to C_SpellBook.IsSpellInSpellBook
+		local known = IsSpellKnown(spellID)
 		local isFavorite = favoriteLookup[spellID]
 		local passes = (not data.faction or data.faction == faction)
 		if addon.db["portalHideMissing"] then passes = passes and known end
@@ -191,7 +199,7 @@ local function CreatePortalButtonsWithCooldown(frame, spells)
 	-- Dynamische Höhe
 	local rows = math.ceil(totalButtons / buttonsPerRow)
 	local frameHeight = math.max(title:GetStringHeight() + 20, 40 + rows * (buttonSize + hSpacing))
-	frame:SetSize(frameWidth, frameHeight)
+	SafeSetSize(frame, frameWidth, frameHeight)
 
 	-- Erstelle neue Buttons
 	local index = 1
@@ -374,9 +382,9 @@ local function CreatePortalCompendium(frame, compendium)
 
 		local sortedSpells = {}
 		if not addon.db["teleportsCompendiumHide" .. section.headline] then
-                for spellID, data in pairs(section.spells) do
-                        -- TODO 11.2: switch IsSpellKnown to C_SpellBook.IsSpellInSpellBook
-                        local known = (IsSpellKnown(spellID) and not data.isToy)
+			for spellID, data in pairs(section.spells) do
+				-- TODO 11.2: switch IsSpellKnown to C_SpellBook.IsSpellInSpellBook
+				local known = (IsSpellKnown(spellID) and not data.isToy)
 					or (hasEngineering and data.toyID and not data.isHearthstone and isToyUsable(data.toyID))
 					or (data.isItem and GetItemCount(data.itemID) > 0)
 					or (data.isHearthstone and isToyUsable(data.toyID))
@@ -607,7 +615,7 @@ local function CreatePortalCompendium(frame, compendium)
 	end
 
 	-- Frame-Größe dynamisch anpassen
-	frame:SetSize(maxWidth, max(math.abs(currentYOffset) + 20, titleCompendium:GetStringHeight() + 20))
+	SafeSetSize(frame, maxWidth, max(math.abs(currentYOffset) + 20, titleCompendium:GetStringHeight() + 20))
 end
 
 function checkCooldown()
@@ -744,7 +752,7 @@ local function CreateRioScore()
 		titleScore:SetFormattedText(DUNGEON_SCORE)
 		titleScore:SetPoint("TOP", 0, -10)
 
-		frameAnchorScore:SetSize(max(titleScore:GetStringWidth() + 20, 200), 170) -- Breite x Höhe
+		SafeSetSize(frameAnchorScore, max(titleScore:GetStringWidth() + 20, 200), 170)
 		if addon.db["teleportFrame"] then
 			frameAnchorScore:SetPoint("TOPLEFT", DungeonTeleportFrame, "BOTTOMLEFT", 0, 0)
 		elseif nil ~= RaiderIO_ProfileTooltip then
@@ -753,7 +761,7 @@ local function CreateRioScore()
 		else
 			frameAnchorScore:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 0, 0)
 		end
-		frameAnchor:SetSize(max(title:GetStringWidth() + 20, 205), 170) -- Breite x Höhe
+		SafeSetSize(frameAnchor, max(title:GetStringWidth() + 20, 205), 170)
 
 		local ratingInfo = {}
 
@@ -842,8 +850,8 @@ local function CreateRioScore()
 			end
 
 			local _, _, _, _, lp = lastElement:GetPoint()
-			frameAnchorScore:SetSize(max(nWidth + 20, 205), max(lp * -1 + 30, 170)) -- Breite x Hhe
-			frameAnchor:SetSize(max(title:GetStringWidth() + 20, nWidth + 20, 205), 170) -- Breite x Höhe
+			SafeSetSize(frameAnchorScore, max(nWidth + 20, 205), max(lp * -1 + 30, 170))
+			SafeSetSize(frameAnchor, max(title:GetStringWidth() + 20, nWidth + 20, 205), 170)
 		end
 	end
 end
@@ -886,7 +894,7 @@ local function updateKeystoneInfo()
 		if PVEFrameTab4:IsVisible() then minHightOffset = 0 - PVEFrameTab4:GetHeight() end
 		if not keyStoneFrame then
 			keyStoneFrame = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
-			keyStoneFrame:SetSize(200, 300) -- Passe die Größe nach Bedarf an
+			SafeSetSize(keyStoneFrame, 200, 300)
 			keyStoneFrame:Show()
 		else
 			for _, child in ipairs({ keyStoneFrame:GetChildren() }) do
@@ -924,7 +932,7 @@ local function updateKeystoneInfo()
 						}
 					end
 					local frame = CreateFrame("Frame", nil, keyStoneFrame, "BackdropTemplate")
-					frame:SetSize(maxWidthKeystone, 50) -- Passe die Größe nach Bedarf an
+					SafeSetSize(frame, maxWidthKeystone, 50)
 					frame:SetPoint("TOPRIGHT", keyStoneFrame, "TOPRIGHT", 0, -50 * index)
 					frame:SetBackdrop({
 						bgFile = "Interface\\Buttons\\WHITE8x8", -- Hintergrund
@@ -969,8 +977,8 @@ local function updateKeystoneInfo()
 					button.icon = icon
 
 					-- Überprüfen, ob der Zauber bekannt ist
-                        -- TODO 11.2: Replace IsSpellKnown with C_SpellBook.IsSpellInSpellBook
-                        if mapData.spellId and IsSpellKnown(mapData.spellId) then
+					-- TODO 11.2: Replace IsSpellKnown with C_SpellBook.IsSpellInSpellBook
+					if mapData.spellId and IsSpellKnown(mapData.spellId) then
 						local cooldownData = C_Spell.GetSpellCooldown(mapData.spellId)
 						if cooldownData and cooldownData.isEnabled then
 							button:EnableMouse(true) -- Aktiviert Klicks
