@@ -150,7 +150,16 @@ function EQOL.PersistSignUpNote()
 	end
 end
 
+local function removeLeaderIcon()
+	if addon.variables.leaderFrame then
+		addon.variables.leaderFrame:SetParent(nil)
+		addon.variables.leaderFrame:Hide()
+		addon.variables.leaderFrame = nil
+	end
+end
+
 local function setLeaderIcon()
+	local leaderFound = false
 	for i = 1, 5 do
 		if _G["CompactPartyFrameMember" .. i] and _G["CompactPartyFrameMember" .. i]:IsShown() and _G["CompactPartyFrameMember" .. i].unit then
 			if UnitIsGroupLeader(_G["CompactPartyFrameMember" .. i].unit) then
@@ -162,18 +171,12 @@ local function setLeaderIcon()
 				end
 				addon.variables.leaderFrame.leaderIcon:ClearAllPoints()
 				addon.variables.leaderFrame.leaderIcon:SetPoint("TOPRIGHT", _G["CompactPartyFrameMember" .. i], "TOPRIGHT", 5, 6)
-				return
+				leaderFound = true
+				break
 			end
 		end
 	end
-end
-
-local function removeLeaderIcon()
-	if addon.variables.leaderFrame then
-		addon.variables.leaderFrame:SetParent(nil)
-		addon.variables.leaderFrame:Hide()
-		addon.variables.leaderFrame = nil
-	end
+	if not leaderFound then removeLeaderIcon() end
 end
 
 local function GameTooltipActionButton(button)
@@ -3253,6 +3256,17 @@ local function initParty()
 			end
 		end)
 	end
+
+	local leaderUpdateFrame = CreateFrame("Frame")
+	leaderUpdateFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+	leaderUpdateFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+	leaderUpdateFrame:SetScript("OnEvent", function()
+		if addon.db["showLeaderIconRaidFrame"] then
+			setLeaderIcon()
+		else
+			removeLeaderIcon()
+		end
+	end)
 
 	local last_solo
 	local pending_update = false
