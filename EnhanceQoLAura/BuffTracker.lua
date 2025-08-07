@@ -1838,6 +1838,21 @@ local function handleDragDrop(src, dst)
 	end
 	table.insert(addon.db["buffTrackerOrder"][dCat], insertPos, sBuff)
 
+	addon.db["buffTrackerSounds"] = addon.db["buffTrackerSounds"] or {}
+	addon.db["buffTrackerSoundsEnabled"] = addon.db["buffTrackerSoundsEnabled"] or {}
+	addon.db["buffTrackerSounds"][sCat] = addon.db["buffTrackerSounds"][sCat] or {}
+	addon.db["buffTrackerSounds"][dCat] = addon.db["buffTrackerSounds"][dCat] or {}
+	if addon.db["buffTrackerSounds"][sCat][sBuff] ~= nil then
+		addon.db["buffTrackerSounds"][dCat][sBuff] = addon.db["buffTrackerSounds"][sCat][sBuff]
+		addon.db["buffTrackerSounds"][sCat][sBuff] = nil
+	end
+	addon.db["buffTrackerSoundsEnabled"][sCat] = addon.db["buffTrackerSoundsEnabled"][sCat] or {}
+	addon.db["buffTrackerSoundsEnabled"][dCat] = addon.db["buffTrackerSoundsEnabled"][dCat] or {}
+	if addon.db["buffTrackerSoundsEnabled"][sCat][sBuff] ~= nil then
+		addon.db["buffTrackerSoundsEnabled"][dCat][sBuff] = addon.db["buffTrackerSoundsEnabled"][sCat][sBuff]
+		addon.db["buffTrackerSoundsEnabled"][sCat][sBuff] = nil
+	end
+
 	rebuildAltMapping()
 	refreshTree(selectedCategory)
 	scanBuffs()

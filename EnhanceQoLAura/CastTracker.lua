@@ -500,6 +500,21 @@ local function handleDragDrop(src, dst)
 	end
 	table.insert(addon.db.castTrackerOrder[dCat], insertPos, sSpell)
 
+	addon.db.castTrackerSounds = addon.db.castTrackerSounds or {}
+	addon.db.castTrackerSoundsEnabled = addon.db.castTrackerSoundsEnabled or {}
+	addon.db.castTrackerSounds[sCat] = addon.db.castTrackerSounds[sCat] or {}
+	addon.db.castTrackerSounds[dCat] = addon.db.castTrackerSounds[dCat] or {}
+	if addon.db.castTrackerSounds[sCat][sSpell] ~= nil then
+		addon.db.castTrackerSounds[dCat][sSpell] = addon.db.castTrackerSounds[sCat][sSpell]
+		addon.db.castTrackerSounds[sCat][sSpell] = nil
+	end
+	addon.db.castTrackerSoundsEnabled[sCat] = addon.db.castTrackerSoundsEnabled[sCat] or {}
+	addon.db.castTrackerSoundsEnabled[dCat] = addon.db.castTrackerSoundsEnabled[dCat] or {}
+	if addon.db.castTrackerSoundsEnabled[sCat][sSpell] ~= nil then
+		addon.db.castTrackerSoundsEnabled[dCat][sSpell] = addon.db.castTrackerSoundsEnabled[sCat][sSpell]
+		addon.db.castTrackerSoundsEnabled[sCat][sSpell] = nil
+	end
+
 	rebuildAltMapping()
 	refreshTree(selectedCategory)
 end
