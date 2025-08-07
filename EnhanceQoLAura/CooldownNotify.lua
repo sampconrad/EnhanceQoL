@@ -739,7 +739,7 @@ function CN.functions.addCooldownNotifyOptions(container)
 				local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
 				editBox:SetText("")
 				editBox:SetFocus()
-				text:SetText(L["ImportCategory"])
+				self.text:SetText(L["ImportCategory"])
 			end
 			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnAccept = function(self)
 				local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
