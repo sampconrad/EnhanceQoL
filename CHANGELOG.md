@@ -17,6 +17,7 @@
 - **P.O.S.T. Master’s Express Hearthstone** was missing from the hearthstone list.
 - **Cosmic Hearthstone** was missing from the hearthstone list.
 - Party leader icon now disappears correctly after leaving the group.
+- Deleting a **Cast Tracker** Category left some old settings
 
 ---
 
