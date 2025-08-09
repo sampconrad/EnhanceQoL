@@ -43,6 +43,7 @@ Bindings\Slider.xml
 Sounds\sounds.lua
 General\functions.lua
 Core\DataHub.lua
+Core\DataHubUI.lua
 EnhanceQoL.lua
 Submodules\GemHelper.lua
 Submodules\ChatIM\UI.lua
