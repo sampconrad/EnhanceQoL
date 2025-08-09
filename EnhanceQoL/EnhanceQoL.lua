@@ -5444,6 +5444,9 @@ end
 -- Robustly extract questID from the menu context or owner
 local function EQOL_GetQuestIDFromMenu(owner, ctx)
 	if ctx and (ctx.questID or ctx.questId) then return ctx.questID or ctx.questId end
+
+	addon.db.testOwner = owner
+
 	if owner then
 		if owner.questID then return owner.questID end
 		if owner.GetQuestID then
@@ -5485,7 +5488,20 @@ end
 
 local function EQOL_AddQuestWowheadEntry(owner, root, ctx)
 	if not addon.db["questWowheadLink"] then return end
-	local qid = EQOL_GetQuestIDFromMenu(owner, ctx)
+	local qid
+	if owner.GetName and owner:GetName() == "ObjectiveTrackerFrame" then
+		local mFocus = GetMouseFoci()
+		if mFocus and mFocus[1] and mFocus[1].GetParent then
+			local pInfo = mFocus[1]:GetParent()
+			if pInfo.poiQuestID then
+				qid = pInfo.poiQuestID
+			else
+				return
+			end
+		end
+	else
+		qid = EQOL_GetQuestIDFromMenu(owner, ctx)
+	end
 	if not qid then return end
 	root:CreateDivider()
 	local btn = root:CreateButton("Copy Wowhead URL", function() EQOL_ShowCopyURL(("https://www.wowhead.com/quest=%d"):format(qid)) end)
