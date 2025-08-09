@@ -3,21 +3,27 @@
 ## [4.2.0] – 2025-08-07
 
 ### ✨ Added
-- **Cooldown Notify** can now track on-use **trinket** cooldowns.
-- Option to hide zone-change text.
-- 62 new **Sounds**
+
+- Added 62 new sounds.
+- Added an option to hide zone-change text.
+- Added an option to show a Wowhead quick link in quest context menus (Quest Log and Objective Tracker).
+- **Cooldown Notify** can now track on-use trinket cooldowns.
+- **Enhance Ignore:** quick ignore/unignore action in the unit context menu.
 
 ### 🔄 Changed
+
 - Performance improvements in **Aura Tracker**.
 - Performance improvements in **Cast Tracker**.
 - Performance improvements in **Mouse Trail**.
+- Performance improvements in **Group Filter**.
 
 ### 🐛 Fixed
-- Drag-and-drop in **Cast Tracker** / **Aura Tracker** no longer clears the assigned sounds.
+
+- Drag-and-drop in **Cast Tracker** / **Aura Tracker** no longer clears assigned sounds.
 - **P.O.S.T. Master’s Express Hearthstone** was missing from the hearthstone list.
 - **Cosmic Hearthstone** was missing from the hearthstone list.
 - Party leader icon now disappears correctly after leaving the group.
-- Deleting a **Cast Tracker** Category left some old settings
+- Deleting a **Cast Tracker** category could leave behind residual settings.
 
 ---
 

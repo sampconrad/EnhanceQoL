@@ -1,4 +1,5 @@
 -- luacheck: globals DefaultCompactUnitFrameSetup CompactUnitFrame_UpdateAuras CompactUnitFrame_UpdateName UnitTokenFromGUID C_Bank
+-- luacheck: globals Menu GameTooltip_SetTitle GameTooltip_AddNormalLine
 local addonName, addon = ...
 
 local LDB = LibStub("LibDataBroker-1.1")
@@ -2719,6 +2720,13 @@ local function addQuestFrame(container, d)
 			type = "CheckBox",
 			callback = function(self, _, value) addon.db[self.var] = value end,
 		},
+		{
+			parent = "",
+			var = "questWowheadLink",
+			text = L["questWowheadLink"],
+			type = "CheckBox",
+			callback = function(self, _, value) addon.db[self.var] = value end,
+		},
 	}
 	table.sort(groupData, function(a, b)
 		local textA = a.var
@@ -3315,8 +3323,85 @@ local function initQuest()
 	addon.functions.InitDBValue("autoChooseQuest", false)
 	addon.functions.InitDBValue("ignoreTrivialQuests", false)
 	addon.functions.InitDBValue("ignoreDailyQuests", false)
+	addon.functions.InitDBValue("questWowheadLink", false)
 	addon.functions.InitDBValue("ignoredQuestNPC", {})
 	addon.functions.InitDBValue("autogossipID", {})
+
+	local function EQOL_GetQuestIDFromMenu(owner, ctx)
+		if ctx and (ctx.questID or ctx.questId) then return ctx.questID or ctx.questId end
+
+		addon.db.testOwner = owner
+
+		if owner then
+			if owner.questID then return owner.questID end
+			if owner.GetQuestID then
+				local ok, id = pcall(owner.GetQuestID, owner)
+				if ok and id then return id end
+			end
+			if owner.questLogIndex and C_QuestLog and C_QuestLog.GetInfo then
+				local info = C_QuestLog.GetInfo(owner.questLogIndex)
+				if info and info.questID then return info.questID end
+			end
+		end
+		return nil
+	end
+
+	local function EQOL_ShowCopyURL(url)
+		if not StaticPopupDialogs["ENHANCEQOL_COPY_URL"] then
+			StaticPopupDialogs["ENHANCEQOL_COPY_URL"] = {
+				text = "Copy URL:",
+				button1 = OKAY,
+				hasEditBox = true,
+				timeout = 0,
+				whileDead = true,
+				hideOnEscape = true,
+				preferredIndex = 3,
+				OnShow = function(self, data)
+					local eb = self.editBox or self.GetEditBox and self:GetEditBox()
+					eb:SetAutoFocus(true)
+					eb:SetText(data or "")
+					eb:HighlightText()
+					eb:SetCursorPosition(0)
+				end,
+				OnAccept = function(self) end,
+				EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+			}
+		end
+		StaticPopup_Show("ENHANCEQOL_COPY_URL", nil, nil, url)
+	end
+
+	local function EQOL_AddQuestWowheadEntry(owner, root, ctx)
+		if not addon.db["questWowheadLink"] then return end
+		local qid
+		if owner.GetName and owner:GetName() == "ObjectiveTrackerFrame" then
+			local mFocus = GetMouseFoci()
+			if mFocus and mFocus[1] and mFocus[1].GetParent then
+				local pInfo = mFocus[1]:GetParent()
+				if pInfo.poiQuestID then
+					qid = pInfo.poiQuestID
+				else
+					return
+				end
+			end
+		else
+			qid = EQOL_GetQuestIDFromMenu(owner, ctx)
+		end
+		if not qid then return end
+		root:CreateDivider()
+		local btn = root:CreateButton("Copy Wowhead URL", function() EQOL_ShowCopyURL(("https://www.wowhead.com/quest=%d"):format(qid)) end)
+		btn:AddInitializer(function()
+			btn:SetTooltip(function(tt)
+				GameTooltip_SetTitle(tt, "Wowhead")
+				GameTooltip_AddNormalLine(tt, ("quest=%d"):format(qid))
+			end)
+		end)
+	end
+
+	-- Register for Blizzard's menu tags (provided by /etrace):
+	if Menu and Menu.ModifyMenu then
+		Menu.ModifyMenu("MENU_QUEST_MAP_LOG_TITLE", EQOL_AddQuestWowheadEntry)
+		Menu.ModifyMenu("MENU_QUEST_OBJECTIVE_TRACKER", EQOL_AddQuestWowheadEntry)
+	end
 end
 
 local function initMisc()

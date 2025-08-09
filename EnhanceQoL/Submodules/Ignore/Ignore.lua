@@ -1040,3 +1040,44 @@ Ignore.groupCheckFrame:SetScript("OnEvent", function()
 	Ignore.groupCheckFrame.lastPartySize = size
 	Ignore.groupCheckFrame.lastIgnored = count
 end)
+
+local function EQOL_AddUnitIgnoreEntry(owner, root, ctx)
+	if not Ignore.enabled then return end
+	local name = ctx and ctx.name
+	local realm = ctx and ctx.server
+	if name and not name:find("-") then
+		realm = realm or (GetRealmName()):gsub("%s", "")
+		name = name .. "-" .. realm
+	end
+	if not name then
+		local unit = (ctx and ctx.unit) or (owner and owner.unit) or (owner and owner.GetUnit and owner:GetUnit())
+		if unit and UnitName then
+			local n, r = UnitName(unit)
+			if n then
+				r = r and r ~= "" and r or (GetRealmName()):gsub("%s", "")
+				name = n .. "-" .. r
+			end
+		end
+	end
+	if not name then return end
+
+	local isIgnored = Ignore:CheckIgnore(name) ~= nil
+
+	local label = isIgnored and _G.UNIGNORE_QUEST or _G.IGNORE_PLAYER
+
+	root:CreateDivider()
+	root:CreateButton(label, function()
+		if isIgnored then
+			C_FriendList.DelIgnore(name)
+		else
+			C_FriendList.AddIgnore(name)
+		end
+	end)
+end
+
+if Menu and Menu.ModifyMenu then
+	Menu.ModifyMenu("MENU_UNIT_PLAYER", EQOL_AddUnitIgnoreEntry)
+	Menu.ModifyMenu("MENU_UNIT_ENEMY_PLAYER", EQOL_AddUnitIgnoreEntry)
+	Menu.ModifyMenu("MENU_UNIT_RAID_PLAYER", EQOL_AddUnitIgnoreEntry)
+	Menu.ModifyMenu("MENU_UNIT_PARTY", EQOL_AddUnitIgnoreEntry)
+end

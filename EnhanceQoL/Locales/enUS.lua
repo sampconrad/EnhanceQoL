@@ -114,6 +114,7 @@ L["groupfinderSkipRolecheckUseLFD"] = "Use roles from Dungeon Finder"
 L["ignoreTrivialQuests"] = "Don't automatically handle trivial %s"
 L["ignoreDailyQuests"] = "Don't automatically handle daily/weekly %s"
 L["ignoreWarbandCompleted"] = "Don't automatically handle %s %s"
+L["questWowheadLink"] = "Enable Wowhead link in quest context menus"
 
 L["autoQuickLoot"] = "Quick loot items"
 L["autoQuickLootDesc"] = "Fixes a default-UI bug that sometimes prevents you from looting. For best results, turn off WoW’s built-in Auto Loot option."
