@@ -10,8 +10,10 @@ local function ensureSettings(id)
 	addon.db.dataPanels = addon.db.dataPanels or {}
 	local info = addon.db.dataPanels[id]
 	if not info then
-		info = { point = "CENTER", x = 0, y = 0, width = 200, height = 20 }
+		info = { point = "CENTER", x = 0, y = 0, width = 200, height = 20, streams = {} }
 		addon.db.dataPanels[id] = info
+	else
+		info.streams = info.streams or {}
 	end
 	return info
 end
@@ -58,7 +60,7 @@ function DataPanel.Create(id)
 	})
 	frame:SetBackdropColor(0, 0, 0, 0.5)
 
-	local panel = { frame = frame, id = id, streams = {}, order = {} }
+	local panel = { frame = frame, id = id, streams = {}, order = {}, info = info }
 
 	function panel:Refresh()
 		local prev
@@ -118,6 +120,16 @@ function DataPanel.Create(id)
 
 		data.unsub = DataHub:Subscribe(name, cb)
 		self.streams[name] = data
+
+		local streams = self.info.streams
+		local exists = false
+		for _, s in ipairs(streams) do
+			if s == name then
+				exists = true
+				break
+			end
+		end
+		if not exists then streams[#streams + 1] = name end
 	end
 
 	function panel:RemoveStream(name)
@@ -134,34 +146,87 @@ function DataPanel.Create(id)
 			end
 		end
 		self:Refresh()
+
+		local streams = self.info.streams
+		for i, s in ipairs(streams) do
+			if s == name then
+				table.remove(streams, i)
+				break
+			end
+		end
 	end
 
 	panels[id] = panel
 	return panel
 end
 
+function DataPanel.List()
+	addon.db = addon.db or {}
+	addon.db.dataPanels = addon.db.dataPanels or {}
+	local result = {}
+	for id, info in pairs(addon.db.dataPanels) do
+		result[id] = {}
+		if info.streams then
+			for _, stream in ipairs(info.streams) do
+				result[id][#result[id] + 1] = stream
+			end
+		end
+	end
+	for id, panel in pairs(panels) do
+		local list = result[id]
+		if not list then
+			list = {}
+			result[id] = list
+		end
+		for _, stream in ipairs(panel.order) do
+			local exists = false
+			for _, s in ipairs(list) do
+				if s == stream then
+					exists = true
+					break
+				end
+			end
+			if not exists then list[#list + 1] = stream end
+		end
+	end
+	return result
+end
+
+function DataPanel.Delete(id)
+	local panel = panels[id]
+	if panel then
+		for i = #panel.order, 1, -1 do
+			panel:RemoveStream(panel.order[i])
+		end
+		panel.frame:Hide()
+		panel.frame:SetParent(nil)
+		panels[id] = nil
+	end
+	if addon.db and addon.db.dataPanels then addon.db.dataPanels[id] = nil end
+end
+
 function DataPanel.SlashHandler(msg)
-        local cmd, rest = msg:match("^(%S*)%s*(.-)$")
-        if cmd == "create" then
-                local id, w, h = rest:match("^(%S+)%s*(%d*)%s*(%d*)")
-                if id then
-                        local panel = DataPanel.Create(id)
-                        if w ~= "" and h ~= "" then panel.frame:SetSize(tonumber(w), tonumber(h)) end
-                end
-        elseif cmd == "add" then
-                local id, stream = rest:match("^(%S+)%s+(%S+)$")
-                if id and stream then
-                        local panel = DataPanel.Create(id)
-                        panel:AddStream(stream)
-                end
-        elseif cmd == "remove" then
-                local id, stream = rest:match("^(%S+)%s+(%S+)$")
-                if id and stream and panels[id] then panels[id]:RemoveStream(stream) end
-        else
-                print("/eqolpanel create <id> [width] [height]")
-                print("/eqolpanel add <id> <stream>")
-                print("/eqolpanel remove <id> <stream>")
-        end
+	local cmd, rest = msg:match("^(%S*)%s*(.-)$")
+	if cmd == "create" then
+		local id, w, h = rest:match("^(%S+)%s*(%d*)%s*(%d*)")
+		if id then
+			local panel = DataPanel.Create(id)
+			if w ~= "" and h ~= "" then panel.frame:SetSize(tonumber(w), tonumber(h)) end
+		end
+	elseif cmd == "add" then
+		local id, stream = rest:match("^(%S+)%s+(%S+)$")
+		if id and stream then
+			local panel = DataPanel.Create(id)
+			panel:AddStream(stream)
+		end
+	elseif cmd == "remove" then
+		local id, stream = rest:match("^(%S+)%s+(%S+)$")
+		if id and stream and panels[id] then panels[id]:RemoveStream(stream) end
+	else
+		print("/eqolpanel create <id> [width] [height]")
+		print("/eqolpanel add <id> <stream>")
+		print("/eqolpanel remove <id> <stream>")
+	end
 end
 
 return DataPanel
