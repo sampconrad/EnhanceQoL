@@ -58,41 +58,64 @@ function DataPanel.Create(id)
 	})
 	frame:SetBackdropColor(0, 0, 0, 0.5)
 
-	local text = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	text:SetAllPoints()
-	text:SetJustifyH("LEFT")
-	text:SetWordWrap(true)
-	frame.text = text
-
-	local panel = { frame = frame, id = id, streams = {}, text = text }
+	local panel = { frame = frame, id = id, streams = {}, order = {} }
 
 	function panel:Refresh()
-		local parts = {}
-		for _, data in pairs(self.streams) do
-			parts[#parts + 1] = data.text
+		local prev
+		for _, name in ipairs(self.order) do
+			local data = self.streams[name]
+			local btn = data.button
+			btn:ClearAllPoints()
+			btn:SetWidth(data.text:GetStringWidth())
+			if prev then
+				btn:SetPoint("LEFT", prev, "RIGHT", 5, 0)
+			else
+				btn:SetPoint("LEFT", self.frame, "LEFT", 5, 0)
+			end
+			prev = btn
 		end
-		self.text:SetText(table.concat(parts, " "))
 	end
 
 	function panel:AddStream(name)
 		if self.streams[name] then return end
-		local data = { text = "" }
-		local function cb(snapshot)
-			local rows = {}
-			for _, row in ipairs(snapshot or {}) do
-				if type(row) == "table" then
-					local cols = {}
-					for _, v in pairs(row) do
-						if type(v) ~= "table" then cols[#cols + 1] = tostring(v) end
-					end
-					rows[#rows + 1] = table.concat(cols, " ")
-				else
-					rows[#rows + 1] = tostring(row)
-				end
+		local button = CreateFrame("Button", nil, self.frame)
+		button:SetHeight(self.frame:GetHeight())
+		local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		text:SetAllPoints()
+		text:SetJustifyH("LEFT")
+		local data = { button = button, text = text }
+		button.slot = data
+		button:SetScript("OnEnter", function(b)
+			local s = b.slot
+			if s.tooltip then
+				GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
+				GameTooltip:SetText(s.tooltip)
+				GameTooltip:Show()
 			end
-			data.text = table.concat(rows, " | ")
+			if s.OnMouseEnter then s.OnMouseEnter(b) end
+		end)
+		button:SetScript("OnLeave", function(b)
+			local s = b.slot
+			if s.OnMouseLeave then s.OnMouseLeave(b) end
+			GameTooltip:Hide()
+		end)
+		button:SetScript("OnClick", function(b, ...)
+			local s = b.slot
+			if s.OnClick then s.OnClick(b, ...) end
+		end)
+
+		self.order[#self.order + 1] = name
+
+		local function cb(payload)
+			payload = payload or {}
+			data.text:SetText(payload.text or "")
+			data.tooltip = payload.tooltip
+			data.OnMouseEnter = payload.OnMouseEnter
+			data.OnMouseLeave = payload.OnMouseLeave
+			data.OnClick = payload.OnClick
 			self:Refresh()
 		end
+
 		data.unsub = DataHub:Subscribe(name, cb)
 		self.streams[name] = data
 	end
@@ -101,7 +124,15 @@ function DataPanel.Create(id)
 		local info = self.streams[name]
 		if not info then return end
 		if info.unsub then info.unsub() end
+		info.button:Hide()
+		info.button:SetParent(nil)
 		self.streams[name] = nil
+		for i, n in ipairs(self.order) do
+			if n == name then
+				table.remove(self.order, i)
+				break
+			end
+		end
 		self:Refresh()
 	end
 

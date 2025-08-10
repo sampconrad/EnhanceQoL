@@ -96,10 +96,10 @@ function DataHub:RegisterStream(name, opts)
 		if type(p) == "number" then
 			opts.interval = opts.interval or p
 		elseif type(p) == "table" then
-			opts.interval    = opts.interval    or p.interval
-			opts.events      = opts.events      or p.events
+			opts.interval = opts.interval or p.interval
+			opts.events = opts.events or p.events
 			opts.throttleKey = opts.throttleKey or p.throttleKey
-			opts.throttle    = opts.throttle    or p.throttleDelay or p.delay
+			opts.throttle = opts.throttle or p.throttleDelay or p.delay
 		end
 		-- wrap collect into update if present
 		if not opts.update and type(provider.collect) == "function" then
@@ -208,6 +208,22 @@ function DataHub:RequestUpdate(name, throttleKey)
 		stream.pending = nil
 		runUpdate(stream)
 	end)
+end
+
+function DataHub:Publish(name, payload)
+	local stream = type(name) == "table" and name or self.streams[name]
+	if not stream or not stream.subscribers then return end
+	local key = stream.throttleKey or stream.name
+	local timer = self.throttleTimers[key]
+	if timer then
+		timer:Cancel()
+		self.throttleTimers[key] = nil
+	end
+	stream.pending = nil
+	stream.snapshot = payload
+	for cb in pairs(stream.subscribers) do
+		pcall(cb, payload, stream.name)
+	end
 end
 
 function DataHub:AcquireRow(name)
