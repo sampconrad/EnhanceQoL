@@ -51,6 +51,20 @@ end
 local frame = CreateFrame("Frame")
 addon.CombatMeter.frame = frame
 
+local dmgIdx = {
+	SWING_DAMAGE = 1,
+	RANGE_DAMAGE = 4,
+	SPELL_DAMAGE = 4,
+	SPELL_PERIODIC_DAMAGE = 4,
+	DAMAGE_SHIELD = 4,
+	DAMAGE_SPLIT = 4,
+	ENVIRONMENTAL_DAMAGE = 2,
+}
+local healIdx = {
+	SPELL_HEAL = { 4, 5 },
+	SPELL_PERIODIC_HEAL = { 4, 5 },
+}
+
 local function handleEvent(self, event, ...)
 	if event == "PLAYER_REGEN_DISABLED" or event == "ENCOUNTER_START" then
 		addon.CombatMeter.inCombat = true
@@ -74,21 +88,8 @@ local function handleEvent(self, event, ...)
 	elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
 		if not addon.CombatMeter.inCombat then return end
 		local _, subevent, _, sourceGUID, sourceName, sourceFlags, _, _, _, _, _, a12, a13, a14, a15, a16, a17, a18, a19, a20 = CombatLogGetCurrentEventInfo()
+		if not dmgIdx[subevent] and not healIdx[subevent] and not subevent == "SPELL_ABSORBED" then return end
 		if not sourceGUID or bit_band(sourceFlags or 0, groupMask) == 0 then return end
-
-		local dmgIdx = {
-			SWING_DAMAGE = 1,
-			RANGE_DAMAGE = 4,
-			SPELL_DAMAGE = 4,
-			SPELL_PERIODIC_DAMAGE = 4,
-			DAMAGE_SHIELD = 4,
-			DAMAGE_SPLIT = 4,
-			ENVIRONMENTAL_DAMAGE = 2,
-		}
-		local healIdx = {
-			SPELL_HEAL = { 4, 5 },
-			SPELL_PERIODIC_HEAL = { 4, 5 },
-		}
 
 		local idx = dmgIdx[subevent]
 		if idx then
