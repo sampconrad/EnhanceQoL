@@ -134,7 +134,7 @@ local function createGroupFrame(groupConfig)
 			bar:SetPoint("TOPLEFT", frame, "TOPLEFT", barHeight + 2, -(16 + (index - 1) * barHeight))
 			bar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -(16 + (index - 1) * barHeight))
 
-			bar.icon = frame:CreateTexture(nil, "ARTWORK")
+			bar.icon = bar:CreateTexture(nil, "ARTWORK")
 			bar.icon:SetSize(barHeight, barHeight)
 			bar.icon:SetPoint("RIGHT", bar, "LEFT", -2, 0)
 
