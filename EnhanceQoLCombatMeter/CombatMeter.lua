@@ -107,6 +107,23 @@ local function handleEvent(self, event, ...)
 				player.healing = player.healing + amount
 				overall.healing = overall.healing + amount
 			end
+		elseif subevent == "SPELL_ABSORBED" then
+			-- Count absorbed damage as effective healing for the absorber (shield caster).
+			-- SPELL_ABSORBED has variable arg layouts; the last 8 fields are stable:
+			-- absorberGUID, absorberName, absorberFlags, absorberRaidFlags,
+			-- absorbingSpellID, absorbingSpellName, absorbingSpellSchool, absorbedAmount
+			local data = { CombatLogGetCurrentEventInfo() }
+			local n = #data
+			local absorberGUID = data[n - 7]
+			local absorberName = data[n - 6]
+			local absorberFlags = data[n - 5]
+			local absorbedAmount = tonumber(data[n]) or 0
+			if absorbedAmount > 0 and absorberGUID and bit_band(absorberFlags or 0, groupMask) ~= 0 then
+				local p = acquirePlayer(addon.CombatMeter.players, absorberGUID, absorberName)
+				local o = acquirePlayer(addon.CombatMeter.overallPlayers, absorberGUID, absorberName)
+				p.healing = p.healing + absorbedAmount
+				o.healing = o.healing + absorbedAmount
+			end
 		end
 	end
 end
