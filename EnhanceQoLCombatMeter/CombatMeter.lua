@@ -70,19 +70,10 @@ local healIdx = {
 	SPELL_PERIODIC_HEAL = { 4, 5 },
 }
 
-local missAbsorbIdx = {
-	SWING_MISSED = { 1, 3 },
-	RANGE_MISSED = { 4, 6 },
-	SPELL_MISSED = { 4, 6 },
-	SPELL_PERIODIC_MISSED = { 4, 5 },
-	DAMAGE_SHIELD_MISSED = { 4, 5 },
-	DAMAGE_SPLIT_MISSED = { 4, 5 },
-}
-
 local function handleCLEU(timestamp, subevent, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, ...)
 	local argc = select("#", ...)
-	local missIdx = missAbsorbIdx[subevent]
-	if not (dmgIdx[subevent] or healIdx[subevent] or missIdx or subevent == "SPELL_ABSORBED") then return end
+	-- Note: We intentionally ignore *_MISSED ABSORB to avoid double-counting with SPELL_ABSORBED (matches Details behavior)
+	if not (dmgIdx[subevent] or healIdx[subevent] or subevent == "SPELL_ABSORBED") then return end
 
 	local idx = dmgIdx[subevent]
 	if idx then
@@ -108,28 +99,14 @@ local function handleCLEU(timestamp, subevent, hideCaster, sourceGUID, sourceNam
 		return
 	end
 
-	if missIdx then
-		local missType = select(missIdx[1], ...)
-		if missType ~= "ABSORB" then return end
-		if not destGUID or band(destFlags or 0, groupMask) == 0 then return end
-		local amount = select(missIdx[2], ...)
-		if not amount or amount <= 0 then return end
-		local info = lastAbsorbSourceByDest[destGUID]
-		local healGUID, healName = (info and info.guid) or destGUID, (info and info.name) or destName
-		local p = acquirePlayer(cm.players, healGUID, healName)
-		local o = acquirePlayer(cm.overallPlayers, healGUID, healName)
-		p.healing = p.healing + amount
-		o.healing = o.healing + amount
-		return
-	end
-
+	-- We count absorbs exclusively via SPELL_ABSORBED. Some clients also emit *_MISSED with ABSORB for the same event; counting both leads to double credits.
 	if subevent == "SPELL_ABSORBED" then
 		-- SPELL_ABSORBED tail layout has **9** stable fields:
 		-- absorberGUID, absorberName, absorberFlags, absorberRaidFlags,
 		-- absorbingSpellID, absorbingSpellName, absorbingSpellSchool,
 		-- absorbedAmount, absorbedCritical
 		local start = argc - 8
-		local absorberGUID, absorberName, absorberFlags, _, _, _, _, absorbedAmount, absorbedCritical = select(start, ...)
+		local absorberGUID, absorberName, absorberFlags, _, spellName, _, _, absorbedAmount, absorbedCritical = select(start, ...)
 		if not absorberGUID or type(absorberFlags) ~= "number" or band(absorberFlags, groupMask) == 0 then return end
 		lastAbsorbSourceByDest[destGUID] = { guid = absorberGUID, name = absorberName }
 		if not absorbedAmount or absorbedAmount <= 0 then return end
