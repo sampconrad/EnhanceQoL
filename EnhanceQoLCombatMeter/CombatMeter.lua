@@ -15,6 +15,10 @@ addon.CombatMeter.overallPlayers = addon.CombatMeter.overallPlayers or {}
 addon.CombatMeter.playerPool = addon.CombatMeter.playerPool or {}
 addon.CombatMeter.overallDuration = addon.CombatMeter.overallDuration or 0
 
+local bit_band = bit.band
+local bit_bor = bit.bor
+local groupMask = bit_bor(COMBATLOG_OBJECT_AFFILIATION_MINE, COMBATLOG_OBJECT_AFFILIATION_PARTY, COMBATLOG_OBJECT_AFFILIATION_RAID)
+
 local function acquirePlayer(tbl, guid, name)
 	local players = tbl
 	local player = players[guid]
@@ -56,10 +60,20 @@ local function handleEvent(self, event, ...)
 		addon.CombatMeter.inCombat = false
 		addon.CombatMeter.fightDuration = GetTime() - addon.CombatMeter.fightStartTime
 		addon.CombatMeter.overallDuration = addon.CombatMeter.overallDuration + addon.CombatMeter.fightDuration
-		releasePlayers(addon.CombatMeter.players)
+		local fight = { duration = addon.CombatMeter.fightDuration, players = {} }
+		for guid, data in pairs(addon.CombatMeter.players) do
+			fight.players[guid] = {
+				guid = guid,
+				name = data.name,
+				damage = data.damage,
+				healing = data.healing,
+			}
+		end
+		table.insert(addon.db["combatMeterHistory"], 1, fight)
 	elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-		local _, subevent, _, sourceGUID, sourceName, _, _, _, _, _, _, arg12, _, _, arg15 = CombatLogGetCurrentEventInfo()
-		if not sourceGUID then return end
+		if not addon.CombatMeter.inCombat then return end
+		local _, subevent, _, sourceGUID, sourceName, sourceFlags, _, _, _, _, _, arg12, _, _, arg15 = CombatLogGetCurrentEventInfo()
+		if not sourceGUID or bit_band(sourceFlags, groupMask) == 0 then return end
 		local player = acquirePlayer(addon.CombatMeter.players, sourceGUID, sourceName)
 		local overall = acquirePlayer(addon.CombatMeter.overallPlayers, sourceGUID, sourceName)
 
