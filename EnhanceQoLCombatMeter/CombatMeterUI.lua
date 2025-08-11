@@ -9,6 +9,7 @@ end
 local config = addon.db
 local bars = {}
 local barHeight = 20
+local specIcons = {}
 
 local frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 addon.CombatMeter.uiFrame = frame
@@ -110,25 +111,28 @@ local function UpdateBars()
 	end
 	if duration <= 0 then duration = 1 end
 
-	local groupGUID = {}
+	local groupUnits = {}
 	if IsInRaid() then
 		for i = 1, GetNumGroupMembers() do
-			local guid = UnitGUID("raid" .. i)
-			if guid then groupGUID[guid] = true end
+			local unit = "raid" .. i
+			local guid = UnitGUID(unit)
+			if guid then groupUnits[guid] = unit end
 		end
 	else
 		for i = 1, GetNumGroupMembers() do
-			local guid = UnitGUID("party" .. i)
-			if guid then groupGUID[guid] = true end
+			local unit = "party" .. i
+			local guid = UnitGUID(unit)
+			if guid then groupUnits[guid] = unit end
 		end
 		local playerGUID = UnitGUID("player")
-		if playerGUID then groupGUID[playerGUID] = true end
+		if playerGUID then groupUnits[playerGUID] = "player" end
 	end
 
 	local list = {}
 	local maxValue = 0
 	for guid, data in pairs(addon.CombatMeter.players) do
-		if groupGUID[guid] then
+		local unit = groupUnits[guid]
+		if unit then
 			data.dps = data.damage / duration
 			data.hps = data.healing / duration
 			table.insert(list, data)
@@ -148,9 +152,17 @@ local function UpdateBars()
 		local _, _, class, _, _, classFile = GetPlayerInfoByGUID(p.guid)
 		local color = RAID_CLASS_COLORS[classFile] or NORMAL_FONT_COLOR
 		bar:SetStatusBarColor(color.r, color.g, color.b)
-		bar.icon:SetTexture("Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES")
-		local coords = CLASS_ICON_TCOORDS[classFile]
-		if coords then bar.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4]) end
+
+		local unit = groupUnits[p.guid]
+		local icon = specIcons[p.guid]
+		if not icon and unit then
+			local specID = GetInspectSpecialization(unit)
+			if specID and specID > 0 then
+				icon = select(4, GetSpecializationInfoByID(specID))
+				specIcons[p.guid] = icon
+			end
+		end
+		bar.icon:SetTexture(icon)
 
 		bar.name:SetText(abbreviateName(p.name))
 		bar.damage:SetText(BreakUpLargeNumbers(math.floor(p.dps)))
