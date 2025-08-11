@@ -16,6 +16,7 @@ frame:SetSize(220, barHeight)
 frame:SetMovable(true)
 frame:EnableMouse(true)
 frame:Hide()
+local ticker
 
 local dragHandle = CreateFrame("Frame", nil, frame, "BackdropTemplate")
 dragHandle:SetHeight(16)
@@ -76,12 +77,20 @@ local function abbreviateName(name)
 	return name
 end
 
-local function updateBars()
+local function UpdateBars()
 	if not (addon.CombatMeter.inCombat or config["combatMeterAlwaysShow"]) then
 		frame:Hide()
 		return
 	end
 	frame:Show()
+
+	local duration
+	if addon.CombatMeter.inCombat then
+		duration = GetTime() - addon.CombatMeter.fightStartTime
+	else
+		duration = addon.CombatMeter.fightDuration
+	end
+	if duration <= 0 then duration = 1 end
 
 	local groupGUID = {}
 	if IsInRaid() then
@@ -99,23 +108,24 @@ local function updateBars()
 	end
 
 	local list = {}
-	for guid, data in pairs(addon.CombatMeter.players) do
-		if groupGUID[guid] then table.insert(list, data) end
-	end
-	table.sort(list, function(a, b) return math.max(a.damage, a.healing) > math.max(b.damage, b.healing) end)
-
 	local maxValue = 0
-	for _, p in ipairs(list) do
-		local value = math.max(p.damage, p.healing)
-		if value > maxValue then maxValue = value end
+	for guid, data in pairs(addon.CombatMeter.players) do
+		if groupGUID[guid] then
+			data.dps = data.damage / duration
+			data.hps = data.healing / duration
+			table.insert(list, data)
+			local value = math.max(data.dps, data.hps)
+			if value > maxValue then maxValue = value end
+		end
 	end
 	if maxValue == 0 then maxValue = 1 end
+	table.sort(list, function(a, b) return math.max(a.dps, a.hps) > math.max(b.dps, b.hps) end)
 
 	for i, p in ipairs(list) do
 		local bar = getBar(i)
 		bar:Show()
 		bar:SetMinMaxValues(0, maxValue)
-		bar:SetValue(math.max(p.damage, p.healing))
+		bar:SetValue(math.max(p.dps, p.hps))
 
 		local _, _, class, _, _, classFile = GetPlayerInfoByGUID(p.guid)
 		local color = RAID_CLASS_COLORS[classFile] or NORMAL_FONT_COLOR
@@ -125,8 +135,8 @@ local function updateBars()
 		if coords then bar.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4]) end
 
 		bar.name:SetText(abbreviateName(p.name))
-		bar.damage:SetText(BreakUpLargeNumbers(p.damage))
-		bar.healing:SetText(BreakUpLargeNumbers(p.healing))
+		bar.damage:SetText(BreakUpLargeNumbers(math.floor(p.dps)))
+		bar.healing:SetText(BreakUpLargeNumbers(math.floor(p.hps)))
 	end
 
 	for i = #list + 1, #bars do
@@ -136,11 +146,20 @@ local function updateBars()
 	frame:SetHeight(16 + #list * barHeight)
 end
 
-local elapsed = 0
-frame:SetScript("OnUpdate", function(self, dt)
-	elapsed = elapsed + dt
-	if elapsed > 0.5 then
-		elapsed = 0
-		updateBars()
+frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+frame:RegisterEvent("ENCOUNTER_START")
+frame:RegisterEvent("ENCOUNTER_END")
+frame:SetScript("OnEvent", function(self, event)
+	if event == "PLAYER_REGEN_DISABLED" or event == "ENCOUNTER_START" then
+		if ticker then ticker:Cancel() end
+		ticker = C_Timer.NewTicker(config["combatMeterUpdateRate"], UpdateBars)
+		C_Timer.After(0, UpdateBars)
+	else
+		if ticker then
+			ticker:Cancel()
+			ticker = nil
+		end
+		C_Timer.After(0, UpdateBars)
 	end
 end)
