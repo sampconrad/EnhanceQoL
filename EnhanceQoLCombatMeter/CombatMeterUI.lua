@@ -11,6 +11,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_CombatMeter")
 local config = addon.db
 local barHeight = 30
 local specIcons = {}
+local pendingInspect = {}
 local groupFrames = {}
 local ticker
 
@@ -200,13 +201,17 @@ local function createGroupFrame(groupConfig)
 			bar:SetStatusBarColor(color.r, color.g, color.b)
 
 			local unit = groupUnits[p.guid]
-			print(unit)
 			local icon = specIcons[p.guid]
 			if not icon and unit then
-				local specID = GetInspectSpecialization(unit)
-				if specID and specID > 0 then
-					icon = select(4, GetSpecializationInfoByID(specID))
-					specIcons[p.guid] = icon
+				if unit == "player" then
+					local specIndex = GetSpecialization()
+					if specIndex then
+						icon = select(4, GetSpecializationInfo(specIndex))
+						specIcons[p.guid] = icon
+					end
+				elseif not pendingInspect[p.guid] then
+					NotifyInspect(unit)
+					pendingInspect[p.guid] = true
 				end
 			end
 			bar.icon:SetTexture(icon)
@@ -272,12 +277,36 @@ addon.CombatMeter.functions.UpdateBars = UpdateAllFrames
 local controller = CreateFrame("Frame")
 addon.CombatMeter.uiFrame = controller
 
-controller:SetScript("OnEvent", function(self, event)
+controller:SetScript("OnEvent", function(self, event, ...)
 	if event == "PLAYER_REGEN_DISABLED" or event == "ENCOUNTER_START" then
 		if ticker then ticker:Cancel() end
 		ticker = C_Timer.NewTicker(config["combatMeterUpdateRate"], UpdateAllFrames)
 		addon.CombatMeter.ticker = ticker
 		C_Timer.After(0, UpdateAllFrames)
+	elseif event == "INSPECT_READY" then
+		local guid = ...
+		local groupUnits = buildGroupUnits()
+		local unit = groupUnits[guid]
+		if unit then
+			local specID = GetInspectSpecialization(unit)
+			if specID and specID > 0 then specIcons[guid] = select(4, GetSpecializationInfoByID(specID)) end
+			pendingInspect[guid] = nil
+			UpdateAllFrames()
+		end
+	elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
+		local unit = ...
+		local guid = UnitGUID(unit)
+		if guid then
+			specIcons[guid] = nil
+			pendingInspect[guid] = nil
+			if unit == "player" then
+				local specIndex = GetSpecialization()
+				if specIndex then specIcons[guid] = select(4, GetSpecializationInfo(specIndex)) end
+				UpdateAllFrames()
+			else
+				NotifyInspect(unit)
+			end
+		end
 	else
 		if ticker then
 			ticker:Cancel()

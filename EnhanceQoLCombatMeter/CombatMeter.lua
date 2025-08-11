@@ -142,6 +142,8 @@ function addon.CombatMeter.functions.toggle(enabled)
 			addon.CombatMeter.uiFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 			addon.CombatMeter.uiFrame:RegisterEvent("ENCOUNTER_START")
 			addon.CombatMeter.uiFrame:RegisterEvent("ENCOUNTER_END")
+			addon.CombatMeter.uiFrame:RegisterEvent("INSPECT_READY")
+			addon.CombatMeter.uiFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 		end
 	else
 		frame:UnregisterAllEvents()
