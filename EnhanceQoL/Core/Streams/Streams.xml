@@ -4,5 +4,6 @@
 	<Script file="Stream_Durability.lua"/>
 	<Script file="Stream_Friends.lua"/>
 	<Script file="Stream_Gold.lua"/>
+	<Script file="Stream_Stats.lua"/>
 	<Script file="Stream_Talentbuilt.lua"/>
 </Ui>
