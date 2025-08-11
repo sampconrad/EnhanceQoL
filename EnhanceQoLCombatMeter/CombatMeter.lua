@@ -21,6 +21,8 @@ cm.overallDuration = cm.overallDuration or 0
 
 local groupMask = bor(COMBATLOG_OBJECT_AFFILIATION_MINE, COMBATLOG_OBJECT_AFFILIATION_PARTY, COMBATLOG_OBJECT_AFFILIATION_RAID)
 
+local lastAbsorbSourceByDest = {}
+
 local function acquirePlayer(tbl, guid, name)
 	local players = tbl
 	local player = players[guid]
@@ -67,11 +69,21 @@ local healIdx = {
 	SPELL_PERIODIC_HEAL = { 4, 5 },
 }
 
+local missAbsorbIdx = {
+	SWING_MISSED = { 1, 3 },
+	RANGE_MISSED = { 4, 6 },
+	SPELL_MISSED = { 4, 6 },
+	SPELL_PERIODIC_MISSED = { 4, 5 },
+	DAMAGE_SHIELD_MISSED = { 4, 5 },
+	DAMAGE_SPLIT_MISSED = { 4, 5 },
+}
+
 local function handleEvent(self, event, ...)
 	if event == "PLAYER_REGEN_DISABLED" or event == "ENCOUNTER_START" then
 		cm.inCombat = true
 		cm.fightStartTime = GetTime()
 		releasePlayers(cm.players)
+		wipe(lastAbsorbSourceByDest)
 	elseif event == "PLAYER_REGEN_ENABLED" or event == "ENCOUNTER_END" then
 		cm.inCombat = false
 		cm.fightDuration = GetTime() - cm.fightStartTime
@@ -97,9 +109,10 @@ local function handleEvent(self, event, ...)
 		local sourceGUID = a4
 		local sourceName = a5
 		local sourceFlags = a6
-		if not (dmgIdx[subevent] or healIdx[subevent] or subevent == "SPELL_ABSORBED") then return end
-		-- (wenn du später *_MISSED ABSORB zählst, hier die MISSED-Events ergänzen)
-		if not sourceGUID or bit_band(sourceFlags or 0, groupMask) == 0 then return end
+		local destGUID = a8
+		local missIdx = missAbsorbIdx[subevent]
+		if not (dmgIdx[subevent] or healIdx[subevent] or missIdx or subevent == "SPELL_ABSORBED") then return end
+		if not missIdx and (not sourceGUID or band(sourceFlags or 0, groupMask) == 0) then return end
 
 		local idx = dmgIdx[subevent]
 		if idx then
@@ -123,6 +136,20 @@ local function handleEvent(self, event, ...)
 			return
 		end
 
+		if missIdx then
+			local missType = select(missIdx[1], a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25)
+			if missType ~= "ABSORB" then return end
+			local amount = select(missIdx[2], a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25)
+			if not amount or amount <= 0 then return end
+			local absorberGUID = lastAbsorbSourceByDest[destGUID]
+			if not absorberGUID then return end
+			local p = acquirePlayer(cm.players, absorberGUID)
+			local o = acquirePlayer(cm.overallPlayers, absorberGUID)
+			p.healing = p.healing + amount
+			o.healing = o.healing + amount
+			return
+		end
+
 		if subevent == "SPELL_ABSORBED" then
 			-- Count absorbed damage as effective healing for the absorber (shield caster).
 			-- SPELL_ABSORBED has variable arg layouts; the last 8 fields are stable:
@@ -134,11 +161,14 @@ local function handleEvent(self, event, ...)
 			local absorberName = select(n - 6, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25)
 			local absorberFlags = select(n - 5, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25)
 			local absorbedAmount = select(n, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25) or 0
-			if absorbedAmount > 0 and absorberGUID and band(absorberFlags or 0, groupMask) ~= 0 then
-				local p = acquirePlayer(cm.players, absorberGUID, absorberName)
-				local o = acquirePlayer(cm.overallPlayers, absorberGUID, absorberName)
-				p.healing = p.healing + absorbedAmount
-				o.healing = o.healing + absorbedAmount
+			if absorberGUID and band(absorberFlags or 0, groupMask) ~= 0 then
+				lastAbsorbSourceByDest[destGUID] = absorberGUID
+				if absorbedAmount > 0 then
+					local p = acquirePlayer(cm.players, absorberGUID, absorberName)
+					local o = acquirePlayer(cm.overallPlayers, absorberGUID, absorberName)
+					p.healing = p.healing + absorbedAmount
+					o.healing = o.healing + absorbedAmount
+				end
 			end
 		end
 	end
