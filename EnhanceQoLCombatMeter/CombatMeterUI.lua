@@ -16,6 +16,7 @@ local specIcons = {}
 local pendingInspect = {}
 local groupFrames = {}
 local groupUnitsCached = {}
+local classByGUID = {}
 local ticker
 
 -- font helpers ---------------------------------------------------------------
@@ -358,9 +359,17 @@ local function createGroupFrame(groupConfig)
 			end
 			bar:SetValue(p.value)
 
-			local _, class = GetPlayerInfoByGUID(p.guid)
-			local color = RAID_CLASS_COLORS[class] or NORMAL_FONT_COLOR
-			bar:SetStatusBarColor(color.r, color.g, color.b)
+			local class = classByGUID[p.guid]
+			if class == nil then
+				local _, c = GetPlayerInfoByGUID(p.guid)
+				class = c or ""
+				classByGUID[p.guid] = class
+			end
+			if bar._class ~= class then
+				local color = RAID_CLASS_COLORS[class] or NORMAL_FONT_COLOR
+				bar:SetStatusBarColor(color.r, color.g, color.b)
+				bar._class = class
+			end
 
 			local unit = groupUnits[p.guid]
 			local icon = specIcons[p.guid]
