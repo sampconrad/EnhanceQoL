@@ -174,6 +174,16 @@ function DataPanel.Create(id, name)
 					self:Refresh()
 				end
 			end
+			if payload.fontSize and data.fontSize ~= payload.fontSize then
+				local font = (addon.variables and addon.variables.defaultFont) or select(1, data.text:GetFont())
+				data.text:SetFont(font, payload.fontSize, "OUTLINE")
+				data.fontSize = payload.fontSize
+				local width = data.text:GetStringWidth()
+				if width ~= data.lastWidth then
+					data.lastWidth = width
+					self:Refresh()
+				end
+			end
 			data.tooltip = payload.tooltip
 			data.OnMouseEnter = payload.OnMouseEnter
 			data.OnMouseLeave = payload.OnMouseLeave
