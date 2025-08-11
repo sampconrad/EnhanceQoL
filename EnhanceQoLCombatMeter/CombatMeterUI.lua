@@ -444,6 +444,15 @@ controller:SetScript("OnEvent", function(self, event, ...)
 				NotifyInspect(unit)
 			end
 		end
+	elseif event == "GROUP_ROSTER_UPDATE" then
+		local groupUnits = buildGroupUnits()
+		for guid in pairs(specIcons) do
+			if not groupUnits[guid] then
+				specIcons[guid] = nil
+				pendingInspect[guid] = nil
+			end
+		end
+		C_Timer.After(0, UpdateAllFrames)
 	else
 		if ticker then
 			ticker:Cancel()
