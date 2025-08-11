@@ -5,20 +5,18 @@
 ### ✨ Added
 
 - Introduced the DataPanel system backed by a DataHub for sharing module data.
-- Documentation for creating external streams.
+  - Create your own movable DataPanels and add data streams for more information.
+  - Right-click a data stream to access additional options.
 
-### 📊 Built-In Streams
+### 📊 Built-in data streams
 
-- **Difficulty** – displays the current encounter or instance difficulty.
-- **Durability** – tracks average durability of equipped items.
+- **Difficulty** – displays the current instance or raid difficulty.
+- **Durability** – tracks average equipment durability.
+  - Mouseover to see a per-slot breakdown.
 - **Friends** – shows the number of online friends.
-- **Gold** – monitors character and account-wide gold totals.
-- **Stats** – summarises key player stats.
+- **Gold** – monitors character gold.
+- **Stats** – summarizes key player stats.
 - **Talent Build** – shows the active talent loadout.
-
-### ❌ Removed
-
-- Deprecated `/eqolpanel` slash command; panels are configured through the main interface.
 
 ---
 
