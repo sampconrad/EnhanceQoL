@@ -2,7 +2,7 @@ local parentAddonName = "EnhanceQoL"
 local addonName, addon = ...
 if _G[parentAddonName] then
 	addon = _G[parentAddonName]
-	else
+else
 	error(parentAddonName .. " is not loaded")
 end
 
@@ -19,6 +19,7 @@ local groupUnitsCached = {}
 local classByGUID = {}
 local shortNameCache = {}
 local ticker
+local tinsert, tsort = table.insert, table.sort
 
 -- font helpers ---------------------------------------------------------------
 local function getOutlineFlags()
@@ -252,7 +253,7 @@ local function createGroupFrame(groupConfig)
 				if groupUnits[guid] then
 					local total = (self.metric == "damageOverall") and (p.damage or 0) or (p.healing or 0)
 					local value = total / dur -- rate over total tracked time
-					table.insert(list, { guid = guid, name = p.name, value = value, total = total })
+					tinsert(list, { guid = guid, name = p.name, value = value, total = total })
 					if value > maxValue then maxValue = value end
 				end
 			end
@@ -275,14 +276,14 @@ local function createGroupFrame(groupConfig)
 						value = data.healing / duration
 						total = data.healing
 					end
-					table.insert(list, { guid = guid, name = data.name, value = value, total = total })
+					tinsert(list, { guid = guid, name = data.name, value = value, total = total })
 					if value > maxValue then maxValue = value end
 				end
 			end
 		end
 
 		if maxValue == 0 then maxValue = 1 end
-		table.sort(list, function(a, b) return a.value > b.value end)
+		tsort(list, function(a, b) return a.value > b.value end)
 		local maxBars = groupConfig.maxBars or DEFAULT_MAX_BARS
 		local playerGUID = UnitGUID("player")
 		if groupConfig.alwaysShowSelf then
@@ -330,7 +331,7 @@ local function createGroupFrame(groupConfig)
 					end
 				end
 				if value > maxValue then maxValue = value end
-				table.insert(list, { guid = playerGUID, name = name, value = value, total = total })
+				tinsert(list, { guid = playerGUID, name = name, value = value, total = total })
 			end
 			if #list > maxBars then
 				local playerIndex
@@ -568,7 +569,7 @@ local function rebuildGroups()
 		if not cfg.barHeight then cfg.barHeight = DEFAULT_BAR_HEIGHT end
 		if not cfg.maxBars then cfg.maxBars = DEFAULT_MAX_BARS end
 		local frame = createGroupFrame(cfg)
-		table.insert(groupFrames, frame)
+		tinsert(groupFrames, frame)
 	end
 	UpdateAllFrames()
 end
