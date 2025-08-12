@@ -109,9 +109,10 @@ local function createGroupFrame(groupConfig)
 	local barWidth = groupConfig.barWidth or DEFAULT_BAR_WIDTH
 	local frameWidth = barWidth + barHeight + 2
 
-	local frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-	frame:SetSize(frameWidth, barHeight)
-	frame:SetMovable(true)
+        local frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+        frame:SetSize(frameWidth, barHeight)
+        frame._h = barHeight
+        frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:SetClampedToScreen(true)
 	frame:Hide()
@@ -467,12 +468,16 @@ local function createGroupFrame(groupConfig)
 			end
 		end
 
-		for i = displayCount + 1, #self.bars do
-			self.bars[i]:Hide()
-		end
+                for i = displayCount + 1, #self.bars do
+                        self.bars[i]:Hide()
+                end
 
-		self:SetHeight(16 + displayCount * barHeight)
-	end
+                local newHeight = 16 + displayCount * barHeight
+                if self._h ~= newHeight then
+                        self:SetHeight(newHeight)
+                        self._h = newHeight
+                end
+        end
 
 	return frame
 end
