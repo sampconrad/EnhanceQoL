@@ -109,67 +109,9 @@ local dmgIdx = {
 	ENVIRONMENTAL_DAMAGE = 2,
 }
 local healIdx = {
-	SPELL_HEAL = { 4, 5 },
-	SPELL_PERIODIC_HEAL = { 4, 5 },
+        SPELL_HEAL = { 4, 5 },
+        SPELL_PERIODIC_HEAL = { 4, 5 },
 }
-
-local function handleCLEU(timestamp, subevent, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, ...)
-	-- Maintain pet/guardian owner mapping via CLEU
-	if subevent == "SPELL_SUMMON" or subevent == "SPELL_CREATE" then
-		if destGUID and sourceGUID then petOwner[destGUID] = sourceGUID end
-		return
-	elseif subevent == "UNIT_DIED" or subevent == "UNIT_DESTROYED" then
-		if destGUID then petOwner[destGUID] = nil end
-		return
-	end
-	-- Note: We intentionally ignore *_MISSED ABSORB to avoid double-counting with SPELL_ABSORBED (matches Details behavior)
-	if not (dmgIdx[subevent] or healIdx[subevent] or subevent == "SPELL_ABSORBED") then return end
-
-	local idx = dmgIdx[subevent]
-	if idx then
-		if not sourceGUID or band(sourceFlags or 0, groupMask) == 0 then return end
-		local amount = select(idx, ...)
-		if not amount or amount <= 0 then return end
-		local ownerGUID, ownerName = resolveOwner(sourceGUID, sourceName, sourceFlags)
-		local player = acquirePlayer(cm.players, ownerGUID, ownerName)
-		local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
-		player.damage = player.damage + amount
-		overall.damage = overall.damage + amount
-		return
-	end
-
-	local hidx = healIdx[subevent]
-	if hidx then
-		if not sourceGUID or band(sourceFlags or 0, groupMask) == 0 then return end
-		local amount = (select(hidx[1], ...) or 0) - (select(hidx[2], ...) or 0)
-		if not amount or amount <= 0 then return end
-		local ownerGUID, ownerName = resolveOwner(sourceGUID, sourceName, sourceFlags)
-		local player = acquirePlayer(cm.players, ownerGUID, ownerName)
-		local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
-		player.healing = player.healing + amount
-		overall.healing = overall.healing + amount
-		return
-	end
-
-	-- We count absorbs exclusively via SPELL_ABSORBED. Some clients also emit *_MISSED with ABSORB for the same event; counting both leads to double credits.
-	if subevent == "SPELL_ABSORBED" then
-		-- SPELL_ABSORBED tail layout has **9** stable fields:
-		-- absorberGUID, absorberName, absorberFlags, absorberRaidFlags,
-		-- absorbingSpellID, absorbingSpellName, absorbingSpellSchool,
-		-- absorbedAmount, absorbedCritical
-		local argc = select("#", ...)
-		local start = argc - 8
-		local absorberGUID, absorberName, absorberFlags, _, spellName, _, _, absorbedAmount, absorbedCritical = select(start, ...)
-		if not absorberGUID or type(absorberFlags) ~= "number" or band(absorberFlags, groupMask) == 0 then return end
-		if not absorbedAmount or absorbedAmount <= 0 then return end
-		local ownerGUID, ownerName = resolveOwner(absorberGUID, absorberName, absorberFlags)
-		local p = acquirePlayer(cm.players, ownerGUID, ownerName)
-		local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
-		p.healing = p.healing + absorbedAmount
-		o.healing = o.healing + absorbedAmount
-		return
-	end
-end
 
 local function handleEvent(self, event)
 	if event == "PLAYER_REGEN_DISABLED" or event == "ENCOUNTER_START" then
@@ -198,10 +140,76 @@ local function handleEvent(self, event)
 		if #hist > MAX then table.remove(hist, 1) end
 	elseif event == "GROUP_ROSTER_UPDATE" or event == "UNIT_PET" or event == "PLAYER_ENTERING_WORLD" then
 		rebuildPetOwnerFromRoster()
-	elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-		if not cm.inCombat then return end
-		handleCLEU(CombatLogGetCurrentEventInfo())
-	end
+        elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
+                if not cm.inCombat then return end
+                local info = { CombatLogGetCurrentEventInfo() }
+                local subevent = info[2]
+                local sourceGUID, sourceName, sourceFlags = info[4], info[5], info[6]
+                local destGUID = info[8]
+
+                -- Maintain pet/guardian owner mapping via CLEU
+                if subevent == "SPELL_SUMMON" or subevent == "SPELL_CREATE" then
+                        if destGUID and sourceGUID then petOwner[destGUID] = sourceGUID end
+                        return
+                elseif subevent == "UNIT_DIED" or subevent == "UNIT_DESTROYED" then
+                        if destGUID then petOwner[destGUID] = nil end
+                        return
+                end
+
+                -- Note: We intentionally ignore *_MISSED ABSORB to avoid double-counting with SPELL_ABSORBED (matches Details behavior)
+                if not (dmgIdx[subevent] or healIdx[subevent] or subevent == "SPELL_ABSORBED") then return end
+
+                local idx = dmgIdx[subevent]
+                if idx then
+                        if not sourceGUID or band(sourceFlags or 0, groupMask) == 0 then return end
+                        local amount = info[11 + idx]
+                        if not amount or amount <= 0 then return end
+                        local ownerGUID, ownerName = resolveOwner(sourceGUID, sourceName, sourceFlags)
+                        local player = acquirePlayer(cm.players, ownerGUID, ownerName)
+                        local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+                        player.damage = player.damage + amount
+                        overall.damage = overall.damage + amount
+                        return
+                end
+
+                local hidx = healIdx[subevent]
+                if hidx then
+                        if not sourceGUID or band(sourceFlags or 0, groupMask) == 0 then return end
+                        local amount = (info[11 + hidx[1]] or 0) - (info[11 + hidx[2]] or 0)
+                        if not amount or amount <= 0 then return end
+                        local ownerGUID, ownerName = resolveOwner(sourceGUID, sourceName, sourceFlags)
+                        local player = acquirePlayer(cm.players, ownerGUID, ownerName)
+                        local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+                        player.healing = player.healing + amount
+                        overall.healing = overall.healing + amount
+                        return
+                end
+
+                -- We count absorbs exclusively via SPELL_ABSORBED. Some clients also emit *_MISSED with ABSORB for the same event; counting both leads to double credits.
+                if subevent == "SPELL_ABSORBED" then
+                        -- SPELL_ABSORBED tail layout has **9** stable fields:
+                        -- absorberGUID, absorberName, absorberFlags, absorberRaidFlags,
+                        -- absorbingSpellID, absorbingSpellName, absorbingSpellSchool,
+                        -- absorbedAmount, absorbedCritical
+                        local varargCount = #info - 11
+                        local start = varargCount - 8
+                        local base = 11 + start
+                        local absorberGUID = info[base]
+                        local absorberName = info[base + 1]
+                        local absorberFlags = info[base + 2]
+                        local spellName = info[base + 4]
+                        local absorbedAmount = info[base + 7]
+                        local absorbedCritical = info[base + 8]
+                        if not absorberGUID or type(absorberFlags) ~= "number" or band(absorberFlags, groupMask) == 0 then return end
+                        if not absorbedAmount or absorbedAmount <= 0 then return end
+                        local ownerGUID, ownerName = resolveOwner(absorberGUID, absorberName, absorberFlags)
+                        local p = acquirePlayer(cm.players, ownerGUID, ownerName)
+                        local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+                        p.healing = p.healing + absorbedAmount
+                        o.healing = o.healing + absorbedAmount
+                        return
+                end
+        end
 end
 
 frame:SetScript("OnEvent", handleEvent)
