@@ -10,6 +10,7 @@ local cm = addon.CombatMeter
 local band = bit.band
 local bor = bit.bor
 local CLEU = CombatLogGetCurrentEventInfo
+local GPIG = GetPlayerInfoByGUID
 
 cm.inCombat = false
 cm.fightStartTime = 0
@@ -34,14 +35,14 @@ local function resolveOwner(srcGUID, srcName, srcFlags)
 		local owner = petOwner[srcGUID]
 		if owner then
 			if not ownerNameCache[owner] then
-				local oname = select(6, GetPlayerInfoByGUID(owner))
+				local oname = select(6, GPIG(owner))
 				if oname then ownerNameCache[owner] = oname end
 			end
 			return owner, (ownerNameCache[owner] or srcName)
 		end
 	end
 	if srcGUID and not ownerNameCache[srcGUID] then
-		local sname = select(6, GetPlayerInfoByGUID(srcGUID))
+		local sname = select(6, GPIG(srcGUID))
 		if sname then ownerNameCache[srcGUID] = sname end
 	end
 	return srcGUID, (ownerNameCache[srcGUID] or srcName)
@@ -61,7 +62,7 @@ local function acquirePlayer(tbl, guid, name)
 		player.guid = guid
 		player.damage = 0
 		player.healing = 0
-		local _, class = GetPlayerInfoByGUID(guid)
+		local _, class = GPIG(guid)
 		player.class = class
 		players[guid] = player
 	end
