@@ -109,7 +109,6 @@ local dmgIdx = {
 	SPELL_PERIODIC_DAMAGE = 4,
 	DAMAGE_SHIELD = 4,
 	DAMAGE_SPLIT = 4,
-	ENVIRONMENTAL_DAMAGE = 2,
 }
 
 local function handleEvent(self, event)
@@ -143,24 +142,25 @@ local function handleEvent(self, event)
 	elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
 		if not cm.inCombat then return end
 
-		local _, subevent, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, _, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23 = CLEU()
+		local _, sub, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, _, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23 = CLEU()
+		if sub == "ENVIRONMENTAL_DAMAGE" then return end
 
 		-- Maintain pet/guardian owner mapping via CLEU
-		if subevent == "SPELL_SUMMON" or subevent == "SPELL_CREATE" then
+		if sub == "SPELL_SUMMON" or sub == "SPELL_CREATE" then
 			if destGUID and sourceGUID then petOwner[destGUID] = sourceGUID end
 			return
-		elseif subevent == "UNIT_DIED" or subevent == "UNIT_DESTROYED" then
+		elseif sub == "UNIT_DIED" or sub == "UNIT_DESTROYED" then
 			if destGUID then petOwner[destGUID] = nil end
 			return
-		elseif not (dmgIdx[subevent] or subevent == "SPELL_HEAL" or subevent == "SPELL_PERIODIC_HEAL" or subevent == "SPELL_ABSORBED") then
+		elseif not (dmgIdx[sub] or sub == "SPELL_HEAL" or sub == "SPELL_PERIODIC_HEAL" or sub == "SPELL_ABSORBED") then
 			-- Note: We intentionally ignore *_MISSED ABSORB to avoid double-counting with SPELL_ABSORBED (matches Details behavior)
 			return
 		end
 
-		local idx = dmgIdx[subevent]
+		local idx = dmgIdx[sub]
 		if idx then
 			if not sourceGUID or band(sourceFlags or 0, groupMask) == 0 then return end
-			local amount = (idx == 1 and a12) or (idx == 2 and a13) or (idx == 4 and a15) or 0
+			local amount = (idx == 1 and a12) or a15 or 0
 			if amount <= 0 then return end
 			local ownerGUID, ownerName = resolveOwner(sourceGUID, sourceName, sourceFlags)
 			local player = acquirePlayer(cm.players, ownerGUID, ownerName)
@@ -170,7 +170,7 @@ local function handleEvent(self, event)
 			return
 		end
 
-		if subevent == "SPELL_HEAL" or subevent == "SPELL_PERIODIC_HEAL" then
+		if sub == "SPELL_HEAL" or sub == "SPELL_PERIODIC_HEAL" then
 			if not sourceGUID or band(sourceFlags or 0, groupMask) == 0 then return end
 			local amount = (a15 or 0) - (a16 or 0)
 			if amount <= 0 then return end
@@ -183,7 +183,7 @@ local function handleEvent(self, event)
 		end
 
 		-- We count absorbs exclusively via SPELL_ABSORBED. Some clients also emit *_MISSED with ABSORB for the same event; counting both leads to double credits.
-		if subevent == "SPELL_ABSORBED" then
+		if sub == "SPELL_ABSORBED" then
 			-- Heuristics: swing variant has 8 tail fields (a23 is number); spell variant has 9 (a23 is boolean, amount in a22)
 			local absorberGUID, absorberName, absorberFlags, absorbedAmount
 			if type(a23) == "boolean" then
