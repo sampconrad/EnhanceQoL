@@ -21,6 +21,14 @@ local shortNameCache = {}
 local ticker
 local tinsert, tsort = table.insert, table.sort
 
+local function tableSize(t)
+        local n = 0
+        for _ in pairs(t) do
+                n = n + 1
+        end
+        return n
+end
+
 -- font helpers ---------------------------------------------------------------
 local function getOutlineFlags()
 	local f = (config and config["combatMeterFontOutline"]) or "OUTLINE"
@@ -282,10 +290,32 @@ local function createGroupFrame(groupConfig)
 			end
 		end
 
-		if maxValue == 0 then maxValue = 1 end
-		tsort(list, function(a, b) return a.value > b.value end)
-		local maxBars = groupConfig.maxBars or DEFAULT_MAX_BARS
-		local playerGUID = UnitGUID("player")
+               if maxValue == 0 then maxValue = 1 end
+               local maxBars = groupConfig.maxBars or DEFAULT_MAX_BARS
+               local groupCount = tableSize(groupUnits)
+               if groupCount > 20 and #list > maxBars then
+                       local top = {}
+                       for _, entry in ipairs(list) do
+                               local inserted = false
+                               for i = 1, #top do
+                                       if entry.value > top[i].value then
+                                               tinsert(top, i, entry)
+                                               inserted = true
+                                               break
+                                       end
+                               end
+                               if not inserted and #top < maxBars then
+                                       top[#top + 1] = entry
+                               end
+                               if #top > maxBars then
+                                       top[#top] = nil
+                               end
+                       end
+                       list = top
+               else
+                       tsort(list, function(a, b) return a.value > b.value end)
+               end
+               local playerGUID = UnitGUID("player")
 		if groupConfig.alwaysShowSelf then
 			local found = false
 			for _, entry in ipairs(list) do
@@ -493,12 +523,13 @@ local controller = CreateFrame("Frame")
 addon.CombatMeter.uiFrame = controller
 
 controller:SetScript("OnEvent", function(self, event, ...)
-	if event == "PLAYER_REGEN_DISABLED" or event == "ENCOUNTER_START" then
-		if ticker then ticker:Cancel() end
-		buildGroupUnits()
-		ticker = C_Timer.NewTicker(config["combatMeterUpdateRate"], UpdateAllFrames)
-		addon.CombatMeter.ticker = ticker
-		C_Timer.After(0, UpdateAllFrames)
+       if event == "PLAYER_REGEN_DISABLED" or event == "ENCOUNTER_START" then
+               if ticker then ticker:Cancel() end
+               buildGroupUnits()
+               local hz = (tableSize(groupUnitsCached) > 20) and 0.3 or config["combatMeterUpdateRate"]
+               ticker = C_Timer.NewTicker(hz, UpdateAllFrames)
+               addon.CombatMeter.ticker = ticker
+               C_Timer.After(0, UpdateAllFrames)
 	elseif event == "INSPECT_READY" then
 		local guid = ...
 		if not next(groupUnitsCached) then buildGroupUnits() end
@@ -552,11 +583,12 @@ controller:SetScript("OnEvent", function(self, event, ...)
 end)
 
 function addon.CombatMeter.functions.setUpdateRate(rate)
-	if ticker then
-		ticker:Cancel()
-		ticker = C_Timer.NewTicker(rate, UpdateAllFrames)
-		addon.CombatMeter.ticker = ticker
-	end
+       if ticker then
+               ticker:Cancel()
+               local hz = (tableSize(groupUnitsCached) > 20) and 0.3 or rate
+               ticker = C_Timer.NewTicker(hz, UpdateAllFrames)
+               addon.CombatMeter.ticker = ticker
+       end
 end
 
 local function rebuildGroups()
