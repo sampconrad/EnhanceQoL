@@ -269,13 +269,13 @@ local function createGroupFrame(groupConfig)
 		wipe(list)
 		wipe(top)
 		local maxValue = 0
+		local overallDuration = addon.CombatMeter.overallDuration
+		if overallDuration <= 0 then overallDuration = 1 end
 		if self.metric == "damageOverall" or self.metric == "healingOverall" then
-			local duration = addon.CombatMeter.overallDuration
-			if duration <= 0 then duration = 1 end
 			for guid, p in pairs(addon.CombatMeter.overallPlayers) do
 				if groupUnits[guid] then
 					local total = (self.metric == "damageOverall") and (p.damage or 0) or (p.healing or 0)
-					local value = total / duration -- rate over total tracked time
+					local value = total / overallDuration -- rate over total tracked time
 					tinsert(list, { guid = guid, name = p.name, value = value, total = total })
 					if value > maxValue then maxValue = value end
 				end
@@ -338,15 +338,13 @@ local function createGroupFrame(groupConfig)
 				local name = UnitName("player")
 				local value, total
 				if self.metric == "damageOverall" or self.metric == "healingOverall" then
-					local duration = addon.CombatMeter.overallDuration
-					if duration <= 0 then duration = 1 end
 					local p = addon.CombatMeter.overallPlayers[playerGUID]
 					if p then
 						total = (self.metric == "damageOverall") and (p.damage or 0) or (p.healing or 0)
 					else
 						total = 0
 					end
-					value = total / duration
+					value = total / overallDuration
 				else
 					local duration
 					if addon.CombatMeter.inCombat then
