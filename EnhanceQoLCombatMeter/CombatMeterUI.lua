@@ -13,6 +13,8 @@ local TEXTURE_PATH = "Interface\\AddOns\\EnhanceQoLCombatMeter\\Texture\\"
 local DEFAULT_BAR_WIDTH = 210
 local DEFAULT_BAR_HEIGHT = 25
 local DEFAULT_MAX_BARS = 8
+local DEFAULT_OVERLAY_TEXTURE = TEXTURE_PATH .. "eqol_overlay_gradient_512x64.tga"
+local BLENDS = { ADD = true, BLEND = true, MOD = true }
 local specIcons = {}
 local pendingInspect = {}
 local groupFrames = {}
@@ -85,9 +87,25 @@ local metricNames = {
 local function applyBarTexture(bar)
 	if not bar then return end
 	local tex = config["combatMeterBarTexture"] or (TEXTURE_PATH .. "eqol_base_flat_8x8.tga")
+	local overlayTex = config["combatMeterOverlayTexture"] or DEFAULT_OVERLAY_TEXTURE
+	local useOverlay = config["combatMeterUseOverlay"]
+	local rounded = config["combatMeterRoundedCorners"]
+	local a = tonumber(config["combatMeterOverlayAlpha"]) or 0.28
+	if a < 0 then
+		a = 0
+	elseif a > 1 then
+		a = 1
+	end
+	local blend = config["combatMeterOverlayBlend"]
+	if not BLENDS[blend] then blend = "ADD" end
+
+	local want = bar._skin or {}
+	local need = want.tex ~= tex or want.overlay ~= useOverlay or want.ovtex ~= overlayTex or want.blend ~= blend or want.alpha ~= a or want.rounded ~= rounded
+	if not need then return end
+
 	bar:SetStatusBarTexture(tex)
 
-	if config["combatMeterRoundedCorners"] then
+	if rounded then
 		if not bar.mask then
 			bar.mask = bar:CreateMaskTexture()
 			bar.mask:SetTexture(TEXTURE_PATH .. "eqol_mask_rounded_8px_64x64.tga")
@@ -111,20 +129,14 @@ local function applyBarTexture(bar)
 		bar.mask = nil
 	end
 
-	if config["combatMeterUseOverlay"] then
+	if useOverlay then
 		if not bar.overlay then
 			bar.overlay = bar:CreateTexture(nil, "ARTWORK")
 			bar.overlay:SetAllPoints(bar)
 			bar.overlay:SetDrawLayer("ARTWORK", 1)
 		end
-		bar.overlay:SetTexture(config["combatMeterOverlayTexture"] or (TEXTURE_PATH .. "eqol_overlay_gradient_512x64.tga"))
-		bar.overlay:SetBlendMode(config["combatMeterOverlayBlend"] or "ADD")
-		local a = tonumber(config["combatMeterOverlayAlpha"]) or 0.28
-		if a < 0 then
-			a = 0
-		elseif a > 1 then
-			a = 1
-		end
+		bar.overlay:SetTexture(overlayTex)
+		bar.overlay:SetBlendMode(blend)
 		bar.overlay:SetVertexColor(1, 1, 1, a)
 		if bar.mask and bar._maskApplied then bar.overlay:AddMaskTexture(bar.mask) end
 		bar.overlay:Show()
@@ -133,6 +145,15 @@ local function applyBarTexture(bar)
 		bar.overlay:Hide()
 		bar.overlay = nil
 	end
+
+	bar._skin = {
+		tex = tex,
+		overlay = useOverlay,
+		ovtex = overlayTex,
+		blend = blend,
+		alpha = a,
+		rounded = rounded,
+	}
 end
 
 local function applyBarTextures()
