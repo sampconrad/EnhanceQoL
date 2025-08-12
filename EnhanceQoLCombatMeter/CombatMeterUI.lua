@@ -276,8 +276,19 @@ local function createGroupFrame(groupConfig)
 		groupConfig.y = yOfs
 	end)
 
+	local resetButton = CreateFrame("Button", nil, dragHandle, "UIPanelButtonTemplate")
+	resetButton:SetSize(16, 16)
+	resetButton:SetPoint("RIGHT", dragHandle, "RIGHT", 0, 0)
+	resetButton:SetText("R")
+	resetButton:SetScript("OnClick", function()
+		SlashCmdList["EQOLCM"]("reset")
+		if addon.CombatMeter.functions.UpdateBars then addon.CombatMeter.functions.UpdateBars() end
+	end)
+
 	dragHandle.text = dragHandle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	dragHandle.text:SetPoint("CENTER")
+	dragHandle.text:SetPoint("LEFT", dragHandle, "LEFT", 2, 0)
+	dragHandle.text:SetPoint("RIGHT", resetButton, "LEFT", -2, 0)
+	dragHandle.text:SetJustifyH("CENTER")
 	dragHandle.text:SetText(metricNames[groupConfig.type] or "Combat Meter")
 	frame.dragHandle = dragHandle
 
