@@ -20,6 +20,7 @@ cm.players = cm.players or {}
 cm.overallPlayers = cm.overallPlayers or {}
 cm.playerPool = cm.playerPool or {}
 cm.overallDuration = cm.overallDuration or 0
+cm.prePullBuffer = cm.prePullBuffer or {}
 
 cm.MAX_HISTORY = cm.MAX_HISTORY or 30
 cm.historySelection = cm.historySelection or nil
@@ -135,6 +136,38 @@ local function updatePetOwner(unit)
 	if pguid then petOwner[pguid] = owner end
 end
 
+local function addPrePull(ownerGUID, ownerName, damage, healing)
+	local buf = cm.prePullBuffer
+	local now = GetTime()
+	buf[#buf + 1] = { t = now, guid = ownerGUID, name = ownerName, damage = damage or 0, healing = healing or 0 }
+	local cutoff = now - (addon.db["combatMeterPrePullWindow"] or 4)
+	local i = 1
+	while buf[i] and buf[i].t < cutoff do
+		table.remove(buf, i)
+	end
+end
+
+local function mergePrePull()
+	local buf = cm.prePullBuffer
+	if not buf or #buf == 0 then return end
+	local cutoff = GetTime() - (addon.db["combatMeterPrePullWindow"] or 4)
+	for _, e in ipairs(buf) do
+		if e.t >= cutoff then
+			local p = acquirePlayer(cm.players, e.guid, e.name)
+			local o = acquirePlayer(cm.overallPlayers, e.guid, e.name)
+			if e.damage and e.damage > 0 then
+				p.damage = p.damage + e.damage
+				o.damage = o.damage + e.damage
+			end
+			if e.healing and e.healing > 0 then
+				p.healing = p.healing + e.healing
+				o.healing = o.healing + e.healing
+			end
+		end
+	end
+	wipe(buf)
+end
+
 local frame = CreateFrame("Frame")
 cm.frame = frame
 
@@ -155,6 +188,7 @@ local function handleEvent(self, event, unit)
 		cm.historyUnits = nil
 		releasePlayers(cm.players)
 		fullRebuildPetOwners()
+		if addon.db["combatMeterPrePullCapture"] then mergePrePull() end
 	elseif event == "PLAYER_REGEN_ENABLED" or event == "ENCOUNTER_END" then
 		if not cm.inCombat then return end
 		cm.inCombat = false
@@ -180,8 +214,8 @@ local function handleEvent(self, event, unit)
 	elseif event == "UNIT_PET" then
 		updatePetOwner(unit)
 	elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-		if not cm.inCombat then return end
-
+		local inCombat = cm.inCombat
+		local pre = addon.db["combatMeterPrePullCapture"]
 		local _, sub, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, _, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23 = CLEU()
 		if sub == "ENVIRONMENTAL_DAMAGE" then return end
 
@@ -196,6 +230,7 @@ local function handleEvent(self, event, unit)
 			-- Note: We intentionally ignore *_MISSED ABSORB to avoid double-counting with SPELL_ABSORBED (matches Details behavior)
 			return
 		end
+		if not inCombat and not pre then return end
 
 		local idx = dmgIdx[sub]
 		if idx then
@@ -203,10 +238,14 @@ local function handleEvent(self, event, unit)
 			local amount = (idx == 1 and a12) or a15 or 0
 			if amount <= 0 then return end
 			local ownerGUID, ownerName = resolveOwner(sourceGUID, sourceName, sourceFlags)
-			local player = acquirePlayer(cm.players, ownerGUID, ownerName)
-			local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
-			player.damage = player.damage + amount
-			overall.damage = overall.damage + amount
+			if inCombat then
+				local player = acquirePlayer(cm.players, ownerGUID, ownerName)
+				local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+				player.damage = player.damage + amount
+				overall.damage = overall.damage + amount
+			else
+				addPrePull(ownerGUID, ownerName, amount, 0)
+			end
 			return
 		end
 
@@ -215,10 +254,14 @@ local function handleEvent(self, event, unit)
 			local amount = (a15 or 0) - (a16 or 0)
 			if amount <= 0 then return end
 			local ownerGUID, ownerName = resolveOwner(sourceGUID, sourceName, sourceFlags)
-			local player = acquirePlayer(cm.players, ownerGUID, ownerName)
-			local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
-			player.healing = player.healing + amount
-			overall.healing = overall.healing + amount
+			if inCombat then
+				local player = acquirePlayer(cm.players, ownerGUID, ownerName)
+				local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+				player.healing = player.healing + amount
+				overall.healing = overall.healing + amount
+			else
+				addPrePull(ownerGUID, ownerName, 0, amount)
+			end
 			return
 		end
 
@@ -239,10 +282,14 @@ local function handleEvent(self, event, unit)
 			if not absorberGUID or type(absorberFlags) ~= "number" or band(absorberFlags, groupMask) == 0 then return end
 			if not absorbedAmount or absorbedAmount <= 0 then return end
 			local ownerGUID, ownerName = resolveOwner(absorberGUID, absorberName, absorberFlags)
-			local p = acquirePlayer(cm.players, ownerGUID, ownerName)
-			local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
-			p.healing = p.healing + absorbedAmount
-			o.healing = o.healing + absorbedAmount
+			if inCombat then
+				local p = acquirePlayer(cm.players, ownerGUID, ownerName)
+				local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+				p.healing = p.healing + absorbedAmount
+				o.healing = o.healing + absorbedAmount
+			else
+				addPrePull(ownerGUID, ownerName, 0, absorbedAmount)
+			end
 			return
 		end
 	end
@@ -295,6 +342,7 @@ function cm.functions.toggle(enabled)
 		cm.overallDuration = 0
 		releasePlayers(cm.players)
 		releasePlayers(cm.overallPlayers)
+		wipe(cm.prePullBuffer)
 		if cm.uiFrame then
 			cm.uiFrame:UnregisterAllEvents()
 			cm.uiFrame:Hide()

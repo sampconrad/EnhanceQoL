@@ -69,6 +69,20 @@ local function addGeneralFrame(container)
 	end)
 	groupCore:AddChild(sliderNameLength)
 
+	local sliderPrePull
+	local cbPrePull = addon.functions.createCheckboxAce(L["Pre-Pull Capture"], addon.db["combatMeterPrePullCapture"], function(_, _, value)
+		addon.db["combatMeterPrePullCapture"] = value
+		if sliderPrePull then sliderPrePull:SetDisabled(not value) end
+	end)
+	groupCore:AddChild(cbPrePull)
+
+	sliderPrePull = addon.functions.createSliderAce(L["Window (sec)"] .. ": " .. addon.db["combatMeterPrePullWindow"], addon.db["combatMeterPrePullWindow"], 1, 10, 1, function(self, _, val)
+		addon.db["combatMeterPrePullWindow"] = val
+		self:SetLabel(L["Window (sec)"] .. ": " .. val)
+	end)
+	sliderPrePull:SetDisabled(not addon.db["combatMeterPrePullCapture"])
+	groupCore:AddChild(sliderPrePull)
+
 	local barTextures = {
 		["Interface\\TARGETINGFRAME\\UI-StatusBar"] = "Classic Gradient (Blizzard)",
 		["Interface\\Buttons\\WHITE8x8"] = "Flat (white, tintable)",
@@ -253,6 +267,8 @@ addon.functions.InitDBValue("combatMeterAlwaysShow", false)
 addon.functions.InitDBValue("combatMeterUpdateRate", 0.2)
 addon.functions.InitDBValue("combatMeterFontSize", 12)
 addon.functions.InitDBValue("combatMeterNameLength", 12)
+addon.functions.InitDBValue("combatMeterPrePullCapture", true)
+addon.functions.InitDBValue("combatMeterPrePullWindow", 4)
 addon.functions.InitDBValue("combatMeterBarTexture", TEXTURE_PATH .. "eqol_base_flat_8x8.tga")
 addon.functions.InitDBValue("combatMeterUseOverlay", false)
 addon.functions.InitDBValue("combatMeterOverlayTexture", TEXTURE_PATH .. "eqol_overlay_gradient_512x64.tga")
