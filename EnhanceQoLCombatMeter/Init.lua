@@ -193,45 +193,48 @@ local function addGeneralFrame(container)
 	local metricOrder = { "dps", "damageOverall", "healingPerFight", "healingOverall" }
 
 	for i, cfg in ipairs(addon.db["combatMeterGroups"]) do
+		local idx = i
+		local groupCfg = cfg
+
 		local row = addon.functions.createContainer("SimpleGroup", "Flow")
 		groupGroup:AddChild(row)
 
 		local label = AceGUI:Create("Label")
-		label:SetText(metricNames[cfg.type] or cfg.type)
+		label:SetText(metricNames[groupCfg.type] or groupCfg.type)
 		label:SetWidth(150)
 		row:AddChild(label)
 
 		local btnRemove = addon.functions.createButtonAce(L["Remove"], nil, function()
-			table.remove(addon.db["combatMeterGroups"], i)
+			table.remove(addon.db["combatMeterGroups"], idx)
 			addon.CombatMeter.functions.rebuildGroups()
 			container:ReleaseChildren()
 			addGeneralFrame(container)
 		end)
 		row:AddChild(btnRemove)
 
-		local sw = addon.functions.createSliderAce(L["Bar Width"] .. ": " .. (cfg.barWidth or 210), cfg.barWidth or 210, 50, 1000, 1, function(self, _, val)
-			cfg.barWidth = val
+		local sw = addon.functions.createSliderAce(L["Bar Width"] .. ": " .. (groupCfg.barWidth or 210), groupCfg.barWidth or 210, 50, 1000, 1, function(self, _, val)
+			groupCfg.barWidth = val
 			self:SetLabel(L["Bar Width"] .. ": " .. val)
 			addon.CombatMeter.functions.rebuildGroups()
 		end)
 		groupGroup:AddChild(sw)
 
-		local sh = addon.functions.createSliderAce(L["Bar Height"] .. ": " .. (cfg.barHeight or 25), cfg.barHeight or 25, 10, 100, 1, function(self, _, val)
-			cfg.barHeight = val
+		local sh = addon.functions.createSliderAce(L["Bar Height"] .. ": " .. (groupCfg.barHeight or 25), groupCfg.barHeight or 25, 10, 100, 1, function(self, _, val)
+			groupCfg.barHeight = val
 			self:SetLabel(L["Bar Height"] .. ": " .. val)
 			addon.CombatMeter.functions.rebuildGroups()
 		end)
 		groupGroup:AddChild(sh)
 
-		local smb = addon.functions.createSliderAce(L["Max Bars"] .. ": " .. (cfg.maxBars or 8), cfg.maxBars or 8, 1, 40, 1, function(self, _, val)
-			cfg.maxBars = val
+		local smb = addon.functions.createSliderAce(L["Max Bars"] .. ": " .. (groupCfg.maxBars or 8), groupCfg.maxBars or 8, 1, 40, 1, function(self, _, val)
+			groupCfg.maxBars = val
 			self:SetLabel(L["Max Bars"] .. ": " .. val)
 			addon.CombatMeter.functions.rebuildGroups()
 		end)
 		groupGroup:AddChild(smb)
 
-		local cbSelf = addon.functions.createCheckboxAce(L["Always Show Self"], cfg.alwaysShowSelf or false, function(self, _, value)
-			cfg.alwaysShowSelf = value
+		local cbSelf = addon.functions.createCheckboxAce(L["Always Show Self"], groupCfg.alwaysShowSelf or false, function(self, _, value)
+			groupCfg.alwaysShowSelf = value
 			addon.CombatMeter.functions.rebuildGroups()
 		end)
 		groupGroup:AddChild(cbSelf)

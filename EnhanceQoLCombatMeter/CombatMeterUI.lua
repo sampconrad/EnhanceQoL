@@ -25,6 +25,7 @@ local ticker
 local baseTickerRate = config["combatMeterUpdateRate"] or 0.3
 local tickerRate = baseTickerRate
 local lastMaxValue = 0
+local lastTotalValue = 0
 local stableTicks = 0
 local STABLE_TICK_THRESHOLD = 10
 local BACKOFF_FACTOR = 2
@@ -620,8 +621,10 @@ local function createGroupFrame(groupConfig)
 		end
 
 		local displayCount = math.min(#list, maxBars)
+		local totalValue = 0
 		for i = 1, displayCount do
 			local p = list[i]
+			totalValue = totalValue + (p.value or 0)
 			local bar = getBar(i)
 			bar:Show()
 			if bar._max ~= maxValue then
@@ -704,7 +707,7 @@ local function createGroupFrame(groupConfig)
 			self:SetHeight(newHeight)
 			self._h = newHeight
 		end
-		return maxValue
+		return maxValue, totalValue
 	end
 
 	return frame
@@ -749,11 +752,13 @@ local function UpdateAllFrames()
 		units = groupUnitsCached
 	end
 	local maxValue = 0
+	local totalValue = 0
 	for _, frame in ipairs(groupFrames) do
-		local frameMax = frame:Update(units)
+		local frameMax, frameTotal = frame:Update(units)
 		if frameMax and frameMax > maxValue then maxValue = frameMax end
+		if frameTotal then totalValue = totalValue + frameTotal end
 	end
-	if math.abs(maxValue - lastMaxValue) < EPSILON then
+	if math.abs(maxValue - lastMaxValue) < EPSILON and math.abs(totalValue - lastTotalValue) < EPSILON then
 		stableTicks = stableTicks + 1
 		if stableTicks >= STABLE_TICK_THRESHOLD and tickerRate < MAX_TICKER_RATE then
 			tickerRate = math.min(tickerRate * BACKOFF_FACTOR, MAX_TICKER_RATE)
@@ -776,6 +781,7 @@ local function UpdateAllFrames()
 		end
 	end
 	lastMaxValue = maxValue
+	lastTotalValue = totalValue
 end
 addon.CombatMeter.functions.UpdateBars = UpdateAllFrames
 
@@ -806,6 +812,7 @@ controller:SetScript("OnEvent", function(self, event, ...)
 		tickerRate = hz
 		stableTicks = 0
 		lastMaxValue = 0
+		lastTotalValue = 0
 		ticker = C_Timer.NewTicker(hz, UpdateAllFrames)
 		addon.CombatMeter.ticker = ticker
 		C_Timer.After(0, UpdateAllFrames)
@@ -866,6 +873,7 @@ function addon.CombatMeter.functions.setUpdateRate(rate)
 		tickerRate = hz
 		stableTicks = 0
 		lastMaxValue = 0
+		lastTotalValue = 0
 		ticker = C_Timer.NewTicker(hz, UpdateAllFrames)
 		addon.CombatMeter.ticker = ticker
 	end
