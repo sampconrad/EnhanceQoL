@@ -21,6 +21,8 @@ cm.overallPlayers = cm.overallPlayers or {}
 cm.playerPool = cm.playerPool or {}
 cm.overallDuration = cm.overallDuration or 0
 
+cm.MAX_HISTORY = cm.MAX_HISTORY or 30
+
 local petOwner = cm.petOwner or {}
 cm.petOwner = petOwner
 local ownerNameCache = cm.ownerNameCache or {}
@@ -166,9 +168,9 @@ local function handleEvent(self, event, unit)
 		end
 		addon.db["combatMeterHistory"] = addon.db["combatMeterHistory"] or {}
 		local hist = addon.db["combatMeterHistory"]
+		-- hist[#hist + 1] = fight is required to keep trimming O(1) for inserts
 		hist[#hist + 1] = fight
-		local MAX = 30
-		if #hist > MAX then table.remove(hist, 1) end
+		if #hist > cm.MAX_HISTORY then table.remove(hist, 1) end
 	elseif event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
 		fullRebuildPetOwners()
 	elseif event == "UNIT_PET" then
