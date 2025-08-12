@@ -26,6 +26,7 @@ local tickerRate = config["combatMeterUpdateRate"] or 0.3
 local lastMaxValue = 0
 local EPSILON = 0.01
 local tinsert, tsort = table.insert, table.sort
+local historyMenu = CreateFrame("Frame", addonName .. "CMHistoryMenu", UIParent, "UIDropDownMenuTemplate")
 
 local POW10 = { [0] = 1 }
 for i = 1, 6 do
@@ -285,9 +286,29 @@ local function createGroupFrame(groupConfig)
 		if addon.CombatMeter.functions.UpdateBars then addon.CombatMeter.functions.UpdateBars() end
 	end)
 
+	local historyButton = CreateFrame("Button", nil, dragHandle, "UIPanelButtonTemplate")
+	historyButton:SetSize(16, 16)
+	historyButton:SetPoint("RIGHT", resetButton, "LEFT", -2, 0)
+	historyButton:SetText("H")
+	historyButton:SetScript("OnClick", function(self)
+		local hist = addon.db["combatMeterHistory"] or {}
+		local menu = {}
+		for i = #hist, 1, -1 do
+			local fight = hist[i]
+			local text = string.format("%d. %ds", i, math.floor(fight.duration or 0))
+			menu[#menu + 1] = {
+				text = text,
+				notCheckable = true,
+				func = function() addon.CombatMeter.functions.loadHistory(i) end,
+			}
+		end
+		if #menu == 0 then menu[1] = { text = "No History", notCheckable = true, isTitle = true } end
+		_G.EasyMenu(menu, historyMenu, self, 0, 0, "MENU")
+	end)
+
 	dragHandle.text = dragHandle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	dragHandle.text:SetPoint("LEFT", dragHandle, "LEFT", 2, 0)
-	dragHandle.text:SetPoint("RIGHT", resetButton, "LEFT", -2, 0)
+	dragHandle.text:SetPoint("RIGHT", historyButton, "LEFT", -2, 0)
 	dragHandle.text:SetJustifyH("CENTER")
 	dragHandle.text:SetText(metricNames[groupConfig.type] or "Combat Meter")
 	frame.dragHandle = dragHandle
@@ -636,10 +657,16 @@ end
 
 local function UpdateAllFrames()
 	if #groupFrames == 0 then return end
-	if not next(groupUnitsCached) then buildGroupUnits() end
+	local units = groupUnitsCached
+	if addon.CombatMeter.historySelection then
+		units = addon.CombatMeter.historyUnits or units
+	elseif not next(units) then
+		buildGroupUnits()
+		units = groupUnitsCached
+	end
 	local maxValue = 0
 	for _, frame in ipairs(groupFrames) do
-		local frameMax = frame:Update(groupUnitsCached)
+		local frameMax = frame:Update(units)
 		if frameMax and frameMax > maxValue then maxValue = frameMax end
 	end
 	if math.abs(maxValue - lastMaxValue) < EPSILON then

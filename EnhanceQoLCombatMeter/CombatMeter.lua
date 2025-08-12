@@ -22,6 +22,8 @@ cm.playerPool = cm.playerPool or {}
 cm.overallDuration = cm.overallDuration or 0
 
 cm.MAX_HISTORY = cm.MAX_HISTORY or 30
+cm.historySelection = cm.historySelection or nil
+cm.historyUnits = cm.historyUnits or {}
 
 local petOwner = cm.petOwner or {}
 cm.petOwner = petOwner
@@ -149,6 +151,8 @@ local function handleEvent(self, event, unit)
 	if event == "PLAYER_REGEN_DISABLED" or event == "ENCOUNTER_START" then
 		cm.inCombat = true
 		cm.fightStartTime = GetTime()
+		cm.historySelection = nil
+		cm.historyUnits = nil
 		releasePlayers(cm.players)
 		fullRebuildPetOwners()
 	elseif event == "PLAYER_REGEN_ENABLED" or event == "ENCOUNTER_END" then
@@ -245,6 +249,25 @@ local function handleEvent(self, event, unit)
 end
 
 frame:SetScript("OnEvent", handleEvent)
+
+local function loadHistory(index)
+	local hist = addon.db["combatMeterHistory"]
+	if not hist or not hist[index] then return end
+	local fight = hist[index]
+	cm.historySelection = index
+	cm.historyUnits = {}
+	releasePlayers(cm.players)
+	cm.fightDuration = fight.duration or 0
+	for guid, p in pairs(fight.players) do
+		local player = acquirePlayer(cm.players, guid, p.name)
+		player.damage = p.damage or 0
+		player.healing = p.healing or 0
+		player.class = p.class
+		cm.historyUnits[guid] = p.name
+	end
+	if addon.CombatMeter.functions.UpdateBars then addon.CombatMeter.functions.UpdateBars() end
+end
+cm.functions.loadHistory = loadHistory
 
 function cm.functions.toggle(enabled)
 	if enabled then
