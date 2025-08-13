@@ -76,30 +76,18 @@ local function getCurrentSeasonPortal()
 		for spellID, data in pairs(section.spells) do
 			if data.cId then
 				for cId in pairs(data.cId) do
+					local mapInfoText = data.textID and data.textID[cId] or data.text
 					if cModeIDLookup[cId] then
 						local mapName, _, _, texture, backgroundTexture = C_ChallengeMode.GetMapUIInfo(cId)
-
-						local displayText = data.text
-						if type(displayText) == "table" then
-							local texts = {}
-							for _, txt in pairs(displayText) do
-								table.insert(texts, txt)
-							end
-							table.sort(texts)
-							displayText = table.concat(texts, "/")
-						end
-
 						filteredPortalSpells[spellID] = {
-							text = displayText,
+							text = data.text,
 							iconID = data.iconID,
 						}
 						if data.faction then
 							filteredPortalSpells[spellID].faction = data.faction
 							if data.faction == faction then
-								local mapText = data.text
-								if type(mapText) == "table" then mapText = mapText[cId] end
 								filteredMapInfo[cId] = {
-									text = mapText,
+									text = mapInfoText,
 									spellId = spellID,
 									mapName = mapName,
 									texture = texture,
@@ -107,10 +95,8 @@ local function getCurrentSeasonPortal()
 								}
 							end
 						else
-							local mapText = data.text
-							if type(mapText) == "table" then mapText = mapText[cId] end
 							filteredMapInfo[cId] = {
-								text = mapText,
+								text = mapInfoText,
 								spellId = spellID,
 								mapName = mapName,
 								texture = texture,
@@ -126,7 +112,6 @@ local function getCurrentSeasonPortal()
 								filteredMapID[data.mapID] = cId
 							end
 						end
-						break
 					end
 				end
 			end
@@ -780,8 +765,8 @@ local function CreateRioScore()
 		for i, v in pairs(textList) do
 			v:Hide()
 		end
-		if #portalSpells == 0 then getCurrentSeasonPortal() end
-		local name, _, timeLimit
+
+		local _, _, timeLimit
 		local rating = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player")
 		if rating then
 			for _, key in pairs(rating.runs) do
@@ -796,29 +781,30 @@ local function CreateRioScore()
 
 			local dungeonList = {}
 
-			-- Sammle und sortiere die Dungeons nach Score
-			for _, key in pairs(C_ChallengeMode.GetMapScoreInfo()) do
-				if mapInfo[key.mapChallengeModeID] then
-					local name, _, timeLimit = C_ChallengeMode.GetMapUIInfo(key.mapChallengeModeID)
-					local stars = ""
+			for _, key in pairs(rating.runs) do
+				ratingInfo[key.challengeModeID] = key
+			end
 
-					local data = key
-					data.bestRunDurationMS = 0
+			for _, key in pairs(C_ChallengeMode.GetMapTable()) do
+				_, _, timeLimit = C_ChallengeMode.GetMapUIInfo(key)
+				r, g, b = 0.5, 0.5, 0.5
 
-					if ratingInfo[key.mapChallengeModeID] then
-						data.level = ratingInfo[key.mapChallengeModeID].bestRunLevel
-						data.dungeonScore = ratingInfo[key.mapChallengeModeID].mapScore
-						data.bestRunDurationMS = ratingInfo[key.mapChallengeModeID].bestRunDurationMS
-					end
-					-- local r, g, b = C_ChallengeMode.GetKeystoneLevelRarityColor(data.level):GetRGB()
-					local r, g, b = 1, 1, 1
+				local data = key
+				local mId = key
+				local stars = 0
+				local score = 0
+				if ratingInfo[key] then
+					data = ratingInfo[key]
+					mId = data.challengeModeID
 
-					if data.level > 0 then
+					if data.bestRunLevel > 0 then
+						r, g, b = 1, 1, 1
+
 						local bestRunDuration = data.bestRunDurationMS / 1000
 						local timeForPlus3 = timeLimit * 0.6
 						local timeForPlus2 = timeLimit * 0.8
 						local timeForPlus1 = timeLimit
-
+						score = data.mapScore
 						if bestRunDuration <= timeForPlus3 then
 							stars = "|cFFFFD700+++|r" -- Gold für 3 Sterne
 						elseif bestRunDuration <= timeForPlus2 then
@@ -826,31 +812,31 @@ local function CreateRioScore()
 						elseif bestRunDuration <= timeForPlus1 then
 							stars = "|cFFFFD700+|r" -- Gold für 1 Stern
 						else
+							stars = ""
 							r = 0.5
 							g = 0.5
 							b = 0.5
 						end
-						stars = stars .. data.level
+						stars = stars .. data.bestRunLevel
 					else
-						stars = data.level
+						stars = 0
 						r = 0.5
 						g = 0.5
 						b = 0.5
 					end
-
-					local selected = false
-					if key.mapChallengeModeID == selectedMapId then selected = true end
-					-- Speichere die Daten für spätere Sortierung
-					table.insert(dungeonList, {
-						text = mapInfo[data.mapChallengeModeID].text,
-						stars = stars,
-						score = data.dungeonScore,
-						r = r,
-						g = g,
-						b = b,
-						select = selected,
-					})
 				end
+
+				local selected = false
+				if key == selectedMapId then selected = true end
+				table.insert(dungeonList, {
+					text = addon.MythicPlus.variables.challengeMapID[mId] or "UNKNOWN",
+					stars = stars,
+					score = score,
+					r = r,
+					g = g,
+					b = b,
+					select = selected,
+				})
 			end
 
 			table.sort(dungeonList, function(a, b) return a.score > b.score end)

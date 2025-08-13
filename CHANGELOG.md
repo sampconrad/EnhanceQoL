@@ -18,6 +18,9 @@
 - **Stats** – summarizes key player stats.
 - **Talent Build** – shows the active talent loadout.
 
+### 🐛 Fixed
+- Dungeon Rating missed Streets and Gambit
+
 ---
 
 ## [4.2.0] – 2025-08-07
