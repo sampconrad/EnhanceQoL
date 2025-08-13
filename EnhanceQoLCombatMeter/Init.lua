@@ -46,14 +46,26 @@ local function addGeneralFrame(container)
 		addon.db["combatMeterAlwaysShow"] = value
 		if addon.CombatMeter.functions.UpdateBars then addon.CombatMeter.functions.UpdateBars() end
 	end)
-	groupCore:AddChild(cbAlwaysShow)
+        groupCore:AddChild(cbAlwaysShow)
 
-	local sliderRate = addon.functions.createSliderAce(L["Update Rate"] .. ": " .. addon.db["combatMeterUpdateRate"], addon.db["combatMeterUpdateRate"], 0.05, 1, 0.05, function(self, _, val)
-		addon.db["combatMeterUpdateRate"] = val
-		addon.CombatMeter.functions.setUpdateRate(val)
-		self:SetLabel(L["Update Rate"] .. ": " .. string.format("%.2f", val))
-	end)
-	groupCore:AddChild(sliderRate)
+        local cbResetOnChallengeStart = addon.functions.createCheckboxAce(L["Reset on Challenge Start"], addon.db["combatMeterResetOnChallengeStart"], function(_, _, value)
+                addon.db["combatMeterResetOnChallengeStart"] = value
+                if addon.db["combatMeterEnabled"] and addon.CombatMeter and addon.CombatMeter.frame then
+                        if value then
+                                addon.CombatMeter.frame:RegisterEvent("CHALLENGE_MODE_START")
+                        else
+                                addon.CombatMeter.frame:UnregisterEvent("CHALLENGE_MODE_START")
+                        end
+                end
+        end)
+        groupCore:AddChild(cbResetOnChallengeStart)
+
+        local sliderRate = addon.functions.createSliderAce(L["Update Rate"] .. ": " .. addon.db["combatMeterUpdateRate"], addon.db["combatMeterUpdateRate"], 0.05, 1, 0.05, function(self, _, val)
+                addon.db["combatMeterUpdateRate"] = val
+                addon.CombatMeter.functions.setUpdateRate(val)
+                self:SetLabel(L["Update Rate"] .. ": " .. string.format("%.2f", val))
+        end)
+        groupCore:AddChild(sliderRate)
 
 	local sliderFont = addon.functions.createSliderAce(L["Font Size"] .. ": " .. addon.db["combatMeterFontSize"], addon.db["combatMeterFontSize"], 8, 32, 1, function(self, _, val)
 		addon.db["combatMeterFontSize"] = val
@@ -276,11 +288,12 @@ addon.functions.InitDBValue("combatMeterOverlayTexture", TEXTURE_PATH .. "eqol_o
 addon.functions.InitDBValue("combatMeterOverlayBlend", "ADD")
 addon.functions.InitDBValue("combatMeterOverlayAlpha", 0.28)
 addon.functions.InitDBValue("combatMeterRoundedCorners", false)
+addon.functions.InitDBValue("combatMeterResetOnChallengeStart", true)
 addon.functions.InitDBValue("combatMeterGroups", {
-	{
-		type = "dps",
-		point = "CENTER",
-		x = 0,
+        {
+                type = "dps",
+                point = "CENTER",
+                x = 0,
 		y = 0,
 		barWidth = 210,
 		barHeight = 25,

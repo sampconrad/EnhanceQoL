@@ -97,14 +97,27 @@ local function acquirePlayer(tbl, guid, name)
 end
 
 local function releasePlayers(players)
-	local pool = cm.playerPool
-	for guid in pairs(players) do
-		local player = players[guid]
-		wipe(player)
-		pool[#pool + 1] = player
-		players[guid] = nil
-	end
+        local pool = cm.playerPool
+        for guid in pairs(players) do
+                local player = players[guid]
+                wipe(player)
+                pool[#pool + 1] = player
+                players[guid] = nil
+        end
 end
+
+local function resetMeter()
+        releasePlayers(cm.players)
+        releasePlayers(cm.overallPlayers)
+        cm.overallDuration = 0
+        cm.fightDuration = 0
+        cm.inCombat = false
+        cm.fightStartTime = 0
+        cm.prePullHead = 1
+        cm.prePullTail = 0
+        wipe(cm.prePullBuffer)
+end
+cm.resetMeter = resetMeter
 
 local function fullRebuildPetOwners()
 	local activeGUIDs = {}
@@ -301,10 +314,12 @@ local function handleEvent(self, event, unit)
 		-- hist[#hist + 1] = fight is required to keep trimming O(1) for inserts
 		hist[#hist + 1] = fight
 		if #hist > cm.MAX_HISTORY then table.remove(hist, 1) end
-	elseif event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
-		fullRebuildPetOwners()
-	elseif event == "UNIT_PET" then
-		updatePetOwner(unit)
+        elseif event == "CHALLENGE_MODE_START" then
+                if addon.db["combatMeterResetOnChallengeStart"] then resetMeter() end
+        elseif event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
+                fullRebuildPetOwners()
+        elseif event == "UNIT_PET" then
+                updatePetOwner(unit)
 	elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
 		local inCombat = cm.inCombat
 		local pre = addon.db["combatMeterPrePullCapture"]
@@ -446,51 +461,45 @@ end
 cm.functions.loadHistory = loadHistory
 
 function cm.functions.toggle(enabled)
-	if enabled then
-		frame:RegisterEvent("PLAYER_REGEN_DISABLED")
-		frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-		frame:RegisterEvent("ENCOUNTER_START")
-		frame:RegisterEvent("ENCOUNTER_END")
-		frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-		frame:RegisterEvent("GROUP_ROSTER_UPDATE")
-		frame:RegisterEvent("UNIT_PET")
-		frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-		if cm.uiFrame then
-			cm.uiFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-			cm.uiFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-			cm.uiFrame:RegisterEvent("ENCOUNTER_START")
-			cm.uiFrame:RegisterEvent("ENCOUNTER_END")
-			cm.uiFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
-			cm.uiFrame:RegisterEvent("INSPECT_READY")
-			cm.uiFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-		end
-	else
-		frame:UnregisterAllEvents()
-		cm.inCombat = false
-		cm.fightDuration = 0
-		cm.overallDuration = 0
-		releasePlayers(cm.players)
-		releasePlayers(cm.overallPlayers)
-		wipe(cm.prePullBuffer)
-		if cm.uiFrame then
-			cm.uiFrame:UnregisterAllEvents()
-			cm.uiFrame:Hide()
-		end
-		if cm.functions and cm.functions.hideAllFrames then cm.functions.hideAllFrames() end
-		if cm.ticker then
-			cm.ticker:Cancel()
-			cm.ticker = nil
-		end
-	end
+        if enabled then
+                frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+                frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+                frame:RegisterEvent("ENCOUNTER_START")
+                frame:RegisterEvent("ENCOUNTER_END")
+                frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+                frame:RegisterEvent("GROUP_ROSTER_UPDATE")
+                frame:RegisterEvent("UNIT_PET")
+                frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+                if addon.db["combatMeterResetOnChallengeStart"] then frame:RegisterEvent("CHALLENGE_MODE_START") end
+                if cm.uiFrame then
+                        cm.uiFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+                        cm.uiFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+                        cm.uiFrame:RegisterEvent("ENCOUNTER_START")
+                        cm.uiFrame:RegisterEvent("ENCOUNTER_END")
+                        cm.uiFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+                        cm.uiFrame:RegisterEvent("INSPECT_READY")
+                        cm.uiFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+                end
+        else
+                resetMeter()
+                frame:UnregisterEvent("CHALLENGE_MODE_START")
+                frame:UnregisterAllEvents()
+                if cm.uiFrame then
+                        cm.uiFrame:UnregisterAllEvents()
+                        cm.uiFrame:Hide()
+                end
+                if cm.functions and cm.functions.hideAllFrames then cm.functions.hideAllFrames() end
+                if cm.ticker then
+                        cm.ticker:Cancel()
+                        cm.ticker = nil
+                end
+        end
 end
 
 SLASH_EQOLCM1 = "/eqolcm"
 SlashCmdList["EQOLCM"] = function(msg)
-	if msg == "reset" then
-		addon.db["combatMeterHistory"] = {}
-		releasePlayers(cm.players)
-		releasePlayers(cm.overallPlayers)
-		cm.overallDuration = 0
-		cm.fightDuration = 0
-	end
+        if msg == "reset" then
+                addon.db["combatMeterHistory"] = {}
+                resetMeter()
+        end
 end
