@@ -15,6 +15,7 @@ declare -A locale_files=(
 
   # sub‑modules – add or remove lines if your structure changes
   ["Aura"]="EnhanceQoLAura/Locales/enUS.lua"
+  ["CombatMeter"]="EnhanceQoLCombatMeter/Locales/enUS.lua"
   ["Drink"]="EnhanceQoLDrinkMacro/Locales/enUS.lua"
   ["Mouse"]="EnhanceQoLMouse/Locales/enUS.lua"
   ["MythicPlus"]="EnhanceQoLMythicPlus/Locales/enUS.lua"
