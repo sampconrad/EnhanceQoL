@@ -284,7 +284,7 @@ addon.functions.InitDBValue("combatMeterGroups", {
 		y = 0,
 		barWidth = 210,
 		barHeight = 25,
-		maxBars = 8,
-		alwaysShowSelf = false,
+		maxBars = 5,
+		alwaysShowSelf = true,
 	},
 })
