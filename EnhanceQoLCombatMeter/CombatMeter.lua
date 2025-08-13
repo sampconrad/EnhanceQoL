@@ -35,12 +35,15 @@ local ownerPets = cm.ownerPets or {}
 cm.ownerPets = ownerPets
 local ownerNameCache = cm.ownerNameCache or {}
 cm.ownerNameCache = ownerNameCache
+local unitAffiliation = cm.unitAffiliation or {}
+cm.unitAffiliation = unitAffiliation
 
 local groupMask = bor(COMBATLOG_OBJECT_AFFILIATION_MINE, COMBATLOG_OBJECT_AFFILIATION_PARTY, COMBATLOG_OBJECT_AFFILIATION_RAID)
 
 local PETMASK = bor(COMBATLOG_OBJECT_TYPE_PET or 0, COMBATLOG_OBJECT_TYPE_GUARDIAN or 0, COMBATLOG_OBJECT_TYPE_TOTEM or 0, COMBATLOG_OBJECT_TYPE_VEHICLE or 0)
 
 local function resolveOwner(srcGUID, srcName, srcFlags)
+	if srcGUID and srcFlags then unitAffiliation[srcGUID] = srcFlags end
 	if band(srcFlags or 0, PETMASK) ~= 0 and srcGUID then
 		local owner = petOwner[srcGUID]
 		if owner then
@@ -48,14 +51,14 @@ local function resolveOwner(srcGUID, srcName, srcFlags)
 				local oname = select(6, GPIG(owner))
 				if oname then ownerNameCache[owner] = oname end
 			end
-			return owner, (ownerNameCache[owner] or srcName)
+			return owner, (ownerNameCache[owner] or srcName), unitAffiliation[owner]
 		end
 	end
 	if srcGUID and not ownerNameCache[srcGUID] then
 		local sname = select(6, GPIG(srcGUID))
 		if sname then ownerNameCache[srcGUID] = sname end
 	end
-	return srcGUID, (ownerNameCache[srcGUID] or srcName)
+	return srcGUID, (ownerNameCache[srcGUID] or srcName), unitAffiliation[srcGUID]
 end
 
 local function acquirePlayer(tbl, guid, name)
@@ -94,11 +97,15 @@ local function fullRebuildPetOwners()
 	wipe(petOwner)
 	wipe(ownerPets)
 	local activeGUIDs = {}
+	local groupGUIDs = {}
 	if IsInRaid() then
 		for i = 1, GetNumGroupMembers() do
 			local owner = UnitGUID("raid" .. i)
 			local pguid = UnitGUID("raid" .. i .. "pet")
-			if owner then activeGUIDs[owner] = true end
+			if owner then
+				activeGUIDs[owner] = true
+				groupGUIDs[owner] = true
+			end
 			if owner and pguid then
 				petOwner[pguid] = owner
 				ownerPets[owner] = ownerPets[owner] or {}
@@ -110,7 +117,10 @@ local function fullRebuildPetOwners()
 		for i = 1, GetNumGroupMembers() do
 			local owner = UnitGUID("party" .. i)
 			local pguid = UnitGUID("party" .. i .. "pet")
-			if owner then activeGUIDs[owner] = true end
+			if owner then
+				activeGUIDs[owner] = true
+				groupGUIDs[owner] = true
+			end
 			if owner and pguid then
 				petOwner[pguid] = owner
 				ownerPets[owner] = ownerPets[owner] or {}
@@ -118,18 +128,25 @@ local function fullRebuildPetOwners()
 				activeGUIDs[pguid] = true
 			end
 		end
-		local me = UnitGUID("player")
-		local mypet = UnitGUID("pet")
-		if me then activeGUIDs[me] = true end
-		if me and mypet then
-			petOwner[mypet] = me
-			ownerPets[me] = ownerPets[me] or {}
-			ownerPets[me][mypet] = true
-			activeGUIDs[mypet] = true
-		end
 	end
+	local me = UnitGUID("player")
+	local mypet = UnitGUID("pet")
+	if me then
+		activeGUIDs[me] = true
+		groupGUIDs[me] = true
+	end
+	if me and mypet then
+		petOwner[mypet] = me
+		ownerPets[me] = ownerPets[me] or {}
+		ownerPets[me][mypet] = true
+		activeGUIDs[mypet] = true
+	end
+	cm.groupGUIDs = groupGUIDs
 	for guid in pairs(ownerNameCache) do
 		if not activeGUIDs[guid] then ownerNameCache[guid] = nil end
+	end
+	for guid in pairs(unitAffiliation) do
+		if not activeGUIDs[guid] then unitAffiliation[guid] = nil end
 	end
 end
 
@@ -284,10 +301,12 @@ local function handleEvent(self, event, unit)
 
 		local idx = dmgIdx[sub]
 		if idx then
-			if not sourceGUID or band(sourceFlags or 0, groupMask) == 0 then return end
+			if not sourceGUID then return end
+			local ownerGUID, ownerName, ownerFlags = resolveOwner(sourceGUID, sourceName, sourceFlags)
+			if not ownerFlags and cm.groupGUIDs and cm.groupGUIDs[ownerGUID] then ownerFlags = COMBATLOG_OBJECT_AFFILIATION_RAID end
+			if band(ownerFlags or 0, groupMask) == 0 then return end
 			local amount = (idx == 1 and a12) or a15 or 0
 			if amount <= 0 then return end
-			local ownerGUID, ownerName = resolveOwner(sourceGUID, sourceName, sourceFlags)
 			if inCombat then
 				local player = acquirePlayer(cm.players, ownerGUID, ownerName)
 				local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
@@ -300,10 +319,12 @@ local function handleEvent(self, event, unit)
 		end
 
 		if sub == "SPELL_HEAL" or sub == "SPELL_PERIODIC_HEAL" then
-			if not sourceGUID or band(sourceFlags or 0, groupMask) == 0 then return end
+			if not sourceGUID then return end
+			local ownerGUID, ownerName, ownerFlags = resolveOwner(sourceGUID, sourceName, sourceFlags)
+			if not ownerFlags and cm.groupGUIDs and cm.groupGUIDs[ownerGUID] then ownerFlags = COMBATLOG_OBJECT_AFFILIATION_RAID end
+			if band(ownerFlags or 0, groupMask) == 0 then return end
 			local amount = (a15 or 0) - (a16 or 0)
 			if amount <= 0 then return end
-			local ownerGUID, ownerName = resolveOwner(sourceGUID, sourceName, sourceFlags)
 			if inCombat then
 				local player = acquirePlayer(cm.players, ownerGUID, ownerName)
 				local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
@@ -329,9 +350,11 @@ local function handleEvent(self, event, unit)
 				-- Swing-Variante (19/20 Rückgabewerte)
 				absorberGUID, absorberName, absorberFlags, absorbedAmount = a12, a13, a14, a19
 			end
-			if not absorberGUID or type(absorberFlags) ~= "number" or band(absorberFlags, groupMask) == 0 then return end
+			if not absorberGUID or type(absorberFlags) ~= "number" then return end
+			local ownerGUID, ownerName, ownerFlags = resolveOwner(absorberGUID, absorberName, absorberFlags)
+			if not ownerFlags and cm.groupGUIDs and cm.groupGUIDs[ownerGUID] then ownerFlags = COMBATLOG_OBJECT_AFFILIATION_RAID end
+			if band(ownerFlags or 0, groupMask) == 0 then return end
 			if not absorbedAmount or absorbedAmount <= 0 then return end
-			local ownerGUID, ownerName = resolveOwner(absorberGUID, absorberName, absorberFlags)
 			if inCombat then
 				local p = acquirePlayer(cm.players, ownerGUID, ownerName)
 				local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
