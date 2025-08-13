@@ -25,6 +25,7 @@
 - **Difficulty** – shows current instance or raid difficulty.
 - **Durability** – displays average equipment durability.
   - Mouseover for a detailed per-slot breakdown.
+
 - **Friends** – shows the number of online friends.
 - **Gold** – tracks current character gold.
 - **Stats** – summarizes key player statistics.
