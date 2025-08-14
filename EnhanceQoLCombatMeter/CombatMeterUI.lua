@@ -494,9 +494,21 @@ local function createGroupFrame(groupConfig)
 
 				local temp = {}
 				local total = 0
+				local aggregated = {}
 				for _, s in pairs(spells) do
 					if s.amount and s.amount > 0 then
-						temp[#temp + 1] = s
+						local key = s.name or ""
+						local agg = aggregated[key]
+						if not agg then
+							agg = { name = s.name, icon = s.icon, amount = 0, hits = 0, periodicHits = 0, crits = 0 }
+							aggregated[key] = agg
+							temp[#temp + 1] = agg
+						end
+						agg.amount = agg.amount + (s.amount or 0)
+						agg.hits = (agg.hits or 0) + (s.hits or 0)
+						agg.periodicHits = (agg.periodicHits or 0) + (s.periodicHits or 0)
+						agg.crits = (agg.crits or 0) + (s.crits or 0)
+						agg.icon = agg.icon or s.icon
 						total = total + s.amount
 					end
 				end
