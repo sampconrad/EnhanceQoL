@@ -516,6 +516,7 @@ local function createGroupFrame(groupConfig)
 					else
 						fullName = fullName .. (spell.name or "")
 					end
+					if not isHealingMetric and spell.periodicHits and spell.hits and spell.periodicHits >= spell.hits then fullName = fullName .. " (DoT)" end
 					local pct = (spell.amount / total) * 100
 					GameTooltip:AddDoubleLine(fullName, string.format("%s (%.1f%%)", abbreviateNumber(spell.amount), pct))
 				end
