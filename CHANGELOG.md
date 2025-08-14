@@ -1,5 +1,18 @@
 # Changelog
 
+## [4.4.0] – 2025-08-14
+
+### ✨ Added
+
+- **Combat Meter**: metric switch to toggle displayed metrics.
+
+### 🐛 Fixed
+
+- Resolved issues in **DataPanel**.
+- Improved **Combat Meter** DPS/HPS determination accuracy.
+
+---
+
 ## [4.3.0] – 2025-08-07
 
 ### ✨ Added
@@ -24,6 +37,7 @@
 
 - **Difficulty** – shows current instance or raid difficulty.
 - **Durability** – displays average equipment durability.
+
   - Mouseover for a detailed per-slot breakdown.
 
 - **Friends** – shows the number of online friends.

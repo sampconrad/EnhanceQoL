@@ -256,6 +256,8 @@ local function mergePrePull()
 			e.guid = ownerGUID
 			e.name = ownerName
 			local p = acquirePlayer(cm.players, ownerGUID, ownerName)
+			p._first = p._first or e.t
+			p._last = e.t
 			local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
 			if e.damage and e.damage > 0 then
 				p.damage = p.damage + e.damage
@@ -300,7 +302,12 @@ local function handleEvent(self, event, unit)
 		cm.overallDuration = cm.overallDuration + cm.fightDuration
 		for guid, data in pairs(cm.players) do
 			local o = acquirePlayer(cm.overallPlayers, guid, data.name)
-			o.time = (o.time or 0) + cm.fightDuration
+			local start = cm.fightStartTime
+			local finish = start + cm.fightDuration
+			local first = data._first or start
+			local last = data._last or start
+			local active = math.max(0, math.min(last, finish) - math.max(first, start))
+			o.time = (o.time or 0) + active
 		end
 		local fight = { duration = cm.fightDuration, players = {} }
 		for guid, data in pairs(cm.players) do
@@ -369,6 +376,9 @@ local function handleEvent(self, event, unit)
 			if inCombat then
 				local player = acquirePlayer(cm.players, ownerGUID, ownerName)
 				local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+				local now = GetTime()
+				player._first = player._first or now
+				player._last = now
 				player.damage = player.damage + amount
 				overall.damage = overall.damage + amount
 			else
@@ -387,6 +397,9 @@ local function handleEvent(self, event, unit)
 			if amount <= 0 then return end
 			local player = acquirePlayer(cm.players, ownerGUID, ownerName)
 			local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+			local now = GetTime()
+			player._first = player._first or now
+			player._last = now
 			player.damageTaken = player.damageTaken + amount
 			overall.damageTaken = overall.damageTaken + amount
 			return
@@ -402,6 +415,9 @@ local function handleEvent(self, event, unit)
 			if inCombat then
 				local player = acquirePlayer(cm.players, ownerGUID, ownerName)
 				local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+				local now = GetTime()
+				player._first = player._first or now
+				player._last = now
 				player.healing = player.healing + amount
 				overall.healing = overall.healing + amount
 			else
@@ -432,6 +448,9 @@ local function handleEvent(self, event, unit)
 			if inCombat then
 				local p = acquirePlayer(cm.players, ownerGUID, ownerName)
 				local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+				local now = GetTime()
+				p._first = p._first or now
+				p._last = now
 				p.healing = p.healing + absorbedAmount
 				o.healing = o.healing + absorbedAmount
 			else

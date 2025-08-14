@@ -6,9 +6,10 @@ local DataHub = addon.DataHub
 local panels = {}
 
 local function ensureSettings(id, name)
+	id = tostring(id)
 	addon.db = addon.db or {}
 	addon.db.dataPanels = addon.db.dataPanels or {}
-	local info = addon.db.dataPanels[id]
+	local info = addon.db.dataPanels[id] or addon.db.dataPanels[tonumber(id)]
 	if not info then
 		info = {
 			point = "CENTER",
@@ -20,12 +21,14 @@ local function ensureSettings(id, name)
 			streamSet = {},
 			name = name or ("Panel " .. id),
 		}
-		addon.db.dataPanels[id] = info
 	else
 		info.streams = info.streams or {}
 		info.streamSet = info.streamSet or {}
 		info.name = info.name or name or ("Panel " .. id)
 	end
+
+	addon.db.dataPanels[id] = info
+	if addon.db.dataPanels[tonumber(id)] then addon.db.dataPanels[tonumber(id)] = nil end
 
 	for _, n in ipairs(info.streams) do
 		info.streamSet[n] = true
@@ -37,6 +40,7 @@ end
 local function round2(v) return math.floor(v * 100 + 0.5) / 100 end
 
 local function savePosition(frame, id)
+	id = tostring(id)
 	local info = ensureSettings(id)
 	info.point, _, _, info.x, info.y = frame:GetPoint()
 	info.width = round2(frame:GetWidth())
@@ -54,8 +58,10 @@ function DataPanel.Create(id, name)
 		end
 	end
 	if not id then
-		id = addon.db.nextPanelId
+		id = tostring(addon.db.nextPanelId)
 		addon.db.nextPanelId = addon.db.nextPanelId + 1
+	else
+		id = tostring(id)
 	end
 	if panels[id] then return panels[id] end
 	local info = ensureSettings(id, name)
@@ -247,11 +253,39 @@ function DataPanel.Create(id, name)
 	return panel
 end
 
+function DataPanel.Get(id)
+	id = tostring(id)
+	return panels[id]
+end
+
+function DataPanel.AddStream(id, name)
+	id = tostring(id)
+	local panel = DataPanel.Create(id)
+	panel:AddStream(name)
+end
+
+function DataPanel.RemoveStream(id, name)
+	id = tostring(id)
+	local panel = panels[id]
+	if panel then panel:RemoveStream(name) end
+end
+
+function DataPanel.Move(id, point, x, y)
+	id = tostring(id)
+	local panel = panels[id]
+	if panel then
+		panel.frame:ClearAllPoints()
+		panel.frame:SetPoint(point, x, y)
+		savePosition(panel.frame, id)
+	end
+end
+
 function DataPanel.List()
 	addon.db = addon.db or {}
 	addon.db.dataPanels = addon.db.dataPanels or {}
 	local result = {}
 	for id, info in pairs(addon.db.dataPanels) do
+		id = tostring(id)
 		local entry = { list = {}, set = {} }
 		result[id] = entry
 		if info.streams then
@@ -264,6 +298,7 @@ function DataPanel.List()
 		end
 	end
 	for id, panel in pairs(panels) do
+		id = tostring(id)
 		local entry = result[id]
 		if not entry then
 			entry = { list = {}, set = {} }
@@ -283,7 +318,8 @@ function DataPanel.List()
 end
 
 function DataPanel.Delete(id)
-	local panel = panels[id]
+	id = tostring(id)
+	local panel = panels[id] or panels[tonumber(id)]
 	if panel then
 		for i = #panel.order, 1, -1 do
 			panel:RemoveStream(panel.order[i])
@@ -291,8 +327,12 @@ function DataPanel.Delete(id)
 		panel.frame:Hide()
 		panel.frame:SetParent(nil)
 		panels[id] = nil
+		if panels[tonumber(id)] then panels[tonumber(id)] = nil end
 	end
-	if addon.db and addon.db.dataPanels then addon.db.dataPanels[id] = nil end
+	if addon.db and addon.db.dataPanels then
+		addon.db.dataPanels[id] = nil
+		if addon.db.dataPanels[tonumber(id)] then addon.db.dataPanels[tonumber(id)] = nil end
+	end
 end
 
 local initFrame = CreateFrame("Frame")

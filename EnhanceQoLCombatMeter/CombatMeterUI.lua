@@ -231,6 +231,20 @@ local function OpenHistoryMenu(owner)
 		end
 	end)
 end
+
+-- Opens a metric selection menu for a group frame
+local function OpenMetricMenu(owner, frame)
+	MenuUtil.CreateContextMenu(owner, function(_, root)
+		for metric, name in pairs(metricNames) do
+			root:CreateButton(name, function()
+				frame.metric = metric
+				frame.groupConfig.type = metric
+				if frame.dragHandle and frame.dragHandle.text then frame.dragHandle.text:SetText(metricNames[metric]) end
+				if addon.CombatMeter and addon.CombatMeter.functions and addon.CombatMeter.functions.UpdateBars then addon.CombatMeter.functions.UpdateBars() end
+			end)
+		end
+	end)
+end
 local function createGroupFrame(groupConfig)
 	local barHeight = groupConfig.barHeight or DEFAULT_BAR_HEIGHT
 	local barWidth = groupConfig.barWidth or DEFAULT_BAR_WIDTH
@@ -362,9 +376,40 @@ local function createGroupFrame(groupConfig)
 
 	historyButton:SetScript("OnClick", function(self) OpenHistoryMenu(self) end)
 
+	local metricButton = CreateFrame("Button", nil, dragHandle)
+	metricButton:SetSize(16, 16)
+	metricButton:SetPoint("RIGHT", historyButton, "LEFT", -2, 1)
+
+	metricButton.icon = metricButton:CreateTexture(nil, "ARTWORK")
+	metricButton.icon:SetAllPoints(metricButton)
+	metricButton.icon:SetTexture(TEXTURE_PATH .. "eqol_metric_64.tga")
+	-- Tint the metric icon in gold
+	metricButton.icon:SetVertexColor(1, 0.82, 0)
+
+	local mhl = metricButton:CreateTexture(nil, "HIGHLIGHT")
+	mhl:SetAllPoints(metricButton)
+	mhl:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+	mhl:SetBlendMode("ADD")
+
+	metricButton:SetScript("OnMouseDown", function(self)
+		if self.icon then self.icon:SetVertexColor(0.9, 0.74, 0) end
+	end)
+	metricButton:SetScript("OnMouseUp", function(self)
+		if self.icon then self.icon:SetVertexColor(1, 0.82, 0) end
+	end)
+
+	metricButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:AddLine(L["Change Metric"])
+		GameTooltip:Show()
+	end)
+	metricButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+	metricButton:SetScript("OnClick", function(self) OpenMetricMenu(self, frame) end)
+
 	dragHandle.text = dragHandle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	dragHandle.text:SetPoint("LEFT", dragHandle, "LEFT", 2, 0)
-	dragHandle.text:SetPoint("RIGHT", historyButton, "LEFT", -2, 0)
+	dragHandle.text:SetPoint("RIGHT", metricButton, "LEFT", -2, 0)
 	dragHandle.text:SetJustifyH("CENTER")
 	dragHandle.text:SetText(metricNames[groupConfig.type] or L["Combat Meter"])
 	frame.dragHandle = dragHandle
@@ -472,9 +517,10 @@ local function createGroupFrame(groupConfig)
 		local maxValue = 0
 		if self.metric == "damageOverall" or self.metric == "healingOverall" then
 			for guid, p in pairs(addon.CombatMeter.overallPlayers) do
-				if groupUnits[guid] then
+				-- Skip players without recorded time to avoid blank bars
+				if groupUnits[guid] and p.time and p.time > 0 then
 					local total = (self.metric == "damageOverall") and (p.damage or 0) or (p.healing or 0)
-					local value = total / math.max(p.time or 0, 1)
+					local value = total / p.time
 					tinsert(list, { guid = guid, name = p.name, value = value, total = total, class = p.class })
 					if value > maxValue then maxValue = value end
 				end
@@ -539,13 +585,10 @@ local function createGroupFrame(groupConfig)
 				local class
 				if self.metric == "damageOverall" or self.metric == "healingOverall" then
 					local p = addon.CombatMeter.overallPlayers[playerGUID]
-					if p then
+					if p and p.time and p.time > 0 then
 						total = (self.metric == "damageOverall") and (p.damage or 0) or (p.healing or 0)
+						value = total / p.time
 						class = p.class
-						value = total / math.max(p.time or 0, 1)
-					else
-						total = 0
-						value = 0
 					end
 				else
 					local duration
@@ -570,8 +613,10 @@ local function createGroupFrame(groupConfig)
 						value = 0
 					end
 				end
-				if value > maxValue then maxValue = value end
-				tinsert(list, { guid = playerGUID, name = name, value = value, total = total, class = class })
+				if value then
+					if value > maxValue then maxValue = value end
+					tinsert(list, { guid = playerGUID, name = name, value = value, total = total, class = class })
+				end
 			end
 			if #list > maxBars then
 				local playerIndex
