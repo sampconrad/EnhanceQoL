@@ -44,6 +44,9 @@ local groupMask = bor(COMBATLOG_OBJECT_AFFILIATION_MINE, COMBATLOG_OBJECT_AFFILI
 
 local PETMASK = bor(COMBATLOG_OBJECT_TYPE_PET or 0, COMBATLOG_OBJECT_TYPE_GUARDIAN or 0, COMBATLOG_OBJECT_TYPE_TOTEM or 0, COMBATLOG_OBJECT_TYPE_VEHICLE or 0)
 
+local spellCache = {}
+local iconCache = {}
+
 local function resolveOwner(srcGUID, srcName, srcFlags)
 	if srcGUID and srcFlags then unitAffiliation[srcGUID] = srcFlags end
 	if srcGUID then
@@ -229,7 +232,7 @@ local function updatePetOwner(unit)
 	end
 end
 
-local function addPrePull(ownerGUID, ownerName, damage, healing, spellId, spellName, crit)
+local function addPrePull(ownerGUID, ownerName, damage, healing, spellId, spellName, crit, periodic)
 	local buf = cm.prePullBuffer
 	local now = GetTime()
 	local tail = cm.prePullTail + 1
@@ -242,6 +245,7 @@ local function addPrePull(ownerGUID, ownerName, damage, healing, spellId, spellN
 		spellId = spellId,
 		spellName = spellName,
 		crit = crit,
+		periodic = periodic,
 	}
 	cm.prePullTail = tail
 	local cutoff = now - (addon.db["combatMeterPrePullWindow"] or 4)
@@ -278,24 +282,35 @@ local function mergePrePull()
 			local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
 			local sid = e.spellId or -1
 			local sname = e.spellName or "Other"
+			local periodic = e.periodic
+			local icon = iconCache[sid]
+			if sid > 0 and not icon then
+				local si = C_Spell.GetSpellInfo(sid)
+				icon = si and si.iconID
+				iconCache[sid] = icon
+			end
 			if e.damage and e.damage > 0 then
 				local ps = p.damageSpells[sid]
 				if not ps then
-					ps = { name = sname, amount = 0, hits = 0, crits = 0 }
+					ps = { name = sname, amount = 0, hits = 0, crits = 0, periodicHits = 0, icon = icon }
 					p.damageSpells[sid] = ps
 				end
 				ps.name = sname
+				ps.icon = ps.icon or icon
 				ps.amount = ps.amount + e.damage
 				ps.hits = (ps.hits or 0) + 1
+				if periodic then ps.periodicHits = (ps.periodicHits or 0) + 1 end
 				if e.crit then ps.crits = (ps.crits or 0) + 1 end
 				local os = o.damageSpells[sid]
 				if not os then
-					os = { name = sname, amount = 0, hits = 0, crits = 0 }
+					os = { name = sname, amount = 0, hits = 0, crits = 0, periodicHits = 0, icon = icon }
 					o.damageSpells[sid] = os
 				end
 				os.name = sname
+				os.icon = os.icon or icon
 				os.amount = os.amount + e.damage
 				os.hits = (os.hits or 0) + 1
+				if periodic then os.periodicHits = (os.periodicHits or 0) + 1 end
 				if e.crit then os.crits = (os.crits or 0) + 1 end
 				p.damage = p.damage + e.damage
 				o.damage = o.damage + e.damage
@@ -303,21 +318,25 @@ local function mergePrePull()
 			if e.healing and e.healing > 0 then
 				local ps = p.healSpells[sid]
 				if not ps then
-					ps = { name = sname, amount = 0, hits = 0, crits = 0 }
+					ps = { name = sname, amount = 0, hits = 0, crits = 0, periodicHits = 0, icon = icon }
 					p.healSpells[sid] = ps
 				end
 				ps.name = sname
+				ps.icon = ps.icon or icon
 				ps.amount = ps.amount + e.healing
 				ps.hits = (ps.hits or 0) + 1
+				if periodic then ps.periodicHits = (ps.periodicHits or 0) + 1 end
 				if e.crit then ps.crits = (ps.crits or 0) + 1 end
 				local os = o.healSpells[sid]
 				if not os then
-					os = { name = sname, amount = 0, hits = 0, crits = 0 }
+					os = { name = sname, amount = 0, hits = 0, crits = 0, periodicHits = 0, icon = icon }
 					o.healSpells[sid] = os
 				end
 				os.name = sname
+				os.icon = os.icon or icon
 				os.amount = os.amount + e.healing
 				os.hits = (os.hits or 0) + 1
+				if periodic then os.periodicHits = (os.periodicHits or 0) + 1 end
 				if e.crit then os.crits = (os.crits or 0) + 1 end
 				p.healing = p.healing + e.healing
 				o.healing = o.healing + e.healing
@@ -340,9 +359,6 @@ local dmgIdx = {
 	DAMAGE_SHIELD = 4,
 }
 
-local spellCache = {}
-local iconCache = {}
-
 local function getSpellInfoFromSub(sub, a12, a15)
 	if sub == "SWING_DAMAGE" then return 6603, "Melee", 135274 end
 	-- Für SPELL_* und RANGE_* liegt die spellId in a12
@@ -350,22 +366,25 @@ local function getSpellInfoFromSub(sub, a12, a15)
 		local spellID = a12
 		local name = spellID and spellCache[spellID]
 		local icon = spellID and iconCache[spellID]
+		if spellID and name and not icon then
+			local si = C_Spell.GetSpellInfo(spellID)
+			icon = si and si.iconID
+			iconCache[spellID] = icon
+		end
 		if not name and spellID then
-			local spellInfo = C_Spell.GetSpellInfo(spellID)
-			if spellInfo then
-				name = spellInfo.name
-				icon = spellInfo.iconID
+			local si = C_Spell.GetSpellInfo(spellID)
+			if si then
+				name = si.name
+				icon = si.iconID
 			else
 				name = "Other"
 			end
-			if sub == "SPELL_PERIODIC_DAMAGE" then name = name .. " (DoT)" end
 			spellCache[spellID] = name
 			iconCache[spellID] = icon
-			return spellID, name, icon
 		end
 		return spellID or -1, name or "Other", icon
 	end
-	return -1, "Other"
+	return -1, "Other", nil
 end
 
 local function isCritFor(sub, a18, a21)
@@ -474,24 +493,28 @@ local function handleEvent(self, event, unit)
 				overall.damage = overall.damage + amount
 				local ps = player.damageSpells[spellId]
 				if not ps then
-					ps = { name = spellName, amount = 0, hits = 0, crits = 0, icon = spellIcon }
+					ps = { name = spellName, amount = 0, hits = 0, crits = 0, periodicHits = 0, icon = spellIcon }
 					player.damageSpells[spellId] = ps
 				end
 				ps.name = spellName
+				ps.icon = ps.icon or spellIcon
 				ps.amount = ps.amount + amount
 				ps.hits = (ps.hits or 0) + 1
+				if sub == "SPELL_PERIODIC_DAMAGE" then ps.periodicHits = (ps.periodicHits or 0) + 1 end
 				if crit then ps.crits = (ps.crits or 0) + 1 end
 				local os = overall.damageSpells[spellId]
 				if not os then
-					os = { name = spellName, amount = 0, hits = 0, crits = 0, icon = spellIcon }
+					os = { name = spellName, amount = 0, hits = 0, crits = 0, periodicHits = 0, icon = spellIcon }
 					overall.damageSpells[spellId] = os
 				end
 				os.name = spellName
+				os.icon = os.icon or spellIcon
 				os.amount = os.amount + amount
 				os.hits = (os.hits or 0) + 1
+				if sub == "SPELL_PERIODIC_DAMAGE" then os.periodicHits = (os.periodicHits or 0) + 1 end
 				if crit then os.crits = (os.crits or 0) + 1 end
 			else
-				addPrePull(ownerGUID, ownerName, amount, 0, spellId, spellName, crit)
+				addPrePull(ownerGUID, ownerName, amount, 0, spellId, spellName, crit, sub == "SPELL_PERIODIC_DAMAGE")
 			end
 			return
 		end
@@ -533,24 +556,28 @@ local function handleEvent(self, event, unit)
 				overall.healing = overall.healing + amount
 				local ps = player.healSpells[spellId]
 				if not ps then
-					ps = { name = spellName, amount = 0, hits = 0, crits = 0, icon = spellIcon }
+					ps = { name = spellName, amount = 0, hits = 0, crits = 0, periodicHits = 0, icon = spellIcon }
 					player.healSpells[spellId] = ps
 				end
 				ps.name = spellName
+				ps.icon = ps.icon or spellIcon
 				ps.amount = ps.amount + amount
 				ps.hits = (ps.hits or 0) + 1
+				if sub == "SPELL_PERIODIC_HEAL" then ps.periodicHits = (ps.periodicHits or 0) + 1 end
 				if crit then ps.crits = (ps.crits or 0) + 1 end
 				local os = overall.healSpells[spellId]
 				if not os then
-					os = { name = spellName, amount = 0, hits = 0, crits = 0, icon = spellIcon }
+					os = { name = spellName, amount = 0, hits = 0, crits = 0, periodicHits = 0, icon = spellIcon }
 					overall.healSpells[spellId] = os
 				end
 				os.name = spellName
+				os.icon = os.icon or spellIcon
 				os.amount = os.amount + amount
 				os.hits = (os.hits or 0) + 1
+				if sub == "SPELL_PERIODIC_HEAL" then os.periodicHits = (os.periodicHits or 0) + 1 end
 				if crit then os.crits = (os.crits or 0) + 1 end
 			else
-				addPrePull(ownerGUID, ownerName, 0, amount, spellId, spellName, crit)
+				addPrePull(ownerGUID, ownerName, 0, amount, spellId, spellName, crit, sub == "SPELL_PERIODIC_HEAL")
 			end
 			return
 		end
@@ -585,22 +612,24 @@ local function handleEvent(self, event, unit)
 				o.healing = o.healing + absorbedAmount
 				local ps = p.healSpells[spellId]
 				if not ps then
-					ps = { name = spellName, amount = 0, hits = 0, crits = 0, icon = spellIcon }
+					ps = { name = spellName, amount = 0, hits = 0, crits = 0, periodicHits = 0, icon = spellIcon }
 					p.healSpells[spellId] = ps
 				end
 				ps.name = spellName
+				ps.icon = ps.icon or spellIcon
 				ps.amount = ps.amount + absorbedAmount
 				ps.hits = (ps.hits or 0) + 1
 				local os = o.healSpells[spellId]
 				if not os then
-					os = { name = spellName, amount = 0, hits = 0, crits = 0, icon = spellIcon }
+					os = { name = spellName, amount = 0, hits = 0, crits = 0, periodicHits = 0, icon = spellIcon }
 					o.healSpells[spellId] = os
 				end
 				os.name = spellName
+				os.icon = os.icon or spellIcon
 				os.amount = os.amount + absorbedAmount
 				os.hits = (os.hits or 0) + 1
 			else
-				addPrePull(ownerGUID, ownerName, 0, absorbedAmount, spellId, spellName, false)
+				addPrePull(ownerGUID, ownerName, 0, absorbedAmount, spellId, spellName, false, false)
 			end
 			return
 		end
