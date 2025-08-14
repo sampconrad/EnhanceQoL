@@ -289,6 +289,17 @@ local dmgIdx = {
 	DAMAGE_SHIELD = 4,
 }
 
+local function getSpellInfoFromSub(sub, a12, a15)
+	if sub == "SWING_DAMAGE" then
+		return 6603, "Melee"
+	elseif sub and (sub:find("_DAMAGE") or sub:find("_HEAL")) then
+		local spellID = a15
+		local name = spellID and GetSpellInfo(spellID)
+		return spellID or -1, name or "Other"
+	end
+	return -1, "Other"
+end
+
 local function handleEvent(self, event, unit)
 	if event == "PLAYER_REGEN_DISABLED" or event == "ENCOUNTER_START" then
 		if cm.inCombat then return end
