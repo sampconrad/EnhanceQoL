@@ -235,8 +235,8 @@ local function addPrePull(ownerGUID, ownerName, damage, healing, spellId, spellN
 		name = ownerName,
 		damage = damage or 0,
 		healing = healing or 0,
-                spellId = spellId,
-                spellName = spellName,
+		spellId = spellId,
+		spellName = spellName,
 		crit = crit,
 	}
 	cm.prePullTail = tail
@@ -261,65 +261,65 @@ local function mergePrePull()
 	local head = cm.prePullHead
 	local tail = cm.prePullTail
 	if not buf or head > tail then return end
-        local cutoff = GetTime() - (addon.db["combatMeterPrePullWindow"] or 4)
-        for i = head, tail do
-                local e = buf[i]
-                if e and e.t >= cutoff then
-                        local ownerGUID, ownerName = resolveOwner(e.guid, e.name, unitAffiliation[e.guid])
-                        e.guid = ownerGUID
-                        e.name = ownerName
-                        local p = acquirePlayer(cm.players, ownerGUID, ownerName)
-                        p._first = p._first or e.t
-                        p._last = e.t
-                        local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
-                        local sid = e.spellId or -1
-                        local sname = e.spellName or "Other"
-                        if e.damage and e.damage > 0 then
-                                local ps = p.spells[sid]
-                                if not ps then
-                                        ps = { name = sname, amount = 0, hits = 0, crits = 0 }
-                                        p.spells[sid] = ps
-                                end
-                                ps.name = sname
-                                ps.amount = ps.amount + e.damage
-                                ps.hits = (ps.hits or 0) + 1
-                                if e.crit then ps.crits = (ps.crits or 0) + 1 end
-                                local os = o.spells[sid]
-                                if not os then
-                                        os = { name = sname, amount = 0, hits = 0, crits = 0 }
-                                        o.spells[sid] = os
-                                end
-                                os.name = sname
-                                os.amount = os.amount + e.damage
-                                os.hits = (os.hits or 0) + 1
-                                if e.crit then os.crits = (os.crits or 0) + 1 end
-                                p.damage = p.damage + e.damage
-                                o.damage = o.damage + e.damage
-                        end
-                        if e.healing and e.healing > 0 then
-                                local ps = p.spells[sid]
-                                if not ps then
-                                        ps = { name = sname, amount = 0, hits = 0, crits = 0 }
-                                        p.spells[sid] = ps
-                                end
-                                ps.name = sname
-                                ps.amount = ps.amount + e.healing
-                                ps.hits = (ps.hits or 0) + 1
-                                if e.crit then ps.crits = (ps.crits or 0) + 1 end
-                                local os = o.spells[sid]
-                                if not os then
-                                        os = { name = sname, amount = 0, hits = 0, crits = 0 }
-                                        o.spells[sid] = os
-                                end
-                                os.name = sname
-                                os.amount = os.amount + e.healing
-                                os.hits = (os.hits or 0) + 1
-                                if e.crit then os.crits = (os.crits or 0) + 1 end
-                                p.healing = p.healing + e.healing
-                                o.healing = o.healing + e.healing
-                        end
-                end
-        end
+	local cutoff = GetTime() - (addon.db["combatMeterPrePullWindow"] or 4)
+	for i = head, tail do
+		local e = buf[i]
+		if e and e.t >= cutoff then
+			local ownerGUID, ownerName = resolveOwner(e.guid, e.name, unitAffiliation[e.guid])
+			e.guid = ownerGUID
+			e.name = ownerName
+			local p = acquirePlayer(cm.players, ownerGUID, ownerName)
+			p._first = p._first or e.t
+			p._last = e.t
+			local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+			local sid = e.spellId or -1
+			local sname = e.spellName or "Other"
+			if e.damage and e.damage > 0 then
+				local ps = p.spells[sid]
+				if not ps then
+					ps = { name = sname, amount = 0, hits = 0, crits = 0 }
+					p.spells[sid] = ps
+				end
+				ps.name = sname
+				ps.amount = ps.amount + e.damage
+				ps.hits = (ps.hits or 0) + 1
+				if e.crit then ps.crits = (ps.crits or 0) + 1 end
+				local os = o.spells[sid]
+				if not os then
+					os = { name = sname, amount = 0, hits = 0, crits = 0 }
+					o.spells[sid] = os
+				end
+				os.name = sname
+				os.amount = os.amount + e.damage
+				os.hits = (os.hits or 0) + 1
+				if e.crit then os.crits = (os.crits or 0) + 1 end
+				p.damage = p.damage + e.damage
+				o.damage = o.damage + e.damage
+			end
+			if e.healing and e.healing > 0 then
+				local ps = p.spells[sid]
+				if not ps then
+					ps = { name = sname, amount = 0, hits = 0, crits = 0 }
+					p.spells[sid] = ps
+				end
+				ps.name = sname
+				ps.amount = ps.amount + e.healing
+				ps.hits = (ps.hits or 0) + 1
+				if e.crit then ps.crits = (ps.crits or 0) + 1 end
+				local os = o.spells[sid]
+				if not os then
+					os = { name = sname, amount = 0, hits = 0, crits = 0 }
+					o.spells[sid] = os
+				end
+				os.name = sname
+				os.amount = os.amount + e.healing
+				os.hits = (os.hits or 0) + 1
+				if e.crit then os.crits = (os.crits or 0) + 1 end
+				p.healing = p.healing + e.healing
+				o.healing = o.healing + e.healing
+			end
+		end
+	end
 	cm.prePullHead = 1
 	cm.prePullTail = 0
 	wipe(buf)
@@ -341,8 +341,10 @@ local function getSpellInfoFromSub(sub, a12, a15)
 		return 6603, "Melee"
 	elseif sub and (sub:find("_DAMAGE") or sub:find("_HEAL")) then
 		local spellID = a15
-		local name = spellID and GetSpellInfo(spellID)
-		return spellID or -1, name or "Other"
+		if spellID then
+			local spellInfo = C_Spell.GetSpellInfo(spellID)
+			if spellInfo then return spellID, spellInfo.name end
+		end
 	end
 	return -1, "Other"
 end
@@ -435,39 +437,39 @@ local function handleEvent(self, event, unit)
 			if band(ownerFlags or 0, groupMask) == 0 then return end
 			local amount = (idx == 1 and a12) or a15 or 0
 			if amount <= 0 then return end
-                        local spellId, spellName = getSpellInfoFromSub(sub, a12, a15)
-                        local crit = a21 or a18
-                        if inCombat then
-                                local player = acquirePlayer(cm.players, ownerGUID, ownerName)
-                                local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+			local spellId, spellName = getSpellInfoFromSub(sub, a12, a15)
+			local crit = a21 or a18
+			if inCombat then
+				local player = acquirePlayer(cm.players, ownerGUID, ownerName)
+				local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
 				local now = GetTime()
 				player._first = player._first or now
 				player._last = now
 				player.damage = player.damage + amount
 				overall.damage = overall.damage + amount
-                                local ps = player.spells[spellId]
-                                if not ps then
-                                        ps = { name = spellName, amount = 0, hits = 0, crits = 0 }
-                                        player.spells[spellId] = ps
-                                end
-                                ps.name = spellName
-                                ps.amount = ps.amount + amount
-                                ps.hits = (ps.hits or 0) + 1
-                                if crit then ps.crits = (ps.crits or 0) + 1 end
-                                local os = overall.spells[spellId]
-                                if not os then
-                                        os = { name = spellName, amount = 0, hits = 0, crits = 0 }
-                                        overall.spells[spellId] = os
-                                end
-                                os.name = spellName
-                                os.amount = os.amount + amount
-                                os.hits = (os.hits or 0) + 1
-                                if crit then os.crits = (os.crits or 0) + 1 end
-                        else
-                                addPrePull(ownerGUID, ownerName, amount, 0, spellId, spellName, crit)
-                        end
-                        return
-                end
+				local ps = player.spells[spellId]
+				if not ps then
+					ps = { name = spellName, amount = 0, hits = 0, crits = 0 }
+					player.spells[spellId] = ps
+				end
+				ps.name = spellName
+				ps.amount = ps.amount + amount
+				ps.hits = (ps.hits or 0) + 1
+				if crit then ps.crits = (ps.crits or 0) + 1 end
+				local os = overall.spells[spellId]
+				if not os then
+					os = { name = spellName, amount = 0, hits = 0, crits = 0 }
+					overall.spells[spellId] = os
+				end
+				os.name = spellName
+				os.amount = os.amount + amount
+				os.hits = (os.hits or 0) + 1
+				if crit then os.crits = (os.crits or 0) + 1 end
+			else
+				addPrePull(ownerGUID, ownerName, amount, 0, spellId, spellName, crit)
+			end
+			return
+		end
 
 		if sub == "DAMAGE_SPLIT" then
 			if not inCombat then return end
@@ -494,39 +496,39 @@ local function handleEvent(self, event, unit)
 			if band(ownerFlags or 0, groupMask) == 0 then return end
 			local amount = (a15 or 0) - (a16 or 0)
 			if amount <= 0 then return end
-                        local spellId, spellName = getSpellInfoFromSub(sub, a12, a15)
-                        local crit = a21 or a18
-                        if inCombat then
-                                local player = acquirePlayer(cm.players, ownerGUID, ownerName)
-                                local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+			local spellId, spellName = getSpellInfoFromSub(sub, a12, a15)
+			local crit = a21 or a18
+			if inCombat then
+				local player = acquirePlayer(cm.players, ownerGUID, ownerName)
+				local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
 				local now = GetTime()
 				player._first = player._first or now
 				player._last = now
 				player.healing = player.healing + amount
 				overall.healing = overall.healing + amount
-                                local ps = player.spells[spellId]
-                                if not ps then
-                                        ps = { name = spellName, amount = 0, hits = 0, crits = 0 }
-                                        player.spells[spellId] = ps
-                                end
-                                ps.name = spellName
-                                ps.amount = ps.amount + amount
-                                ps.hits = (ps.hits or 0) + 1
-                                if crit then ps.crits = (ps.crits or 0) + 1 end
-                                local os = overall.spells[spellId]
-                                if not os then
-                                        os = { name = spellName, amount = 0, hits = 0, crits = 0 }
-                                        overall.spells[spellId] = os
-                                end
-                                os.name = spellName
-                                os.amount = os.amount + amount
-                                os.hits = (os.hits or 0) + 1
-                                if crit then os.crits = (os.crits or 0) + 1 end
-                        else
-                                addPrePull(ownerGUID, ownerName, 0, amount, spellId, spellName, crit)
-                        end
-                        return
-                end
+				local ps = player.spells[spellId]
+				if not ps then
+					ps = { name = spellName, amount = 0, hits = 0, crits = 0 }
+					player.spells[spellId] = ps
+				end
+				ps.name = spellName
+				ps.amount = ps.amount + amount
+				ps.hits = (ps.hits or 0) + 1
+				if crit then ps.crits = (ps.crits or 0) + 1 end
+				local os = overall.spells[spellId]
+				if not os then
+					os = { name = spellName, amount = 0, hits = 0, crits = 0 }
+					overall.spells[spellId] = os
+				end
+				os.name = spellName
+				os.amount = os.amount + amount
+				os.hits = (os.hits or 0) + 1
+				if crit then os.crits = (os.crits or 0) + 1 end
+			else
+				addPrePull(ownerGUID, ownerName, 0, amount, spellId, spellName, crit)
+			end
+			return
+		end
 
 		-- We count absorbs exclusively via SPELL_ABSORBED. Some clients also emit *_MISSED with ABSORB for the same event; counting both leads to double credits.
 		if sub == "SPELL_ABSORBED" then
@@ -547,36 +549,36 @@ local function handleEvent(self, event, unit)
 			if not ownerFlags and cm.groupGUIDs and cm.groupGUIDs[ownerGUID] then ownerFlags = COMBATLOG_OBJECT_AFFILIATION_RAID end
 			if band(ownerFlags or 0, groupMask) == 0 then return end
 			if not absorbedAmount or absorbedAmount <= 0 then return end
-                        local spellId, spellName = getSpellInfoFromSub(sub, a12, a15)
-                        if inCombat then
-                                local p = acquirePlayer(cm.players, ownerGUID, ownerName)
-                                local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+			local spellId, spellName = getSpellInfoFromSub(sub, a12, a15)
+			if inCombat then
+				local p = acquirePlayer(cm.players, ownerGUID, ownerName)
+				local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
 				local now = GetTime()
 				p._first = p._first or now
 				p._last = now
 				p.healing = p.healing + absorbedAmount
 				o.healing = o.healing + absorbedAmount
-                                local ps = p.spells[spellId]
-                                if not ps then
-                                        ps = { name = spellName, amount = 0, hits = 0, crits = 0 }
-                                        p.spells[spellId] = ps
-                                end
-                                ps.name = spellName
-                                ps.amount = ps.amount + absorbedAmount
-                                ps.hits = (ps.hits or 0) + 1
-                                local os = o.spells[spellId]
-                                if not os then
-                                        os = { name = spellName, amount = 0, hits = 0, crits = 0 }
-                                        o.spells[spellId] = os
-                                end
-                                os.name = spellName
-                                os.amount = os.amount + absorbedAmount
-                                os.hits = (os.hits or 0) + 1
-                        else
-                                addPrePull(ownerGUID, ownerName, 0, absorbedAmount, spellId, spellName, false)
-                        end
-                        return
-                end
+				local ps = p.spells[spellId]
+				if not ps then
+					ps = { name = spellName, amount = 0, hits = 0, crits = 0 }
+					p.spells[spellId] = ps
+				end
+				ps.name = spellName
+				ps.amount = ps.amount + absorbedAmount
+				ps.hits = (ps.hits or 0) + 1
+				local os = o.spells[spellId]
+				if not os then
+					os = { name = spellName, amount = 0, hits = 0, crits = 0 }
+					o.spells[spellId] = os
+				end
+				os.name = spellName
+				os.amount = os.amount + absorbedAmount
+				os.hits = (os.hits or 0) + 1
+			else
+				addPrePull(ownerGUID, ownerName, 0, absorbedAmount, spellId, spellName, false)
+			end
+			return
+		end
 	end
 end
 
