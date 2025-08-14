@@ -378,16 +378,32 @@ local function createGroupFrame(groupConfig)
 
 	local metricButton = CreateFrame("Button", nil, dragHandle)
 	metricButton:SetSize(16, 16)
-	metricButton:SetPoint("RIGHT", historyButton, "LEFT", -2, 0)
+	metricButton:SetPoint("RIGHT", historyButton, "LEFT", -2, 1)
 
 	metricButton.icon = metricButton:CreateTexture(nil, "ARTWORK")
 	metricButton.icon:SetAllPoints(metricButton)
 	metricButton.icon:SetTexture(TEXTURE_PATH .. "eqol_metric_64.tga")
+	-- Tint the metric icon in gold
+	metricButton.icon:SetVertexColor(1, 0.82, 0)
 
 	local mhl = metricButton:CreateTexture(nil, "HIGHLIGHT")
 	mhl:SetAllPoints(metricButton)
 	mhl:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
 	mhl:SetBlendMode("ADD")
+
+	metricButton:SetScript("OnMouseDown", function(self)
+		if self.icon then self.icon:SetVertexColor(0.9, 0.74, 0) end
+	end)
+	metricButton:SetScript("OnMouseUp", function(self)
+		if self.icon then self.icon:SetVertexColor(1, 0.82, 0) end
+	end)
+
+	metricButton:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:AddLine(L["Change Metric"])
+		GameTooltip:Show()
+	end)
+	metricButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
 	metricButton:SetScript("OnClick", function(self) OpenMetricMenu(self, frame) end)
 
@@ -501,9 +517,10 @@ local function createGroupFrame(groupConfig)
 		local maxValue = 0
 		if self.metric == "damageOverall" or self.metric == "healingOverall" then
 			for guid, p in pairs(addon.CombatMeter.overallPlayers) do
-				if groupUnits[guid] then
+				-- Skip players without recorded time to avoid blank bars
+				if groupUnits[guid] and p.time and p.time > 0 then
 					local total = (self.metric == "damageOverall") and (p.damage or 0) or (p.healing or 0)
-					local value = (p.time and p.time > 0) and (total / p.time) or 0
+					local value = total / p.time
 					tinsert(list, { guid = guid, name = p.name, value = value, total = total, class = p.class })
 					if value > maxValue then maxValue = value end
 				end
