@@ -106,17 +106,6 @@ local function EnsureExtraInfo(resultID, needRoles, needLust, needBR, needSameSp
 	return info
 end
 
-local function PopulateInfoCache()
-	wipe(SearchInfoCache)
-	local panel = LFGListFrame.SearchPanel
-	local dp = panel.ScrollBox and panel.ScrollBox:GetDataProvider()
-	if not dp then return end
-	for _, element in dp:EnumerateEntireRange() do
-		local resultID = element.resultID or element.id
-		if resultID then CacheResultInfo(resultID) end
-	end
-end
-
 local playerIsLust = LUST_CLASSES[addon.variables.unitClass]
 local playerIsBR = BR_CLASSES[addon.variables.unitClass]
 
@@ -133,6 +122,7 @@ drop:HookScript("OnHide", function()
 	originalSetupGen = nil
 	titleScore1:Hide()
 	wipe(SearchInfoCache)
+	wipe(initialAllEntries)
 end)
 
 local function EQOL_AddLFGEntries(owner, root, ctx)
@@ -377,14 +367,12 @@ function addon.MythicPlus.functions.addDungeonFilter()
 		if not drop:IsVisible() then return end
 		if not addon.db["mythicPlusEnableDungeonFilter"] then return end
 		if event == "LFG_LIST_SEARCH_RESULTS_RECEIVED" then
-			PopulateInfoCache()
 			ScheduleFilters(true)
 		elseif event == "LFG_LIST_SEARCH_RESULT_UPDATED" then
 			local resultID = ...
 			if resultID then CacheResultInfo(resultID) end
 			ScheduleFilters(false)
 		elseif event == "LFG_LIST_AVAILABILITY_UPDATE" then
-			PopulateInfoCache()
 			ScheduleFilters(true)
 		elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
 			if drop then drop.eqolWrapped = nil end
