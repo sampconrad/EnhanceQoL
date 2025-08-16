@@ -47,6 +47,46 @@ local PETMASK = bor(COMBATLOG_OBJECT_TYPE_PET or 0, COMBATLOG_OBJECT_TYPE_GUARDI
 local spellCache = {}
 local iconCache = {}
 
+-- Guardians spawned without SPELL_SUMMON. Add NPC IDs here.
+local missingSummonNPCs = {
+	[144961] = true, -- SecTec
+}
+
+local tooltipLookup = {}
+
+local getIDFromGUID = addon.functions.getIDFromGUID
+
+local function setOwnerFromTooltip(guid)
+	local tooltipData = C_TooltipInfo.GetHyperlink("unit:" .. guid)
+	if not tooltipData then return end
+
+	local ownerGUID = tooltipData.guid
+	if not ownerGUID and tooltipData.lines then
+		for i = 1, #tooltipData.lines do
+			local lineData = tooltipData.lines[i]
+			if lineData.unitToken then
+				ownerGUID = UnitGUID(lineData.unitToken)
+				if ownerGUID then break end
+			end
+		end
+	end
+
+	if ownerGUID and ownerGUID:find("^Player") then
+		petOwner[guid] = ownerGUID
+		ownerPets[ownerGUID] = ownerPets[ownerGUID] or {}
+		ownerPets[ownerGUID][guid] = true
+		return ownerGUID
+	end
+end
+
+local function trySetOwnerFromTooltip(guid)
+	local now = GetTime()
+	if (tooltipLookup[guid] or 0) + 1 < now then
+		tooltipLookup[guid] = now
+		setOwnerFromTooltip(guid)
+	end
+end
+
 local function resolveOwner(srcGUID, srcName, srcFlags)
 	if srcGUID and srcFlags then unitAffiliation[srcGUID] = srcFlags end
 	if srcGUID then
@@ -444,6 +484,12 @@ local function handleEvent(self, event, unit)
 		local pre = addon.db["combatMeterPrePullCapture"]
 		local _, sub, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, _, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23 = CLEU()
 		if sub == "ENVIRONMENTAL_DAMAGE" then return end
+
+		-- Attempt to map pet owners for guardians spawned without a summon event
+		if sourceGUID and not petOwner[sourceGUID] and dmgIdx[sub] then
+			local id = getIDFromGUID(sourceGUID)
+			if id and missingSummonNPCs[id] then trySetOwnerFromTooltip(sourceGUID) end
+		end
 
 		-- Maintain pet/guardian owner mapping via CLEU
 		if sub == "SPELL_SUMMON" or sub == "SPELL_CREATE" then
