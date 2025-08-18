@@ -179,37 +179,37 @@ local function EntryPassesFilter(info)
 	return true
 end
 
-local function FilterEntry(entry)
+local function FilterResults(panel)
 	if not addon.db["mythicPlusEnableDungeonFilter"] then return end
-	local panel = LFGListFrame.SearchPanel
-	if panel.categoryID ~= 2 then return end
-	local resultID = entry.resultID or entry.id
-	if not resultID then return end
+	if not panel or panel.categoryID ~= 2 then return end
+	UpdateAppliedCache()
 	if not AnyFilterActive() then
-		entry:SetShown(true)
+		-- make sure the panel uses the full unfiltered result list
+		local results = select(2, C_LFGList.GetSearchResults())
+		panel.results = results
+		panel.totalResults = #results
+		LFGListSearchPanel_UpdateResults(panel)
 		return
 	end
 	local selectedID = (type(LFGListSearchPanel_GetSelectedResult) == "function" and LFGListSearchPanel_GetSelectedResult(panel)) or panel.selectedResultID or panel.selectedResult
-	if selectedID and resultID == selectedID then
-		entry:SetShown(true)
-		return
+	local results = select(2, C_LFGList.GetSearchResults())
+	local filtered = {}
+	for _, resultID in ipairs(results) do
+		if appliedLookup[resultID] or (selectedID and resultID == selectedID) then
+			table.insert(filtered, resultID)
+		else
+			local info = C_LFGList.GetSearchResultInfo(resultID)
+			if info and EntryPassesFilter(info) then table.insert(filtered, resultID) end
+		end
 	end
-	if appliedLookup[resultID] then
-		entry:SetShown(true)
-		return
-	end
-	local info = C_LFGList.GetSearchResultInfo(resultID)
-	if not info then return end
-	entry:SetShown(EntryPassesFilter(info))
+	panel.results = filtered
+	panel.totalResults = #filtered
+	LFGListSearchPanel_UpdateResults(panel)
 end
 
 RefreshVisibleEntries = function()
 	local panel = LFGListFrame.SearchPanel
-	if panel and panel.ScrollBox and panel.ScrollBox.ForEachFrame then
-		panel.ScrollBox:ForEachFrame(FilterEntry)
-	elseif type(LFGListSearchPanel_UpdateResultList) == "function" then
-		LFGListSearchPanel_UpdateResultList(panel)
-	end
+	if panel then FilterResults(panel) end
 end
 
 local refreshScheduled = false
@@ -242,7 +242,7 @@ function addon.MythicPlus.functions.addDungeonFilter()
 	filterFrame:SetScript("OnEvent", EventHandler)
 
 	if not hooked then
-		hooksecurefunc("LFGListSearchEntry_Update", FilterEntry)
+		hooksecurefunc("LFGListSearchPanel_UpdateResultList", FilterResults)
 		hooked = true
 	end
 	RefreshVisibleEntries()
