@@ -157,7 +157,8 @@ end
 
 if Menu and Menu.ModifyMenu then Menu.ModifyMenu("MENU_LFG_FRAME_SEARCH_FILTER", EQOL_AddLFGEntries) end
 
-local function MyCustomFilter(info)
+local function MyCustomFilter(info, pinnedID)
+	if pinnedID and info.searchResultID == pinnedID then return true end
 	if appliedLookup[info.searchResultID] then return true end
 	if info.numMembers == 5 then return false end
 
@@ -318,6 +319,9 @@ local function ApplyEQOLFilters(isInitial)
 		end
 	end
 
+	local selectedID = (LFGListSearchPanel_GetSelectedResult and LFGListSearchPanel_GetSelectedResult(panel)) or panel.selectedResultID or panel.selectedResult
+	local pinnedID = lastIntendedSelection or selectedID
+
 	-- Build removal list without mutating the provider during enumeration
 	for _, element in dp:EnumerateEntireRange() do
 		local resultID = element.resultID or element.id
@@ -329,7 +333,7 @@ local function ApplyEQOLFilters(isInitial)
 				SearchInfoCache[resultID].extraCalculated = nil -- Details können sich geändert haben
 			end
 			local info = SearchInfoCache[resultID]
-			if info and not MyCustomFilter(info) then toRemove[#toRemove + 1] = { elem = element, id = resultID } end
+			if info and not MyCustomFilter(info, pinnedID) then toRemove[#toRemove + 1] = { elem = element, id = resultID } end
 		end
 	end
 
@@ -338,6 +342,11 @@ local function ApplyEQOLFilters(isInitial)
 		local r = toRemove[i]
 		dp:Remove(r.elem)
 		initialAllEntries[r.id] = false
+	end
+
+	if pinnedID and LFGListSearchPanel_SelectResult then
+		local cur = selectedID
+		if cur ~= pinnedID then LFGListSearchPanel_SelectResult(panel, pinnedID) end
 	end
 
 	local removedCount = 0
@@ -387,6 +396,20 @@ function addon.MythicPlus.functions.addDungeonFilter()
 	if LFGListFrame.SearchPanel.FilterButton:IsShown() then
 		LFGListFrame:Hide()
 		LFGListFrame:Show()
+	end
+	local panel = LFGListFrame.SearchPanel
+	if panel.SignUpButton and not panel.SignUpButton.eqolHooked then
+		panel.SignUpButton.eqolHooked = true
+		panel.SignUpButton:HookScript("OnMouseDown", function()
+			local id = (LFGListSearchPanel_GetSelectedResult and LFGListSearchPanel_GetSelectedResult(panel)) or panel.selectedResultID or panel.selectedResult
+			if id then
+				lastIntendedSelection = id
+				if LFGListSearchPanel_SelectResult then LFGListSearchPanel_SelectResult(panel, id) end
+			end
+			SuspendFilters(IsInGroup() and 2.5 or 1.5)
+		end)
+
+		panel.SignUpButton:HookScript("OnClick", function() SuspendFilters(IsInGroup() and 2.5 or 1.5) end)
 	end
 	f = CreateFrame("Frame")
 	UpdateAppliedCache()
