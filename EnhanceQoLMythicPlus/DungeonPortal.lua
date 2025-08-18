@@ -7,7 +7,7 @@ else
 	error(parentAddonName .. " is not loaded")
 end
 
-local openRaidLib = LibStub:GetLibrary("LibOpenRaid-1.0", true)
+local openRaidLib = LibStub:GetLibrary("LibOpenKeystone-1.0", true) --or  LibStub:GetLibrary("LibOpenRaid-1.0", true)
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_MythicPlus")
 
 local cModeIDs
@@ -1089,6 +1089,7 @@ local function updateKeystoneInfo()
 				data.charName = uName
 				data.classColor = RAID_CLASS_COLORS[select(2, UnitClass(key))] or { r = 1, g = 1, b = 1 }
 
+				print(key, addon.variables.unitName)
 				if UnitInParty(key) or key == addon.variables.unitName then
 					local mapData
 					if data.challengeMapID and data.challengeMapID > 0 then
