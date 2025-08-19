@@ -10,7 +10,7 @@ end
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 local AceGUI = addon.AceGUI
 
--- luacheck: globals ChatFrame_OpenChat
+-- luacheck: globals ChatFrame_OpenChat ActionButtonSpellAlertManager
 
 local bleedList = {
 	-- Cinderbrew Meatery
@@ -109,9 +109,9 @@ local function setGlow(frame, enabled)
 	if frame._glow == enabled then return end
 	frame._glow = enabled
 	if enabled then
-		ActionButton_ShowOverlayGlow(frame)
+		ActionButtonSpellAlertManager:ShowAlert(frame)
 	else
-		ActionButton_HideOverlayGlow(frame)
+		ActionButtonSpellAlertManager:HideAlert(frame)
 	end
 end
 
