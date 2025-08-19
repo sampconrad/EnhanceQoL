@@ -1,10 +1,20 @@
--- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS C_CurrencyInfo
+-- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS C_CurrencyInfo C_Timer
 local addonName, addon = ...
 local L = addon.L
 
 local AceGUI = addon.AceGUI
 local db
 local stream
+
+local updatePending = false
+local function RequestUpdateDebounced()
+	if updatePending then return end
+	updatePending = true
+	C_Timer.After(0.05, function()
+		updatePending = false
+		if stream then addon.DataHub:RequestUpdate(stream) end
+	end)
+end
 
 local function ensureDB()
 	addon.db.datapanel = addon.db.datapanel or {}
@@ -14,22 +24,18 @@ local function ensureDB()
 	db.ids = db.ids or {}
 end
 
-local function RestorePosition(frame)
-	if db.point and db.x and db.y then
-		frame:ClearAllPoints()
-		frame:SetPoint(db.point, UIParent, db.point, db.x, db.y)
-	end
-end
-
-local aceWindow
+local aceWindowWidget -- AceGUI widget
 local listContainer
 
 local function renderList()
 	if not listContainer then return end
 	listContainer:ReleaseChildren()
+
 	for i, id in ipairs(db.ids) do
+		local idx = i -- wichtig: stabiles Capturing pro Zeile
 		local info = C_CurrencyInfo.GetCurrencyInfo(id)
 		local name = info and info.name or ("ID %d"):format(id)
+
 		local row = addon.functions.createContainer("SimpleGroup", "Flow")
 
 		local label = AceGUI:Create("Label")
@@ -41,10 +47,10 @@ local function renderList()
 		up:SetText("↑")
 		up:SetWidth(30)
 		up:SetCallback("OnClick", function()
-			if i > 1 then
-				db.ids[i], db.ids[i - 1] = db.ids[i - 1], db.ids[i]
+			if idx > 1 then
+				db.ids[idx], db.ids[idx - 1] = db.ids[idx - 1], db.ids[idx]
 				renderList()
-				addon.DataHub:RequestUpdate(stream)
+				RequestUpdateDebounced()
 			end
 		end)
 		row:AddChild(up)
@@ -53,10 +59,10 @@ local function renderList()
 		down:SetText("↓")
 		down:SetWidth(30)
 		down:SetCallback("OnClick", function()
-			if i < #db.ids then
-				db.ids[i], db.ids[i + 1] = db.ids[i + 1], db.ids[i]
+			if idx < #db.ids then
+				db.ids[idx], db.ids[idx + 1] = db.ids[idx + 1], db.ids[idx]
 				renderList()
-				addon.DataHub:RequestUpdate(stream)
+				RequestUpdateDebounced()
 			end
 		end)
 		row:AddChild(down)
@@ -65,9 +71,9 @@ local function renderList()
 		remove:SetText("X")
 		remove:SetWidth(30)
 		remove:SetCallback("OnClick", function()
-			table.remove(db.ids, i)
+			table.remove(db.ids, idx)
 			renderList()
-			addon.DataHub:RequestUpdate(stream)
+			RequestUpdateDebounced()
 		end)
 		row:AddChild(remove)
 
@@ -76,24 +82,24 @@ local function renderList()
 end
 
 local function createAceWindow()
-	if aceWindow then
-		aceWindow:Show()
+	if aceWindowWidget then
+		aceWindowWidget:Show()
 		return
 	end
 	ensureDB()
 	local frame = AceGUI:Create("Window")
-	aceWindow = frame.frame
+	aceWindowWidget = frame
 	frame:SetTitle(GAMEMENU_OPTIONS)
 	frame:SetWidth(320)
 	frame:SetHeight(400)
 	frame:SetLayout("List")
 
-	frame.frame:SetScript("OnShow", function(self) RestorePosition(self) end)
-	frame.frame:SetScript("OnHide", function(self)
-		local point, _, _, xOfs, yOfs = self:GetPoint()
-		db.point = point
-		db.x = xOfs
-		db.y = yOfs
+	db._windowStatus = db._windowStatus or {}
+	frame:SetStatusTable(db._windowStatus)
+	frame:SetCallback("OnClose", function(widget)
+		AceGUI:Release(widget)
+		aceWindowWidget = nil
+		listContainer = nil
 	end)
 
 	local fontSize = AceGUI:Create("Slider")
@@ -102,7 +108,7 @@ local function createAceWindow()
 	fontSize:SetValue(db.fontSize)
 	fontSize:SetCallback("OnValueChanged", function(_, _, val)
 		db.fontSize = val
-		addon.DataHub:RequestUpdate(stream)
+		RequestUpdateDebounced()
 	end)
 	frame:AddChild(fontSize)
 
@@ -117,10 +123,16 @@ local function createAceWindow()
 	addBtn:SetCallback("OnClick", function()
 		local id = tonumber(addBox:GetText())
 		if id then
+			for _, existing in ipairs(db.ids) do
+				if existing == id then
+					addBox:SetText("")
+					return
+				end
+			end
 			table.insert(db.ids, id)
 			addBox:SetText("")
 			renderList()
-			addon.DataHub:RequestUpdate(stream)
+			RequestUpdateDebounced()
 		end
 	end)
 	addGroup:AddChild(addBtn)
@@ -130,19 +142,28 @@ local function createAceWindow()
 	frame:AddChild(listContainer)
 	renderList()
 
-	frame.frame:Show()
+	frame:Show()
 end
 
+local iconCache = {} -- [currencyID] = texturePath or fileID
 local function checkCurrencies(stream)
 	ensureDB()
 	local size = db.fontSize or 14
-	local texts = {}
+	local parts = {}
 	for _, id in ipairs(db.ids) do
 		local info = C_CurrencyInfo.GetCurrencyInfo(id)
-		if info and info.icon then texts[#texts + 1] = ("|T%s:%d:%d:0:0|t %d"):format(info.icon, size, size, info.quantity or 0) end
+		if info then
+			if not iconCache[id] and info.icon then iconCache[id] = info.icon end
+			local icon = iconCache[id] or info.icon
+			parts[#parts + 1] = ("|T%s:%d:%d:0:0|t %d"):format(icon or 0, size, size, info.quantity or 0)
+		end
 	end
-	stream.snapshot.fontSize = size
-	stream.snapshot.text = table.concat(texts, " ")
+
+	local newText = table.concat(parts, " ")
+	if stream.snapshot.text ~= newText or stream.snapshot.fontSize ~= size then
+		stream.snapshot.text = newText
+		stream.snapshot.fontSize = size
+	end
 	if not stream.snapshot.tooltip then stream.snapshot.tooltip = L["Right-Click for options"] end
 end
 
@@ -152,8 +173,8 @@ local provider = {
 	title = "Currencies",
 	update = checkCurrencies,
 	events = {
-		PLAYER_LOGIN = function(stream) addon.DataHub:RequestUpdate(stream) end,
-		CURRENCY_DISPLAY_UPDATE = function(stream) addon.DataHub:RequestUpdate(stream) end,
+		PLAYER_LOGIN = function() RequestUpdateDebounced() end,
+		CURRENCY_DISPLAY_UPDATE = function() RequestUpdateDebounced() end,
 	},
 	OnClick = function(_, btn)
 		if btn == "RightButton" then createAceWindow() end
