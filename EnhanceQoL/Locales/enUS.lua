@@ -282,7 +282,7 @@ L["IgnoreServer"] = "Realm"
 L["IgnoreListed"] = "Added"
 L["IgnoreExpires"] = "Expires"
 L["IgnoreNote"] = "Ignore note"
-L["IgnoreNoteDesc"] = "Maximum of 200 chars are visible"
+L["IgnoreNoteDesc"] = "Show note in tooltip. Adjust maximum characters and words per line."
 L["IgnoreEntries"] = "Entries: %d"
 L["IgnoreWindowTitle"] = "Enhanced Ignore"
 L["IgnoreExpiresDays"] = "Expires (days)"
@@ -296,6 +296,8 @@ L["IgnoreAttachFriendsDesc"] = "Automatically show or hide the enhanced ignore l
 L["IgnoreAnchorFriends"] = "Anchor to Friends list"
 L["IgnoreAnchorFriendsDesc"] = "Attach the enhanced ignore list to the Friends window."
 L["IgnoreTooltipNote"] = "Show ignore note in tooltip"
+L["IgnoreTooltipMaxChars"] = "Ignore note max characters"
+L["IgnoreTooltipWordsPerLine"] = "Ignore note words per line"
 L["IgnoreDesc"] =
 	'Blocks duel, pet-battle, trade, invite and whisper requests from ignored players. Automatically adds same-realm names to Blizzard’s ignore list when space is available.\nIn the Dungeon Finder ignored players are shown as "!!! <Name> !!!".\n\nOpen the list with /eil.'
 L["blockDuelRequests"] = "Block duel requests"

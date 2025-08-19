@@ -1088,8 +1088,8 @@ local function EQOL_FormatNote(note, maxChars, wordsPerLine)
 	-- normalize whitespace and trim
 	local s = note:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
 	if s == "" then return "" end
-	maxChars = maxChars or 200
-	wordsPerLine = wordsPerLine or 8
+       maxChars = maxChars or 100
+       wordsPerLine = wordsPerLine or 5
 
 	-- split into words
 	local words = {}
@@ -1112,19 +1112,13 @@ local function EQOL_FormatNote(note, maxChars, wordsPerLine)
 
 	local joined = table.concat(out, "\n")
 
-	-- hard cap by characters, prefer cutting at whitespace
-	if #joined <= maxChars then return joined end
-	local truncated = joined:sub(1, maxChars)
-	-- try to cut back to last non-space to avoid trailing partials
-	local cut = truncated:match("^(.*%S)") or truncated
-	-- append "..." if there is room and original was longer
-	if #joined > maxChars and (#cut + 3) <= maxChars then
-		cut = cut .. "..."
-	else
-		-- ensure not exceeding maxChars
-		cut = cut:sub(1, maxChars)
-	end
-	return cut
+       -- hard cap by characters, prefer cutting at whitespace
+       if #joined <= maxChars then return joined end
+       if maxChars <= 3 then return joined:sub(1, maxChars) end
+       local truncated = joined:sub(1, maxChars - 3)
+       -- try to cut back to last non-space to avoid trailing partials
+       local cut = truncated:match("^(.*%S)") or truncated
+       return cut .. "..."
 end
 
 if not Ignore.tooltipHookInstalled then
