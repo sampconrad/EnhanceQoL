@@ -2904,7 +2904,10 @@ local function addSocialFrame(container)
 			var = "ignoreTooltipNote",
 			text = L["IgnoreTooltipNote"],
 			type = "CheckBox",
-			callback = function(self, _, value) addon.db["ignoreTooltipNote"] = value end,
+			callback = function(self, _, value) addon.db["ignoreTooltipNote"] = value
+				container:ReleaseChildren()
+				addSocialFrame(container)
+			end,
 			desc = L["IgnoreNoteDesc"],
 		})
 	end
