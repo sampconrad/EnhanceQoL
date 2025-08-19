@@ -390,7 +390,7 @@ local function CreateCraftShopperFrame()
 					row:SetLayout("Flow")
 
 					local label = AceGUI:Create("InteractiveLabel")
-					local color = select(4, GetItemQualityColor(quality or 1))
+					local color = select(4, C_Item.GetItemQualityColor(quality or 1))
 					label:SetText(("|c%s%s|r"):format(color, name))
 					label:SetFont(normalFont, 14, normalFlags)
 					label:SetCallback("OnEnter", function(widget)
