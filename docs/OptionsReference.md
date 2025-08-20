@@ -65,6 +65,7 @@ Each action bar can be set to appear only on mouseover:
 - **Use a square minimap** (Use a square minimap instead of the normal round).
 - **Show instance difficulty** (Display the current instance difficulty near the minimap; optionally use a custom icon).
   - Enter the texture path for the custom icon, e.g. `Interface\\ICONS\\INV_Misc_QuestionMark`.
+- **Enable Landing Page context menu** (Enable Landing Page context menu): adds a right-click menu to expansion or garrison minimap buttons.
 - **Hide Minimap Button** (Hide Minimap Button).
 - **Hide Bagsbar** (Hide Bagsbar).
 - **Hide Micro Menu** (Hide Micro Menu).

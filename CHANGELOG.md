@@ -5,6 +5,7 @@
 ### ✨ Added
 
 - DataPanel currency stream: per-currency tooltips, optional description hiding, and red coloring when capped
+- Optional right-click menu for Landing Page minimap buttons
 
 ### 🐛 Fixed
 

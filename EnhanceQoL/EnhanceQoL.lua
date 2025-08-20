@@ -2,6 +2,7 @@
 -- luacheck: globals Menu GameTooltip_SetTitle GameTooltip_AddNormalLine EnhanceQoL
 -- luacheck: globals GenericTraitUI_LoadUI GenericTraitFrame
 -- luacheck: globals CancelDuel DeclineGroup C_PetBattles
+-- luacheck: globals ExpansionLandingPage ExpansionLandingPageMinimapButton ShowGarrisonLandingPage GarrisonLandingPage GarrisonLandingPage_Toggle GarrisonLandingPageMinimapButton CovenantSanctumFrame CovenantSanctumFrame_LoadUI EasyMenu
 local addonName, addon = ...
 
 local LDB = LibStub("LibDataBroker-1.1")
@@ -1216,6 +1217,14 @@ local function addMinimapFrame(container)
 				addon.db["showInstanceDifficulty"] = value
 				if addon.InstanceDifficulty and addon.InstanceDifficulty.SetEnabled then addon.InstanceDifficulty:SetEnabled(value) end
 			end,
+		},
+		{
+			parent = "",
+			var = "enableLandingPageMenu",
+			desc = L["enableLandingPageMenuDesc"],
+			text = L["enableLandingPageMenu"],
+			type = "CheckBox",
+			callback = function(self, _, value) addon.db["enableLandingPageMenu"] = value end,
 		},
 		-- {
 		-- 	parent = "",
@@ -2904,7 +2913,8 @@ local function addSocialFrame(container)
 			var = "ignoreTooltipNote",
 			text = L["IgnoreTooltipNote"],
 			type = "CheckBox",
-			callback = function(self, _, value) addon.db["ignoreTooltipNote"] = value
+			callback = function(self, _, value)
+				addon.db["ignoreTooltipNote"] = value
 				container:ReleaseChildren()
 				addSocialFrame(container)
 			end,
@@ -2963,7 +2973,6 @@ local function addSocialFrame(container)
 
 		groupCore:AddChild(addon.functions.createSpacerAce())
 	end
-
 
 	local labelHeadline = addon.functions.createLabelAce("|cffffd700" .. L["IgnoreDesc"], nil, nil, 14)
 	labelHeadline:SetFullWidth(true)
@@ -3617,6 +3626,7 @@ local function initMisc()
 	addon.functions.InitDBValue("autoQuickLootWithShift", false)
 	addon.functions.InitDBValue("hideAzeriteToast", false)
 	addon.functions.InitDBValue("hiddenLandingPages", {})
+	addon.functions.InitDBValue("enableLandingPageMenu", false)
 	addon.functions.InitDBValue("hideMinimapButton", false)
 	addon.functions.InitDBValue("hideBagsBar", false)
 	addon.functions.InitDBValue("hideMicroMenu", false)
@@ -3683,11 +3693,54 @@ local function initMisc()
 	_G.CompactRaidFrameManager:SetScript("OnShow", function(self) addon.functions.toggleRaidTools(addon.db["hideRaidTools"], self) end)
 	ExpansionLandingPageMinimapButton:HookScript("OnShow", function(self)
 		local id = addon.variables.landingPageReverse[self.title]
+		print(self.title, id)
 		if addon.db["enableSquareMinimap"] then
 			self:ClearAllPoints()
-			self:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -16, -16)
+			if id == 20 then
+				self:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -25, -25)
+			else
+				self:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -16, -16)
+			end
 		end
 		if addon.db["hiddenLandingPages"][id] then self:Hide() end
+	end)
+
+	-- Right-click context menu for expansion/garrison minimap buttons
+	local MU = MenuUtil
+	local tinsert = table.insert
+
+	local function GetCurrentGarrType()
+		if C_Garrison and C_Garrison.GetLandingPageGarrisonType then
+			local t = C_Garrison.GetLandingPageGarrisonType()
+			if type(t) == "number" and t > 0 then return t end
+		end
+		return nil
+	end
+
+	local function ShowLandingMenu(owner)
+		if MU and MU.CreateContextMenu then
+			MU.CreateContextMenu(owner, function(_, root)
+				if ShowGarrisonLandingPage and Enum and Enum.GarrisonType then
+					root:CreateButton(GARRISON_TYPE_9_0_LANDING_PAGE_TITLE, function() ShowGarrisonLandingPage(Enum.GarrisonType.Type_9_0) end)
+					root:CreateButton(ORDER_HALL_LANDING_PAGE_TITLE, function() ShowGarrisonLandingPage(3) end)
+					root:CreateButton(GARRISON_LANDING_PAGE_TITLE, function() ShowGarrisonLandingPage(2) end)
+					root:CreateButton(ADVENTURE_MAP_TITLE, function() ShowGarrisonLandingPage(9) end)
+				end
+			end)
+		end
+	end
+
+	local function AttachRightClickMenu(button)
+		if not button or button._eqolMenuHooked then return end
+		button:HookScript("OnMouseUp", function(self, btn)
+			if btn == "RightButton" and addon.db["enableLandingPageMenu"] then ShowLandingMenu(self) end
+		end)
+		button._eqolMenuHooked = true
+	end
+
+	C_Timer.After(0, function()
+		if ExpansionLandingPageMinimapButton then AttachRightClickMenu(ExpansionLandingPageMinimapButton) end
+		if GarrisonLandingPageMinimapButton then AttachRightClickMenu(GarrisonLandingPageMinimapButton) end
 	end)
 end
 
@@ -3939,9 +3992,9 @@ local function initSocial()
 	addon.functions.InitDBValue("enableIgnore", false)
 	addon.functions.InitDBValue("ignoreAttachFriendsFrame", true)
 	addon.functions.InitDBValue("ignoreAnchorFriendsFrame", false)
-       addon.functions.InitDBValue("ignoreTooltipNote", false)
-       addon.functions.InitDBValue("ignoreTooltipMaxChars", 100)
-       addon.functions.InitDBValue("ignoreTooltipWordsPerLine", 5)
+	addon.functions.InitDBValue("ignoreTooltipNote", false)
+	addon.functions.InitDBValue("ignoreTooltipMaxChars", 100)
+	addon.functions.InitDBValue("ignoreTooltipWordsPerLine", 5)
 	addon.functions.InitDBValue("ignoreFramePoint", "CENTER")
 	addon.functions.InitDBValue("ignoreFrameX", 0)
 	addon.functions.InitDBValue("ignoreFrameY", 0)
