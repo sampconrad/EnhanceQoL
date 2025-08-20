@@ -295,9 +295,28 @@ local provider = {
 		local tip = GameTooltip
 		tip:ClearLines()
 		tip:SetOwner(b, "ANCHOR_TOPLEFT")
-		-- tip:SetCurrencyByID(h.id)
 
-		tip:AddLine(L["Right-Click for options"])
+		local hover = stream.snapshot and stream.snapshot.hover
+		if hover and #hover > 0 then
+			local mx = GetCursorPosition()
+			local scale = b:GetEffectiveScale()
+			mx = mx / scale - b:GetLeft()
+			for _, h in ipairs(hover) do
+				if mx >= h.start and mx <= h.stop then
+					tip:SetCurrencyByID(h.id)
+					tip:AddLine(("ID %d"):format(h.id))
+					tip:AddLine(" ")
+					break
+				end
+			end
+			tip:AddLine(L["Right-Click for options"])
+		elseif stream.snapshot and stream.snapshot.tooltip then
+			for line in string.gmatch(stream.snapshot.tooltip, "[^\n]+") do
+				tip:AddLine(line)
+			end
+		else
+			tip:AddLine(L["Right-Click for options"])
+		end
 		tip:Show()
 	end,
 }
