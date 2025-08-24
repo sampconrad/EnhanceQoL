@@ -11,14 +11,16 @@ local trackedDirty = true
 local checkCurrencies
 local updateCurrency
 
-local function publish()
-        if stream then addon.DataHub:Publish(stream, stream.snapshot) end
+local function publish(s)
+        s = s or stream
+        if s then addon.DataHub:Publish(s, s.snapshot) end
 end
 
-local function fullUpdate()
-        if not stream then return end
-        checkCurrencies(stream)
-        publish()
+local function fullUpdate(s)
+        s = s or stream
+        if not s then return end
+        checkCurrencies(s)
+        publish(s)
 end
 
 local function rebuildTracked()
@@ -199,11 +201,12 @@ local iconCache = {} -- [currencyID] = texturePath or fileID
 local idToIndex = {} -- [currencyID] = index in parts
 local tooltipParts = {} -- [currencyID] = { lines }
 
-local function rebuildTooltip()
+local function rebuildTooltip(s)
+        s = s or stream
         if db.tooltipPerCurrency then
-                stream.snapshot.tooltip = nil
-                stream.snapshot.perCurrency = true
-                stream.snapshot.showDescription = db.showDescription
+                s.snapshot.tooltip = nil
+                s.snapshot.perCurrency = true
+                s.snapshot.showDescription = db.showDescription
                 return
         end
         local tips = {}
@@ -219,15 +222,16 @@ local function rebuildTooltip()
                 if tips[#tips] == "" then tips[#tips] = nil end
                 tips[#tips + 1] = ""
                 tips[#tips + 1] = L["Right-Click for options"]
-                stream.snapshot.tooltip = table.concat(tips, "\n")
+                s.snapshot.tooltip = table.concat(tips, "\n")
         else
-                stream.snapshot.tooltip = L["Right-Click for options"]
+                s.snapshot.tooltip = L["Right-Click for options"]
         end
-        stream.snapshot.perCurrency = false
-        stream.snapshot.showDescription = db.showDescription
+        s.snapshot.perCurrency = false
+        s.snapshot.showDescription = db.showDescription
 end
 
-function checkCurrencies(stream)
+checkCurrencies = function(s)
+        s = s or stream
         ensureDB()
         local size = db.fontSize or 14
         local parts = {}
@@ -278,21 +282,22 @@ function checkCurrencies(stream)
                 end
         end
         if #parts > 0 then
-                stream.snapshot.parts = parts
-                stream.snapshot.text = nil
+                s.snapshot.parts = parts
+                s.snapshot.text = nil
         else
-                stream.snapshot.parts = nil
-                stream.snapshot.text = L["Right-Click for options"]
+                s.snapshot.parts = nil
+                s.snapshot.text = L["Right-Click for options"]
         end
-        stream.snapshot.fontSize = size
-        rebuildTooltip()
+        s.snapshot.fontSize = size
+        rebuildTooltip(s)
 end
 
-function updateCurrency(id)
+updateCurrency = function(s, id)
+        s = s or stream
         ensureDB()
         local idx = idToIndex[id]
         if not idx then
-                fullUpdate()
+                fullUpdate(s)
                 return
         end
         local info = C_CurrencyInfo.GetCurrencyInfo(id)
@@ -308,7 +313,7 @@ function updateCurrency(id)
                 colorCode = RED_FONT_COLOR_CODE
         end
         local size = db.fontSize or 14
-        stream.snapshot.parts[idx].text = ("|T%s:%d:%d:0:0|t %s%d%s"):format(icon or 0, size, size, colorCode, qty, FONT_COLOR_CODE_CLOSE)
+        s.snapshot.parts[idx].text = ("|T%s:%d:%d:0:0|t %s%d%s"):format(icon or 0, size, size, colorCode, qty, FONT_COLOR_CODE_CLOSE)
         if not db.tooltipPerCurrency then
                 local lines = {}
                 local color = ITEM_QUALITY_COLORS[info.quality]
@@ -332,9 +337,9 @@ function updateCurrency(id)
                 end
                 lines[#lines + 1] = ""
                 tooltipParts[id] = lines
-                rebuildTooltip()
+                rebuildTooltip(s)
         end
-        publish()
+        publish(s)
 end
 
 local provider = {
@@ -343,9 +348,9 @@ local provider = {
 	title = "Currencies",
         update = checkCurrencies,
         events = {
-                PLAYER_LOGIN = function() fullUpdate() end,
-                CURRENCY_DISPLAY_UPDATE = function(_, _, currencyType)
-                        if tracked[currencyType] then updateCurrency(currencyType) end
+                PLAYER_LOGIN = function(s) fullUpdate(s) end,
+                CURRENCY_DISPLAY_UPDATE = function(s, _, currencyType)
+                        if tracked[currencyType] then updateCurrency(s, currencyType) end
                 end,
         },
 	OnClick = function(_, btn)
