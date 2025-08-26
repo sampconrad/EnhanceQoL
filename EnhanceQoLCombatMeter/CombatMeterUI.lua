@@ -1,3 +1,4 @@
+-- luacheck: globals INTERRUPTS
 local parentAddonName = "EnhanceQoL"
 local addonName, addon = ...
 if _G[parentAddonName] then
@@ -88,7 +89,8 @@ local metricNames = {
         damageOverall = L["Damage Overall"],
         healingPerFight = L["Healing Per Fight"],
         healingOverall = L["Healing Overall"],
-        interrupts = L["Interrupts"],
+        interrupts = INTERRUPTS,
+        interruptsOverall = INTERRUPTS .. " Overall",
 }
 
 local function applyBarTexture(bar)
@@ -484,20 +486,20 @@ local function createGroupFrame(groupConfig)
                                 if not parentFrame then return end
 
                                 local pdata
-                                if parentFrame.metric == "damageOverall" or parentFrame.metric == "healingOverall" then
+                                if parentFrame.metric == "damageOverall" or parentFrame.metric == "healingOverall" or parentFrame.metric == "interruptsOverall" then
                                         pdata = addon.CombatMeter.overallPlayers[entry.guid]
                                 else
                                         pdata = addon.CombatMeter.players[entry.guid]
                                 end
                                 if not pdata then return end
 
-                                if parentFrame.metric == "interrupts" then
+                                if parentFrame.metric == "interrupts" or parentFrame.metric == "interruptsOverall" then
                                         local spells = pdata.interruptSpells
                                         if not spells then return end
                                         local temp = {}
                                         for _, s in pairs(spells) do
                                                 if s.amount and s.amount > 0 then
-                                                        temp[#temp + 1] = { name = s.name, amount = s.amount }
+                                                        temp[#temp + 1] = { name = s.name, amount = s.amount, icon = s.icon }
                                                 end
                                         end
                                         if #temp == 0 then return end
@@ -507,7 +509,9 @@ local function createGroupFrame(groupConfig)
                                         GameTooltip:AddLine(entry.name or "")
                                         for i = 1, #temp do
                                                 local spell = temp[i]
-                                                GameTooltip:AddDoubleLine(spell.name or "", tostring(spell.amount))
+                                                local fullName
+                                                if spell.icon then fullName = "|T" .. spell.icon .. ":16|t" .. (spell.name or "") else fullName = spell.name or "" end
+                                                GameTooltip:AddDoubleLine(fullName, tostring(spell.amount))
                                         end
                                         GameTooltip:Show()
                                         return
@@ -600,26 +604,6 @@ local function createGroupFrame(groupConfig)
                                         end
                                 end
 
-                                local interruptsTotal = tonumber(pdata.interrupts or 0) or 0
-                                if interruptsTotal > 0 then
-                                        local parts = {}
-                                        local tempInt = {}
-                                        for _, s in pairs(pdata.interruptSpells or {}) do
-                                                if s.amount and s.amount > 0 then
-                                                        tempInt[#tempInt + 1] = { name = s.name, amount = s.amount }
-                                                end
-                                        end
-                                        tsort(tempInt, function(a, b) return a.amount > b.amount end)
-                                        for _, s in ipairs(tempInt) do
-                                                parts[#parts + 1] = string.format("%s ×%d", s.name or "", s.amount)
-                                        end
-                                        local detail = table.concat(parts, ", ")
-                                        if detail ~= "" then
-                                                GameTooltip:AddLine(string.format("%s: %d (%s)", L["Interrupts"], interruptsTotal, detail))
-                                        else
-                                                GameTooltip:AddLine(string.format("%s: %d", L["Interrupts"], interruptsTotal))
-                                        end
-                                end
                                 GameTooltip:Show()
                         end)
 			bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -653,11 +637,11 @@ local function createGroupFrame(groupConfig)
 		if dragOutline:IsShown() then refreshDragOutline() end
 	end
 
-	function frame:Update(groupUnits)
-		if not (addon.CombatMeter.inCombat or config["combatMeterAlwaysShow"] or self.metric == "damageOverall" or self.metric == "healingOverall") then
-			self:Hide()
-			return
-		end
+        function frame:Update(groupUnits)
+                if not (addon.CombatMeter.inCombat or config["combatMeterAlwaysShow"] or self.metric == "damageOverall" or self.metric == "healingOverall" or self.metric == "interruptsOverall") then
+                        self:Hide()
+                        return
+                end
 		self:Show()
 		self.list = self.list or {}
 		self.top = self.top or {}
@@ -681,6 +665,14 @@ local function createGroupFrame(groupConfig)
                                         end
                                         local value = total / p.time
                                         tinsert(list, { guid = guid, name = p.name, value = value, total = total, class = p.class })
+                                        if value > maxValue then maxValue = value end
+                                end
+                        end
+                elseif self.metric == "interruptsOverall" then
+                        for guid, data in pairs(addon.CombatMeter.overallPlayers) do
+                                if groupUnits[guid] then
+                                        local value = data.interrupts or 0
+                                        tinsert(list, { guid = guid, name = data.name, value = value, class = data.class })
                                         if value > maxValue then maxValue = value end
                                 end
                         end
@@ -753,20 +745,28 @@ local function createGroupFrame(groupConfig)
 				local name = UnitName("player")
 				local value, total
 				local class
-				if self.metric == "damageOverall" or self.metric == "healingOverall" then
-					local p = addon.CombatMeter.overallPlayers[playerGUID]
-					if p and p.time and p.time > 0 then
-						if self.metric == "damageOverall" then
-							total = (p.damage or 0)
-						else
-							local raw = (p.healing or 0)
-							local sl = (p.spiritLinkDamage or 0)
-							local tb = (p.temperedDamage or 0)
-							total = raw - (sl + tb)
-						end
-						value = total / p.time
-						class = p.class
-					end
+                                if self.metric == "damageOverall" or self.metric == "healingOverall" then
+                                        local p = addon.CombatMeter.overallPlayers[playerGUID]
+                                        if p and p.time and p.time > 0 then
+                                                if self.metric == "damageOverall" then
+                                                        total = (p.damage or 0)
+                                                else
+                                                        local raw = (p.healing or 0)
+                                                        local sl = (p.spiritLinkDamage or 0)
+                                                        local tb = (p.temperedDamage or 0)
+                                                        total = raw - (sl + tb)
+                                                end
+                                                value = total / p.time
+                                                class = p.class
+                                        end
+                                elseif self.metric == "interruptsOverall" then
+                                        local p = addon.CombatMeter.overallPlayers[playerGUID]
+                                        if p then
+                                                value = p.interrupts or 0
+                                                class = p.class
+                                        else
+                                                value = 0
+                                        end
                                 else
                                         if self.metric == "interrupts" then
                                                 local data = addon.CombatMeter.players[playerGUID]

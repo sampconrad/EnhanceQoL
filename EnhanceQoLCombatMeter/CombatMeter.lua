@@ -672,25 +672,33 @@ local function handleEvent(self, event, unit)
 			local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
 			player.interrupts = (player.interrupts or 0) + 1
 			overall.interrupts = (overall.interrupts or 0) + 1
-			local extraSpellId, extraSpellName = a15, a16
-			if extraSpellId and extraSpellName then
-				local ps = player.interruptSpells[extraSpellId]
-				if not ps then
-					ps = { name = extraSpellName, amount = 0 }
-					player.interruptSpells[extraSpellId] = ps
-				end
-				ps.name = extraSpellName
-				ps.amount = (ps.amount or 0) + 1
-				local os = overall.interruptSpells[extraSpellId]
-				if not os then
-					os = { name = extraSpellName, amount = 0 }
-					overall.interruptSpells[extraSpellId] = os
-				end
-				os.name = extraSpellName
-				os.amount = (os.amount or 0) + 1
-			end
-			return
-		end
+                        local extraSpellId, extraSpellName = a15, a16
+                        if extraSpellId and extraSpellName then
+                                local icon = iconCache[extraSpellId]
+                                if extraSpellId > 0 and not icon then
+                                        local si = C_Spell.GetSpellInfo(extraSpellId)
+                                        icon = si and si.iconID
+                                        iconCache[extraSpellId] = icon
+                                end
+                                local ps = player.interruptSpells[extraSpellId]
+                                if not ps then
+                                        ps = { name = extraSpellName, amount = 0, icon = icon }
+                                        player.interruptSpells[extraSpellId] = ps
+                                end
+                                ps.name = extraSpellName
+                                ps.amount = (ps.amount or 0) + 1
+                                ps.icon = ps.icon or icon
+                                local os = overall.interruptSpells[extraSpellId]
+                                if not os then
+                                        os = { name = extraSpellName, amount = 0, icon = icon }
+                                        overall.interruptSpells[extraSpellId] = os
+                                end
+                                os.name = extraSpellName
+                                os.amount = (os.amount or 0) + 1
+                                os.icon = os.icon or icon
+                        end
+                        return
+                end
 
 		if sub == "SWING_MISSED" or sub == "RANGE_MISSED" or sub == "SPELL_MISSED" or sub == "SPELL_PERIODIC_MISSED" then
 			if not sourceGUID then return end

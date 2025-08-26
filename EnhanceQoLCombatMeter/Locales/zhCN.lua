@@ -1,4 +1,3 @@
 local L = LibStub("AceLocale-3.0"):NewLocale("EnhanceQoL_CombatMeter", "zhCN")
 if not L then return end
-L["Interrupts"] = "打断"
 --@localization(locale="zhCN", namespace="CombatMeter", format="lua_additive_table")@
