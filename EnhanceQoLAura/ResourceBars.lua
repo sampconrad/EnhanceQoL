@@ -1036,28 +1036,45 @@ local function getFrameName(pType)
 end
 
 function ResourceBars.DetachAnchorsFrom(disabledType, specIndex)
-	local class = addon.variables.unitClass
-	local spec = specIndex or addon.variables.unitSpec
+    local class = addon.variables.unitClass
+    local spec = specIndex or addon.variables.unitSpec
 
-	if not addon.db.personalResourceBarSettings or not addon.db.personalResourceBarSettings[class] or not addon.db.personalResourceBarSettings[class][spec] then return end
+    if not addon.db.personalResourceBarSettings or not addon.db.personalResourceBarSettings[class] or not addon.db.personalResourceBarSettings[class][spec] then return end
 
-	local specCfg = addon.db.personalResourceBarSettings[class][spec]
-	local targetName = getFrameName(disabledType)
+    local specCfg = addon.db.personalResourceBarSettings[class][spec]
+    local targetName = getFrameName(disabledType)
+    local disabledAnchor = getAnchor(disabledType, spec)
+    local upstreamName = disabledAnchor and disabledAnchor.relativeFrame or "UIParent"
 
-	for pType, cfg in pairs(specCfg) do
-		if pType ~= disabledType and cfg.anchor and cfg.anchor.relativeFrame == targetName then
-			local frame = _G[getFrameName(pType)]
-			if frame then
-				cfg.anchor.point = "BOTTOMLEFT"
-				cfg.anchor.relativeFrame = "UIParent"
-				cfg.anchor.relativePoint = "BOTTOMLEFT"
-				cfg.anchor.x = frame:GetLeft() or 0
-				cfg.anchor.y = frame:GetBottom() or 0
-			else
-				cfg.anchor.relativeFrame = "UIParent"
-			end
-		end
-	end
+    for pType, cfg in pairs(specCfg) do
+        if pType ~= disabledType and cfg.anchor and cfg.anchor.relativeFrame == targetName then
+            local depFrame = _G[getFrameName(pType)]
+            local upstream = _G[upstreamName]
+            if upstreamName ~= "UIParent" and upstream then
+                -- Reattach below the disabled bar's upstream anchor target for intuitive stacking
+                cfg.anchor.point = "TOPLEFT"
+                cfg.anchor.relativeFrame = upstreamName
+                cfg.anchor.relativePoint = "BOTTOMLEFT"
+                cfg.anchor.x = 0
+                cfg.anchor.y = 0
+            else
+                -- Fallback to centered on UIParent (TOPLEFT/TOPLEFT offsets to center)
+                local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
+                local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
+                -- Determine dependent frame size (fallback to defaults by bar type)
+                local cfgDep = getBarSettings(pType)
+                local defaultW = (pType == "HEALTH") and addon.db.personalResourceBarHealthWidth or addon.db.personalResourceBarManaWidth
+                local defaultH = (pType == "HEALTH") and addon.db.personalResourceBarHealthHeight or addon.db.personalResourceBarManaHeight
+                local w = (depFrame and depFrame.GetWidth and depFrame:GetWidth()) or (cfgDep and cfgDep.width) or defaultW or 0
+                local h = (depFrame and depFrame.GetHeight and depFrame:GetHeight()) or (cfgDep and cfgDep.height) or defaultH or 0
+                cfg.anchor.point = "TOPLEFT"
+                cfg.anchor.relativeFrame = "UIParent"
+                cfg.anchor.relativePoint = "TOPLEFT"
+                cfg.anchor.x = (pw - w) / 2
+                cfg.anchor.y = (h - ph) / 2
+            end
+        end
+    end
 end
 
 function ResourceBars.SetHealthBarSize(w, h)
