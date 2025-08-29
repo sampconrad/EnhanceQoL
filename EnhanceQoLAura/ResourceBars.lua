@@ -13,6 +13,7 @@ local ResourceBars = {}
 addon.Aura.ResourceBars = ResourceBars
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
+local AceGUI = addon.AceGUI
 
 local frameAnchor
 local mainFrame
@@ -274,6 +275,7 @@ function addon.Aura.functions.addResourceFrame(container)
                             textStyle = pType == "MANA" and "PERCENT" or "CURMAX",
                             fontSize = 16,
                             showSeparator = false,
+                            separatorColor = { 1, 1, 1, 0.5 },
                             showCooldownText = false,
                             cooldownTextFontSize = 16,
                         }
@@ -361,49 +363,66 @@ function addon.Aura.functions.addResourceFrame(container)
             dropCfg:SetValue(lastBarSelectionPerSpec[specKey])
             groupConfig:AddChild(dropCfg)
 
-            local sel = lastBarSelectionPerSpec[specKey]
+			local sel = lastBarSelectionPerSpec[specKey]
 			local frames = {}
 			for k, v in pairs(baseFrameList) do
 				frames[k] = v
 			end
-			-- Use localized display names for EQOL bars (keys remain the actual frame names)
-            frames.EQOLHealthBar = (displayNameForBarType and displayNameForBarType("HEALTH") or HEALTH) .. " " .. L["BarSuffix"]
+			-- Only list bars that are valid for this spec and enabled by user
+			if dbSpec.HEALTH and dbSpec.HEALTH.enabled == true then
+				frames.EQOLHealthBar = (displayNameForBarType and displayNameForBarType("HEALTH") or HEALTH) .. " " .. L["BarSuffix"]
+			end
 			for _, t in ipairs(addon.Aura.ResourceBars.classPowerTypes) do
-				if t ~= sel and dbSpec[t] and dbSpec[t].enabled ~= false then
-                    frames["EQOL" .. t .. "Bar"] = (displayNameForBarType and displayNameForBarType(t) or (_G[t] or t)) .. " " .. L["BarSuffix"]
+				if t ~= sel and available[t] and dbSpec[t] and dbSpec[t].enabled == true then
+					frames["EQOL" .. t .. "Bar"] = (displayNameForBarType and displayNameForBarType(t) or (_G[t] or t)) .. " " .. L["BarSuffix"]
 				end
 			end
 
 			if sel == "HEALTH" then
 				local hCfg = dbSpec.HEALTH
-				-- Size
+				-- Size row (50%/50%)
+				local sizeRow = addon.functions.createContainer("SimpleGroup", "Flow")
+				sizeRow:SetFullWidth(true)
                 local sw = addon.functions.createSliderAce(HUD_EDIT_MODE_SETTING_CHAT_FRAME_WIDTH, hCfg.width or addon.db.personalResourceBarHealthWidth, 1, 2000, 1, function(self, _, val)
 					hCfg.width = val
 					addon.Aura.ResourceBars.SetHealthBarSize(hCfg.width, hCfg.height or addon.db.personalResourceBarHealthHeight)
 				end)
-				groupConfig:AddChild(sw)
+				sw:SetFullWidth(false); sw:SetRelativeWidth(0.5)
+				sizeRow:AddChild(sw)
                 local sh = addon.functions.createSliderAce(HUD_EDIT_MODE_SETTING_CHAT_FRAME_HEIGHT, hCfg.height or addon.db.personalResourceBarHealthHeight, 1, 2000, 1, function(self, _, val)
 					hCfg.height = val
 					addon.Aura.ResourceBars.SetHealthBarSize(hCfg.width or addon.db.personalResourceBarHealthWidth, hCfg.height)
 				end)
-				groupConfig:AddChild(sh)
+				sh:SetFullWidth(false); sh:SetRelativeWidth(0.5)
+				sizeRow:AddChild(sh)
+				groupConfig:AddChild(sizeRow)
 
-				-- Text style
-                local tList = { PERCENT = STATUS_TEXT_PERCENT, CURMAX = L["Current/Max"], CURRENT = L["Current"], NONE = NONE }
-                local tOrder = { "PERCENT", "CURMAX", "CURRENT", "NONE" }
-                local dropT = addon.functions.createDropdownAce(L["Text"], tList, tOrder, function(self, _, key)
-					hCfg.textStyle = key
-					addon.Aura.ResourceBars.Refresh()
-				end)
-				dropT:SetValue(hCfg.textStyle or "PERCENT")
-				groupConfig:AddChild(dropT)
-
-				-- Font size
-                local sFont = addon.functions.createSliderAce(HUD_EDIT_MODE_SETTING_OBJECTIVE_TRACKER_TEXT_SIZE, hCfg.fontSize or 16, 6, 64, 1, function(self, _, val)
-					hCfg.fontSize = val
-					addon.Aura.ResourceBars.Refresh()
-				end)
-				groupConfig:AddChild(sFont)
+				-- Text + Size row (hide size when NONE)
+				local healthTextRow = addon.functions.createContainer("SimpleGroup", "Flow")
+				healthTextRow:SetFullWidth(true)
+				groupConfig:AddChild(healthTextRow)
+				local function buildHealthTextRow()
+					healthTextRow:ReleaseChildren()
+					local tList = { PERCENT = STATUS_TEXT_PERCENT, CURMAX = L["Current/Max"], CURRENT = L["Current"], NONE = NONE }
+					local tOrder = { "PERCENT", "CURMAX", "CURRENT", "NONE" }
+					local dropT = addon.functions.createDropdownAce(L["Text"], tList, tOrder, function(self, _, key)
+						hCfg.textStyle = key
+						addon.Aura.ResourceBars.Refresh()
+						buildHealthTextRow()
+					end)
+					dropT:SetValue(hCfg.textStyle or "PERCENT")
+					dropT:SetFullWidth(false); dropT:SetRelativeWidth(0.5)
+					healthTextRow:AddChild(dropT)
+					if (hCfg.textStyle or "PERCENT") ~= "NONE" then
+						local sFont = addon.functions.createSliderAce(HUD_EDIT_MODE_SETTING_OBJECTIVE_TRACKER_TEXT_SIZE, hCfg.fontSize or 16, 6, 64, 1, function(self, _, val)
+							hCfg.fontSize = val
+							addon.Aura.ResourceBars.Refresh()
+						end)
+						sFont:SetFullWidth(false); sFont:SetRelativeWidth(0.5)
+						healthTextRow:AddChild(sFont)
+					end
+				end
+				buildHealthTextRow()
 
 				addAnchorOptions("HEALTH", groupConfig, hCfg.anchor, frames)
 			else
@@ -416,32 +435,50 @@ function addon.Aura.functions.addResourceFrame(container)
 				local curStyle = cfg.textStyle or defaultStyle
 				local curFont = cfg.fontSize or 16
 
+                -- Size row (50%/50%)
+                local sizeRow2 = addon.functions.createContainer("SimpleGroup", "Flow")
+                sizeRow2:SetFullWidth(true)
                 local sw = addon.functions.createSliderAce(HUD_EDIT_MODE_SETTING_CHAT_FRAME_WIDTH, curW, 1, 2000, 1, function(self, _, val)
-					cfg.width = val
-					addon.Aura.ResourceBars.SetPowerBarSize(val, cfg.height or defaultH, sel)
-				end)
-				groupConfig:AddChild(sw)
+                    cfg.width = val
+                    addon.Aura.ResourceBars.SetPowerBarSize(val, cfg.height or defaultH, sel)
+                end)
+                sw:SetFullWidth(false); sw:SetRelativeWidth(0.5)
+                sizeRow2:AddChild(sw)
                 local sh = addon.functions.createSliderAce(HUD_EDIT_MODE_SETTING_CHAT_FRAME_HEIGHT, curH, 1, 2000, 1, function(self, _, val)
-					cfg.height = val
-					addon.Aura.ResourceBars.SetPowerBarSize(cfg.width or defaultW, val, sel)
-				end)
-				groupConfig:AddChild(sh)
+                    cfg.height = val
+                    addon.Aura.ResourceBars.SetPowerBarSize(cfg.width or defaultW, val, sel)
+                end)
+                sh:SetFullWidth(false); sh:SetRelativeWidth(0.5)
+                sizeRow2:AddChild(sh)
+                groupConfig:AddChild(sizeRow2)
 
             if sel ~= "RUNES" then
-                local tList = { PERCENT = STATUS_TEXT_PERCENT, CURMAX = L["Current/Max"], CURRENT = L["Current"], NONE = NONE }
-                local tOrder = { "PERCENT", "CURMAX", "CURRENT", "NONE" }
-                local drop = addon.functions.createDropdownAce(L["Text"], tList, tOrder, function(self, _, key)
-                    cfg.textStyle = key
-                    addon.Aura.ResourceBars.Refresh()
-                end)
-                drop:SetValue(curStyle)
-				groupConfig:AddChild(drop)
-
-                local sFont = addon.functions.createSliderAce(HUD_EDIT_MODE_SETTING_OBJECTIVE_TRACKER_TEXT_SIZE, curFont, 6, 64, 1, function(self, _, val)
-                    cfg.fontSize = val
-                    addon.Aura.ResourceBars.Refresh()
-                end)
-                groupConfig:AddChild(sFont)
+                -- Text + Size row (50%/50%), hide size when NONE
+                local textRow = addon.functions.createContainer("SimpleGroup", "Flow")
+                textRow:SetFullWidth(true)
+                groupConfig:AddChild(textRow)
+                local function buildTextRow()
+                    textRow:ReleaseChildren()
+                    local tList = { PERCENT = STATUS_TEXT_PERCENT, CURMAX = L["Current/Max"], CURRENT = L["Current"], NONE = NONE }
+                    local tOrder = { "PERCENT", "CURMAX", "CURRENT", "NONE" }
+                    local drop = addon.functions.createDropdownAce(L["Text"], tList, tOrder, function(self, _, key)
+                        cfg.textStyle = key
+                        addon.Aura.ResourceBars.Refresh()
+                        buildTextRow()
+                    end)
+                    drop:SetValue(cfg.textStyle or curStyle)
+                    drop:SetFullWidth(false); drop:SetRelativeWidth(0.5)
+                    textRow:AddChild(drop)
+                    if (cfg.textStyle or curStyle) ~= "NONE" then
+                        local sFont = addon.functions.createSliderAce(HUD_EDIT_MODE_SETTING_OBJECTIVE_TRACKER_TEXT_SIZE, cfg.fontSize or curFont, 6, 64, 1, function(self, _, val)
+                            cfg.fontSize = val
+                            addon.Aura.ResourceBars.Refresh()
+                        end)
+                        sFont:SetFullWidth(false); sFont:SetRelativeWidth(0.5)
+                        textRow:AddChild(sFont)
+                    end
+                end
+                buildTextRow()
             else
                 -- RUNES specific options
                 local cbRT = addon.functions.createCheckboxAce(L["Show cooldown text"], cfg.showCooldownText == true, function(self, _, val)
@@ -457,15 +494,32 @@ function addon.Aura.functions.addResourceFrame(container)
                 groupConfig:AddChild(sRTFont)
             end
 
-				-- Separator toggle for eligible resource types
-				local eligible = addon.Aura.ResourceBars.separatorEligible
-				if eligible and eligible[sel] then
+                -- Separator toggle + color picker row (eligible bars only)
+                local eligible = addon.Aura.ResourceBars.separatorEligible
+                if eligible and eligible[sel] then
+                    local sepRow = addon.functions.createContainer("SimpleGroup", "Flow")
+                    sepRow:SetFullWidth(true)
+                    local sepColor
                     local cbSep = addon.functions.createCheckboxAce(L["Show separator"], cfg.showSeparator == true, function(self, _, val)
-						cfg.showSeparator = val and true or false
-						addon.Aura.ResourceBars.Refresh()
-					end)
-					groupConfig:AddChild(cbSep)
-				end
+                        cfg.showSeparator = val and true or false
+                        addon.Aura.ResourceBars.Refresh()
+                        if sepColor then sepColor:SetDisabled(not cfg.showSeparator) end
+                    end)
+                    cbSep:SetFullWidth(false); cbSep:SetRelativeWidth(0.5)
+                    sepRow:AddChild(cbSep)
+                    sepColor = AceGUI:Create("ColorPicker")
+                    sepColor:SetLabel(L["Separator Color"] or "Separator Color")
+                    local sc = cfg.separatorColor or { 1, 1, 1, 0.5 }
+                    sepColor:SetColor(sc[1] or 1, sc[2] or 1, sc[3] or 1, sc[4] or 0.5)
+                    sepColor:SetCallback("OnValueChanged", function(_, _, r, g, b, a)
+                        cfg.separatorColor = { r, g, b, a }
+                        addon.Aura.ResourceBars.Refresh()
+                    end)
+                    sepColor:SetFullWidth(false); sepColor:SetRelativeWidth(0.5)
+                    sepColor:SetDisabled(not (cfg.showSeparator == true))
+                    sepRow:AddChild(sepColor)
+                    groupConfig:AddChild(sepRow)
+                end
 
 				addAnchorOptions(sel, groupConfig, cfg.anchor, frames)
 			end
@@ -766,7 +820,6 @@ local classPowerTypes = {
 ResourceBars.powertypeClasses = powertypeClasses
 ResourceBars.classPowerTypes = classPowerTypes
 ResourceBars.separatorEligible = {
-    ENERGY = true,
     HOLY_POWER = true,
     SOUL_SHARDS = true,
     ESSENCE = true,
@@ -949,7 +1002,8 @@ local function updateBarSeparators(pType)
     -- Ensure we have enough textures
     for i = #bar.separatorMarks + 1, needed do
         local tx = bar:CreateTexture(nil, "OVERLAY")
-        tx:SetColorTexture(1, 1, 1, 0.5)
+        local sc = (cfg and cfg.separatorColor) or { 1, 1, 1, 0.5 }
+        tx:SetColorTexture(sc[1] or 1, sc[2] or 1, sc[3] or 1, sc[4] or 0.5)
         bar.separatorMarks[i] = tx
     end
     -- Position visible separators
@@ -961,6 +1015,8 @@ local function updateBarSeparators(pType)
         local half = math.floor(SEPARATOR_THICKNESS * 0.5)
         tx:SetPoint("LEFT", bar, "LEFT", x - math.max(0, half), 0)
         tx:SetSize(SEPARATOR_THICKNESS, h)
+        local sc = (cfg and cfg.separatorColor) or { 1, 1, 1, 0.5 }
+        tx:SetColorTexture(sc[1] or 1, sc[2] or 1, sc[3] or 1, sc[4] or 0.5)
         tx:Show()
     end
     -- Hide extras
