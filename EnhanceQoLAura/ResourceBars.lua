@@ -667,7 +667,6 @@ function addon.Aura.functions.addResourceFrame(container)
 
 		tabGroup:SetTabs(specTabs)
 		tabGroup:SetCallback("OnGroupSelected", function(tabContainer, _, val)
-			lastTabIndex = val
 			buildSpec(tabContainer, val)
 		end)
 		wrapper:AddChild(tabGroup)
