@@ -675,12 +675,17 @@ local function updateHealthBar()
 				healthBar.text:Show()
 			end
 		end
+		local bracket, r, g, b
 		if percent >= 60 then
-			healthBar:SetStatusBarColor(0, 0.7, 0)
+			bracket, r, g, b = 3, 0, 0.7, 0
 		elseif percent >= 40 then
-			healthBar:SetStatusBarColor(0.7, 0.7, 0)
+			bracket, r, g, b = 2, 0.7, 0.7, 0
 		else
-			healthBar:SetStatusBarColor(0.7, 0, 0)
+			bracket, r, g, b = 1, 0.7, 0, 0
+		end
+		if healthBar._lastBracket ~= bracket then
+			healthBar:SetStatusBarColor(r, g, b)
+			healthBar._lastBracket = bracket
 		end
 
 		local combined = absorb
