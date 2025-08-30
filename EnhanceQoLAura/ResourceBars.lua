@@ -28,7 +28,6 @@ local getBarSettings
 local getAnchor
 local layoutRunes
 local updatePowerBar
-local lastTabIndex
 local lastBarSelectionPerSpec = {}
 local BAR_STACK_SPACING = -1
 local SEPARATOR_THICKNESS = 1
@@ -2036,10 +2035,10 @@ function ResourceBars.Refresh()
 			bar:SetMovable(isUI)
 			bar:EnableMouse(isUI)
 
-			local cfg = specCfg and specCfg[pType]
+			local cfg = getBarSettings(pType)
 			bar._cfg = cfg
 			local defaultStyle = (pType == "MANA") and "PERCENT" or "CURMAX"
-			bar._style = cfg and cfg.textStyle or defaultStyle
+			bar._style = (cfg and cfg.textStyle) or defaultStyle
 
 			if pType == "RUNES" then
 				layoutRunes(bar)
@@ -2051,22 +2050,19 @@ function ResourceBars.Refresh()
 		end
 	end
 	-- Apply text font sizes without forcing full rebuild
-	local class = addon.variables.unitClass
-	local spec = addon.variables.unitSpec
-	local specCfg = addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[class] and addon.db.personalResourceBarSettings[class][spec]
 
-	if healthBar and healthBar.text then
-		local hCfg = specCfg and specCfg.HEALTH
-		local fs = hCfg and hCfg.fontSize or 16
-		healthBar.text:SetFont(addon.variables.defaultFont, fs, "OUTLINE")
-	end
+		if healthBar and healthBar.text then
+			local hCfg = getBarSettings("HEALTH")
+			local fs = hCfg and hCfg.fontSize or 16
+			healthBar.text:SetFont(addon.variables.defaultFont, fs, "OUTLINE")
+		end
 
 	for pType, bar in pairs(powerbar) do
-		if bar and bar.text then
-			local cfg = specCfg and specCfg[pType]
-			local fs = cfg and cfg.fontSize or 16
-			bar.text:SetFont(addon.variables.defaultFont, fs, "OUTLINE")
-		end
+			if bar and bar.text then
+				local cfg = getBarSettings(pType)
+				local fs = cfg and cfg.fontSize or 16
+				bar.text:SetFont(addon.variables.defaultFont, fs, "OUTLINE")
+			end
 	end
 	updateHealthBar("UNIT_ABSORB_AMOUNT_CHANGED")
 	if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.UpdateRuneEventRegistration then addon.Aura.ResourceBars.UpdateRuneEventRegistration() end
