@@ -982,44 +982,73 @@ function updatePowerBar(type, runeSlot)
 				r, g, b = 0.0, 0.9, 0.3
 			end -- Unholy
 			local grey = 0.35
-			local now = GetTime()
 			bar._rune = bar._rune or {}
 			bar._runeOrder = bar._runeOrder or {}
-			local ready = {}
-			local charging = {}
-			for i = 1, 6 do
-				local start, duration, readyFlag = GetRuneCooldown(i)
-				bar._rune[i] = bar._rune[i] or {}
-				bar._rune[i].start = start or 0
-				bar._rune[i].duration = duration or 0
-				bar._rune[i].ready = readyFlag
-				if readyFlag then
-					table.insert(ready, i)
-				else
-					table.insert(charging, i)
+			bar._charging = bar._charging or {}
+			local charging = bar._charging
+			if runeSlot then
+				local count = 0
+				for i = 1, 6 do
+					local start, duration, readyFlag = GetRuneCooldown(i)
+					bar._rune[i] = bar._rune[i] or {}
+					bar._rune[i].start = start or 0
+					bar._rune[i].duration = duration or 0
+					bar._rune[i].ready = readyFlag
+					if not readyFlag then
+						count = count + 1
+						charging[count] = i
+					end
+				end
+				for i = count + 1, #charging do
+					charging[i] = nil
+				end
+				table.sort(charging, function(a, b)
+					local ra = bar._rune[a].start + bar._rune[a].duration
+					local rb = bar._rune[b].start + bar._rune[b].duration
+					return ra < rb
+				end)
+			else
+				local i = 1
+				while i <= #charging do
+					local idx = charging[i]
+					local start, duration, readyFlag = GetRuneCooldown(idx)
+					bar._rune[idx] = bar._rune[idx] or {}
+					bar._rune[idx].start = start or 0
+					bar._rune[idx].duration = duration or 0
+					bar._rune[idx].ready = readyFlag
+					if readyFlag then
+						table.remove(charging, i)
+					else
+						i = i + 1
+					end
 				end
 			end
-			table.sort(charging, function(a, b)
-				local ra = (bar._rune[a].start + bar._rune[a].duration) - now
-				local rb = (bar._rune[b].start + bar._rune[b].duration) - now
-				return ra < rb
-			end)
+			local chargingMap = bar._chargingMap or {}
+			bar._chargingMap = chargingMap
 			for i = 1, 6 do
-				bar._runeOrder[i] = nil
+				chargingMap[i] = nil
+			end
+			for _, idx in ipairs(charging) do
+				chargingMap[idx] = true
 			end
 			local pos = 1
-			for _, idx in ipairs(ready) do
-				bar._runeOrder[pos] = idx
-				pos = pos + 1
+			for i = 1, 6 do
+				if not chargingMap[i] then
+					bar._runeOrder[pos] = i
+					pos = pos + 1
+				end
 			end
 			for _, idx in ipairs(charging) do
 				bar._runeOrder[pos] = idx
 				pos = pos + 1
 			end
+			for i = pos, #bar._runeOrder do
+				bar._runeOrder[i] = nil
+			end
 
 			local cfg = getBarSettings("RUNES") or {}
 			local anyActive = #charging > 0
-			now = GetTime()
+			local now = GetTime()
 			for i = 1, 6 do
 				local runeIndex = bar._runeOrder[i]
 				local info = runeIndex and bar._rune[runeIndex]
