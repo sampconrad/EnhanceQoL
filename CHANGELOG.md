@@ -1,5 +1,14 @@
 # Changelog
 
+## [4.10.1] – 2025-09-03
+
+### 🐛 Fixed
+
+- DataPanel – Friends: Removed duplicate entries and made the tooltip clearer with groups (Battle.net, Friends, Guild).
+- Unit Frames – Mouseover: Toggle now takes effect immediately.
+
+---
+
 ## [4.10.0] – 2025-08-30
 
 ### ✨ Added
