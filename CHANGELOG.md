@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.12.0] – 2025-09-07
+
+### 🔄 Changed
+
+- **Craft Shopper:** Added **Track multiple** per recipe — enter a craft count and it adds all required reagents for **X** crafts to your Shopping List in one go.
+
+---
+
 ## [4.11.1] – 2025-09-07
 
 ### 🐛 Fixed
