@@ -1,11 +1,15 @@
 -- LibOpenKeystone-1.0 (minimal, LOR-compatible J/K comms only)
-local MAJOR, MINOR = "LibOpenKeystone-1.0", 3
+local MAJOR, MINOR = "LibOpenKeystone-1.0", 4
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end
 
 -- Storage
 lib.UnitData = lib.UnitData or {} -- [ "Name" or "Name-Realm" ] = { challengeMapID=..., level=..., lastSeen=... }
 lib._callbacks = lib._callbacks or { KeystoneUpdate = {}, KeystoneWipe = {} }
+-- Debounce/state helpers
+lib._pendingAnnounce = lib._pendingAnnounce or false
+lib._lastRequestAt = lib._lastRequestAt or 0
+lib._bagPending = lib._bagPending or false
 
 -- Outgoing messages use a custom prefix; incoming accepts both LibOpenRaid
 -- and LibOpenKeystone prefixes
@@ -106,12 +110,12 @@ local function SendLogged(text, channel)
 	-- Preferred: compressed AceComm on our own prefix
 	local AceComm = LibStub:GetLibrary("AceComm-3.0", true)
 	local LibDeflate = LibStub:GetLibrary("LibDeflate", true)
-	if AceComm and LibDeflate then
-		local compressed = LibDeflate:CompressDeflate(text, { level = 9 })
-		local encoded = LibDeflate:EncodeForWoWAddonChannel(compressed)
-		AceComm:SendCommMessage(SEND_PREFIX, encoded, ch, nil, "ALERT")
-		return
-	end
+    if AceComm and LibDeflate then
+        local compressed = LibDeflate:CompressDeflate(text, { level = 9 })
+        local encoded = LibDeflate:EncodeForWoWAddonChannel(compressed)
+        AceComm:SendCommMessage(SEND_PREFIX, encoded, ch, nil, "NORMAL")
+        return
+    end
 
 	-- Fallback: LOGGED-safe
 	if ChatThrottleLib and ChatThrottleLib.SendAddonMessageLogged then
@@ -269,40 +273,56 @@ f:RegisterEvent("GROUP_ROSTER_UPDATE")
 f:RegisterEvent("PLAYER_ENTERING_WORLD")
 f:RegisterEvent("BAG_UPDATE_DELAYED")
 f:SetScript("OnEvent", function(_, ev, ...)
-	if ev == "CHAT_MSG_ADDON_LOGGED" then return OnLogged(_, ev, ...) end
-	if ev == "PLAYER_ENTERING_WORLD" or ev == "GROUP_ROSTER_UPDATE" then
-		-- ask group and also advertise our own key once
-		C_Timer.After(0.2, function()
-			if IsInGroup() then
-				lib.RequestKeystoneDataFromParty()
-			else
-				-- solo: just refresh local
-				local me = UnitName("player")
-				local mapID, level = ReadOwnKeystone()
-				lib.UnitData[me] = { challengeMapID = mapID, level = level, lastSeen = Now() }
-				Fire("KeystoneUpdate", me, lib.UnitData[me])
-			end
-		end)
-	elseif ev == "BAG_UPDATE_DELAYED" then
-		-- if our key changed, notify group (cheap)
-		local me = UnitName("player")
-		local mapID, level = ReadOwnKeystone()
-		local e = lib.UnitData[me]
-		if not e or e.challengeMapID ~= mapID or e.level ~= level then
-			lib.UnitData[me] = { challengeMapID = mapID, level = level, lastSeen = Now() }
-			Fire("KeystoneUpdate", me, lib.UnitData[me])
-			if IsInGroup() then SendLogged(BuildKPayload(mapID, level)) end
-		end
-	end
+    if ev == "CHAT_MSG_ADDON_LOGGED" then return OnLogged(_, ev, ...) end
+    if ev == "PLAYER_ENTERING_WORLD" or ev == "GROUP_ROSTER_UPDATE" then
+        -- Debounce bursts: schedule a single announce for rapid event sequences
+        if not lib._pendingAnnounce then
+            lib._pendingAnnounce = true
+            C_Timer.After(0.25 + math.random() * 0.2, function()
+                lib._pendingAnnounce = false
+                if IsInGroup() then
+                    lib.RequestKeystoneDataFromParty()
+                else
+                    -- solo: just refresh local
+                    local me = UnitName("player")
+                    local mapID, level = ReadOwnKeystone()
+                    lib.UnitData[me] = { challengeMapID = mapID, level = level, lastSeen = Now() }
+                    Fire("KeystoneUpdate", me, lib.UnitData[me])
+                end
+            end)
+        end
+    elseif ev == "BAG_UPDATE_DELAYED" then
+        -- Lightly buffer multiple bag events close together
+        if not lib._bagPending then
+            lib._bagPending = true
+            C_Timer.After(0.15, function()
+                lib._bagPending = false
+                -- if our key changed, notify group (cheap)
+                local me = UnitName("player")
+                local mapID, level = ReadOwnKeystone()
+                local e = lib.UnitData[me]
+                if not e or e.challengeMapID ~= mapID or e.level ~= level then
+                    lib.UnitData[me] = { challengeMapID = mapID, level = level, lastSeen = Now() }
+                    Fire("KeystoneUpdate", me, lib.UnitData[me])
+                    if IsInGroup() then SendLogged(BuildKPayload(mapID, level)) end
+                end
+            end)
+        end
+    end
 end)
 
 -- Public: request from party/raid + send own key proactively
 function lib.RequestKeystoneDataFromParty()
-	if not (IsInGroup() or IsInRaid()) then return end
-	-- Anfrage
-	SendLogged(KREQ_PREFIX)
+    if not (IsInGroup() or IsInRaid()) then return end
+    -- simple cooldown to avoid burst storms
+    local t = GetTime()
+    if (t - (lib._lastRequestAt or 0)) < 5 then return end
+    lib._lastRequestAt = t
 
-	-- sofortige Eigen-Antwort
-	local mapID, level = ReadOwnKeystone()
-	SendLogged(BuildKPayload(mapID, level))
+    -- Anfrage
+    SendLogged(KREQ_PREFIX)
+
+    -- sofortige Eigen-Antwort
+    local mapID, level = ReadOwnKeystone()
+    SendLogged(BuildKPayload(mapID, level))
 end

@@ -4,7 +4,10 @@
 
 ### 🐛 Fixed
 
-- Flyout menu on the upgrade merchant sometimes had stale item level entries and not the correct ones
+- **Upgrade Merchant – flyout menu:** could show stale item levels; now displays the correct values.
+- **Health Macro:** fixed a Lua error on login for Warlock characters.
+- **Tooltip – spell icon ID:** hovering pet spells could trigger a Lua error; fixed.
+- **LibOpenKeystone:** perfomance bugfixes
 
 ---
 

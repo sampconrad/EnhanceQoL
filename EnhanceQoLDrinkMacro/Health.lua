@@ -19,21 +19,28 @@ addon.Health.cache.isWarlock = (addon.variables and addon.variables.unitClass ==
 addon.Health.cache.hasDemonicTalent = false
 
 local function checkForTalent(spellID)
-	local configID = C_ClassTalents.GetActiveConfigID()
-	if configID then
-		local treeID = C_Traits.GetConfigInfo(configID).treeIDs[1]
-		for _, nodeID in ipairs(C_Traits.GetTreeNodes(treeID)) do
-			local nodeInfo = C_Traits.GetNodeInfo(configID, nodeID)
-			if nodeInfo and nodeInfo.activeEntry and nodeInfo.ranksPurchased > 0 then
-				local entryInfo = C_Traits.GetEntryInfo(configID, nodeInfo.activeEntry.entryID)
-				if entryInfo and entryInfo.definitionID then
-					local def = C_Traits.GetDefinitionInfo(entryInfo.definitionID)
-					if def and def.spellID == spellID then return true end
-				end
-			end
-		end
-	end
-	return false
+    -- Be defensive: during login/loads the trait config may not be ready yet
+    if not C_ClassTalents or not C_Traits or not C_Traits.GetConfigInfo then return false end
+
+    local configID = C_ClassTalents.GetActiveConfigID()
+    if not configID then return false end
+
+    local cfg = C_Traits.GetConfigInfo(configID)
+    if not cfg or not cfg.treeIDs or not cfg.treeIDs[1] then return false end
+    local treeID = cfg.treeIDs[1]
+
+    local nodes = C_Traits.GetTreeNodes(treeID) or {}
+    for _, nodeID in ipairs(nodes) do
+        local nodeInfo = C_Traits.GetNodeInfo(configID, nodeID)
+        if nodeInfo and nodeInfo.activeEntry and (nodeInfo.ranksPurchased or 0) > 0 then
+            local entryInfo = C_Traits.GetEntryInfo(configID, nodeInfo.activeEntry.entryID)
+            if entryInfo and entryInfo.definitionID then
+                local def = C_Traits.GetDefinitionInfo(entryInfo.definitionID)
+                if def and def.spellID == spellID then return true end
+            end
+        end
+    end
+    return false
 end
 
 local function GetPotionHeal(totalHealth)
