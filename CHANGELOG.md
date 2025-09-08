@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.12.1] – 2025-09-08
+
+### 🐛 Fixed
+
+- **Mouse:** Options had some wrong conditions
+
+---
+
 ## [4.12.0] – 2025-09-07
 
 ### 🔄 Changed

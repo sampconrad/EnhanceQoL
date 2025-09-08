@@ -335,7 +335,7 @@ local function addGeneralFrame(container)
 		end)
 		groupCore:AddChild(sliderRingSize)
 	end
-    
+
 	local groupTrail = addon.functions.createContainer("InlineGroup", "List")
 	groupTrail:SetTitle(L["Trailinfo"])
 	wrapper:AddChild(groupTrail)
