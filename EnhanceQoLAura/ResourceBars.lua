@@ -91,10 +91,7 @@ end
 
 local function resolveTexture(cfg)
 	local sel = cfg and cfg.barTexture
-	if sel == nil or sel == "DEFAULT" or not isValidStatusbarPath(sel) then
-		if cfg then cfg.barTexture = "DEFAULT" end
-		return DEFAULT_RB_TEX
-	end
+	if sel == nil or sel == "DEFAULT" or not isValidStatusbarPath(sel) then return DEFAULT_RB_TEX end
 	return sel
 end
 -- Fixed, non-DB defaults
@@ -1144,9 +1141,7 @@ function getBarSettings(pType)
 	local class = addon.variables.unitClass
 	local spec = addon.variables.unitSpec
 	if addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[class] and addon.db.personalResourceBarSettings[class][spec] then
-		local cfg = addon.db.personalResourceBarSettings[class][spec][pType]
-		if cfg and cfg.barTexture == nil then cfg.barTexture = "DEFAULT" end
-		return cfg
+		return addon.db.personalResourceBarSettings[class][spec][pType]
 	end
 	return nil
 end

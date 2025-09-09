@@ -118,10 +118,7 @@ local function applyBarTexture(bar)
 	end
 
 	local tex = config["combatMeterBarTexture"] or (TEXTURE_PATH .. "eqol_base_flat_8x8.tga")
-	if not isValidStatusbarPath(tex) then
-		tex = TEXTURE_PATH .. "eqol_base_flat_8x8.tga"
-		config["combatMeterBarTexture"] = tex
-	end
+	if not isValidStatusbarPath(tex) then tex = TEXTURE_PATH .. "eqol_base_flat_8x8.tga" end
 	local overlayTex = config["combatMeterOverlayTexture"] or DEFAULT_OVERLAY_TEXTURE
 	local useOverlay = config["combatMeterUseOverlay"]
 	local rounded = config["combatMeterRoundedCorners"]

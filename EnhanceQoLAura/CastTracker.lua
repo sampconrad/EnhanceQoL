@@ -49,10 +49,7 @@ end
 
 local function resolveCategoryTexture(db)
 	local sel = db and db.barTexture
-	if sel == nil or sel == "DEFAULT" or not isValidStatusbarPath(sel) then
-		if db then db.barTexture = "DEFAULT" end
-		return DEFAULT_CASTBAR_TEX
-	end
+	if sel == nil or sel == "DEFAULT" or not isValidStatusbarPath(sel) then return DEFAULT_CASTBAR_TEX end
 	return sel
 end
 

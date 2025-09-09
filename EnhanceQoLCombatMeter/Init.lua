@@ -139,10 +139,7 @@ local function addGeneralFrame(container)
 		local list, order = buildBarTextureOptions()
 		dd:SetList(list, order)
 		local cur = addon.db and addon.db["combatMeterBarTexture"] or defaultBarTex
-		if not list[cur] then
-			cur = defaultBarTex
-			if addon.db then addon.db["combatMeterBarTexture"] = cur end
-		end
+		if not list[cur] then cur = defaultBarTex end
 		dd:SetValue(cur)
 	end
 	groupCore:AddChild(dropBarTexture)
