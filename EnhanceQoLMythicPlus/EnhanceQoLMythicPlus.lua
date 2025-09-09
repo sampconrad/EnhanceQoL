@@ -628,6 +628,52 @@ local function addPotionTrackerFrame(container)
 			local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc)
 			groupCore:AddChild(cbElement)
 		end
+
+		-- Bar Texture dropdown (DEFAULT + built-ins + LSM)
+		local function buildPotionTextureOptions()
+			local map = {
+				["DEFAULT"] = DEFAULT,
+				["Interface\\TARGETINGFRAME\\UI-StatusBar"] = "Blizzard: UI-StatusBar",
+				["Interface\\Buttons\\WHITE8x8"] = "Flat (white, tintable)",
+				["Interface\\Tooltips\\UI-Tooltip-Background"] = "Dark Flat (Tooltip bg)",
+			}
+			-- Merge LSM statusbar textures (path -> displayName)
+			for name, path in pairs(LSM and LSM:HashTable("statusbar") or {}) do
+				if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
+			end
+			-- Build sorted list excluding DEFAULT first
+			local noDefault = {}
+			for k, v in pairs(map) do
+				if k ~= "DEFAULT" then noDefault[k] = v end
+			end
+			local sorted, order = addon.functions.prepareListForDropdown(noDefault)
+			-- Reinsert DEFAULT at the top of order
+			sorted["DEFAULT"] = DEFAULT
+			table.insert(order, 1, "DEFAULT")
+			return sorted, order
+		end
+
+		local list, order = buildPotionTextureOptions()
+		local dropTex = addon.functions.createDropdownAce(L["potionTrackerBarTexture"] or "Bar Texture", list, order, function(_, _, key)
+			addon.db["potionTrackerBarTexture"] = key
+			if addon.MythicPlus.functions.applyPotionBarTexture then addon.MythicPlus.functions.applyPotionBarTexture() end
+		end)
+		local cur = addon.db["potionTrackerBarTexture"] or "DEFAULT"
+		if not list[cur] then cur = "DEFAULT" end
+		dropTex:SetValue(cur)
+		groupCore:AddChild(dropTex)
+
+		addon.MythicPlus.ui = addon.MythicPlus.ui or {}
+		addon.MythicPlus.ui.potionTextureDropdown = dropTex
+		addon.MythicPlus.functions.RefreshPotionTextureDropdown = function()
+			local dd = addon.MythicPlus.ui and addon.MythicPlus.ui.potionTextureDropdown
+			if not dd then return end
+			local l, o = buildPotionTextureOptions()
+			dd:SetList(l, o)
+			local v = addon.db and addon.db["potionTrackerBarTexture"] or "DEFAULT"
+			if not l[v] then v = "DEFAULT" end
+			dd:SetValue(v)
+		end
 	end
 end
 

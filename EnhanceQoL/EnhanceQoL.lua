@@ -5500,9 +5500,15 @@ local function setAllHooks()
                 end)
             end
         elseif mediaType == "statusbar" then
-            -- When new statusbar textures are registered, refresh Combat Meter texture dropdown
+            -- When new statusbar textures are registered, refresh any UI using them
             if addon.CombatMeter and addon.CombatMeter.functions and addon.CombatMeter.functions.RefreshBarTextureDropdown then
                 addon.CombatMeter.functions.RefreshBarTextureDropdown()
+            end
+            if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.RefreshPotionTextureDropdown then
+                addon.MythicPlus.functions.RefreshPotionTextureDropdown()
+            end
+            if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.applyPotionBarTexture then
+                addon.MythicPlus.functions.applyPotionBarTexture()
             end
         end
     end)
