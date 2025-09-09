@@ -8,6 +8,7 @@ else
 end
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_CombatMeter")
+local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
 
 local config = addon.db
 local TEXTURE_PATH = "Interface\\AddOns\\EnhanceQoLCombatMeter\\Texture\\"
@@ -102,7 +103,22 @@ table.sort(perFightMetrics, function(a, b) return metricNames[a] < metricNames[b
 
 local function applyBarTexture(bar)
 	if not bar then return end
+	local function isValidStatusbarPath(path)
+		if not path or type(path) ~= "string" or path == "" then return false end
+		if path == "Interface\\Buttons\\WHITE8x8" then return true end
+		if path == "Interface\\Tooltips\\UI-Tooltip-Background" then return true end
+		if path == (TEXTURE_PATH .. "eqol_base_flat_8x8.tga") then return true end
+		if LSM and LSM.HashTable then
+			local ht = LSM:HashTable("statusbar")
+			for _, p in pairs(ht or {}) do
+				if p == path then return true end
+			end
+		end
+		return false
+	end
+
 	local tex = config["combatMeterBarTexture"] or (TEXTURE_PATH .. "eqol_base_flat_8x8.tga")
+	if not isValidStatusbarPath(tex) then tex = TEXTURE_PATH .. "eqol_base_flat_8x8.tga" end
 	local overlayTex = config["combatMeterOverlayTexture"] or DEFAULT_OVERLAY_TEXTURE
 	local useOverlay = config["combatMeterUseOverlay"]
 	local rounded = config["combatMeterRoundedCorners"]

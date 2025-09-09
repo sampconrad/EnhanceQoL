@@ -31,6 +31,27 @@ local unpack = unpack
 local math_floor = math.floor
 local DEFAULT_BAR_COLOR = { 1, 0.5, 0, 1 }
 local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+local DEFAULT_CASTBAR_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
+
+local function isValidStatusbarPath(path)
+	if not path or type(path) ~= "string" or path == "" then return false end
+	if path == DEFAULT_CASTBAR_TEX then return true end
+	if path == "Interface\\Buttons\\WHITE8x8" then return true end
+	if path == "Interface\\Tooltips\\UI-Tooltip-Background" then return true end
+	if LSM and LSM.HashTable then
+		local ht = LSM:HashTable("statusbar")
+		for _, p in pairs(ht or {}) do
+			if p == path then return true end
+		end
+	end
+	return false
+end
+
+local function resolveCategoryTexture(db)
+	local sel = db and db.barTexture
+	if sel == nil or sel == "DEFAULT" or not isValidStatusbarPath(sel) then return DEFAULT_CASTBAR_TEX end
+	return sel
+end
 
 local anchors = {}
 local ensureAnchor
@@ -187,6 +208,12 @@ local function ensureBarStyle(bar, db)
 		bar.status:SetStatusBarColor(cr, cg, cb, ca)
 		bar._cr, bar._cg, bar._cb, bar._ca = cr, cg, cb, ca
 	end
+	-- status bar texture
+	local tex = resolveCategoryTexture(db)
+	if bar._tex ~= tex then
+		bar.status:SetStatusBarTexture(tex)
+		bar._tex = tex
+	end
 end
 local selectedCategory = addon.db["castTrackerSelectedCategory"] or 1
 local treeGroup
@@ -293,7 +320,7 @@ local function AcquireBar(catId)
 		bar:SetFrameLevel(anchorLevel + 200)
 		bar.status = CreateFrame("StatusBar", nil, bar)
 		bar.status:SetAllPoints()
-		bar.status:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+		bar.status:SetStatusBarTexture(resolveCategoryTexture(addon.db.castTrackerCategories[catId]))
 		bar.status:SetFrameLevel(bar:GetFrameLevel())
 		bar.background = bar.status:CreateTexture(nil, "BACKGROUND")
 		bar.background:SetAllPoints()
@@ -412,6 +439,7 @@ local function importCategory(encoded)
 	cat.textSize = cat.textSize or addon.db.castTrackerTextSize
 	cat.textColor = cat.textColor or addon.db.castTrackerTextColor
 	cat.direction = cat.direction or addon.db.castTrackerBarDirection or "DOWN"
+	cat.barTexture = cat.barTexture or "DEFAULT"
 	if cat.direction ~= "UP" and cat.direction ~= "DOWN" then cat.direction = "DOWN" end
 	cat.spells = cat.spells or {}
 	cat.allowedRoles = cat.allowedRoles or {}
@@ -617,6 +645,49 @@ local function buildCategoryOptions(container, catId)
 		UpdateActiveBars(catId)
 	end)
 	container:AddChild(sh)
+
+	-- Bar Texture dropdown (per category)
+	local function buildTextureOptions()
+		local map = {
+			["DEFAULT"] = DEFAULT,
+			[DEFAULT_CASTBAR_TEX] = "Blizzard: UI-StatusBar",
+			["Interface\\Buttons\\WHITE8x8"] = "Flat (white, tintable)",
+			["Interface\\Tooltips\\UI-Tooltip-Background"] = "Dark Flat (Tooltip bg)",
+		}
+		for name, path in pairs(LSM and LSM:HashTable("statusbar") or {}) do
+			if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
+		end
+		local noDefault = {}
+		for k, v in pairs(map) do
+			if k ~= "DEFAULT" then noDefault[k] = v end
+		end
+		local sorted, order = addon.functions.prepareListForDropdown(noDefault)
+		sorted["DEFAULT"] = DEFAULT
+		table.insert(order, 1, "DEFAULT")
+		return sorted, order
+	end
+
+	local listTex, orderTex = buildTextureOptions()
+	local dropTex = addon.functions.createDropdownAce(L["CastTrackerBarTexture"] or "Bar Texture", listTex, orderTex, function(_, _, key)
+		db.barTexture = key
+		UpdateActiveBars(catId)
+	end)
+	local cur = db.barTexture or "DEFAULT"
+	if not listTex[cur] then cur = "DEFAULT" end
+	dropTex:SetValue(cur)
+	container:AddChild(dropTex)
+
+	CastTracker.ui = CastTracker.ui or {}
+	CastTracker.ui.textureDropdown = dropTex
+	CastTracker.functions.RefreshTextureDropdown = function()
+		local dd = CastTracker.ui and CastTracker.ui.textureDropdown
+		if not dd then return end
+		local l, o = buildTextureOptions()
+		dd:SetList(l, o)
+		local v = db.barTexture or "DEFAULT"
+		if not l[v] then v = "DEFAULT" end
+		dd:SetValue(v)
+	end
 
 	local ts = addon.functions.createSliderAce(
 		(L["CastTrackerTextSize"] or "Text Size") .. ": " .. (db.textSize or addon.db.castTrackerTextSize),

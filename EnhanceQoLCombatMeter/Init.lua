@@ -14,6 +14,7 @@ addon.LCombatMeter = {}
 local AceGUI = addon.AceGUI
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_CombatMeter")
 local TEXTURE_PATH = "Interface\\AddOns\\EnhanceQoLCombatMeter\\Texture\\"
+local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
 
 addon.variables.statusTable.groups["combatmeter"] = true
 addon.functions.addToTree(nil, {
@@ -95,21 +96,52 @@ local function addGeneralFrame(container)
 	sliderPrePull:SetDisabled(not addon.db["combatMeterPrePullCapture"])
 	groupCore:AddChild(sliderPrePull)
 
-	local barTextures = {
-		["Interface\\Buttons\\WHITE8x8"] = L["Flat (white, tintable)"],
-		["Interface\\Tooltips\\UI-Tooltip-Background"] = L["Dark Flat (Tooltip bg)"],
-		[TEXTURE_PATH .. "eqol_base_flat_8x8.tga"] = L["EQoL: Flat (AddOn)"],
-	}
-	local barOrder = {
-		"Interface\\Buttons\\WHITE8x8",
-		"Interface\\Tooltips\\UI-Tooltip-Background",
-		TEXTURE_PATH .. "eqol_base_flat_8x8.tga",
-	}
+	-- Build base + LibSharedMedia statusbar texture lists
+	local function buildBarTextureOptions()
+		-- Build unsorted combined map (path -> display name)
+		local all = {
+			["Interface\\Buttons\\WHITE8x8"] = L["Flat (white, tintable)"],
+			["Interface\\Tooltips\\UI-Tooltip-Background"] = L["Dark Flat (Tooltip bg)"],
+			[TEXTURE_PATH .. "eqol_base_flat_8x8.tga"] = L["EQoL: Flat (AddOn)"],
+		}
+
+		-- Merge in LibSharedMedia statusbar textures (path -> name)
+		if LSM and LSM.HashTable then
+			local ht = LSM:HashTable("statusbar")
+			if ht and next(ht) then
+				for name, path in pairs(ht) do
+					if type(path) == "string" and path ~= "" then all[path] = tostring(name) end
+				end
+			end
+		end
+
+		-- Sort entire list by display name
+		local sortedList, sortedOrder = addon.functions.prepareListForDropdown(all)
+		return sortedList, sortedOrder
+	end
+
+	local barTextures, barOrder = buildBarTextureOptions()
 	local dropBarTexture = addon.functions.createDropdownAce(L["Bar Texture"], barTextures, barOrder, function(_, _, key)
 		addon.db["combatMeterBarTexture"] = key
 		if addon.CombatMeter.functions.applyBarTextures then addon.CombatMeter.functions.applyBarTextures() end
 	end)
-	dropBarTexture:SetValue(addon.db["combatMeterBarTexture"] or (TEXTURE_PATH .. "eqol_base_flat_8x8.tga"))
+	local defaultBarTex = TEXTURE_PATH .. "eqol_base_flat_8x8.tga"
+	local initialValue = addon.db["combatMeterBarTexture"] or defaultBarTex
+	if not barTextures[initialValue] then initialValue = defaultBarTex end
+	dropBarTexture:SetValue(initialValue)
+
+	-- Expose dropdown for dynamic refresh when new LSM textures are registered
+	addon.CombatMeter.ui = addon.CombatMeter.ui or {}
+	addon.CombatMeter.ui.barTextureDropdown = dropBarTexture
+	addon.CombatMeter.functions.RefreshBarTextureDropdown = function()
+		local dd = addon.CombatMeter.ui and addon.CombatMeter.ui.barTextureDropdown
+		if not dd then return end
+		local list, order = buildBarTextureOptions()
+		dd:SetList(list, order)
+		local cur = addon.db and addon.db["combatMeterBarTexture"] or defaultBarTex
+		if not list[cur] then cur = defaultBarTex end
+		dd:SetValue(cur)
+	end
 	groupCore:AddChild(dropBarTexture)
 
 	local dropOverlayTex, dropOverlayBlend, sliderOverlayAlpha
@@ -194,15 +226,15 @@ local function addGeneralFrame(container)
 	groupGroup:SetTitle(L["Groups"])
 	wrapper:AddChild(groupGroup)
 
-        local metricNames = {
-                dps = L["DPS"],
-                damageOverall = L["Damage Overall"],
-                healingPerFight = L["Healing Per Fight"],
-                healingOverall = L["Healing Overall"],
-               interrupts = INTERRUPTS,
-               interruptsOverall = INTERRUPTS .. L[" Overall"],
-       }
-       local metricOrder = { "damageOverall", "healingOverall", "interruptsOverall", "dps", "healingPerFight", "interrupts" }
+	local metricNames = {
+		dps = L["DPS"],
+		damageOverall = L["Damage Overall"],
+		healingPerFight = L["Healing Per Fight"],
+		healingOverall = L["Healing Overall"],
+		interrupts = INTERRUPTS,
+		interruptsOverall = INTERRUPTS .. L[" Overall"],
+	}
+	local metricOrder = { "damageOverall", "healingOverall", "interruptsOverall", "dps", "healingPerFight", "interrupts" }
 
 	for i, cfg in ipairs(addon.db["combatMeterGroups"]) do
 		local idx = i
@@ -252,27 +284,27 @@ local function addGeneralFrame(container)
 		groupGroup:AddChild(cbSelf)
 	end
 
-       local addDrop = addon.functions.createDropdownAce(L["Add Group"], metricNames, metricOrder, function(self, _, val)
-               local barWidth = 210
-               local barHeight = 25
-               local frameWidth = barWidth + barHeight + 2
-               local screenW, screenH = UIParent:GetWidth(), UIParent:GetHeight()
-               local x = (screenW - frameWidth) / 2
-               local y = -((screenH - barHeight) / 2)
-               table.insert(addon.db["combatMeterGroups"], {
-                       type = val,
-                       point = "TOPLEFT",
-                       x = x,
-                       y = y,
-                       barWidth = barWidth,
-                       barHeight = barHeight,
-                       maxBars = 8,
-                       alwaysShowSelf = false,
-               })
-               addon.CombatMeter.functions.rebuildGroups()
-               container:ReleaseChildren()
-               addGeneralFrame(container)
-       end)
+	local addDrop = addon.functions.createDropdownAce(L["Add Group"], metricNames, metricOrder, function(self, _, val)
+		local barWidth = 210
+		local barHeight = 25
+		local frameWidth = barWidth + barHeight + 2
+		local screenW, screenH = UIParent:GetWidth(), UIParent:GetHeight()
+		local x = (screenW - frameWidth) / 2
+		local y = -((screenH - barHeight) / 2)
+		table.insert(addon.db["combatMeterGroups"], {
+			type = val,
+			point = "TOPLEFT",
+			x = x,
+			y = y,
+			barWidth = barWidth,
+			barHeight = barHeight,
+			maxBars = 8,
+			alwaysShowSelf = false,
+		})
+		addon.CombatMeter.functions.rebuildGroups()
+		container:ReleaseChildren()
+		addGeneralFrame(container)
+	end)
 	groupGroup:AddChild(addDrop)
 	scroll:DoLayout()
 end

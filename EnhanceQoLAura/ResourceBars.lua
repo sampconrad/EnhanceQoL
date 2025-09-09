@@ -10,8 +10,37 @@ end
 addon.Aura = addon.Aura or {}
 local ResourceBars = {}
 addon.Aura.ResourceBars = ResourceBars
+ResourceBars.ui = ResourceBars.ui or {}
+
+function ResourceBars.RefreshTextureDropdown()
+	local dd = ResourceBars.ui and ResourceBars.ui.textureDropdown
+	if not dd then return end
+	-- Rebuild generic list: DEFAULT + built-ins + LSM statusbars
+	local map = {
+		["DEFAULT"] = DEFAULT,
+		[BLIZZARD_TEX] = "Blizzard: UI-StatusBar",
+		["Interface\\Buttons\\WHITE8x8"] = "Flat (white, tintable)",
+		["Interface\\Tooltips\\UI-Tooltip-Background"] = "Dark Flat (Tooltip bg)",
+	}
+	for name, path in pairs(LSM and LSM:HashTable("statusbar") or {}) do
+		if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
+	end
+	local noDefault = {}
+	for k, v in pairs(map) do
+		if k ~= "DEFAULT" then noDefault[k] = v end
+	end
+	local sorted, order = addon.functions.prepareListForDropdown(noDefault)
+	sorted["DEFAULT"] = DEFAULT
+	table.insert(order, 1, "DEFAULT")
+	dd:SetList(sorted, order)
+	local cfg = dd._rb_cfgRef
+	local cur = (cfg and cfg.barTexture) or "DEFAULT"
+	if not sorted[cur] then cur = "DEFAULT" end
+	dd:SetValue(cur)
+end
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
+local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
 local AceGUI = addon.AceGUI
 local UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, GetTime = UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, GetTime
 local CreateFrame = CreateFrame
@@ -43,6 +72,28 @@ local lastBarSelectionPerSpec = {}
 local BAR_STACK_SPACING = -1
 local SEPARATOR_THICKNESS = 1
 local SEP_DEFAULT = { 1, 1, 1, 0.5 }
+local DEFAULT_RB_TEX = "Interface\\Buttons\\WHITE8x8" -- historical default (Solid)
+local BLIZZARD_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
+
+local function isValidStatusbarPath(path)
+	if not path or type(path) ~= "string" or path == "" then return false end
+	if path == BLIZZARD_TEX then return true end
+	if path == "Interface\\Buttons\\WHITE8x8" then return true end
+	if path == "Interface\\Tooltips\\UI-Tooltip-Background" then return true end
+	if LSM and LSM.HashTable then
+		local ht = LSM:HashTable("statusbar")
+		for _, p in pairs(ht or {}) do
+			if p == path then return true end
+		end
+	end
+	return false
+end
+
+local function resolveTexture(cfg)
+	local sel = cfg and cfg.barTexture
+	if sel == nil or sel == "DEFAULT" or not isValidStatusbarPath(sel) then return DEFAULT_RB_TEX end
+	return sel
+end
 -- Fixed, non-DB defaults
 local DEFAULT_HEALTH_WIDTH = 200
 local DEFAULT_HEALTH_HEIGHT = 20
@@ -503,6 +554,39 @@ function addon.Aura.functions.addResourceFrame(container)
 				end
 				buildHealthTextRow()
 
+				-- Bar Texture (Health)
+				local function buildTextureOptions()
+					local map = {
+						["DEFAULT"] = DEFAULT,
+						[BLIZZARD_TEX] = "Blizzard: UI-StatusBar",
+						["Interface\\Buttons\\WHITE8x8"] = "Flat (white, tintable)",
+						["Interface\\Tooltips\\UI-Tooltip-Background"] = "Dark Flat (Tooltip bg)",
+					}
+					for name, path in pairs(LSM and LSM:HashTable("statusbar") or {}) do
+						if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
+					end
+					local noDefault = {}
+					for k, v in pairs(map) do
+						if k ~= "DEFAULT" then noDefault[k] = v end
+					end
+					local sorted, order = addon.functions.prepareListForDropdown(noDefault)
+					sorted["DEFAULT"] = DEFAULT
+					table.insert(order, 1, "DEFAULT")
+					return sorted, order
+				end
+
+				local listTex, orderTex = buildTextureOptions()
+				local dropTex = addon.functions.createDropdownAce(L["Bar Texture"], listTex, orderTex, function(_, _, key)
+					hCfg.barTexture = key
+					if addon.Aura.ResourceBars and addon.Aura.ResourceBars.MaybeRefreshActive then addon.Aura.ResourceBars.MaybeRefreshActive(specIndex) end
+				end)
+				local cur = hCfg.barTexture or "DEFAULT"
+				if not listTex[cur] then cur = "DEFAULT" end
+				dropTex:SetValue(cur)
+				groupConfig:AddChild(dropTex)
+				ResourceBars.ui.textureDropdown = dropTex
+				dropTex._rb_cfgRef = hCfg
+
 				addAnchorOptions("HEALTH", groupConfig, hCfg.anchor, frames, specIndex)
 			else
 				local cfg = dbSpec[sel] or {}
@@ -562,6 +646,39 @@ function addon.Aura.functions.addResourceFrame(container)
 						end
 					end
 					buildTextRow()
+
+					-- Bar Texture (Power types incl. RUNES)
+					local function buildTextureOptions2()
+						local map = {
+							["DEFAULT"] = DEFAULT,
+							[BLIZZARD_TEX] = "Blizzard: UI-StatusBar",
+							["Interface\\Buttons\\WHITE8x8"] = "Flat (white, tintable)",
+							["Interface\\Tooltips\\UI-Tooltip-Background"] = "Dark Flat (Tooltip bg)",
+						}
+						for name, path in pairs(LSM and LSM:HashTable("statusbar") or {}) do
+							if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
+						end
+						local noDefault = {}
+						for k, v in pairs(map) do
+							if k ~= "DEFAULT" then noDefault[k] = v end
+						end
+						local sorted, order = addon.functions.prepareListForDropdown(noDefault)
+						sorted["DEFAULT"] = DEFAULT
+						table.insert(order, 1, "DEFAULT")
+						return sorted, order
+					end
+
+					local listTex2, orderTex2 = buildTextureOptions2()
+					local dropTex2 = addon.functions.createDropdownAce(L["Bar Texture"], listTex2, orderTex2, function(_, _, key)
+						cfg.barTexture = key
+						if addon.Aura.ResourceBars and addon.Aura.ResourceBars.MaybeRefreshActive then addon.Aura.ResourceBars.MaybeRefreshActive(specIndex) end
+					end)
+					local cur2 = cfg.barTexture or "DEFAULT"
+					if not listTex2[cur2] then cur2 = "DEFAULT" end
+					dropTex2:SetValue(cur2)
+					groupConfig:AddChild(dropTex2)
+					ResourceBars.ui.textureDropdown = dropTex2
+					dropTex2._rb_cfgRef = cfg
 				else
 					-- RUNES specific options
 					local cbRT = addon.functions.createCheckboxAce(L["Show cooldown text"], cfg.showCooldownText == true, function(self, _, val)
@@ -817,7 +934,10 @@ local function createHealthBar()
 		local h = (cfg and cfg.height) or DEFAULT_HEALTH_HEIGHT
 		healthBar:SetSize(w, h)
 	end
-	healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	do
+		local cfgTex = getBarSettings("HEALTH") or {}
+		healthBar:SetStatusBarTexture(resolveTexture(cfgTex))
+	end
 	healthBar:SetClampedToScreen(true)
 	local anchor = getAnchor("HEALTH", addon.variables.unitSpec)
 	local rel, looped = resolveAnchor(anchor, "HEALTH")
@@ -897,7 +1017,10 @@ local function createHealthBar()
 	absorbBar:SetAllPoints(healthBar)
 	absorbBar:SetFrameStrata(healthBar:GetFrameStrata())
 	absorbBar:SetFrameLevel((healthBar:GetFrameLevel() + 1))
-	absorbBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	do
+		local cfgTexH = getBarSettings("HEALTH") or {}
+		absorbBar:SetStatusBarTexture(resolveTexture(cfgTexH))
+	end
 	absorbBar:SetStatusBarColor(0.8, 0.8, 0.8, 0.8)
 	healthBar.absorbBar = absorbBar
 
@@ -1330,10 +1453,19 @@ function layoutRunes(bar)
 		local sb = bar.runes[i]
 		if not sb then
 			sb = CreateFrame("StatusBar", bar:GetName() .. "Rune" .. i, bar)
-			sb:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+			local cfgR = getBarSettings("RUNES") or {}
+			sb:SetStatusBarTexture(resolveTexture(cfgR))
 			sb:SetMinMaxValues(0, 1)
 			sb:Show()
 			bar.runes[i] = sb
+		end
+		do
+			local cfgR2 = getBarSettings("RUNES") or {}
+			local wantTex = resolveTexture(cfgR2)
+			if sb._rb_tex ~= wantTex then
+				sb:SetStatusBarTexture(wantTex)
+				sb._rb_tex = wantTex
+			end
 		end
 		sb:ClearAllPoints()
 		sb:SetHeight(h)
@@ -1383,7 +1515,10 @@ local function createPowerBar(type, anchor)
 	local defaultStyle = (type == "MANA") and "PERCENT" or "CURMAX"
 	bar._style = settings and settings.textStyle or defaultStyle
 	bar:SetSize(w, h)
-	bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	do
+		local cfg2 = getBarSettings(type) or {}
+		bar:SetStatusBarTexture(resolveTexture(cfg2))
+	end
 	bar:SetClampedToScreen(true)
 
 	-- Anchor handling: during spec/trait refresh we suppress inter-bar anchoring
@@ -2004,6 +2139,11 @@ function ResourceBars.Refresh()
 			a.y = (h - ph) / 2
 			rel = UIParent
 		end
+		-- Apply current texture selection to health bar
+		local hCfg2 = getBarSettings("HEALTH") or {}
+		local hTex = resolveTexture(hCfg2)
+		healthBar:SetStatusBarTexture(hTex)
+		if healthBar.absorbBar then healthBar.absorbBar:SetStatusBarTexture(hTex) end
 		healthBar:ClearAllPoints()
 		healthBar:SetPoint(a.point or "TOPLEFT", rel, a.relativePoint or a.point or "TOPLEFT", a.x or 0, a.y or 0)
 	end

@@ -31,6 +31,7 @@ addon.functions.InitDBValue("CooldownTrackerPoint", "CENTER")
 addon.functions.InitDBValue("CooldownTrackerX", 0)
 addon.functions.InitDBValue("CooldownTrackerY", 0)
 addon.functions.InitDBValue("CooldownTrackerBarHeight", 30)
+addon.functions.InitDBValue("potionTrackerBarTexture", "DEFAULT")
 
 -- Potion Tracker
 addon.functions.InitDBValue("potionTracker", false)

@@ -104,6 +104,7 @@ addon.functions.InitDBValue("castTrackerCategories", {
 		textSize = addon.db.castTrackerTextSize,
 		textColor = addon.db.castTrackerTextColor,
 		direction = addon.db.castTrackerBarDirection,
+		barTexture = "DEFAULT",
 		spells = {},
 	},
 })
@@ -138,6 +139,7 @@ for id, cat in pairs(addon.db["castTrackerCategories"] or {}) do
 	cat.textSize = cat.textSize or addon.db.castTrackerTextSize
 	cat.textColor = cat.textColor or addon.db.castTrackerTextColor
 	cat.direction = cat.direction or addon.db.castTrackerBarDirection
+	if cat.barTexture == nil then cat.barTexture = "DEFAULT" end
 	cat.spells = cat.spells or {}
 	addon.db.castTrackerSounds[id] = addon.db.castTrackerSounds[id] or {}
 	addon.db.castTrackerSoundsEnabled[id] = addon.db.castTrackerSoundsEnabled[id] or {}

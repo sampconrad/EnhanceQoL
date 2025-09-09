@@ -8,6 +8,7 @@ else
 end
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_MythicPlus")
+local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
 
 -- Addition für Potion Cooldown tracker
 local allowedSpells = { -- Tinker Engineering
@@ -60,6 +61,38 @@ local allowedSpells = { -- Tinker Engineering
 local activeBars = {}
 local frameAnchor = CreateFrame("StatusBar", nil, UIParent)
 addon.MythicPlus.anchorFrame = frameAnchor
+
+-- Resolve chosen statusbar texture for Potion/Cooldown tracker
+local DEFAULT_POTION_BAR_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
+
+local function isValidStatusbarPath(path)
+	if not path or type(path) ~= "string" or path == "" then return false end
+	if path == DEFAULT_POTION_BAR_TEX then return true end
+	if path == "Interface\\Buttons\\WHITE8x8" then return true end
+	if path == "Interface\\Tooltips\\UI-Tooltip-Background" then return true end
+	if LSM and LSM.HashTable then
+		local ht = LSM:HashTable("statusbar")
+		for _, p in pairs(ht or {}) do
+			if p == path then return true end
+		end
+	end
+	return false
+end
+
+local function resolvePotionBarTexturePath()
+	local sel = addon.db and addon.db["potionTrackerBarTexture"]
+	if sel == nil or sel == "DEFAULT" or not isValidStatusbarPath(sel) then return DEFAULT_POTION_BAR_TEX end
+	return sel
+end
+
+local function applyPotionBarTexture()
+	local tex = resolvePotionBarTexturePath()
+	if frameAnchor and frameAnchor.SetStatusBarTexture then frameAnchor:SetStatusBarTexture(tex) end
+	for _, bar in ipairs(activeBars) do
+		if bar and bar.SetStatusBarTexture then bar:SetStatusBarTexture(tex) end
+	end
+end
+addon.MythicPlus.functions.applyPotionBarTexture = applyPotionBarTexture
 
 function addon.MythicPlus.functions.resetCooldownBars()
 	-- Entferne alle aktiven Cooldown-Balken
@@ -114,7 +147,7 @@ local function createCooldownBar(spellID, anchorFrame, playerName, unit)
 
 	local frame = CreateFrame("StatusBar", nil, UIParent, "BackdropTemplate")
 	frame:SetSize(anchorFrame:GetWidth() - addon.db["CooldownTrackerBarHeight"], addon.db["CooldownTrackerBarHeight"]) -- Größe des Balkens
-	frame:SetStatusBarTexture("Interface\\TARGETINGFRAME\\UI-StatusBar")
+	frame:SetStatusBarTexture(resolvePotionBarTexturePath())
 	frame:SetMinMaxValues(0, duration)
 	frame:SetValue(duration)
 	frame:SetPoint("TOPLEFT", anchorFrame, "TOPLEFT", 0, 0)
@@ -206,7 +239,7 @@ end
 
 -- Main
 frameAnchor:SetSize(200, 30) -- Größe des Balkens
-frameAnchor:SetStatusBarTexture("Interface\\TARGETINGFRAME\\UI-StatusBar")
+frameAnchor:SetStatusBarTexture(resolvePotionBarTexturePath())
 frameAnchor:SetStatusBarColor(0, 0.65, 0) -- Green color
 frameAnchor:SetMinMaxValues(0, 10)
 frameAnchor:SetValue(10)
@@ -238,6 +271,9 @@ end
 -- Frame wiederherstellen und überprüfen, wenn das Addon geladen wird
 frameAnchor:SetScript("OnShow", function() RestorePosition() end)
 RestorePosition()
+
+-- In case DB is changed while running, re-apply to existing bars
+applyPotionBarTexture()
 
 frameAnchor:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 frameAnchor:RegisterEvent("CHALLENGE_MODE_RESET")

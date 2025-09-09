@@ -51,6 +51,7 @@ L["potionTrackerShowTooltip"] = "Show tooltip on icon"
 L["HealingPotion"] = "Heal"
 L["potionTrackerHealingPotions"] = "Track health pot CD"
 L["potionTrackerOffhealing"] = "Track Offhealing CD usage"
+L["potionTrackerBarTexture"] = "Bar Texture"
 
 -- Automark Frame
 L["AutoMark"] = "Auto marker"

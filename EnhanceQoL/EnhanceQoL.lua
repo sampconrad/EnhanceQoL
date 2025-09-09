@@ -5487,20 +5487,37 @@ local function setAllHooks()
 	initLootToast()
 	initBagsFrame()
 
-	local LSM = LibStub("LibSharedMedia-3.0")
-	local lsmSoundDirty = false
-	LSM:RegisterCallback("LibSharedMedia_Registered", function(event, mediaType, ...)
-		if mediaType == "sound" then
-			if not lsmSoundDirty then
-				lsmSoundDirty = true
-				C_Timer.After(1, function()
-					lsmSoundDirty = false
-					if addon.Aura and addon.Aura.functions and addon.Aura.functions.BuildSoundTable then addon.Aura.functions.BuildSoundTable() end
-					if addon.ChatIM and addon.ChatIM.BuildSoundTable then addon.ChatIM:BuildSoundTable() end
-				end)
-			end
-		end
-	end)
+    local LSM = LibStub("LibSharedMedia-3.0")
+    local lsmSoundDirty = false
+    LSM:RegisterCallback("LibSharedMedia_Registered", function(event, mediaType, ...)
+        if mediaType == "sound" then
+            if not lsmSoundDirty then
+                lsmSoundDirty = true
+                C_Timer.After(1, function()
+                    lsmSoundDirty = false
+                    if addon.Aura and addon.Aura.functions and addon.Aura.functions.BuildSoundTable then addon.Aura.functions.BuildSoundTable() end
+                    if addon.ChatIM and addon.ChatIM.BuildSoundTable then addon.ChatIM:BuildSoundTable() end
+                end)
+            end
+        elseif mediaType == "statusbar" then
+            -- When new statusbar textures are registered, refresh any UI using them
+            if addon.CombatMeter and addon.CombatMeter.functions and addon.CombatMeter.functions.RefreshBarTextureDropdown then
+                addon.CombatMeter.functions.RefreshBarTextureDropdown()
+            end
+            if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.RefreshPotionTextureDropdown then
+                addon.MythicPlus.functions.RefreshPotionTextureDropdown()
+            end
+            if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.applyPotionBarTexture then
+                addon.MythicPlus.functions.applyPotionBarTexture()
+            end
+            if addon.Aura and addon.Aura.CastTracker and addon.Aura.CastTracker.functions and addon.Aura.CastTracker.functions.RefreshTextureDropdown then
+                addon.Aura.CastTracker.functions.RefreshTextureDropdown()
+            end
+            if addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.RefreshTextureDropdown then
+                addon.Aura.ResourceBars.RefreshTextureDropdown()
+            end
+        end
+    end)
 end
 
 function loadMain()
