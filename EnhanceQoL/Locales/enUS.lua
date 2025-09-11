@@ -238,6 +238,8 @@ L["UnitFrameHideExplain"] = "Hide the element and only show it on mouseover"
 L["chatFrameFadeEnabled"] = "Enable chat fading"
 L["chatFrameFadeTimeVisibleText"] = "Text remains visible for"
 L["chatFrameFadeDurationText"] = "Fade animation duration"
+L["chatHideLearnUnlearn"] = "Hide learn/unlearn messages"
+L["chatHideLearnUnlearnDesc"] = "Hide system messages like 'You have learned …' and 'You have unlearned …' from the chat frame"
 L["enableChatIM"] = "Enable Instant Messenger"
 L["enableChatIMDesc"] = "Open whispers in a compact IM-style window.\n/eim to open the frame"
 L["enableChatIMFade"] = "Fade Instant Messenger when unfocused"
@@ -286,7 +288,7 @@ L["wayErrorPlacePing"] = "You can't place a waypoint here"
 L["wayMapUnknown"] = "Map unknown – try again outdoors."
 
 L["persistAuctionHouseFilter"] = "Remember Auction House filters for this session"
-L["alwaysUserCurExpAuctionHouse"] = "Always set the filter for \"%s\""
+L["alwaysUserCurExpAuctionHouse"] = 'Always set the filter for "%s"'
 
 L["Excluded NPCs"] = "Excluded NPCs"
 L["hideDynamicFlightBar"] = "Hide %s Vigor bar while on the ground"

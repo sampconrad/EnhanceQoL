@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.15.0] – 2025-09-11
+
+### ✨ Added
+
+- **Chat Frame:** Option to hide the messages of "learned" and "unlearned" spells on respec
+
+---
+
 ## [4.14.0] – 2025-09-10
 
 ### ✨ Added

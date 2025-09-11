@@ -1114,6 +1114,18 @@ local function addChatFrame(container)
 				addChatFrame(container)
 			end,
 		},
+		{
+			var = "chatHideLearnUnlearn",
+			text = L["chatHideLearnUnlearn"],
+			type = "CheckBox",
+			desc = L["chatHideLearnUnlearnDesc"],
+			func = function(self, _, value)
+				addon.db["chatHideLearnUnlearn"] = value
+				if addon.functions.ApplyChatLearnFilter then addon.functions.ApplyChatLearnFilter(value) end
+				container:ReleaseChildren()
+				addChatFrame(container)
+			end,
+		},
 	}
 
 	table.sort(data, function(a, b) return a.text < b.text end)
@@ -4193,6 +4205,34 @@ local function initBagsFrame()
 end
 
 local function initChatFrame()
+	-- Build learn/unlearn message patterns and filter once
+	if not addon.variables.learnUnlearnPatterns then
+		local patterns = {}
+		if ERR_LEARN_PASSIVE_S then table.insert(patterns, fmtToPattern(ERR_LEARN_PASSIVE_S)) end
+		if ERR_LEARN_SPELL_S then table.insert(patterns, fmtToPattern(ERR_LEARN_SPELL_S)) end
+		if ERR_LEARN_ABILITY_S then table.insert(patterns, fmtToPattern(ERR_LEARN_ABILITY_S)) end
+		if ERR_SPELL_UNLEARNED_S then table.insert(patterns, fmtToPattern(ERR_SPELL_UNLEARNED_S)) end
+		addon.variables.learnUnlearnPatterns = patterns
+	end
+
+	addon.functions.ChatLearnFilter = addon.functions.ChatLearnFilter
+		or function(_, _, msg)
+			if not msg then return false end
+			for _, pat in ipairs(addon.variables.learnUnlearnPatterns or {}) do
+				if msg:match(pat) then return true end
+			end
+			return false
+		end
+
+	addon.functions.ApplyChatLearnFilter = addon.functions.ApplyChatLearnFilter
+		or function(enabled)
+			if enabled then
+				ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", addon.functions.ChatLearnFilter)
+			else
+				ChatFrame_RemoveMessageEventFilter("CHAT_MSG_SYSTEM", addon.functions.ChatLearnFilter)
+			end
+		end
+
 	if ChatFrame1 then
 		addon.functions.InitDBValue("chatFrameFadeEnabled", ChatFrame1:GetFading())
 		addon.functions.InitDBValue("chatFrameFadeTimeVisible", ChatFrame1:GetTimeVisible())
@@ -4215,6 +4255,10 @@ local function initChatFrame()
 	addon.functions.InitDBValue("chatIMFrameData", {})
 	addon.functions.InitDBValue("chatIMHideInCombat", false)
 	addon.functions.InitDBValue("chatIMUseAnimation", true)
+	addon.functions.InitDBValue("chatHideLearnUnlearn", false)
+
+	-- Apply learn/unlearn message filter based on saved setting
+	addon.functions.ApplyChatLearnFilter(addon.db["chatHideLearnUnlearn"])
 	if addon.ChatIM and addon.ChatIM.SetEnabled then addon.ChatIM:SetEnabled(addon.db["enableChatIM"]) end
 end
 
