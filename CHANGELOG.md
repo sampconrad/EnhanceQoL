@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.15.1] – 2025-09-12
+
+### 🐛 Fixed
+
+- **HealthMacro:** Sometimes on /abandon when you are infight, there was a chance for a lua error
+
+---
+
 ## [4.15.0] – 2025-09-11
 
 ### ✨ Added

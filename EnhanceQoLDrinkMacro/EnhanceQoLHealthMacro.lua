@@ -10,6 +10,7 @@ end
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_DrinkMacro")
 
 local UnitAffectingCombat = UnitAffectingCombat
+local InCombatLockdown = InCombatLockdown
 local GetItemCooldown = GetItemCooldown
 local GetTime = GetTime
 local GetMacroInfo = GetMacroInfo
@@ -29,6 +30,8 @@ addon.functions.InitDBValue("healthUseRecuperate", false)
 
 local function createMacroIfMissing()
 	if not addon.db.healthMacroEnabled then return end
+	-- Avoid protected calls during combat lockdown
+	if InCombatLockdown and InCombatLockdown() then return end
 	if GetMacroInfo(healthMacroName) == nil then
 		local macroId = CreateMacro(healthMacroName, "INV_Misc_QuestionMark")
 		if not macroId then
@@ -44,7 +47,7 @@ local function createMacroIfMissing()
 		elseif normalCount > 0 then
 			body = "#showtooltip\n/use item:5512"
 		end
-		EditMacro(healthMacroName, healthMacroName, nil, body)
+		if not (InCombatLockdown and InCombatLockdown()) then EditMacro(healthMacroName, healthMacroName, nil, body) end
 	end
 end
 
@@ -220,6 +223,8 @@ local function buildMacro()
 	end
 
 	if key ~= lastMacroKey then
+		-- Final safety check to avoid protected EditMacro during combat lockdown
+		if InCombatLockdown and InCombatLockdown() then return end
 		if not GetMacroInfo(healthMacroName) then createMacroIfMissing() end
 		if GetMacroInfo(healthMacroName) then EditMacro(healthMacroName, healthMacroName, nil, macroBody) end
 		lastMacroKey = key

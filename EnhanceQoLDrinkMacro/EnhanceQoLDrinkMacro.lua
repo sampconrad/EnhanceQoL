@@ -3,6 +3,7 @@ local addonName, addon = ...
 local drinkMacroName = "EnhanceQoLDrinkMacro"
 
 local UnitAffectingCombat = UnitAffectingCombat
+local InCombatLockdown = InCombatLockdown
 local UnitPowerMax = UnitPowerMax
 local GetMacroInfo = GetMacroInfo
 local EditMacro = EditMacro
@@ -20,6 +21,8 @@ local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_DrinkMacro")
 local LSM = LibStub("LibSharedMedia-3.0")
 
 local function createMacroIfMissing()
+	-- Guard against protected calls while in combat lockdown
+	if InCombatLockdown and InCombatLockdown() then return end
 	if GetMacroInfo(drinkMacroName) == nil then CreateMacro(drinkMacroName, "INV_Misc_QuestionMark") end
 end
 
@@ -57,6 +60,8 @@ local function addDrinks()
 		end
 	end
 	if foundItem ~= lastItemPlaced or addon.db.allowRecuperate ~= lastAllowRecuperate or addon.db.useRecuperateWithDrinks ~= lastUseRecuperate then
+		-- Avoid protected EditMacro during combat lockdown
+		if InCombatLockdown and InCombatLockdown() then return end
 		EditMacro(drinkMacroName, drinkMacroName, nil, buildMacroString(foundItem))
 		lastItemPlaced = foundItem
 		lastAllowRecuperate = addon.db.allowRecuperate
