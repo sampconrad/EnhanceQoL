@@ -16,6 +16,8 @@
   - Mobile Telemancy Beacon (Zone based - Only in Suramar)
   - The Schools of Arcane Magic - Mastery (Zone based - Only in Dalaran WotLK)
   - Reaves Module: Wormhole Generator Mode (Special option)
+  - Kirin Tor Beacon (Zone based - Throne of Thunder/Isle of Thunder)
+  - Sunreaver Beacon (Zone based - Throne of Thunder/Isle of Thunder)
 
 ---
 

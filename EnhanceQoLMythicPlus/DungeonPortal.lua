@@ -574,7 +574,7 @@ local function CreatePortalCompendium(frame, compendium)
 				if data.isItem and type(data.itemID) == "table" then
 					local baseShow = specOk
 						and (not data.faction or data.faction == faction)
-						and (not data.map or (data.map == aMapID))
+						and (not data.map or ((type(data.map) == "number" and data.map == aMapID) or (type(data.map) == "table" and data.map[aMapID])))
 						and (not addon.db["hideActualSeason"] or not portalSpells[spellID])
 						and (addon.db["portalShowRaidTeleports"] or not data.isRaid)
 						and (addon.db["portalShowToyHearthstones"] or not data.isHearthstone)
@@ -616,7 +616,7 @@ local function CreatePortalCompendium(frame, compendium)
 
 					local showSpell = specOk
 						and (not data.faction or data.faction == faction)
-						and (not data.map or (data.map == aMapID))
+						and (not data.map or ((type(data.map) == "number" and data.map == aMapID) or (type(data.map) == "table" and data.map[aMapID])))
 						and (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and known))
 						and (not addon.db["hideActualSeason"] or not portalSpells[spellID])
 						and (addon.db["portalShowRaidTeleports"] or not data.isRaid)

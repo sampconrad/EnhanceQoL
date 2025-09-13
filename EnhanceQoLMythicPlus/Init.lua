@@ -583,6 +583,11 @@ addon.MythicPlus.variables.portalCompendium = {
 			[87215] = { text = "ENGI", isToy = true, toyID = 87215, isEngineering = true }, -- spellID ist noch falsch
 			[120145] = { text = "DALA", isClassTP = "MAGE" },
 			[120146] = { text = "DALA", isMagePortal = true },
+
+			-- Alliance beacon
+			[140295] = { text = "HS", isToy = true, toyID = 95567, isHearthstone = true, icon = 801132, map = { [504] = true, [508] = true }, faction = FACTION_ALLIANCE },
+			-- Horde beacon
+			[140300] = { text = "HS", isToy = true, toyID = 95568, isHearthstone = true, icon = 838819, map = { [504] = true, [508] = true }, faction = FACTION_HORDE },
 		},
 	},
 	[50] = {
