@@ -30,5 +30,6 @@ DungeonPortal.lua
 TalentReminder.lua
 DungeonFilter.lua
 ObjectiveTracker.lua
+WorldMapDungeonPortals.lua
 EnhanceQoLMythicPlus.lua
 #MP_Current_Percent.lua
