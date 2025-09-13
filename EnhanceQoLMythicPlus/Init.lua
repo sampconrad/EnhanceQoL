@@ -518,6 +518,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			[396591] = { text = "HS", isItem = true, itemID = 202046, isHearthstone = true, icon = 2203919 },
 
 			[289284] = { text = "HS", isItem = true, itemID = 166560, isHearthstone = true, icon = 804960, equipSlot = 11, faction = FACTION_ALLIANCE },
+			[289283] = { text = "HS", isItem = true, itemID = 166559, isHearthstone = true, icon = 804962, equipSlot = 11, faction = FACTION_HORDE },
 		},
 	},
 	[80] = {
