@@ -418,6 +418,8 @@ function addon.MythicPlus.functions.removeExistingButton()
 	addon.MythicPlus.nrOfButtons = 0
 end
 
+-- dumb the map cursor position: /dump WorldMapFrame:GetMapID(), WorldMapFrame.ScrollContainer:GetNormalizedCursorPosition()
+-- WorldMapFrame:GetMapID()
 addon.MythicPlus.variables.portalCompendium = {
 
 	[9999] = {
@@ -428,13 +430,13 @@ addon.MythicPlus.variables.portalCompendium = {
 		headline = EXPANSION_NAME10,
 		spells = {
 			[445269] = { text = "SV", cId = { [501] = true }, mapID = 2652 },
-			[445416] = { text = "COT", cId = { [502] = true }, mapID = 2663 },
-			[445414] = { text = "DAWN", cId = { [505] = true }, mapID = 2662 },
-			[445417] = { text = "ARAK", cId = { [503] = true }, mapID = 2660 },
-			[1216786] = { text = "FLOOD", cId = { [525] = true }, mapID = 2773 },
+			[445416] = { text = "COT", cId = { [502] = true }, mapID = 2663, locID = 2255, x = 0.4667, y = 0.6922 },
+			[445414] = { text = "DAWN", cId = { [505] = true }, mapID = 2662, locID = 2215, x = 0.5492, y = 0.6276 },
+			[445417] = { text = "ARAK", cId = { [503] = true }, mapID = 2660, locID = 2255, x = 0.494, y = 0.808 },
+			[1216786] = { text = "FLOOD", cId = { [525] = true }, mapID = 2773, locID = 2214, x = 0.4201, y = 0.3952 },
 			[1237215] = { text = "ED", cId = { [542] = true }, mapID = 2830 },
-			[445440] = { text = "BREW", cId = { [506] = true }, mapID = 2661 },
-			[445444] = { text = "PSF", cId = { [499] = true }, mapID = 2649 },
+			[445440] = { text = "BREW", cId = { [506] = true }, mapID = 2661, locID = 2248, x = 0.7656, y = 0.4383 },
+			[445444] = { text = "PSF", cId = { [499] = true }, mapID = 2649, locID = 2215, x = 0.4129, y = 0.4939 },
 			[445441] = { text = "DFC", cId = { [504] = true }, mapID = 2651 },
 			[445443] = { text = "ROOK", cId = { [500] = true }, mapID = 2648 },
 			[448126] = { text = "ENGI", isToy = true, toyID = 221966, isEngineering = true },

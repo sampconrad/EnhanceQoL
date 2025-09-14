@@ -26,6 +26,26 @@ addon.functions.InitDBValue("teleportFavorites", {})
 local GetItemCooldown = C_Item.GetItemCooldown
 local GetItemCount = C_Item.GetItemCount
 
+-- Open World Map to a mapID and create a user waypoint pin at x,y (0..1)
+local function OpenMapAndCreatePin(mapID, x, y)
+    if not mapID or not x or not y then return end
+    if WorldMapFrame and WorldMapFrame.SetMapID then
+        if not WorldMapFrame:IsShown() then
+            if ToggleMap then ToggleMap() else ShowUIPanel(WorldMapFrame) end
+        end
+        WorldMapFrame:SetMapID(mapID)
+    end
+    if C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
+        local point = UiMapPoint.CreateFromCoordinates(mapID, x, y)
+        if point then
+            C_Map.SetUserWaypoint(point)
+            if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+                C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+            end
+        end
+    end
+end
+
 -- Returns an itemID to use when the data provides multiple possible IDs.
 local function FirstOwnedItemID(itemID)
 	if type(itemID) == "table" then
@@ -91,10 +111,14 @@ local function getCurrentSeasonPortal()
 					local mapInfoText = data.textID and data.textID[cId] or data.text
 					if cModeIDLookup[cId] then
 						local mapName, _, _, texture, backgroundTexture = C_ChallengeMode.GetMapUIInfo(cId)
-						filteredPortalSpells[spellID] = {
-							text = data.text,
-							iconID = data.iconID,
-						}
+                    filteredPortalSpells[spellID] = {
+                        text = data.text,
+                        iconID = data.iconID,
+                        -- pass through optional map pin metadata if present (use only locID)
+                        locID = data.locID,
+                        x = data.x,
+                        y = data.y,
+                    }
 						if data.faction then
 							filteredPortalSpells[spellID].faction = data.faction
 							if data.faction == faction then
@@ -365,18 +389,28 @@ local function CreatePortalButtonsWithCooldown(frame, spells)
 			button:SetAttribute("type2", nil)
 			button:SetAttribute("spell2", nil)
 
-			button:RegisterForClicks("AnyUp", "AnyDown")
-			button:SetScript("OnMouseUp", function(self, btn)
-				if btn == "RightButton" then
-					local favs = addon.db.teleportFavorites
-					if favs[self.spellID] then
-						favs[self.spellID] = nil
-					else
-						favs[self.spellID] = true
-					end
-					checkCooldown()
-				end
-			end)
+			-- store data reference for map pins (may include mapID/locID/x/y)
+			button._eqolData = spells[spellID]
+
+            button:RegisterForClicks("AnyUp", "AnyDown")
+            button:SetScript("OnMouseUp", function(self, btn)
+                if btn == "RightButton" then
+                    if IsShiftKeyDown() then
+                        local favs = addon.db.teleportFavorites
+                        if favs[self.spellID] then
+                            favs[self.spellID] = nil
+                        else
+                            favs[self.spellID] = true
+                        end
+                        checkCooldown()
+                    else
+                        local d = self._eqolData or {}
+                        local x, y = d.x, d.y
+                        local locID = d.locID
+                        if locID and x and y then OpenMapAndCreatePin(locID, x, y) end
+                    end
+                end
+            end)
 			-- Text und Tooltip
 			local label = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 			label:SetPoint("TOP", button, "BOTTOM", 0, -2)
@@ -587,20 +621,23 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 								local _, _, itemIcon = C_Item.GetItemInfoInstant(iid)
 								iconID = itemIcon
 							end
-							table.insert(list, {
-								spellID = spellID,
-								text = resolveDisplayText(spellID, data),
-								iconID = iconID,
-								isKnown = knownX,
-								isToy = false,
-								toyID = false,
-								isItem = true,
-								itemID = iid,
-								isClassTP = data.isClassTP or false,
-								isMagePortal = data.isMagePortal or false,
-								equipSlot = data.equipSlot,
-								isFavorite = favorites[spellID] and true or false,
-							})
+                        table.insert(list, {
+                            spellID = spellID,
+                            text = resolveDisplayText(spellID, data),
+                            iconID = iconID,
+                            isKnown = knownX,
+                            isToy = false,
+                            toyID = false,
+                            isItem = true,
+                            itemID = iid,
+                            isClassTP = data.isClassTP or false,
+                            isMagePortal = data.isMagePortal or false,
+                            equipSlot = data.equipSlot,
+                            isFavorite = favorites[spellID] and true or false,
+                            locID = data.locID,
+                            x = data.x,
+                            y = data.y,
+                        })
 						end
 					end
             else
@@ -642,20 +679,23 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 							iconID = si and si.iconID or nil
 						end
 
-						table.insert(list, {
-							spellID = spellID,
-							text = resolveDisplayText(spellID, data),
-							iconID = iconID,
-							isKnown = known,
-							isToy = data.isToy or false,
-							toyID = data.toyID or false,
-							isItem = data.isItem or false,
-							itemID = chosenItemID or data.itemID or false,
-							isClassTP = data.isClassTP or false,
-							isMagePortal = data.isMagePortal or false,
-							equipSlot = data.equipSlot,
-							isFavorite = favorites[spellID] and true or false,
-						})
+                    table.insert(list, {
+                        spellID = spellID,
+                        text = resolveDisplayText(spellID, data),
+                        iconID = iconID,
+                        isKnown = known,
+                        isToy = data.isToy or false,
+                        toyID = data.toyID or false,
+                        isItem = data.isItem or false,
+                        itemID = chosenItemID or data.itemID or false,
+                        isClassTP = data.isClassTP or false,
+                        isMagePortal = data.isMagePortal or false,
+                        equipSlot = data.equipSlot,
+                        isFavorite = favorites[spellID] and true or false,
+                        locID = data.locID,
+                        x = data.x,
+                        y = data.y,
+                    })
 					end
 				end
 			end

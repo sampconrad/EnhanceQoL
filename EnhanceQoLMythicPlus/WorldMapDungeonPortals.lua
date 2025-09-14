@@ -54,6 +54,26 @@ local function BuildSpellEntries()
     return addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 end
 
+-- Open World Map to a mapID and create a user waypoint pin at x,y (0..1)
+local function OpenMapAndCreatePin(mapID, x, y)
+    if not mapID or not x or not y then return end
+    if WorldMapFrame and WorldMapFrame.SetMapID then
+        if not WorldMapFrame:IsShown() then
+            if ToggleMap then ToggleMap() else ShowUIPanel(WorldMapFrame) end
+        end
+        WorldMapFrame:SetMapID(mapID)
+    end
+    if C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
+        local point = UiMapPoint.CreateFromCoordinates(mapID, x, y)
+        if point then
+            C_Map.SetUserWaypoint(point)
+            if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+                C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+            end
+        end
+    end
+end
+
 -- Cooldown helpers ---------------------------------------------------------
 local function ApplyCooldownToButton(b)
 	if not b or not b.cooldownFrame or not b.entry then return end
@@ -285,18 +305,25 @@ local function CreateSecureSpellButton(parent, entry)
 
 	-- Favorite toggle after secure click resolves
 	b:RegisterForClicks("AnyDown", "AnyUp")
-	b:SetScript("PostClick", function(self, btn)
-		if btn == "RightButton" then
-			local favs = addon.db.teleportFavorites or {}
-			if favs[self.entry.spellID] then
-				favs[self.entry.spellID] = nil
-			else
-				favs[self.entry.spellID] = true
-			end
-			addon.db.teleportFavorites = favs
-			f:RefreshPanel()
-		end
-	end)
+    b:SetScript("PostClick", function(self, btn)
+        if btn == "RightButton" then
+            if IsShiftKeyDown() then
+                local favs = addon.db.teleportFavorites or {}
+                if favs[self.entry.spellID] then
+                    favs[self.entry.spellID] = nil
+                else
+                    favs[self.entry.spellID] = true
+                end
+                addon.db.teleportFavorites = favs
+                f:RefreshPanel()
+            else
+                local entry = self.entry or {}
+                local locID = entry.locID
+                local x, y = entry.x, entry.y
+                if locID and x and y then OpenMapAndCreatePin(locID, x, y) end
+            end
+        end
+    end)
 
 	b:SetScript("OnEnter", function(self)
 		if not addon.db["portalShowTooltip"] then return end
@@ -412,18 +439,25 @@ local function CreateLegendRowButton(parent, entry, width, height)
 
 	-- Right click: toggle favorite after secure click resolves
 	b:RegisterForClicks("AnyDown", "AnyUp")
-	b:SetScript("PostClick", function(self, btn)
-		if btn == "RightButton" then
-			local favs = addon.db.teleportFavorites or {}
-			if favs[self.entry.spellID] then
-				favs[self.entry.spellID] = nil
-			else
-				favs[self.entry.spellID] = true
-			end
-			addon.db.teleportFavorites = favs
-			f:RefreshPanel()
-		end
-	end)
+    b:SetScript("PostClick", function(self, btn)
+        if btn == "RightButton" then
+            if IsShiftKeyDown() then
+                local favs = addon.db.teleportFavorites or {}
+                if favs[self.entry.spellID] then
+                    favs[self.entry.spellID] = nil
+                else
+                    favs[self.entry.spellID] = true
+                end
+                addon.db.teleportFavorites = favs
+                f:RefreshPanel()
+            else
+                local entry = self.entry or {}
+                local locID = entry.locID
+                local x, y = entry.x, entry.y
+                if locID and x and y then OpenMapAndCreatePin(locID, x, y) end
+            end
+        end
+    end)
 
     -- Tooltip + highlight lock on hover (mirrors MapLegend feel)
     b:SetScript("OnEnter", function(self)
