@@ -389,14 +389,14 @@ function addon.Health.functions.addHealthFrame(container)
 	group:AddChild(cbRecup)
 
 	-- Allow using combat-only healing potions (from Health.lua entries flagged isCombatPotion)
-	local cbCombatPot = addon.functions.createCheckboxAce(
-		"Use Combat potions for health macro",
-		addon.db["healthUseCombatPotions"],
-		function(_, _, value)
-			addon.db["healthUseCombatPotions"] = value
-			addon.Health.functions.updateHealthMacro(false)
-		end
-	)
+    local cbCombatPot = addon.functions.createCheckboxAce(
+        L["Use Combat potions for health macro"],
+        addon.db["healthUseCombatPotions"],
+        function(_, _, value)
+            addon.db["healthUseCombatPotions"] = value
+            addon.Health.functions.updateHealthMacro(false)
+        end
+    )
 	group:AddChild(cbCombatPot)
 
 	if addon.db["healthUseBoth"] then
@@ -430,7 +430,7 @@ function addon.Health.functions.addHealthFrame(container)
 	group:AddChild(dropReset)
 
 	group:AddChild(addon.functions.createSpacerAce())
-	local label = addon.functions.createLabelAce(healthMacroName .. " - place on your bar (updates outside combat)", nil, nil, 12)
+    local label = addon.functions.createLabelAce(string.format(L["healthMacroPlaceOnBar"], healthMacroName), nil, nil, 12)
 	label:SetFullWidth(true)
 	group:AddChild(label)
 

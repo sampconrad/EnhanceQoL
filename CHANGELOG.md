@@ -51,6 +51,7 @@
 ### 🐛 Fixed
 
 - **Health Macro:** _Invigorating Healing Potion_ used the wrong healing amount
+- **Missing localizations:** Some dialogs had missing localized strings
 
 ---
 

@@ -47,7 +47,7 @@ local function checkBagIgnoreJunk()
 
 			StaticPopupDialogs["SellJunkIgnoredBag"] = {
 				text = message,
-				button1 = "OK",
+				button1 = OKAY,
 				timeout = 15,
 				whileDead = true,
 				hideOnEscape = true,

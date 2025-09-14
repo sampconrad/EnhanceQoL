@@ -220,7 +220,7 @@ local eventHandlers = {
 		if arg2 == false and addon.aceFrame:IsShown() and lastEbox then
 			StaticPopupDialogs["VendorWrongItemID"] = {
 				text = L["Item id does not exist"],
-				button1 = "OK",
+				button1 = OKAY,
 				timeout = 0,
 				whileDead = true,
 				hideOnEscape = true,

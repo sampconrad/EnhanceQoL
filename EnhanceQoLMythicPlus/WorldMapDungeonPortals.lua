@@ -634,7 +634,6 @@ local function EnsureTab(parent, anchorTo)
 end
 
 -- Glue into World Map ------------------------------------------------------
-local initialized = false
 function f:TryInit()
 	-- Idempotent: always ensure injection and layout when feature is enabled
 	if not QuestMapFrame then return end
@@ -722,8 +721,6 @@ function f:TryInit()
 		end, f)
 		f._eqolDisplayEvent = true
 	end
-
-	initialized = true
 end
 
 function f:RefreshPanel()
