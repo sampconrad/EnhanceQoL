@@ -45,6 +45,10 @@
 - **Item level upgrades:** Option to show a small arrow on items, that are better than your currently equipped items
   - On flyouts it compares the actual item with the inventory ones not just your slot (trinket1/2 if one is better, it ignores upgrades on those)
 
+### 🐛 Fixed
+
+- _Invigorating Healing Potion_ had the wrong health regeneration for **Healthmacro**
+
 ---
 
 ## [4.16.0] – 2025-09-13

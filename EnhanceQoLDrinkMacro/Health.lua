@@ -19,28 +19,28 @@ addon.Health.cache.isWarlock = (addon.variables and addon.variables.unitClass ==
 addon.Health.cache.hasDemonicTalent = false
 
 local function checkForTalent(spellID)
-    -- Be defensive: during login/loads the trait config may not be ready yet
-    if not C_ClassTalents or not C_Traits or not C_Traits.GetConfigInfo then return false end
+	-- Be defensive: during login/loads the trait config may not be ready yet
+	if not C_ClassTalents or not C_Traits or not C_Traits.GetConfigInfo then return false end
 
-    local configID = C_ClassTalents.GetActiveConfigID()
-    if not configID then return false end
+	local configID = C_ClassTalents.GetActiveConfigID()
+	if not configID then return false end
 
-    local cfg = C_Traits.GetConfigInfo(configID)
-    if not cfg or not cfg.treeIDs or not cfg.treeIDs[1] then return false end
-    local treeID = cfg.treeIDs[1]
+	local cfg = C_Traits.GetConfigInfo(configID)
+	if not cfg or not cfg.treeIDs or not cfg.treeIDs[1] then return false end
+	local treeID = cfg.treeIDs[1]
 
-    local nodes = C_Traits.GetTreeNodes(treeID) or {}
-    for _, nodeID in ipairs(nodes) do
-        local nodeInfo = C_Traits.GetNodeInfo(configID, nodeID)
-        if nodeInfo and nodeInfo.activeEntry and (nodeInfo.ranksPurchased or 0) > 0 then
-            local entryInfo = C_Traits.GetEntryInfo(configID, nodeInfo.activeEntry.entryID)
-            if entryInfo and entryInfo.definitionID then
-                local def = C_Traits.GetDefinitionInfo(entryInfo.definitionID)
-                if def and def.spellID == spellID then return true end
-            end
-        end
-    end
-    return false
+	local nodes = C_Traits.GetTreeNodes(treeID) or {}
+	for _, nodeID in ipairs(nodes) do
+		local nodeInfo = C_Traits.GetNodeInfo(configID, nodeID)
+		if nodeInfo and nodeInfo.activeEntry and (nodeInfo.ranksPurchased or 0) > 0 then
+			local entryInfo = C_Traits.GetEntryInfo(configID, nodeInfo.activeEntry.entryID)
+			if entryInfo and entryInfo.definitionID then
+				local def = C_Traits.GetDefinitionInfo(entryInfo.definitionID)
+				if def and def.spellID == spellID then return true end
+			end
+		end
+	end
+	return false
 end
 
 local function GetPotionHeal(totalHealth)
@@ -58,10 +58,15 @@ addon.Health.healthList = {
 	{ key = "Healthstone", id = 5512, requiredLevel = 5, healFunc = function(maxHP) return GetStoneHeal(maxHP) end, type = "stone" },
 	{ key = "DemonicHealthstone", id = 224464, requiredLevel = 5, healFunc = function(maxHP) return GetStoneHeal(maxHP) end, type = "stone" },
 
+	-- The War Within: Cavedweller's Delight (Qualities 1-3)
+	{ key = "CavedwellerDelight1", id = 212242, requiredLevel = 71, heal = 2574750, type = "potion", isCombatPotion = true },
+	{ key = "CavedwellerDelight2", id = 212243, requiredLevel = 71, heal = 2685000, type = "potion", isCombatPotion = true },
+	{ key = "CavedwellerDelight3", id = 212244, requiredLevel = 71, heal = 2799950, type = "potion", isCombatPotion = true },
+
 	-- The War Within: Invigorating Healing Potion (Qualities 1-3)
-	{ key = "InvigoratingHealingPotion1", id = 244835, requiredLevel = 71, heal = 850000, type = "potion" },
-	{ key = "InvigoratingHealingPotion2", id = 244838, requiredLevel = 71, heal = 950000, type = "potion" },
-	{ key = "InvigoratingHealingPotion3", id = 244839, requiredLevel = 71, heal = 1050000, type = "potion" },
+	{ key = "InvigoratingHealingPotion1", id = 244835, requiredLevel = 71, heal = 5100000, type = "potion" },
+	{ key = "InvigoratingHealingPotion2", id = 244838, requiredLevel = 71, heal = 5300000, type = "potion" },
+	{ key = "InvigoratingHealingPotion3", id = 244839, requiredLevel = 71, heal = 6400000, type = "potion" },
 
 	-- Khaz Algar: Algari Healing Potion (Qualities 1-3)
 	{ key = "AlgariHealingPotion1", id = 211878, requiredLevel = 71, heal = 3500000, type = "potion" },
