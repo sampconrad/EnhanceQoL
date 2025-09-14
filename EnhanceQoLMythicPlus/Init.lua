@@ -103,17 +103,14 @@ addon.MythicPlus.variables = {}
 addon.functions.InitDBValue("teleportFrame", false)
 addon.functions.InitDBValue("portalHideMissing", false)
 addon.functions.InitDBValue("portalShowTooltip", false)
-addon.functions.InitDBValue("teleportsEnableCompendium", false)
--- World Map: modern compendium toggle
-addon.functions.InitDBValue("teleportsWorldMapUseModern", false)
+-- World Map: modern compendium always used; keep DB table for cache only
+addon.functions.InitDBValue("teleportsWorldMapUseModern", true)
+-- Cache for resolved map/zone names used by modern frame
+addon.functions.InitDBValue("teleportNameCache", {})
 addon.functions.InitDBValue("teleportFavorites", {})
-addon.functions.InitDBValue("teleportFavoritesIgnoreExpansionHide", false)
-addon.functions.InitDBValue("teleportFavoritesIgnoreFilters", false)
+-- Favorites override is now always active in code
 addon.functions.InitDBValue("teleportFrameLocked", true)
 addon.functions.InitDBValue("teleportFrameData", {})
-addon.functions.InitDBValue("teleportCompendiumLocked", true)
-addon.functions.InitDBValue("teleportCompendiumFrameData", {})
-addon.functions.InitDBValue("portalUseReavesModule", false)
 addon.functions.InitDBValue("dungeonScoreFrameLocked", true)
 addon.functions.InitDBValue("dungeonScoreFrameData", {})
 
@@ -683,15 +680,15 @@ addon.MythicPlus.variables.portalCompendium = {
 			[23453] = { text = "ENGI", isToy = true, toyID = 18986, isEngineering = true, isGnomish = true },
 			[23442] = { text = "ENGI", isToy = true, toyID = 18984, isEngineering = true, isGoblin = true },
 
-			[89157] = { text = "SW", isItem = true, itemID = 65360, isHearthstone = true, icon = 461812, equipSlot = 15, faction = FACTION_ALLIANCE },
-			[1221360] = { text = "SW", isItem = true, itemID = 63206, isHearthstone = true, icon = 461811, equipSlot = 15, faction = FACTION_ALLIANCE },
-			[1221359] = { text = "SW", isItem = true, itemID = 63352, isHearthstone = true, icon = 461810, equipSlot = 15, faction = FACTION_ALLIANCE },
+			[89157] = { text = "SW", isItem = true, itemID = 65360, isHearthstone = true, icon = 461812, equipSlot = 15, faction = FACTION_ALLIANCE, modern = STORMWIND },
+			[1221360] = { text = "SW", isItem = true, itemID = 63206, isHearthstone = true, icon = 461811, equipSlot = 15, faction = FACTION_ALLIANCE, modern = STORMWIND },
+			[1221359] = { text = "SW", isItem = true, itemID = 63352, isHearthstone = true, icon = 461810, equipSlot = 15, faction = FACTION_ALLIANCE, modern = STORMWIND },
 
 			[89158] = { text = "OG", isItem = true, itemID = 65274, isHearthstone = true, icon = 461815, equipSlot = 15, faction = FACTION_HORDE },
 			[1221356] = { text = "OG", isItem = true, itemID = 63353, isHearthstone = true, icon = 461813, equipSlot = 15, faction = FACTION_HORDE },
 			[1221357] = { text = "OG", isItem = true, itemID = 63207, isHearthstone = true, icon = 461814, equipSlot = 15, faction = FACTION_HORDE },
 
-			[49844] = { text = "HS", isItem = true, itemID = 37863, isHearthstone = true, icon = 133015 }, -- Grim Guzzler
+			[49844] = { text = "HS", isItem = true, itemID = 37863, isHearthstone = true, icon = 133015, zoneID = 242 }, -- Grim Guzzler
 			[71436] = { text = "HS", isItem = true, itemID = 50287, isHearthstone = true, icon = 132578, equipSlot = 8 }, -- Boots of the Bay
 
 			[139437] = { text = "BP", isItem = true, itemID = 95051, isHearthstone = true, icon = 133345, faction = FACTION_ALLIANCE, equipSlot = 11 },

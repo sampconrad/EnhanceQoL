@@ -224,86 +224,15 @@ title:SetFormattedText(string.gsub(mSeasonTitle, "%s*%b()", ""))
 minFrameSize = max(title:GetStringWidth() + 20, 205)
 SafeSetSize(frameAnchor, minFrameSize, 205)
 
--- Compendium
-local frameAnchorCompendium = CreateFrame("Frame", "DungeonTeleportFrameCompendium", parentFrame, "BackdropTemplate")
-frameAnchorCompendium:SetBackdrop({
-	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", -- Hintergrund
-	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", -- Rahmen
-	edgeSize = 16,
-	insets = { left = 4, right = 4, top = 4, bottom = 4 },
-})
-frameAnchorCompendium:SetBackdropColor(0, 0, 0, 0.8) -- Dunkler Hintergrund mit 80% Transparenz
-
--- Überschrift hinzufügen
-local titleCompendium = frameAnchorCompendium:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-titleCompendium:SetPoint("TOP", 0, -10)
-local mSeasonTitleCompendium = L["DungeonCompendium"]
-titleCompendium:SetFormattedText(mSeasonTitleCompendium)
-SafeSetSize(frameAnchorCompendium, titleCompendium:GetStringWidth() + 20, 170)
-frameAnchorCompendium:SetPoint("TOPLEFT", DungeonTeleportFrame, "TOPRIGHT", 0, 0)
-
-frameAnchorCompendium:SetMovable(true)
-frameAnchorCompendium:EnableMouse(true)
-frameAnchorCompendium:RegisterForDrag("LeftButton")
-frameAnchorCompendium:SetClampedToScreen(true)
-frameAnchorCompendium:SetScript("OnDragStart", function(self)
-	if addon.db.teleportCompendiumLocked then return end
-	if InCombatLockdown() then return end
-	if not IsShiftKeyDown() then return end
-	self:StartMoving()
-end)
-frameAnchorCompendium:SetScript("OnDragStop", function(self)
-	if InCombatLockdown() then return end
-	self:StopMovingOrSizing()
-	local point, _, parentPoint, xOfs, yOfs = self:GetPoint()
-	addon.db.teleportCompendiumFrameData.point = point
-	addon.db.teleportCompendiumFrameData.parentPoint = parentPoint
-	addon.db.teleportCompendiumFrameData.x = xOfs
-	addon.db.teleportCompendiumFrameData.y = yOfs
-end)
-
-local btnDockCompendium = CreateFrame("Button", nil, frameAnchorCompendium)
-btnDockCompendium:SetPoint("TOPRIGHT", frameAnchorCompendium, "TOPRIGHT", -5, -5)
-btnDockCompendium:SetSize(16, 16)
-btnDockCompendium.isDocked = addon.db.teleportCompendiumLocked
-local iconCompendium = btnDockCompendium:CreateTexture(nil, "ARTWORK")
-iconCompendium:SetAllPoints(btnDockCompendium)
-btnDockCompendium.icon = iconCompendium
-if btnDockCompendium.isDocked then
-	iconCompendium:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\ClosedLock.tga")
-else
-	iconCompendium:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\OpenLock.tga")
-end
-btnDockCompendium:SetScript("OnClick", function(self)
-	self.isDocked = not self.isDocked
-	addon.db.teleportCompendiumLocked = self.isDocked
-	if self.isDocked then
-		self.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\ClosedLock.tga")
-	else
-		self.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\OpenLock.tga")
-	end
-	addon.MythicPlus.functions.toggleFrame()
-end)
-btnDockCompendium:SetScript("OnEnter", function(self)
-	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-	if self.isDocked then
-		GameTooltip:SetText(L["frameUnlock"])
-	else
-		GameTooltip:SetText(L["frameLock"])
-	end
-	GameTooltip:Show()
-end)
-btnDockCompendium:SetScript("OnLeave", function() GameTooltip:Hide() end)
+-- Legacy in-frame compendium has been removed in favor of the modern World Map panel
 
 local activeBars = {}
 addon.MythicPlus.portalFrame = frameAnchor
 
 local buttonSize = 30
 local spacing = 15
-local spacingCompendium = 11
 local hSpacing = 30
-local hSpacingCompendium = 15
-local maxButtonsPerRow = 8
+-- legacy compendium layout constants removed
 
 local function CreatePortalButtonsWithCooldown(frame, spells)
 	-- Entferne alle bestehenden Buttons
@@ -323,7 +252,7 @@ local function CreatePortalButtonsWithCooldown(frame, spells)
 		local passes = (not data.faction or data.faction == faction)
 		if addon.db["portalHideMissing"] then passes = passes and known end
 
-		if passes or (addon.db.teleportFavoritesIgnoreFilters and isFavorite and (not addon.db["portalHideMissing"] or known)) then
+    if passes or (isFavorite and (not addon.db["portalHideMissing"] or known)) then
 			local entry = {
 				spellID = spellID,
 				text = data.text,
@@ -521,30 +450,74 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 		if getCurrentSeasonPortal then getCurrentSeasonPortal() end
 	end
 
+	-- Resolve the display text for an entry, preferring "modern" or zone name
+    local function resolveDisplayText(spellID, data)
+        -- Default short label
+        local label = data and data.text or ""
+
+        -- 1) Explicit modern label on dataset
+        if data and type(data.modern) == "string" and data.modern ~= "" then return data.modern end
+
+		-- Helper to fetch and DB‑cache a map/zone name
+		local function cachedMapName(keyPrefix, id)
+			if not id then return nil end
+			local cacheKey = tostring(keyPrefix) .. ":" .. tostring(id)
+			addon.db.teleportNameCache = addon.db.teleportNameCache or {}
+			local cached = addon.db.teleportNameCache[cacheKey]
+			if cached and cached ~= "" then return cached end
+			local mi = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(id)
+			local name = mi and mi.name or nil
+			if name and name ~= "" then addon.db.teleportNameCache[cacheKey] = name end
+			return name
+		end
+
+		-- 2) If an explicit zoneID is present, use its map name
+		if data and type(data.zoneID) == "number" then
+			local n = cachedMapName("zone", data.zoneID)
+			if n and n ~= "" then return n end
+		end
+
+		-- 3) Some entries encode per‑variant zoneIDs inside mapID tables
+		if data and type(data.mapID) == "table" then
+			local keys = {}
+			for cid in pairs(data.mapID) do table.insert(keys, cid) end
+			table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+			for _, cid in ipairs(keys) do
+				local v = data.mapID[cid]
+				if type(v) == "table" and type(v.zoneID) == "number" then
+					local n = cachedMapName("zone", v.zoneID)
+					if n and n ~= "" then return n end
+				end
+			end
+		end
+
+        -- 4) Fallback (keep original short code)
+        return label
+    end
+
 	local hasEngineering, hasGnomish, hasGoblin = checkProfession(), false, false
 	if hasEngineering then hasGnomish, hasGoblin = GetEngineeringBranch() end
 	local aMapID = C_Map.GetBestMapForUnit("player")
 	addon.MythicPlus.functions.setRandomHearthstone()
 
-	local favorites = addon.db.teleportFavorites or {}
-	local baseComp = addon.MythicPlus.variables.portalCompendium or {}
+    local favorites = addon.db.teleportFavorites or {}
+    local baseComp = addon.MythicPlus.variables.portalCompendium or {}
 
-	-- First, split out favourites while honoring expansion hide toggle
-	local working = {}
-	local favSpells = {}
-	for k, section in pairs(baseComp) do
-		local hidden = addon.db["teleportsCompendiumHide" .. section.headline]
-		local newSpells = {}
-		for spellID, data in pairs(section.spells) do
-			if favorites[spellID] then
-				if addon.db.teleportFavoritesIgnoreExpansionHide or not hidden then favSpells[spellID] = data end
-			else
-				newSpells[spellID] = data
-			end
-		end
-		working[k] = { headline = section.headline, spells = newSpells }
-	end
-	if next(favSpells) then working[9999] = { headline = FAVORITES, spells = favSpells } end
+    -- Split out favourites into a separate section, no expansion-level hide anymore
+    local working = {}
+    local favSpells = {}
+    for k, section in pairs(baseComp) do
+        local newSpells = {}
+        for spellID, data in pairs(section.spells) do
+            if favorites[spellID] then
+                favSpells[spellID] = data
+            else
+                newSpells[spellID] = data
+            end
+        end
+        working[k] = { headline = section.headline, spells = newSpells }
+    end
+    if next(favSpells) then working[9999] = { headline = FAVORITES, spells = favSpells } end
 
 	-- Sort sections high->low to mimic UI order
 	local sectionOrder = {}
@@ -554,13 +527,13 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 	local out = {}
 	for _, k in ipairs(sectionOrder) do
 		local section = working[k]
-		if not addon.db["teleportsCompendiumHide" .. section.headline] then
-			local list = {}
-			for spellID, data in pairs(section.spells) do
-				-- Engineering specialization gate
-				local specOk = true
-				if data.isGnomish then specOk = specOk and hasGnomish end
-				if data.isGoblin then specOk = specOk and hasGoblin end
+        do
+            local list = {}
+            for spellID, data in pairs(section.spells) do
+                -- Engineering specialization gate
+                local specOk = true
+                if data.isGnomish then specOk = specOk and hasGnomish end
+                if data.isGoblin then specOk = specOk and hasGoblin end
 
 				-- Handle multiple itemIDs by splitting into separate entries
 				-- If a class-specific mapping exists, only include the item for the player's class
@@ -575,25 +548,17 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 							allowedIDs = {} -- this class cannot use any of these variants
 						end
 					end
-					local baseShow = specOk
-						and (not data.faction or data.faction == faction)
-						and (not data.map or ((type(data.map) == "number" and data.map == aMapID) or (type(data.map) == "table" and data.map[aMapID])))
-						and (not addon.db["hideActualSeason"] or not portalSpells[spellID])
-						and (addon.db["portalShowRaidTeleports"] or not data.isRaid)
-						and (addon.db["portalShowToyHearthstones"] or not data.isHearthstone)
-						and (addon.db["portalShowEngineering"] or not data.isEngineering)
-						and (addon.db["portalUseReavesModule"] or not data.isReaves)
-						and ((addon.db["portalShowClassTeleport"] and (addon.variables.unitClass == data.isClassTP)) or not data.isClassTP)
-						and ((addon.db["portalShowClassTeleport"] and addon.variables.unitRace == data.isRaceTP) or not data.isRaceTP)
-						and ((addon.db["portalShowMagePortal"] and addon.variables.unitClass == "MAGE") or not data.isMagePortal)
-						and (addon.db["portalShowDungeonTeleports"] or not data.cId)
+                    local baseShow = specOk
+                        and (not data.faction or data.faction == faction)
+                        and (not data.map or ((type(data.map) == "number" and data.map == aMapID) or (type(data.map) == "table" and data.map[aMapID])))
 
 					for _, iid in ipairs(allowedIDs) do
-						local knownX = C_Item.GetItemCount(iid) > 0
-						local showX = baseShow and (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and knownX))
-						if not showX and addon.db.teleportFavoritesIgnoreFilters and favorites[spellID] then
-							showX = (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and knownX))
-						end
+                    local knownX = C_Item.GetItemCount(iid) > 0
+                    local showX = baseShow and (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and knownX))
+                    -- Favourites always bypass non-availability filters (except Hide Missing)
+                    if not showX and favorites[spellID] then
+                        showX = (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and knownX))
+                    end
 						if showX then
 							local iconID = data.icon
 							if not iconID then
@@ -602,7 +567,7 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 							end
 							table.insert(list, {
 								spellID = spellID,
-								text = data.text,
+								text = resolveDisplayText(spellID, data),
 								iconID = iconID,
 								isKnown = knownX,
 								isToy = false,
@@ -617,28 +582,20 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 						end
 					end
 				else
-					local known = (C_SpellBook.IsSpellInSpellBook(spellID) and not data.isToy)
-						or (hasEngineering and specOk and data.toyID and not data.isHearthstone and isToyUsable(data.toyID))
-						or (data.isItem and C_Item.GetItemCount(FirstOwnedItemID(data.itemID)) > 0)
-						or (data.isHearthstone and isToyUsable(data.toyID))
+                local known = (C_SpellBook.IsSpellInSpellBook(spellID) and not data.isToy)
+                    or (hasEngineering and specOk and data.toyID and not data.isHearthstone and isToyUsable(data.toyID))
+                    or (data.isItem and C_Item.GetItemCount(FirstOwnedItemID(data.itemID)) > 0)
+                    or (data.isHearthstone and isToyUsable(data.toyID))
 
-					local showSpell = specOk
-						and (not data.faction or data.faction == faction)
-						and (not data.map or ((type(data.map) == "number" and data.map == aMapID) or (type(data.map) == "table" and data.map[aMapID])))
-						and (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and known))
-						and (not addon.db["hideActualSeason"] or not portalSpells[spellID])
-						and (addon.db["portalShowRaidTeleports"] or not data.isRaid)
-						and (addon.db["portalShowToyHearthstones"] or not data.isHearthstone)
-						and (addon.db["portalShowEngineering"] or not data.isEngineering)
-						and (addon.db["portalUseReavesModule"] or not data.isReaves)
-						and ((addon.db["portalShowClassTeleport"] and (addon.variables.unitClass == data.isClassTP)) or not data.isClassTP)
-						and ((addon.db["portalShowClassTeleport"] and addon.variables.unitRace == data.isRaceTP) or not data.isRaceTP)
-						and ((addon.db["portalShowMagePortal"] and addon.variables.unitClass == "MAGE") or not data.isMagePortal)
-						and (addon.db["portalShowDungeonTeleports"] or not data.cId)
+                local showSpell = specOk
+                    and (not data.faction or data.faction == faction)
+                    and (not data.map or ((type(data.map) == "number" and data.map == aMapID) or (type(data.map) == "table" and data.map[aMapID])))
+                    and (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and known))
 
-					if not showSpell and addon.db.teleportFavoritesIgnoreFilters and favorites[spellID] then
-						showSpell = (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and known))
-					end
+                -- Favourites always bypass non-availability filters (except Hide Missing)
+                if not showSpell and favorites[spellID] then
+                    showSpell = (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and known))
+                end
 
 					if showSpell then
 						local iconID
@@ -661,7 +618,7 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 
 						table.insert(list, {
 							spellID = spellID,
-							text = data.text,
+							text = resolveDisplayText(spellID, data),
 							iconID = iconID,
 							isKnown = known,
 							isToy = data.isToy or false,
@@ -677,16 +634,21 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 				end
 			end
 
-			-- Stable sort to match in-frame ordering rules
-			table.sort(list, function(a, b)
-				if a.text ~= b.text then return a.text < b.text end
-				-- prefer class teleports over mage portals if same text
-				local aTP, bTP = a.isClassTP or false, b.isClassTP or false
-				local aPort, bPort = a.isMagePortal or false, b.isMagePortal or false
-				if aTP ~= bTP then return aTP end
-				if aPort ~= bPort then return not aPort end
-				return (a.spellID or 0) < (b.spellID or 0)
-			end)
+            -- Stable-ish sort to match in-frame ordering rules with nil-safety
+            table.sort(list, function(a, b)
+                if a == nil and b == nil then return false end
+                if a == nil then return false end
+                if b == nil then return true end
+                local at, bt = a.text or "", b.text or ""
+                if at ~= bt then return at < bt end
+                -- prefer class teleports over mage portals if same text
+                local aTP = (a.isClassTP and true or false)
+                local bTP = (b.isClassTP and true or false)
+                local aPort, bPort = a.isMagePortal or false, b.isMagePortal or false
+                if aTP ~= bTP then return aTP end
+                if aPort ~= bPort then return not aPort end
+                return (a.spellID or 0) < (b.spellID or 0)
+            end)
 
 			if #list > 0 then table.insert(out, { title = section.headline, items = list }) end
 		end
@@ -695,6 +657,8 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 	return out
 end
 
+-- legacy in-frame compendium removed
+--[=[
 local function CreatePortalCompendium(frame, compendium)
 	local hasEngineering, hasGnomish, hasGoblin = checkProfession(), false, false
 	if hasEngineering then
@@ -882,15 +846,15 @@ local function CreatePortalCompendium(frame, compendium)
 					return false
 				end
 			end)
-		end
-		if #sortedSpells > 0 then
-			-- Überschrift (Headline)
-			local headline = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-			headline:SetPoint("TOP", frame, "TOP", 0, currentYOffset)
-			headline:SetText(section.headline)
-			currentYOffset = currentYOffset - headline:GetStringHeight() - 10 -- Abstand für Buttons
-			table.insert(frame.headline, headline)
-		end
+        end
+        if #sortedSpells > 0 then
+            -- Überschrift (Headline)
+            local headline = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            headline:SetPoint("TOP", frame, "TOP", 0, currentYOffset)
+            headline:SetText(section.headline)
+            currentYOffset = currentYOffset - headline:GetStringHeight() - 10 -- Abstand für Buttons
+            table.insert(frame.headline, headline)
+        end
 
 		-- Buttons generieren
 		local buttonsPerRow = math.max(1, #sortedSpells)
@@ -1066,34 +1030,23 @@ local function CreatePortalCompendium(frame, compendium)
 	-- Frame-Größe dynamisch anpassen
 	SafeSetSize(frame, maxWidth, max(math.abs(currentYOffset) + 20, titleCompendium:GetStringHeight() + 20))
 end
+]=]
 
 function checkCooldown()
-    if addon.db["teleportFrame"] then CreatePortalButtonsWithCooldown(frameAnchor, portalSpells) end
-
-    if addon.db["teleportsEnableCompendium"] and not addon.db["teleportsWorldMapUseModern"] then
-        CreatePortalCompendium(frameAnchorCompendium, addon.MythicPlus.variables.portalCompendium)
+    if addon.db["teleportFrame"] then
+        CreatePortalButtonsWithCooldown(frameAnchor, portalSpells)
     end
-	for _, button in pairs(frameAnchor.buttons or {}) do
-		if isKnown[button.spellID] then
-			local cooldownData = GetCooldownData(button)
-			if cooldownData and cooldownData.isEnabled then
-				button.cooldownFrame:SetCooldown(cooldownData.startTime, cooldownData.duration, cooldownData.modRate)
-			else
-				button.cooldownFrame:SetCooldown(0, 0)
-			end
-		end
-	end
 
-	for _, button in pairs(frameAnchorCompendium.buttons or {}) do
-		if isKnown[button.spellID] then
-			local cooldownData = GetCooldownData(button)
-			if cooldownData and cooldownData.isEnabled then
-				button.cooldownFrame:SetCooldown(cooldownData.startTime, cooldownData.duration, cooldownData.modRate)
-			else
-				button.cooldownFrame:SetCooldown(0, 0)
-			end
-		end
-	end
+    for _, button in pairs(frameAnchor.buttons or {}) do
+        if isKnown[button.spellID] then
+            local cooldownData = GetCooldownData(button)
+            if cooldownData and cooldownData.isEnabled then
+                button.cooldownFrame:SetCooldown(cooldownData.startTime, cooldownData.duration, cooldownData.modRate)
+            else
+                button.cooldownFrame:SetCooldown(0, 0)
+            end
+        end
+    end
 end
 
 local function waitCooldown(arg3)
@@ -1524,26 +1477,25 @@ function addon.MythicPlus.triggerRequest()
 end
 
 function addon.MythicPlus.functions.toggleFrame()
-	if InCombatLockdown() then
-		doAfterCombat = true
-	else
-		doAfterCombat = false
-		frameAnchor:SetAlpha(1)
-		frameAnchorCompendium:SetAlpha(1)
-		if nil ~= RaiderIO_ProfileTooltip then
-			C_Timer.After(0.1, function()
-				if InCombatLockdown() then
-					doAfterCombat = true
-				else
-					CreateRioScore()
-				end
-			end)
-		else
-			CreateRioScore()
-		end
-		if addon.db["teleportFrame"] or addon.db["teleportsEnableCompendium"] then
-			if #portalSpells == 0 then getCurrentSeasonPortal() end
-			checkCooldown()
+    if InCombatLockdown() then
+        doAfterCombat = true
+    else
+        doAfterCombat = false
+        frameAnchor:SetAlpha(1)
+        if nil ~= RaiderIO_ProfileTooltip then
+            C_Timer.After(0.1, function()
+                if InCombatLockdown() then
+                    doAfterCombat = true
+                else
+                    CreateRioScore()
+                end
+            end)
+        else
+            CreateRioScore()
+        end
+        if addon.db["teleportFrame"] then
+            if #portalSpells == 0 then getCurrentSeasonPortal() end
+            checkCooldown()
 
 			-- Based on RaiderIO Client place the Frame
 			if nil ~= RaiderIO_ProfileTooltip then
@@ -1560,84 +1512,32 @@ function addon.MythicPlus.functions.toggleFrame()
 							frameAnchor:ClearAllPoints()
 							frameAnchor:SetPoint(addon.db.teleportFrameData.point, UIParent, addon.db.teleportFrameData.parentPoint, addon.db.teleportFrameData.x, addon.db.teleportFrameData.y)
 						end
-						if addon.db.teleportCompendiumLocked then
-							frameAnchorCompendium:ClearAllPoints()
-							if not addon.db["teleportFrame"] then
-								if gFrameAnchorScore then
-									local offsetX2 = gFrameAnchorScore:GetSize()
-									frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", (offsetX + offsetX2), 0)
-								else
-									frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", offsetX, 0)
-								end
-							else
-								frameAnchorCompendium:SetPoint("TOPLEFT", frameAnchor, "TOPRIGHT", 0, 0)
-							end
-						elseif addon.db.teleportCompendiumFrameData.point then
-							frameAnchorCompendium:ClearAllPoints()
-							frameAnchorCompendium:SetPoint(
-								addon.db.teleportCompendiumFrameData.point,
-								UIParent,
-								addon.db.teleportCompendiumFrameData.parentPoint,
-								addon.db.teleportCompendiumFrameData.x,
-								addon.db.teleportCompendiumFrameData.y
-							)
-						end
-					end
-				end)
-			else
-				if addon.db.teleportFrameLocked then
-					frameAnchor:ClearAllPoints()
-					frameAnchor:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 0, 0)
-				elseif addon.db.teleportFrameData.point then
-					frameAnchor:ClearAllPoints()
-					frameAnchor:SetPoint(addon.db.teleportFrameData.point, UIParent, addon.db.teleportFrameData.parentPoint, addon.db.teleportFrameData.x, addon.db.teleportFrameData.y)
-				end
-				if addon.db.teleportCompendiumLocked then
-					frameAnchorCompendium:ClearAllPoints()
-					if not addon.db["teleportFrame"] then
-						if gFrameAnchorScore then
-							local offsetX2 = gFrameAnchorScore:GetSize()
-							frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", offsetX2, 0)
-						else
-							frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 0, 0)
-						end
-					else
-						frameAnchorCompendium:SetPoint("TOPLEFT", frameAnchor, "TOPRIGHT", 0, 0)
-					end
-				elseif addon.db.teleportCompendiumFrameData.point then
-					frameAnchorCompendium:ClearAllPoints()
-					frameAnchorCompendium:SetPoint(
-						addon.db.teleportCompendiumFrameData.point,
-						UIParent,
-						addon.db.teleportCompendiumFrameData.parentPoint,
-						addon.db.teleportCompendiumFrameData.x,
-						addon.db.teleportCompendiumFrameData.y
-					)
-				end
-			end
+                end
+            end)
+        else
+            if addon.db.teleportFrameLocked then
+                frameAnchor:ClearAllPoints()
+                frameAnchor:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 0, 0)
+            elseif addon.db.teleportFrameData.point then
+                frameAnchor:ClearAllPoints()
+                frameAnchor:SetPoint(addon.db.teleportFrameData.point, UIParent, addon.db.teleportFrameData.parentPoint, addon.db.teleportFrameData.x, addon.db.teleportFrameData.y)
+            end
+        end
 
-			-- Set Visibility
-			if addon.db["teleportFrame"] == true then
-				if not frameAnchor:IsShown() then frameAnchor:Show() end
-			else
-				frameAnchor:Hide()
-			end
-			-- While the modern World Map compendium is active, suppress the old compendium frame
-			local allowOldCompendium = addon.db["teleportsEnableCompendium"] and not addon.db["teleportsWorldMapUseModern"]
-			if allowOldCompendium then
-				if not frameAnchorCompendium:IsShown() then frameAnchorCompendium:Show() end
-			else
-				frameAnchorCompendium:Hide()
-			end
-		else
-			frameAnchor:Hide()
-			frameAnchorCompendium:Hide()
-		end
-		if addon.db["groupfinderShowPartyKeystone"] then
-			addon.MythicPlus.triggerRequest()
-			updateKeystoneInfo() -- precall to check if we have all information already
-		end
-	end
+        -- Set Visibility
+        if addon.db["teleportFrame"] == true then
+            if not frameAnchor:IsShown() then frameAnchor:Show() end
+        else
+            frameAnchor:Hide()
+        end
+    else
+        frameAnchor:Hide()
+    end
+        if addon.db["groupfinderShowPartyKeystone"] then
+            addon.MythicPlus.triggerRequest()
+            updateKeystoneInfo() -- precall to check if we have all information already
+        end
+    end
 end
 
 -- Buttons erstellen
@@ -1650,45 +1550,37 @@ frameAnchor:RegisterEvent("PLAYER_REGEN_ENABLED")
 frameAnchor:RegisterEvent("GROUP_ROSTER_UPDATE")
 frameAnchor:RegisterEvent("GROUP_JOINED")
 local function eventHandler(self, event, arg1, arg2, arg3, arg4)
-	if addon.db["teleportFrame"] then
-		if InCombatLockdown() then
-			doAfterCombat = true
-		else
-			if event == "ADDON_LOADED" and arg1 == addonName then
-				CreatePortalButtonsWithCooldown(frameAnchor, portalSpells)
-				if not addon.db["teleportsWorldMapUseModern"] then
-					CreatePortalCompendium(frameAnchorCompendium, addon.MythicPlus.variables.portalCompendium)
-				end
-				CreateRioScore()
-				frameAnchor:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 230, 0)
-				frameAnchor:Show()
-				if addon.db["teleportsEnableCompendium"] then
-					frameAnchorCompendium:Show()
-				else
-					frameAnchorCompendium:Hide()
-				end
-			elseif event == "GROUP_JOINED" then
-				if PVEFrame:IsShown() then
-					addon.MythicPlus.triggerRequest() -- because I won't get the information from the people already in party otherwise
-				end
-			elseif event == "GROUP_ROSTER_UPDATE" then
-				if (IsInRaid() and isRegistered) or (not IsInRaid() and not isRegistered) then addon.MythicPlus.functions.togglePartyKeystone() end
-			elseif parentFrame:IsShown() then -- Only do stuff, when PVEFrame Open
-				if event == "UNIT_SPELLCAST_SUCCEEDED" and arg1 == "player" then
-					if allSpells[arg3] then waitCooldown(arg3) end
-				elseif event == "ENCOUNTER_END" and arg3 == 8 then
-					C_Timer.After(0.1, function() checkCooldown() end)
-				elseif event == "SPELL_DATA_LOAD_RESULT" and portalSpells[arg1] then
-					print("Loaded", portalSpells[arg1].text)
-				elseif event == "PLAYER_REGEN_ENABLED" then
-					if doAfterCombat then
-						if (IsInRaid() and isRegistered) or (not IsInRaid() and not isRegistered) then addon.MythicPlus.functions.togglePartyKeystone() end
-						addon.MythicPlus.functions.toggleFrame()
-					end
-				end
-			end
-		end
-	end
+    if addon.db["teleportFrame"] then
+        if InCombatLockdown() then
+            doAfterCombat = true
+        else
+            if event == "ADDON_LOADED" and arg1 == addonName then
+                CreatePortalButtonsWithCooldown(frameAnchor, portalSpells)
+                CreateRioScore()
+                frameAnchor:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 230, 0)
+                frameAnchor:Show()
+            elseif event == "GROUP_JOINED" then
+                if PVEFrame:IsShown() then
+                    addon.MythicPlus.triggerRequest() -- because I won't get the information from the people already in party otherwise
+                end
+            elseif event == "GROUP_ROSTER_UPDATE" then
+                if (IsInRaid() and isRegistered) or (not IsInRaid() and not isRegistered) then addon.MythicPlus.functions.togglePartyKeystone() end
+            elseif parentFrame:IsShown() then -- Only do stuff, when PVEFrame Open
+                if event == "UNIT_SPELLCAST_SUCCEEDED" and arg1 == "player" then
+                    if allSpells[arg3] then waitCooldown(arg3) end
+                elseif event == "ENCOUNTER_END" and arg3 == 8 then
+                    C_Timer.After(0.1, function() checkCooldown() end)
+                elseif event == "SPELL_DATA_LOAD_RESULT" and portalSpells[arg1] then
+                    print("Loaded", portalSpells[arg1].text)
+                elseif event == "PLAYER_REGEN_ENABLED" then
+                    if doAfterCombat then
+                        if (IsInRaid() and isRegistered) or (not IsInRaid() and not isRegistered) then addon.MythicPlus.functions.togglePartyKeystone() end
+                        addon.MythicPlus.functions.toggleFrame()
+                    end
+                end
+            end
+        end
+    end
 end
 
 GameTooltip:HookScript("OnShow", function(self)
@@ -1719,19 +1611,17 @@ GameTooltip:HookScript("OnShow", function(self)
 			if nil ~= RaiderIO_ProfileTooltip then offsetX = RaiderIO_ProfileTooltip:GetSize() end
 			if gFrameAnchorScore and addon.db["dungeonScoreFrameLocked"] then gFrameAnchorScore:SetPoint("TOPLEFT", GameTooltip, "TOPRIGHT", offsetX, 0) end
 
-			if addon.db["teleportFrame"] then frameAnchor:SetAlpha(0) end
-			if addon.db["teleportsEnableCompendium"] then frameAnchorCompendium:SetAlpha(0) end
-		end
-	end
+            if addon.db["teleportFrame"] then frameAnchor:SetAlpha(0) end
+        end
+    end
 end)
 GameTooltip:HookScript("OnHide", function(self)
-	if PVEFrame:IsVisible() then
-		selectedMapId = nil
-		local owner = self:GetOwner()
-		CreateRioScore()
-		if addon.db["teleportFrame"] then frameAnchor:SetAlpha(1) end
-		if addon.db["teleportsEnableCompendium"] then frameAnchorCompendium:SetAlpha(1) end
-	end
+    if PVEFrame:IsVisible() then
+        selectedMapId = nil
+        local owner = self:GetOwner()
+        CreateRioScore()
+        if addon.db["teleportFrame"] then frameAnchor:SetAlpha(1) end
+    end
 end)
 
 -- Setze den Event-Handler

@@ -49,10 +49,9 @@ local function IsToyUsable(id)
 end
 
 local function BuildSpellEntries()
-	if not addon or not addon.MythicPlus or not addon.MythicPlus.functions then return {} end
-	if not addon.db or not addon.db["teleportsWorldMapUseModern"] then return {} end
-	if not addon.MythicPlus.functions.BuildTeleportCompendiumSections then return {} end
-	return addon.MythicPlus.functions.BuildTeleportCompendiumSections()
+    if not addon or not addon.MythicPlus or not addon.MythicPlus.functions then return {} end
+    if not addon.MythicPlus.functions.BuildTeleportCompendiumSections then return {} end
+    return addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 end
 
 -- Cooldown helpers ---------------------------------------------------------
@@ -650,9 +649,8 @@ end
 
 -- Glue into World Map ------------------------------------------------------
 function f:TryInit()
-	-- Idempotent: always ensure injection and layout when feature is enabled
-	if not QuestMapFrame then return end
-	if not addon.db or not addon.db["teleportsWorldMapUseModern"] then return end
+    -- Idempotent: always ensure injection and layout when feature is enabled
+    if not QuestMapFrame then return end
 
 	local parent = QuestMapFrame
 	EnsurePanel(parent)
@@ -739,12 +737,8 @@ function f:TryInit()
 end
 
 function f:RefreshPanel()
-	if not addon.db or not addon.db["teleportsWorldMapUseModern"] then
-		if panel then panel:Hide() end
-		return
-	end
-	if not panel or not panel:IsShown() then return end
-	PopulatePanel()
+    if not panel or not panel:IsShown() then return end
+    PopulatePanel()
 end
 
 -- Only recompute and apply cooldowns for existing buttons
@@ -757,35 +751,30 @@ end
 
 -- Events to build/refresh --------------------------------------------------
 f:SetScript("OnEvent", function(self, event, arg1)
-	if event == "ADDON_LOADED" and arg1 == "Blizzard_WorldMap" then
-		-- Late-load: attach our OnShow hook once the World Map exists
-		if WorldMapFrame and not WorldMapFrame._eqolTeleportHook then
-			WorldMapFrame:HookScript("OnShow", function()
-				if addon.db and addon.db["teleportsWorldMapUseModern"] then
-					f:TryInit()
-					if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
-					if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode then
-						QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
-						f._selectOnNextShow = nil
-					end
-					C_Timer.After(0, function() f:RefreshPanel() end)
-				else
-					if panel then panel:Hide() end
-					if tabButton then tabButton:Hide() end
-				end
-			end)
-			WorldMapFrame._eqolTeleportHook = true
-		end
-		return
-	end
+    if event == "ADDON_LOADED" and arg1 == "Blizzard_WorldMap" then
+        -- Late-load: attach our OnShow hook once the World Map exists
+        if WorldMapFrame and not WorldMapFrame._eqolTeleportHook then
+            WorldMapFrame:HookScript("OnShow", function()
+                f:TryInit()
+                if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
+                if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode then
+                    QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
+                    f._selectOnNextShow = nil
+                end
+                C_Timer.After(0, function() f:RefreshPanel() end)
+            end)
+            WorldMapFrame._eqolTeleportHook = true
+        end
+        return
+    end
 
 	-- Only refresh when the map is actually visible; avoid work while hidden
 	if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
 	if event == "SPELL_UPDATE_COOLDOWN" or event == "BAG_UPDATE_COOLDOWN" then
 		f:UpdateCooldowns()
-	elseif event == "SPELLS_CHANGED" or event == "BAG_UPDATE_DELAYED" or event == "TOYS_UPDATED" then
-		if addon.db and addon.db["teleportsWorldMapUseModern"] then f:RefreshPanel() end
-	end
+    elseif event == "SPELLS_CHANGED" or event == "BAG_UPDATE_DELAYED" or event == "TOYS_UPDATED" then
+        f:RefreshPanel()
+    end
 end)
 
 f:RegisterEvent("ADDON_LOADED")
@@ -797,77 +786,52 @@ f:RegisterEvent("BAG_UPDATE_COOLDOWN")
 
 -- make sure we also initialize when the WorldMap opens
 if WorldMapFrame and not WorldMapFrame._eqolTeleportHook then
-	WorldMapFrame:HookScript("OnShow", function()
-		if addon.db and addon.db["teleportsWorldMapUseModern"] then
-			f:TryInit()
-			if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
-			if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode then
-				QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
-				f._selectOnNextShow = nil
-			end
-			C_Timer.After(0, function() f:RefreshPanel() end)
-		else
-			-- Ensure our UI is fully hidden when the feature is disabled
-			if panel then panel:Hide() end
-			if tabButton then tabButton:Hide() end
-		end
-	end)
-	WorldMapFrame._eqolTeleportHook = true
+    WorldMapFrame:HookScript("OnShow", function()
+        f:TryInit()
+        if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
+        if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode then
+            QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
+            f._selectOnNextShow = nil
+        end
+        C_Timer.After(0, function() f:RefreshPanel() end)
+    end)
+    WorldMapFrame._eqolTeleportHook = true
 end
 
 -- Export a small helper so options code can trigger a live refresh
 function addon.MythicPlus.functions.RefreshWorldMapTeleportPanel()
-	if not addon or not addon.db then return end
+    if not addon or not addon.db then return end
 
-	-- If feature is disabled now, hide our panel and switch away if selected
-	if not addon.db["teleportsWorldMapUseModern"] then
-		if QuestMapFrame and QuestMapFrame.GetDisplayMode and QuestMapFrame:GetDisplayMode() == DISPLAY_MODE then
-			if QuestMapFrame.MapLegendTab and QuestMapFrame.MapLegendTab.Click then
-				QuestMapFrame.MapLegendTab:Click()
-			elseif QuestMapFrame.QuestsTab and QuestMapFrame.QuestsTab.Click then
-				QuestMapFrame.QuestsTab:Click()
-			end
-		end
-		if panel then panel:Hide() end
-		if tabButton then tabButton:Hide() end
-		return
-	end
+    -- Proactively load the World Map addon so our hooks exist
+    if not WorldMapFrame then pcall(UIParentLoadAddOn, "Blizzard_WorldMap") end
 
-	-- Proactively load the World Map addon so our hooks exist
-	if not WorldMapFrame then pcall(UIParentLoadAddOn, "Blizzard_WorldMap") end
+    if WorldMapFrame then
+        -- Ensure our OnShow hook is installed even if we missed initial load timing
+        if not WorldMapFrame._eqolTeleportHook then
+            WorldMapFrame:HookScript("OnShow", function()
+                f:TryInit()
+                if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
+                if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode then
+                    QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
+                    f._selectOnNextShow = nil
+                end
+                C_Timer.After(0, function() f:RefreshPanel() end)
+            end)
+            WorldMapFrame._eqolTeleportHook = true
+        end
 
-	if WorldMapFrame then
-		-- Ensure our OnShow hook is installed even if we missed initial load timing
-		if not WorldMapFrame._eqolTeleportHook then
-			WorldMapFrame:HookScript("OnShow", function()
-				if addon.db and addon.db["teleportsWorldMapUseModern"] then
-					f:TryInit()
-					if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
-					if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode then
-						QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
-						f._selectOnNextShow = nil
-					end
-					C_Timer.After(0, function() f:RefreshPanel() end)
-				else
-					if panel then panel:Hide() end
-					if tabButton then tabButton:Hide() end
-				end
-			end)
-			WorldMapFrame._eqolTeleportHook = true
-		end
+        -- Always ensure our UI is injected and tabs validated, even if hidden
+        f:TryInit()
+        if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
 
-		-- Always ensure our UI is injected and tabs validated, even if hidden
-		f:TryInit()
-		if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
-
-		if WorldMapFrame:IsShown() then
-			if tabButton then tabButton:Show() end
-			-- Switch to our display immediately for clear feedback
-			if QuestMapFrame and QuestMapFrame.SetDisplayMode then QuestMapFrame:SetDisplayMode(DISPLAY_MODE) end
-			f:RefreshPanel()
-		else
-			-- Remember to select our panel next time the map opens
-			f._selectOnNextShow = true
-		end
-	end
+        if WorldMapFrame:IsShown() then
+            if tabButton then tabButton:Show() end
+            -- Switch to our display immediately for clear feedback
+            if QuestMapFrame and QuestMapFrame.SetDisplayMode then QuestMapFrame:SetDisplayMode(DISPLAY_MODE) end
+            f:RefreshPanel()
+        else
+            -- Remember to select our panel next time the map opens
+            f._selectOnNextShow = true
+        end
+    end
 end

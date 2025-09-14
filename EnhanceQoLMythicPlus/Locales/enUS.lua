@@ -74,6 +74,7 @@ L["teleportEnabled"] = "Enable Teleport Frame"
 L["DungeonCompendium"] = "Teleport Compendium"
 L["teleportsEnableCompendium"] = "Enable Teleport Compendium"
 L["teleportsWorldMapUseModern"] = "Use modern Teleport compendium in World Map"
+L["teleportsWorldMapUseModernNames"] = "Use long names (modern/zone) in modern World Map compendium"
 
 L["teleportsHeadline"] = "This adds a frame with Dungeon Teleports to your PVEFrame"
 L["teleportCompendiumHeadline"] = "Hide teleports from specific expansions"
