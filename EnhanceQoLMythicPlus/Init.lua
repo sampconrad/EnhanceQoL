@@ -627,6 +627,8 @@ addon.MythicPlus.variables.portalCompendium = {
 			-- Dalaran (Northrend, WotLK)
 			[53140] = { text = "DalN", isClassTP = "MAGE" },
 			[53142] = { text = "DalN", isMagePortal = true },
+
+			[66238] = { text = "HS", isItem = true, itemID = 46874, isHearthstone = true, icon = 135026, equipSlot = 19 },
 		},
 	},
 	[30] = {
@@ -645,6 +647,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			[36890] = { text = "ENGI", isToy = true, toyID = 30542, isEngineering = true, isGoblin = true },
 
 			[41234] = { text = "HS", isItem = true, itemID = 32757, isHearthstone = true, icon = 133279, equipSlot = 2 },
+			[28148] = { text = "KARA", isItem = true, itemID = { 22589, 22632, 22630, 22631 }, isHearthstone = true, icon = 133279, equipSlot = 16 },
 		},
 	},
 	[20] = {
@@ -676,6 +679,12 @@ addon.MythicPlus.variables.portalCompendium = {
 			[89158] = { text = "HS", isItem = true, itemID = 65274, isHearthstone = true, icon = 461815, equipSlot = 15, faction = FACTION_HORDE },
 			[1221356] = { text = "HS", isItem = true, itemID = 63353, isHearthstone = true, icon = 461813, equipSlot = 15, faction = FACTION_HORDE },
 			[1221357] = { text = "HS", isItem = true, itemID = 63207, isHearthstone = true, icon = 461814, equipSlot = 15, faction = FACTION_HORDE },
+
+			[49844] = { text = "HS", isItem = true, itemID = 37863, isHearthstone = true, icon = 133015 }, -- Grim Guzzler
+			[71436] = { text = "HS", isItem = true, itemID = 50287, isHearthstone = true, icon = 133015, equipSlot = 8 }, -- Boots of the Bay
+
+			[139437] = { text = "BP", isItem = true, itemID = 95051, isHearthstone = true, icon = 133345, faction = FACTION_ALLIANCE },
+			[139432] = { text = "BA", isItem = true, itemID = 95050, isHearthstone = true, icon = 133345, faction = FACTION_HORDE },
 		},
 	},
 	[10] = {

@@ -147,6 +147,7 @@ local function EnsurePanel(parent)
         bf:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", 3, -6)
         bf:SetFrameStrata(panel:GetFrameStrata())
         bf:SetFrameLevel((panel:GetFrameLevel() or 2) + 3)
+        bf:EnableMouse(false) -- ensure border never blocks clicks to our content
         panel.BorderFrame = bf
     else
         local bf = panel.BorderFrame
@@ -155,6 +156,7 @@ local function EnsurePanel(parent)
         bf:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", 3, 0)
         bf:SetFrameStrata(panel:GetFrameStrata())
         bf:SetFrameLevel((panel:GetFrameLevel() or 2) + 3)
+        bf:EnableMouse(false)
     end
 
     -- Create or re-anchor the title relative to the border top
@@ -241,11 +243,12 @@ local function CreateSecureSpellButton(parent, entry)
     else
         b:SetAttribute("type1", "spell")
         b:SetAttribute("spell", entry.spellID)
+        b:SetAttribute("unit", "player") -- ensure self-cast where relevant
     end
 
-	-- Favorite toggle (Right click)
-	b:RegisterForClicks("AnyUp")
-	b:SetScript("OnClick", function(self, btn)
+    -- Favorite toggle (Right click) — also register Down to support ActionButtonUseKeyDown
+    b:RegisterForClicks("AnyDown", "AnyUp")
+    b:SetScript("OnClick", function(self, btn)
 		if btn == "RightButton" then
 			local favs = addon.db.teleportFavorites or {}
 			if favs[self.entry.spellID] then
@@ -356,10 +359,11 @@ local function CreateLegendRowButton(parent, entry, width, height)
     else
         b:SetAttribute("type1", "spell")
         b:SetAttribute("spell", entry.spellID)
+        b:SetAttribute("unit", "player") -- ensure self-cast where relevant
     end
 
-    -- Right click: toggle favorite
-    b:RegisterForClicks("AnyUp")
+    -- Right click: toggle favorite (register both down/up to respect ActionButtonUseKeyDown)
+    b:RegisterForClicks("AnyDown", "AnyUp")
     b:SetScript("OnClick", function(self, btn)
         if btn == "RightButton" then
             local favs = addon.db.teleportFavorites or {}

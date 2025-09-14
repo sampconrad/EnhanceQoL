@@ -28,6 +28,11 @@
   - Violet Seal of the Grand Magus
   - Blessed Medallion of Karabor
   - Kirin Tor Rings
+  - Direbrew's Remote
+  - Argent Crusader's Tabard
+  - Boots of the Bay
+  - Atiesh, Greatstaff of the Guardian
+  - The Brassiest Knuckle
 
 - **Merchant Frame:** Option to expand the Merchant frame size (20 items per page)
 
