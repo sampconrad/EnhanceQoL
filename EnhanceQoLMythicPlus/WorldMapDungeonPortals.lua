@@ -366,11 +366,16 @@ local function CreateLegendRowButton(parent, entry, width, height)
 	label:SetText(entry.text or "")
 	b.Label = label
 
-	-- full-row highlight
-	local hl = b:CreateTexture(nil, "HIGHLIGHT")
-	hl:SetAllPoints(b)
-	hl:SetColorTexture(1, 1, 1, 0.08)
-	b:SetHighlightTexture(hl)
+    -- full-row highlight (lockable) using the same atlas as MapLegend
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(b)
+    if hl.SetAtlas then
+        hl:SetAtlas("Options_List_Active", true)
+        if hl.SetBlendMode then hl:SetBlendMode("ADD") end
+    else
+        hl:SetColorTexture(1, 1, 1, 0.08)
+    end
+    b:SetHighlightTexture(hl)
 
 	-- Casting setup (Left click) — mirror compendium logic
 	if entry.isToy then
@@ -421,20 +426,25 @@ local function CreateLegendRowButton(parent, entry, width, height)
 		end
 	end)
 
-	-- Tooltip
-	b:SetScript("OnEnter", function(self)
-		if not addon.db["portalShowTooltip"] then return end
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		if entry.isToy then
-			GameTooltip:SetToyByItemID(entry.toyID)
-		elseif entry.isItem then
-			GameTooltip:SetItemByID(entry.itemID)
-		else
-			GameTooltip:SetSpellByID(entry.spellID)
-		end
-		GameTooltip:Show()
-	end)
-	b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- Tooltip + highlight lock on hover (mirrors MapLegend feel)
+    b:SetScript("OnEnter", function(self)
+        if self.SetHighlightLocked then self:SetHighlightLocked(true) else self:LockHighlight() end
+        if addon.db["portalShowTooltip"] then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if entry.isToy then
+                GameTooltip:SetToyByItemID(entry.toyID)
+            elseif entry.isItem then
+                GameTooltip:SetItemByID(entry.itemID)
+            else
+                GameTooltip:SetSpellByID(entry.spellID)
+            end
+            GameTooltip:Show()
+        end
+    end)
+    b:SetScript("OnLeave", function(self)
+        if self.SetHighlightLocked then self:SetHighlightLocked(false) else self:UnlockHighlight() end
+        GameTooltip:Hide()
+    end)
 
 	-- Unknown/disabled visual state
 	if not entry.isKnown then
@@ -482,7 +492,7 @@ local function PopulatePanel()
 
 	-- Layout metrics similar to MapLegendScrollFrame
 	local leftPadding = 12
-	local topPadding = 25
+	local topPadding = 10
 	local categorySpacing = 10
 	local buttonSpacingY = 5
 	local stride = 2 -- 2 columns
@@ -505,6 +515,7 @@ local function PopulatePanel()
 		local titleFS = category:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 		titleFS:SetPoint("TOPLEFT", 0, 0)
 		titleFS:SetText(section.title or "")
+		titleFS:SetFont(addon.variables.defaultFont, 13, "OUTLINE") -- Setzt die Schriftart, -größe und -stil (OUTLINE)
 
 		-- build buttons for this category
 		local buttons = {}

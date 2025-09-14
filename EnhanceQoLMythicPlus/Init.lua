@@ -538,11 +538,11 @@ addon.MythicPlus.variables.portalCompendium = {
 			[224869] = { text = "DalB", isClassTP = "MAGE" },
 			[224871] = { text = "DalB", isMagePortal = true },
 
-			[227334] = { text = "HS", isItem = true, itemID = 141605, isHearthstone = true, icon = 132161 },
+			[227334] = { text = "FMW", isItem = true, itemID = 141605, isHearthstone = true, icon = 132161 },
 			[82674] = { text = "HS", isItem = true, itemID = 64457, isHearthstone = true, icon = 458240 },
 			[223444] = { text = "HS", isToy = true, toyID = 140324, isHearthstone = true, icon = 237445, map = 680 },
 
-			[200061] = { text = "HS", isItem = true, itemID = { 144341, 132523 }, isEngineering = true, icon = 1405815, isReaves = true },
+			[200061] = { text = "ENGI", isItem = true, itemID = { 144341, 132523 }, isEngineering = true, icon = 1405815, isReaves = true },
 			[231054] = { text = "HS", isItem = true, itemID = 142469, isHearthstone = true, icon = 1391739, equipSlot = 11 },
 		},
 	},
@@ -558,7 +558,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			[159898] = { text = "SR", cId = { [161] = true } },
 			[159902] = { text = "UBRS", cId = { [167] = true } },
 			[163830] = { text = "ENGI", isToy = true, toyID = 112059, isEngineering = true },
-			[171253] = { text = "HS", isToy = true, toyID = 110560, isHearthstone = true },
+			[171253] = { text = "GARR", isToy = true, toyID = 110560, isHearthstone = true },
 			[132621] = { text = "VALE", isClassTP = "MAGE", faction = FACTION_ALLIANCE },
 			[132620] = { text = "VALE", isMagePortal = true, faction = FACTION_ALLIANCE },
 			[132627] = { text = "VALE", isClassTP = "MAGE", faction = FACTION_HORDE },
@@ -610,8 +610,8 @@ addon.MythicPlus.variables.portalCompendium = {
 			[88346] = { text = "TolB", isClassTP = "MAGE", faction = FACTION_HORDE },
 			[88347] = { text = "TolB", isMagePortal = true, faction = FACTION_HORDE },
 
-			[80256] = { text = "HS", isItem = true, itemID = 58487, isHearthstone = true, icon = 463898 },
-			[59317] = { text = "HS", isToy = true, toyID = 58487, isHearthstone = true, icon = 133743, map = 125 },
+			[80256] = { text = "DH", isItem = true, itemID = 58487, isHearthstone = true, icon = 463898 },
+			[59317] = { text = "VC", isToy = true, toyID = 43824, isHearthstone = true, icon = 133743, map = 125 },
 
 			[54406] = { text = "HS", isItem = true, itemID = { 40585, 48957, 45691, 51557 }, isHearthstone = true, icon = 133415, equipSlot = 11 },
 
@@ -628,7 +628,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			[53140] = { text = "DalN", isClassTP = "MAGE" },
 			[53142] = { text = "DalN", isMagePortal = true },
 
-			[66238] = { text = "HS", isItem = true, itemID = 46874, isHearthstone = true, icon = 135026, equipSlot = 19 },
+			[66238] = { text = "ATG", isItem = true, itemID = 46874, isHearthstone = true, icon = 135026, equipSlot = 19 },
 		},
 	},
 	[30] = {
@@ -672,13 +672,13 @@ addon.MythicPlus.variables.portalCompendium = {
 			[23453] = { text = "ENGI", isToy = true, toyID = 18986, isEngineering = true, isGnomish = true },
 			[23442] = { text = "ENGI", isToy = true, toyID = 18984, isEngineering = true, isGoblin = true },
 
-			[89157] = { text = "HS", isItem = true, itemID = 65360, isHearthstone = true, icon = 461812, equipSlot = 15, faction = FACTION_ALLIANCE },
-			[1221360] = { text = "HS", isItem = true, itemID = 63206, isHearthstone = true, icon = 461811, equipSlot = 15, faction = FACTION_ALLIANCE },
-			[1221359] = { text = "HS", isItem = true, itemID = 63352, isHearthstone = true, icon = 461810, equipSlot = 15, faction = FACTION_ALLIANCE },
+			[89157] = { text = "SW", isItem = true, itemID = 65360, isHearthstone = true, icon = 461812, equipSlot = 15, faction = FACTION_ALLIANCE },
+			[1221360] = { text = "SW", isItem = true, itemID = 63206, isHearthstone = true, icon = 461811, equipSlot = 15, faction = FACTION_ALLIANCE },
+			[1221359] = { text = "SW", isItem = true, itemID = 63352, isHearthstone = true, icon = 461810, equipSlot = 15, faction = FACTION_ALLIANCE },
 
-			[89158] = { text = "HS", isItem = true, itemID = 65274, isHearthstone = true, icon = 461815, equipSlot = 15, faction = FACTION_HORDE },
-			[1221356] = { text = "HS", isItem = true, itemID = 63353, isHearthstone = true, icon = 461813, equipSlot = 15, faction = FACTION_HORDE },
-			[1221357] = { text = "HS", isItem = true, itemID = 63207, isHearthstone = true, icon = 461814, equipSlot = 15, faction = FACTION_HORDE },
+			[89158] = { text = "OG", isItem = true, itemID = 65274, isHearthstone = true, icon = 461815, equipSlot = 15, faction = FACTION_HORDE },
+			[1221356] = { text = "OG", isItem = true, itemID = 63353, isHearthstone = true, icon = 461813, equipSlot = 15, faction = FACTION_HORDE },
+			[1221357] = { text = "OG", isItem = true, itemID = 63207, isHearthstone = true, icon = 461814, equipSlot = 15, faction = FACTION_HORDE },
 
 			[49844] = { text = "HS", isItem = true, itemID = 37863, isHearthstone = true, icon = 133015 }, -- Grim Guzzler
 			[71436] = { text = "HS", isItem = true, itemID = 50287, isHearthstone = true, icon = 133015, equipSlot = 8 }, -- Boots of the Bay
