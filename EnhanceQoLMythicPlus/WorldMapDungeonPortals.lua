@@ -209,9 +209,13 @@ local function CreateSecureSpellButton(parent, entry)
     if entry.iconID then tex:SetTexture(entry.iconID) else tex:SetTexture(136121) end
     b.Icon = tex
 
-	b.cooldownFrame = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
-	b.cooldownFrame:SetAllPoints(b)
-	b.cooldownFrame:SetSwipeColor(0, 0, 0, 0.35)
+	local cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
+	cd:SetAllPoints(tex) -- restrict overlay strictly to the icon
+	cd:SetSwipeColor(0, 0, 0, 0.35)
+	cd:SetUseCircularEdge(true)
+	cd:SetDrawEdge(false)
+	cd:SetDrawBling(false) -- prevent golden flare from bleeding outside
+	b.cooldownFrame = cd
 
     -- Casting setup (Left click) — mirror compendium logic
     if entry.isToy then
@@ -302,9 +306,11 @@ local function CreateLegendRowButton(parent, entry, width, height)
 
     -- cooldown overlay on icon only
     local cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
-    cd:SetPoint("CENTER", icon, "CENTER")
-    cd:SetSize(icon:GetWidth(), icon:GetHeight())
+    cd:SetAllPoints(icon) -- overlay only the icon, not the label row
     cd:SetSwipeColor(0, 0, 0, 0.35)
+    cd:SetUseCircularEdge(true)
+    cd:SetDrawEdge(false)
+    cd:SetDrawBling(false)
     b.cooldownFrame = cd
 
     -- favorite star overlay (on icon)
