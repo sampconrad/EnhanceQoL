@@ -588,6 +588,8 @@ globals = {
 	"C_AuthChallenge.Cancel",
 	"C_AuthChallenge.DidChallengeSucceed",
 	"C_AuthChallenge.OnTabPressed",
+	"ToggleMap",
+	"STORMWIND",
 	"C_AuthChallenge.SetFrame",
 	"C_AuthChallenge.Submit",
 	"C_BattleNet",

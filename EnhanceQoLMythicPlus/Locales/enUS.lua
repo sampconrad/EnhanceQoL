@@ -80,7 +80,7 @@ L["teleportsHeadline"] = "This adds a frame with Dungeon Teleports to your PVEFr
 L["teleportCompendiumHeadline"] = "Hide teleports from specific expansions"
 L["portalHideMissing"] = "Hide missing Teleports"
 L["portalShowTooltip"] = "Show tooltip on Teleport buttons"
- 
+
 L["frameUnlock"] = "Click to unlock this window. Hold Shift and drag to move; position is saved.\nDoes not work in combat."
 L["frameLock"] = "Click to lock this window to its default position.\nDoes not work in combat."
 
