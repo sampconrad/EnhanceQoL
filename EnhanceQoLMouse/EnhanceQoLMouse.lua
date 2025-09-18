@@ -393,21 +393,16 @@ local function addGeneralFrame(container)
 		groupTrail:AddChild(cbUseClass)
 	end
 end
-
--- TODO Remove the general child and pack all into the main tree "mouse"
 addon.variables.statusTable.groups["mouse"] = true
 addon.functions.addToTree(nil, {
 	value = "mouse",
 	text = MOUSE_LABEL,
-	children = {
-		{ value = "general", text = GENERAL },
-	},
 })
 
 function addon.Mouse.functions.treeCallback(container, group)
 	container:ReleaseChildren() -- Entfernt vorherige Inhalte
 	-- Prüfen, welche Gruppe ausgewählt wurde
-	if group == "mouse\001general" then addGeneralFrame(container) end
+	if group == "mouse" then addGeneralFrame(container) end
 end
 
 if addon.db["mouseRingEnabled"] then createMouseRing() end

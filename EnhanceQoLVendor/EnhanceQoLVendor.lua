@@ -575,7 +575,6 @@ addon.functions.addToTree(nil, {
 	value = "vendor",
 	text = L["Vendor"],
 	children = {
-		{ value = "general", text = ACCESSIBILITY_GENERAL_LABEL },
 		{ value = "common", text = ITEM_QUALITY_COLORS[1].hex .. _G["ITEM_QUALITY1_DESC"] .. "|r" },
 		{ value = "uncommon", text = ITEM_QUALITY_COLORS[2].hex .. _G["ITEM_QUALITY2_DESC"] .. "|r" },
 		{ value = "rare", text = ITEM_QUALITY_COLORS[3].hex .. _G["ITEM_QUALITY3_DESC"] .. "|r" },
@@ -585,14 +584,15 @@ addon.functions.addToTree(nil, {
 	},
 }, true)
 
--- TODO pack addGeneralFrame directory into the root node, so we don't need another sub general node
 function addon.Vendor.functions.treeCallback(container, group)
 	lastEbox = nil
 	container:ReleaseChildren() -- Entfernt vorherige Inhalte
 	local _, avgItemLevelEquipped = GetAverageItemLevel()
 	addon.Vendor.variables.avgItemLevelEquipped = avgItemLevelEquipped
 	-- Prüfen, welche Gruppe ausgewählt wurde
-	if group == "vendor\001common" then
+	if group == "vendor" then
+		addGeneralFrame(container)
+	elseif group == "vendor\001common" then
 		addVendorFrame(container, 1)
 	elseif group == "vendor\001uncommon" then
 		addVendorFrame(container, 2)
@@ -604,8 +604,6 @@ function addon.Vendor.functions.treeCallback(container, group)
 		addInExcludeFrame(container, 1)
 	elseif group == "vendor\001exclude" then
 		addInExcludeFrame(container, 0)
-	elseif group == "vendor\001general" then
-		addGeneralFrame(container)
 	end
 end
 
