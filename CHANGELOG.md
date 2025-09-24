@@ -4,37 +4,7 @@
 
 ### ✨ Added
 
-- **Teleport Compendium:** New spells
-
-  - Potion of Deepholm
-  - Flight Master's Whistle
-  - Dimensional Ripper – Area 52
-  - Dimensional Ripper – Everlook
-  - Ultrasafe Transporter: Toshley's Station
-  - Ultrasafe Transporter: Gadgetzan
-  - Delver's Mana-Bound Ethergate
-  - The Last Relic of Argus
-  - Mobile Telemancy Beacon _(zone-restricted: Suramar)_
-  - The Schools of Arcane Magic – Mastery _(zone-restricted: Dalaran (Wrath))_
-  - Reaves Module: Wormhole Generator Mode _(special option)_
-  - Kirin Tor Beacon _(zone-restricted: Throne of Thunder / Isle of Thunder)_
-  - Sunreaver Beacon _(zone-restricted: Throne of Thunder / Isle of Thunder)_
-  - Shroud of Cooperation
-  - Cloak of Coordination
-  - Wrap of Unity
-  - Time-Lost Artifact
-  - Captain's Signet of Command
-  - Commander's Signet of Battle
-  - Violet Seal of the Grand Magus
-  - Blessed Medallion of Karabor
-  - Kirin Tor Rings
-  - Direbrew's Remote
-  - Argent Crusader's Tabard
-  - Boots of the Bay
-  - Atiesh, Greatstaff of the Guardian
-  - The Brassiest Knuckle
-  - Ruby Slippers
-  - Vulpera racial
+- **Teleport Compendium:** Added 30 missing spells/items
 
 - **Merchant Frame:** Option to expand the merchant frame (20 items per page)
 
