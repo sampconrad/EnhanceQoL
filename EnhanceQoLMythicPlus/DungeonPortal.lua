@@ -537,7 +537,7 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 		hasGnomish, hasGoblin = GetEngineeringBranch()
 	end
 	local aMapID = C_Map.GetBestMapForUnit("player")
-	local pMapID = nil
+	local pMapID, tempMapInfo = nil, nil
 	if aMapID then local tempMapInfo = C_Map.GetMapInfo(aMapID) end
 	if tempMapInfo and tempMapInfo.parentMapID then pMapID = tempMapInfo.parentMapID end
 	addon.MythicPlus.functions.setRandomHearthstone()
