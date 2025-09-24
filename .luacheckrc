@@ -590,6 +590,8 @@ globals = {
 	"C_AuthChallenge.OnTabPressed",
 	"RACIAL_TRAITS_TOOLTIP",
 	"DELVE_LABEL",
+	"MinimapCluster",
+	"GameMenuFrame",
 	"ToggleMap",
 	"STORMWIND",
 	"C_AuthChallenge.SetFrame",
