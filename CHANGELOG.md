@@ -20,6 +20,13 @@
 
 - **Health Macro:** Option to use **combat potions** in combat
 
+- **GameMenu size:** Option to scale the Game Menu
+
+- **Castbars:** Option to hide Player, Target and Focus-castbar
+
+- **Minimap hiding:** Option to hide some icons on the minimap
+- **Minimap border:** Option to add a border around the minimap (only in square mode)
+
 ### 🔄 Changed
 
 - **Declutter:** Removed some old and obsolete options, changed the position and category of some options and made it more "übersichtlich?"

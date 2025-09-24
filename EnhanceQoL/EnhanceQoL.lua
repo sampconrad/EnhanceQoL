@@ -3,7 +3,7 @@
 -- luacheck: globals GenericTraitUI_LoadUI GenericTraitFrame
 -- luacheck: globals CancelDuel DeclineGroup C_PetBattles
 -- luacheck: globals ExpansionLandingPage ExpansionLandingPageMinimapButton ShowGarrisonLandingPage GarrisonLandingPage GarrisonLandingPage_Toggle GarrisonLandingPageMinimapButton CovenantSanctumFrame CovenantSanctumFrame_LoadUI EasyMenu
--- luacheck: globals ActionButton_UpdateRangeIndicator
+-- luacheck: globals ActionButton_UpdateRangeIndicator MAINMENU_BUTTON PlayerCastingBarFrame TargetFrameSpellBar FocusFrameSpellBar
 local addonName, addon = ...
 
 local LDB = LibStub("LibDataBroker-1.1")
@@ -375,44 +375,38 @@ local hookedButtons = {}
 local EQOL_LastMouseoverBar
 local EQOL_LastMouseoverVar
 
-local function EQOL_ShouldKeepVisibleByFlyout()
-    return _G.SpellFlyout and _G.SpellFlyout:IsShown() and MouseIsOver(_G.SpellFlyout)
-end
+local function EQOL_ShouldKeepVisibleByFlyout() return _G.SpellFlyout and _G.SpellFlyout:IsShown() and MouseIsOver(_G.SpellFlyout) end
 
 local function EQOL_HideBarIfNotHovered(bar, variable)
-    if not addon.db or not addon.db[variable] then return end
-    C_Timer.After(0, function()
-        -- Only hide if neither the bar nor the spell flyout is under the mouse
-        if not MouseIsOver(bar) and not EQOL_ShouldKeepVisibleByFlyout() then bar:SetAlpha(0) end
-    end)
+	if not addon.db or not addon.db[variable] then return end
+	C_Timer.After(0, function()
+		-- Only hide if neither the bar nor the spell flyout is under the mouse
+		if not MouseIsOver(bar) and not EQOL_ShouldKeepVisibleByFlyout() then bar:SetAlpha(0) end
+	end)
 end
 
 local function EQOL_HookSpellFlyout()
-    local flyout = _G.SpellFlyout
-    if not flyout or flyout.EQOL_MouseoverHooked then return end
+	local flyout = _G.SpellFlyout
+	if not flyout or flyout.EQOL_MouseoverHooked then return end
 
-    flyout:HookScript("OnEnter", function()
-        if EQOL_LastMouseoverBar and addon.db and addon.db[EQOL_LastMouseoverVar] then EQOL_LastMouseoverBar:SetAlpha(1) end
-    end)
+	flyout:HookScript("OnEnter", function()
+		if EQOL_LastMouseoverBar and addon.db and addon.db[EQOL_LastMouseoverVar] then EQOL_LastMouseoverBar:SetAlpha(1) end
+	end)
 
-    flyout:HookScript("OnLeave", function()
-        if EQOL_LastMouseoverBar and addon.db and addon.db[EQOL_LastMouseoverVar] then
-            EQOL_HideBarIfNotHovered(EQOL_LastMouseoverBar, EQOL_LastMouseoverVar)
-        end
-    end)
+	flyout:HookScript("OnLeave", function()
+		if EQOL_LastMouseoverBar and addon.db and addon.db[EQOL_LastMouseoverVar] then EQOL_HideBarIfNotHovered(EQOL_LastMouseoverBar, EQOL_LastMouseoverVar) end
+	end)
 
-    flyout:HookScript("OnHide", function()
-        if EQOL_LastMouseoverBar and addon.db and addon.db[EQOL_LastMouseoverVar] then
-            EQOL_HideBarIfNotHovered(EQOL_LastMouseoverBar, EQOL_LastMouseoverVar)
-        end
-    end)
+	flyout:HookScript("OnHide", function()
+		if EQOL_LastMouseoverBar and addon.db and addon.db[EQOL_LastMouseoverVar] then EQOL_HideBarIfNotHovered(EQOL_LastMouseoverBar, EQOL_LastMouseoverVar) end
+	end)
 
-    flyout.EQOL_MouseoverHooked = true
+	flyout.EQOL_MouseoverHooked = true
 end
 -- Action Bars
 local function UpdateActionBarMouseover(barName, enable, variable)
-    local bar = _G[barName]
-    if not bar then return end
+	local bar = _G[barName]
+	if not bar then return end
 
 	local btnPrefix
 	if barName == "MainMenuBar" then
@@ -431,56 +425,54 @@ local function UpdateActionBarMouseover(barName, enable, variable)
 		btnPrefix = barName .. "Button"
 	end
 
-    if enable then
-        bar:SetAlpha(0)
-        -- bar:EnableMouse(true)
-        bar:SetScript("OnEnter", function(self)
-            bar:SetAlpha(1)
-            EQOL_LastMouseoverBar = bar
-            EQOL_LastMouseoverVar = variable
-        end)
-        bar:SetScript("OnLeave", function(self)
-            EQOL_HideBarIfNotHovered(bar, variable)
-        end)
-        for i = 1, 12 do
-            local button = _G[btnPrefix .. i]
-            if button and not hookedButtons[button] then
-                if button.OnEnter then
-                    button:HookScript("OnEnter", function(self)
-                        if addon.db[variable] then
-                            bar:SetAlpha(1)
-                            EQOL_LastMouseoverBar = bar
-                            EQOL_LastMouseoverVar = variable
-                        end
-                    end)
-                    hookedButtons[button] = true
-                else
-                    -- button:EnableMouse(true)
-                    button:SetScript("OnEnter", function(self)
-                        bar:SetAlpha(1)
-                        EQOL_LastMouseoverBar = bar
-                        EQOL_LastMouseoverVar = variable
-                    end)
-                end
-                if button.OnLeave then
-                    button:HookScript("OnLeave", function(self)
-                        if addon.db[variable] then EQOL_HideBarIfNotHovered(bar, variable) end
-                    end)
-                else
-                    button:EnableMouse(true)
-                    button:SetScript("OnLeave", function(self)
-                        EQOL_HideBarIfNotHovered(bar, variable)
-                        GameTooltip:Hide()
-                    end)
-                end
-                if not hookedButtons[button] then GameTooltipActionButton(button) end
-            end
-        end
-        -- Ensure flyout hooks are in place (once)
-        C_Timer.After(0, EQOL_HookSpellFlyout)
-    else
-        bar:SetAlpha(1)
-        -- bar:EnableMouse(true)
+	if enable then
+		bar:SetAlpha(0)
+		-- bar:EnableMouse(true)
+		bar:SetScript("OnEnter", function(self)
+			bar:SetAlpha(1)
+			EQOL_LastMouseoverBar = bar
+			EQOL_LastMouseoverVar = variable
+		end)
+		bar:SetScript("OnLeave", function(self) EQOL_HideBarIfNotHovered(bar, variable) end)
+		for i = 1, 12 do
+			local button = _G[btnPrefix .. i]
+			if button and not hookedButtons[button] then
+				if button.OnEnter then
+					button:HookScript("OnEnter", function(self)
+						if addon.db[variable] then
+							bar:SetAlpha(1)
+							EQOL_LastMouseoverBar = bar
+							EQOL_LastMouseoverVar = variable
+						end
+					end)
+					hookedButtons[button] = true
+				else
+					-- button:EnableMouse(true)
+					button:SetScript("OnEnter", function(self)
+						bar:SetAlpha(1)
+						EQOL_LastMouseoverBar = bar
+						EQOL_LastMouseoverVar = variable
+					end)
+				end
+				if button.OnLeave then
+					button:HookScript("OnLeave", function(self)
+						if addon.db[variable] then EQOL_HideBarIfNotHovered(bar, variable) end
+					end)
+				else
+					button:EnableMouse(true)
+					button:SetScript("OnLeave", function(self)
+						EQOL_HideBarIfNotHovered(bar, variable)
+						GameTooltip:Hide()
+					end)
+				end
+				if not hookedButtons[button] then GameTooltipActionButton(button) end
+			end
+		end
+		-- Ensure flyout hooks are in place (once)
+		C_Timer.After(0, EQOL_HookSpellFlyout)
+	else
+		bar:SetAlpha(1)
+		-- bar:EnableMouse(true)
 		bar:SetScript("OnEnter", nil)
 		bar:SetScript("OnLeave", nil)
 		for i = 1, 12 do
@@ -1411,10 +1403,11 @@ local function addMinimapFrame(container)
 			end,
 		},
 		{
-			parent = "",
+			parent = L["MinimapButtonSinkGroup"],
 			var = "enableMinimapButtonBin",
 			type = "CheckBox",
 			desc = L["enableMinimapButtonBinDesc"],
+			displayOrder = 10,
 			callback = function(self, _, value)
 				addon.db["enableMinimapButtonBin"] = value
 				addon.functions.toggleButtonSink()
@@ -1423,57 +1416,129 @@ local function addMinimapFrame(container)
 			end,
 		},
 		{
-			parent = "",
+			parent = L["SquareMinimap"],
 			var = "enableSquareMinimap",
 			text = L["enableSquareMinimap"],
 			desc = L["enableSquareMinimapDesc"],
 			type = "CheckBox",
+			displayOrder = 10,
 			callback = function(self, _, value)
 				addon.db["enableSquareMinimap"] = value
 				addon.variables.requireReload = true
 				addon.functions.checkReloadFrame()
 			end,
 		},
-        {
-            parent = "",
-            var = "showInstanceDifficulty",
-            desc = L["showInstanceDifficultyDesc"],
-            text = L["showInstanceDifficulty"],
-            type = "CheckBox",
-            callback = function(self, _, value)
-                addon.db["showInstanceDifficulty"] = value
-                if addon.InstanceDifficulty and addon.InstanceDifficulty.SetEnabled then addon.InstanceDifficulty:SetEnabled(value) end
-                container:ReleaseChildren()
-                addMinimapFrame(container)
-            end,
-        },
+
+		-- Multi-select dropdown: Hide minimap elements
 		{
 			parent = "",
+			var = "minimapHideElements",
+			type = "Dropdown",
+			text = L["minimapHideElements"],
+			list = {
+				Tracking = L["minimapHideElements_Tracking"],
+				ZoneInfo = L["minimapHideElements_ZoneInfo"],
+				Clock = L["minimapHideElements_Clock"],
+				Calendar = L["minimapHideElements_Calendar"],
+				Mail = L["minimapHideElements_Mail"],
+				AddonCompartment = L["minimapHideElements_AddonCompartment"],
+			},
+			order = { "Tracking", "ZoneInfo", "Clock", "Calendar", "Mail", "AddonCompartment" },
+			displayOrder = 1000,
+			gv = "minimapHideElementsDD",
+			callback = function(widget, _, key, checked)
+				addon.db.hiddenMinimapElements = addon.db.hiddenMinimapElements or {}
+				addon.db.hiddenMinimapElements[key] = checked and true or false
+				if addon.functions.ApplyMinimapElementVisibility then addon.functions.ApplyMinimapElementVisibility() end
+			end,
+		},
+		{
+			parent = L["showInstanceDifficulty"],
+			var = "showInstanceDifficulty",
+			desc = L["showInstanceDifficultyDesc"],
+			text = L["showInstanceDifficulty"],
+			type = "CheckBox",
+			displayOrder = 0,
+			callback = function(self, _, value)
+				addon.db["showInstanceDifficulty"] = value
+				if addon.InstanceDifficulty and addon.InstanceDifficulty.SetEnabled then addon.InstanceDifficulty:SetEnabled(value) end
+				container:ReleaseChildren()
+				addMinimapFrame(container)
+			end,
+		},
+		{
+			parent = L["LandingPage"],
 			var = "enableLandingPageMenu",
 			desc = L["enableLandingPageMenuDesc"],
 			text = L["enableLandingPageMenu"],
 			type = "CheckBox",
+			displayOrder = 10,
 			callback = function(self, _, value) addon.db["enableLandingPageMenu"] = value end,
 		},
-		-- {
-		-- 	parent = "",
-		-- 	var = "instanceDifficultyUseIcon",
-		-- 	text = L["instanceDifficultyUseIcon"],
-		-- 	type = "CheckBox",
-		-- 	callback = function(self, _, value)
-		-- 		addon.db["instanceDifficultyUseIcon"] = value
-		-- 		if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-		-- 		container:ReleaseChildren()
-		-- 		addMinimapFrame(container)
-		-- 	end,
-		-- },
+		-- Helper label for landing page hide list
+		{
+			parent = L["LandingPage"],
+			type = "Label",
+			text = L["landingPageHide"],
+			displayOrder = 20,
+		},
 	}
+
+	-- Show border toggle only when square minimap is enabled
+	if addon.db["enableSquareMinimap"] then
+		table.insert(data, {
+			parent = L["SquareMinimap"],
+			var = "enableSquareMinimapBorder",
+			text = L["enableSquareMinimapBorder"],
+			desc = L["enableSquareMinimapBorderDesc"],
+			type = "CheckBox",
+			displayOrder = 20,
+			callback = function(self, _, value)
+				addon.db["enableSquareMinimapBorder"] = value
+				if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+				container:ReleaseChildren()
+				addMinimapFrame(container)
+			end,
+		})
+	end
+
+	-- Square minimap border options (size/color)
+	if addon.db["enableSquareMinimap"] and addon.db["enableSquareMinimapBorder"] then
+		table.insert(data, {
+			parent = L["SquareMinimap"],
+			var = "squareMinimapBorderSize",
+			type = "Slider",
+			text = L["squareMinimapBorderSize"],
+			value = addon.db["squareMinimapBorderSize"],
+			min = 1,
+			max = 8,
+			step = 1,
+			displayOrder = 30,
+			callback = function(_, _, val)
+				addon.db["squareMinimapBorderSize"] = val
+				if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+			end,
+		})
+		table.insert(data, {
+			parent = L["SquareMinimap"],
+			var = "squareMinimapBorderColor",
+			type = "ColorPicker",
+			text = L["squareMinimapBorderColor"],
+			value = addon.db["squareMinimapBorderColor"],
+			displayOrder = 40,
+			callback = function(r, g, b)
+				addon.db["squareMinimapBorderColor"] = { r = r, g = g, b = b }
+				if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+			end,
+		})
+	end
 
 	if addon.db["enableMinimapButtonBin"] then
 		table.insert(data, {
-			parent = "",
+			parent = L["MinimapButtonSinkGroup"],
 			var = "useMinimapButtonBinIcon",
 			type = "CheckBox",
+			displayOrder = 20,
 			callback = function(self, _, value)
 				addon.db["useMinimapButtonBinIcon"] = value
 				if value then addon.db["useMinimapButtonBinMouseover"] = false end
@@ -1483,9 +1548,10 @@ local function addMinimapFrame(container)
 			end,
 		})
 		table.insert(data, {
-			parent = "",
+			parent = L["MinimapButtonSinkGroup"],
 			var = "useMinimapButtonBinMouseover",
 			type = "CheckBox",
+			displayOrder = 30,
 			callback = function(self, _, value)
 				addon.db["useMinimapButtonBinMouseover"] = value
 				if value then addon.db["useMinimapButtonBinIcon"] = false end
@@ -1496,9 +1562,10 @@ local function addMinimapFrame(container)
 		})
 		if not addon.db["useMinimapButtonBinIcon"] then
 			table.insert(data, {
-				parent = "",
+				parent = L["MinimapButtonSinkGroup"],
 				var = "lockMinimapButtonBin",
 				type = "CheckBox",
+				displayOrder = 40,
 				callback = function(self, _, value)
 					addon.db["lockMinimapButtonBin"] = value
 					addon.functions.toggleButtonSink()
@@ -1506,13 +1573,22 @@ local function addMinimapFrame(container)
 			})
 		end
 
+		-- Add label before ignore list
+		table.insert(data, {
+			parent = L["MinimapButtonSinkGroup"],
+			type = "Label",
+			text = MINIMAP_LABEL .. ": " .. L["ignoreMinimapSinkHole"],
+			displayOrder = 100,
+		})
+
 		for i, _ in pairs(addon.variables.bagButtonState) do
 			table.insert(data, {
-				parent = MINIMAP_LABEL .. ": " .. L["ignoreMinimapSinkHole"],
+				parent = L["MinimapButtonSinkGroup"],
 				var = "ignoreMinimapButtonBin_" .. i,
 				text = i,
 				type = "CheckBox",
 				value = addon.db["ignoreMinimapButtonBin_" .. i] or false,
+				displayOrder = 110,
 				callback = function(self, _, value)
 					addon.db["ignoreMinimapButtonBin_" .. i] = value
 					addon.functions.LayoutButtons()
@@ -1526,7 +1602,7 @@ local function addMinimapFrame(container)
 		if addon.db["hiddenLandingPages"][id] then actValue = true end
 
 		table.insert(data, {
-			parent = L["landingPageHide"],
+			parent = L["LandingPage"],
 			var = "landingPageType_" .. id,
 			type = "CheckBox",
 			value = actValue,
@@ -1543,144 +1619,154 @@ local function addMinimapFrame(container)
 
 	-- Instance Difficulty extra settings (position + colors)
 	if addon.db["showInstanceDifficulty"] then
-
-        -- Font size
-        table.insert(data, {
-            parent = L["showInstanceDifficulty"],
-            var = "instanceDifficultyFontSize",
-            type = "Slider",
-            text = L["instanceDifficultyFontSize"],
-            value = addon.db["instanceDifficultyFontSize"],
-            min = 8,
-            max = 28,
-            step = 1,
-            displayOrder = 10,
-            callback = function(_, _, val)
-                addon.db["instanceDifficultyFontSize"] = val
-                if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-            end,
-        })
+		-- Font size
+		table.insert(data, {
+			parent = L["showInstanceDifficulty"],
+			var = "instanceDifficultyFontSize",
+			type = "Slider",
+			text = L["instanceDifficultyFontSize"],
+			value = addon.db["instanceDifficultyFontSize"],
+			min = 8,
+			max = 28,
+			step = 1,
+			displayOrder = 10,
+			callback = function(_, _, val)
+				addon.db["instanceDifficultyFontSize"] = val
+				if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+			end,
+		})
 
 		-- Offsets
-        table.insert(data, {
-            parent = L["showInstanceDifficulty"],
-            var = "instanceDifficultyOffsetX",
-            type = "Slider",
-            text = L["instanceDifficultyOffsetX"],
-            value = addon.db["instanceDifficultyOffsetX"],
-            min = -400,
-            max = 400,
-            step = 1,
-            displayOrder = 20,
-            callback = function(_, _, val)
-                addon.db["instanceDifficultyOffsetX"] = val
-                if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-            end,
-        })
-        table.insert(data, {
-            parent = L["showInstanceDifficulty"],
-            var = "instanceDifficultyOffsetY",
-            type = "Slider",
-            text = L["instanceDifficultyOffsetY"],
-            value = addon.db["instanceDifficultyOffsetY"],
-            min = -400,
-            max = 400,
-            step = 1,
-            displayOrder = 30,
-            callback = function(_, _, val)
-                addon.db["instanceDifficultyOffsetY"] = val
-                if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-            end,
-        })
+		table.insert(data, {
+			parent = L["showInstanceDifficulty"],
+			var = "instanceDifficultyOffsetX",
+			type = "Slider",
+			text = L["instanceDifficultyOffsetX"],
+			value = addon.db["instanceDifficultyOffsetX"],
+			min = -400,
+			max = 400,
+			step = 1,
+			displayOrder = 20,
+			callback = function(_, _, val)
+				addon.db["instanceDifficultyOffsetX"] = val
+				if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+			end,
+		})
+		table.insert(data, {
+			parent = L["showInstanceDifficulty"],
+			var = "instanceDifficultyOffsetY",
+			type = "Slider",
+			text = L["instanceDifficultyOffsetY"],
+			value = addon.db["instanceDifficultyOffsetY"],
+			min = -400,
+			max = 400,
+			step = 1,
+			displayOrder = 30,
+			callback = function(_, _, val)
+				addon.db["instanceDifficultyOffsetY"] = val
+				if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+			end,
+		})
 
-        table.insert(data, {
-            parent = L["showInstanceDifficulty"],
-            var = "instanceDifficultyUseColors",
-            type = "CheckBox",
-            text = L["instanceDifficultyUseColors"],
-            value = addon.db["instanceDifficultyUseColors"],
-            displayOrder = 40,
-            callback = function(self, _, v)
-                addon.db["instanceDifficultyUseColors"] = v
-                if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-                container:ReleaseChildren()
-                addMinimapFrame(container)
-            end,
-        })
+		table.insert(data, {
+			parent = L["showInstanceDifficulty"],
+			var = "instanceDifficultyUseColors",
+			type = "CheckBox",
+			text = L["instanceDifficultyUseColors"],
+			value = addon.db["instanceDifficultyUseColors"],
+			displayOrder = 40,
+			callback = function(self, _, v)
+				addon.db["instanceDifficultyUseColors"] = v
+				if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				container:ReleaseChildren()
+				addMinimapFrame(container)
+			end,
+		})
 
-        if addon.db["instanceDifficultyUseColors"] then
-            local colors = addon.db["instanceDifficultyColors"] or {}
-            table.insert(data, {
-                parent = L["showInstanceDifficulty"],
-                type = "ColorPicker",
-                text = _G["PLAYER_DIFFICULTY1"] or "Normal",
-                value = colors.NM,
-                displayOrder = 60,
-                callback = function(r, g, b)
-                    addon.db["instanceDifficultyColors"].NM = { r = r, g = g, b = b }
-                    if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-                end,
-            })
-            table.insert(data, {
-                parent = L["showInstanceDifficulty"],
-                type = "ColorPicker",
-                text = _G["PLAYER_DIFFICULTY2"] or "Heroic",
-                value = colors.HC,
-                displayOrder = 70,
-                callback = function(r, g, b)
-                    addon.db["instanceDifficultyColors"].HC = { r = r, g = g, b = b }
-                    if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-                end,
-            })
-            table.insert(data, {
-                parent = L["showInstanceDifficulty"],
-                type = "ColorPicker",
-                text = _G["PLAYER_DIFFICULTY6"] or "Mythic",
-                value = colors.M,
-                displayOrder = 80,
-                callback = function(r, g, b)
-                    addon.db["instanceDifficultyColors"].M = { r = r, g = g, b = b }
-                    if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-                end,
-            })
-            table.insert(data, {
-                parent = L["showInstanceDifficulty"],
-                type = "ColorPicker",
-                text = _G["PLAYER_DIFFICULTY_MYTHIC_PLUS"] or "Mythic+",
-                value = colors.MPLUS,
-                displayOrder = 90,
-                callback = function(r, g, b)
-                    addon.db["instanceDifficultyColors"].MPLUS = { r = r, g = g, b = b }
-                    if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-                end,
-            })
-            table.insert(data, {
-                parent = L["showInstanceDifficulty"],
-                type = "ColorPicker",
-                text = _G["PLAYER_DIFFICULTY3"] or "Raid Finder",
-                value = colors.LFR,
-                displayOrder = 50,
-                callback = function(r, g, b)
-                    addon.db["instanceDifficultyColors"].LFR = { r = r, g = g, b = b }
-                    if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-                end,
-            })
-            table.insert(data, {
-                parent = L["showInstanceDifficulty"],
-                type = "ColorPicker",
-                text = _G["PLAYER_DIFFICULTY_TIMEWALKER"] or "Timewalking",
-                value = colors.TW,
-                displayOrder = 100,
-                callback = function(r, g, b)
-                    addon.db["instanceDifficultyColors"].TW = { r = r, g = g, b = b }
-                    if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-                end,
-            })
-        end
+		if addon.db["instanceDifficultyUseColors"] then
+			local colors = addon.db["instanceDifficultyColors"] or {}
+			table.insert(data, {
+				parent = L["showInstanceDifficulty"],
+				type = "ColorPicker",
+				text = _G["PLAYER_DIFFICULTY1"] or "Normal",
+				value = colors.NM,
+				displayOrder = 60,
+				callback = function(r, g, b)
+					addon.db["instanceDifficultyColors"].NM = { r = r, g = g, b = b }
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			})
+			table.insert(data, {
+				parent = L["showInstanceDifficulty"],
+				type = "ColorPicker",
+				text = _G["PLAYER_DIFFICULTY2"] or "Heroic",
+				value = colors.HC,
+				displayOrder = 70,
+				callback = function(r, g, b)
+					addon.db["instanceDifficultyColors"].HC = { r = r, g = g, b = b }
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			})
+			table.insert(data, {
+				parent = L["showInstanceDifficulty"],
+				type = "ColorPicker",
+				text = _G["PLAYER_DIFFICULTY6"] or "Mythic",
+				value = colors.M,
+				displayOrder = 80,
+				callback = function(r, g, b)
+					addon.db["instanceDifficultyColors"].M = { r = r, g = g, b = b }
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			})
+			table.insert(data, {
+				parent = L["showInstanceDifficulty"],
+				type = "ColorPicker",
+				text = _G["PLAYER_DIFFICULTY_MYTHIC_PLUS"] or "Mythic+",
+				value = colors.MPLUS,
+				displayOrder = 90,
+				callback = function(r, g, b)
+					addon.db["instanceDifficultyColors"].MPLUS = { r = r, g = g, b = b }
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			})
+			table.insert(data, {
+				parent = L["showInstanceDifficulty"],
+				type = "ColorPicker",
+				text = _G["PLAYER_DIFFICULTY3"] or "Raid Finder",
+				value = colors.LFR,
+				displayOrder = 50,
+				callback = function(r, g, b)
+					addon.db["instanceDifficultyColors"].LFR = { r = r, g = g, b = b }
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			})
+			table.insert(data, {
+				parent = L["showInstanceDifficulty"],
+				type = "ColorPicker",
+				text = _G["PLAYER_DIFFICULTY_TIMEWALKER"] or "Timewalking",
+				value = colors.TW,
+				displayOrder = 100,
+				callback = function(r, g, b)
+					addon.db["instanceDifficultyColors"].TW = { r = r, g = g, b = b }
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			})
+		end
 	end
 
 	-- Build UI
 	local wrapper = addon.functions.createWrapperData(data, container, L)
+
+	-- Configure the multi-select dropdown after creation
+	local dd = addon.elements and addon.elements["minimapHideElementsDD"]
+	if dd then
+		dd:SetMultiselect(true)
+		if type(addon.db.hiddenMinimapElements) == "table" then
+			for k, v in pairs(addon.db.hiddenMinimapElements) do
+				if v then dd:SetItemValue(k, true) end
+			end
+		end
+	end
 end
 
 local function addUnitFrame(container)
@@ -1821,6 +1907,35 @@ local function addUnitFrame(container)
 
 	groupCoreUF:AddChild(addon.functions.createSpacerAce())
 
+	-- Cast bars multiselect dropdown
+	local groupCast = addon.functions.createContainer("InlineGroup", "List")
+	groupCast:SetTitle(L["CastBars"] or "Cast Bars")
+	groupCoreUF:AddChild(groupCast)
+
+	local dd = AceGUI:Create("Dropdown")
+	dd:SetLabel(L["castBarsToHide"] or "Cast bars to hide")
+	local list = {
+		PlayerCastingBarFrame = L["castBar_player"] or _G.PLAYER or "Player",
+		TargetFrameSpellBar = L["castBar_target"] or TARGET or "Target",
+		FocusFrameSpellBar = L["castBar_focus"] or FOCUS or "Focus",
+	}
+	local order = { "PlayerCastingBarFrame", "TargetFrameSpellBar", "FocusFrameSpellBar" }
+	dd:SetList(list, order)
+	dd:SetMultiselect(true)
+	dd:SetFullWidth(true)
+	dd:SetCallback("OnValueChanged", function(widget, _, key, checked)
+		addon.db.hiddenCastBars = addon.db.hiddenCastBars or {}
+		addon.db.hiddenCastBars[key] = checked and true or false
+		addon.functions.ApplyCastBarVisibility()
+	end)
+	-- Initialize selection state
+	if type(addon.db.hiddenCastBars) == "table" then
+		for k, v in pairs(addon.db.hiddenCastBars) do
+			if v then dd:SetItemValue(k, true) end
+		end
+	end
+	groupCast:AddChild(dd)
+
 	if addon.db["showPartyFrameInSoloContent"] then
 		local cbHidePlayerFrame = addon.functions.createCheckboxAce(L["hidePlayerFrame"], addon.db["hidePlayerFrame"], function(self, _, value)
 			addon.db["hidePlayerFrame"] = value
@@ -1887,30 +2002,30 @@ end
 
 -- Merchant UI (extended grid) options
 local function addMerchantFrame(container)
-    local data = {
-        {
-            parent = MERCHANT,
-            var = "enableExtendedMerchant",
-            type = "CheckBox",
-            desc = L["enableExtendedMerchantDesc"],
-            callback = function(self, _, value)
-                addon.db["enableExtendedMerchant"] = value
-                if addon.Merchant then
-                    if value and addon.Merchant.Enable then
-                        addon.Merchant:Enable()
-                    elseif not value and addon.Merchant.Disable then
-                        addon.Merchant:Disable()
-                        addon.variables.requireReload = true
-                        addon.functions.checkReloadFrame()
-                    end
-                end
-                container:ReleaseChildren()
-                addMerchantFrame(container)
-            end,
-        },
-    }
+	local data = {
+		{
+			parent = MERCHANT,
+			var = "enableExtendedMerchant",
+			type = "CheckBox",
+			desc = L["enableExtendedMerchantDesc"],
+			callback = function(self, _, value)
+				addon.db["enableExtendedMerchant"] = value
+				if addon.Merchant then
+					if value and addon.Merchant.Enable then
+						addon.Merchant:Enable()
+					elseif not value and addon.Merchant.Disable then
+						addon.Merchant:Disable()
+						addon.variables.requireReload = true
+						addon.functions.checkReloadFrame()
+					end
+				end
+				container:ReleaseChildren()
+				addMerchantFrame(container)
+			end,
+		},
+	}
 
-    addon.functions.createWrapperData(data, container, L)
+	addon.functions.createWrapperData(data, container, L)
 end
 
 local function addActionBarFrame(container, d)
@@ -2254,7 +2369,43 @@ local function addUIFrame(container)
 				addon.functions.toggleRaidTools(addon.db["hideRaidTools"], _G.CompactRaidFrameManager)
 			end,
 		},
+		-- Game Menu scaling toggle
+		{
+			parent = MAINMENU_BUTTON,
+			var = "gameMenuScaleEnabled",
+			text = L["enableGameMenuScale"],
+			type = "CheckBox",
+			callback = function(self, _, value)
+				addon.db["gameMenuScaleEnabled"] = value
+				if value then
+					addon.functions.ensureGameMenuHooks()
+					addon.functions.applyGameMenuScale()
+				else
+					if GameMenuFrame then GameMenuFrame:SetScale(1.0) end
+				end
+				container:ReleaseChildren()
+				addUIFrame(container)
+			end,
+		},
 	}
+
+	-- Conditionally add the slider when enabled
+	if addon.db["gameMenuScaleEnabled"] then
+		table.insert(data, {
+			parent = MAINMENU_BUTTON,
+			var = "gameMenuScale",
+			type = "Slider",
+			text = L["gameMenuScale"],
+			value = addon.db["gameMenuScale"],
+			min = 0.5,
+			max = 2.0,
+			step = 0.05,
+			callback = function(_, _, val)
+				addon.db["gameMenuScale"] = val
+				addon.functions.applyGameMenuScale()
+			end,
+		})
+	end
 
 	addon.functions.createWrapperData(data, container, L)
 end
@@ -3755,28 +3906,32 @@ local function updateMerchantButtonInfo()
 									for _, s in ipairs(slots) do
 										local eqLink = GetInventoryItemLink("player", s)
 										local eqIlvl = eqLink and (C_Item.GetDetailedItemLevelInfo(eqLink) or 0) or 0
-										if baseline == nil then baseline = eqIlvl else baseline = math.min(baseline, eqIlvl) end
+										if baseline == nil then
+											baseline = eqIlvl
+										else
+											baseline = math.min(baseline, eqIlvl)
+										end
 									end
 								end
 								local isUpgrade = baseline ~= nil and candidateIlvl and candidateIlvl > baseline
 								if isUpgrade then
-								if not itemButton.ItemUpgradeIcon then
-									itemButton.ItemUpgradeIcon = itemButton:CreateTexture(nil, "OVERLAY")
-									itemButton.ItemUpgradeIcon:SetSize(14, 14)
-								end
-								itemButton.ItemUpgradeIcon:SetTexture("Interface\\AddOns\\EnhanceQoL\\Icons\\upgradeilvl.tga")
-                            itemButton.ItemUpgradeIcon:ClearAllPoints()
-                            local posUp = addon.db["bagUpgradeIconPosition"] or "BOTTOMRIGHT"
-                            if posUp == "TOPRIGHT" then
-                                itemButton.ItemUpgradeIcon:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
-                            elseif posUp == "TOPLEFT" then
-                                itemButton.ItemUpgradeIcon:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
-                            elseif posUp == "BOTTOMLEFT" then
-                                itemButton.ItemUpgradeIcon:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
-                            else
-                                itemButton.ItemUpgradeIcon:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
-                            end
-								itemButton.ItemUpgradeIcon:Show()
+									if not itemButton.ItemUpgradeIcon then
+										itemButton.ItemUpgradeIcon = itemButton:CreateTexture(nil, "OVERLAY")
+										itemButton.ItemUpgradeIcon:SetSize(14, 14)
+									end
+									itemButton.ItemUpgradeIcon:SetTexture("Interface\\AddOns\\EnhanceQoL\\Icons\\upgradeilvl.tga")
+									itemButton.ItemUpgradeIcon:ClearAllPoints()
+									local posUp = addon.db["bagUpgradeIconPosition"] or "BOTTOMRIGHT"
+									if posUp == "TOPRIGHT" then
+										itemButton.ItemUpgradeIcon:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
+									elseif posUp == "TOPLEFT" then
+										itemButton.ItemUpgradeIcon:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
+									elseif posUp == "BOTTOMLEFT" then
+										itemButton.ItemUpgradeIcon:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
+									else
+										itemButton.ItemUpgradeIcon:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
+									end
+									itemButton.ItemUpgradeIcon:Show()
 								elseif itemButton.ItemUpgradeIcon then
 									itemButton.ItemUpgradeIcon:Hide()
 								end
@@ -3932,8 +4087,8 @@ local function updateFlyoutButtonInfo(button)
 
 	if addon.db["showIlvlOnCharframe"] then
 		-- Reset stale overlays on recycled flyout buttons
-	if button.ItemUpgradeArrow then button.ItemUpgradeArrow:Hide() end
-	if button.ItemUpgradeIcon then button.ItemUpgradeIcon:Hide() end
+		if button.ItemUpgradeArrow then button.ItemUpgradeArrow:Hide() end
+		if button.ItemUpgradeIcon then button.ItemUpgradeIcon:Hide() end
 		local location = button.location
 		if not location then return end
 
@@ -4025,7 +4180,9 @@ local function updateFlyoutButtonInfo(button)
 						local baseline
 						if slots and #slots > 0 then
 							local function containsSlot(tbl, val)
-								for i = 1, #tbl do if tbl[i] == val then return true end end
+								for i = 1, #tbl do
+									if tbl[i] == val then return true end
+								end
 								return false
 							end
 							if targetSlot and containsSlot(slots, targetSlot) then
@@ -4037,7 +4194,11 @@ local function updateFlyoutButtonInfo(button)
 								for _, s in ipairs(slots) do
 									local eqLink = GetInventoryItemLink("player", s)
 									local eqIlvl = eqLink and (C_Item.GetDetailedItemLevelInfo(eqLink) or 0) or 0
-									if baseline == nil then baseline = eqIlvl else baseline = math.min(baseline, eqIlvl) end
+									if baseline == nil then
+										baseline = eqIlvl
+									else
+										baseline = math.min(baseline, eqIlvl)
+									end
 								end
 							end
 						end
@@ -4048,17 +4209,17 @@ local function updateFlyoutButtonInfo(button)
 								button.ItemUpgradeIcon:SetSize(14, 14)
 							end
 							button.ItemUpgradeIcon:SetTexture("Interface\\AddOns\\EnhanceQoL\\Icons\\upgradeilvl.tga")
-                            button.ItemUpgradeIcon:ClearAllPoints()
-                            local posUp = addon.db["bagUpgradeIconPosition"] or "BOTTOMRIGHT"
-                            if posUp == "TOPRIGHT" then
-                                button.ItemUpgradeIcon:SetPoint("TOPRIGHT", button, "TOPRIGHT", -1, -2)
-                            elseif posUp == "TOPLEFT" then
-                                button.ItemUpgradeIcon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
-                            elseif posUp == "BOTTOMLEFT" then
-                                button.ItemUpgradeIcon:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 2, 2)
-                            else
-                                button.ItemUpgradeIcon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 2)
-                            end
+							button.ItemUpgradeIcon:ClearAllPoints()
+							local posUp = addon.db["bagUpgradeIconPosition"] or "BOTTOMRIGHT"
+							if posUp == "TOPRIGHT" then
+								button.ItemUpgradeIcon:SetPoint("TOPRIGHT", button, "TOPRIGHT", -1, -2)
+							elseif posUp == "TOPLEFT" then
+								button.ItemUpgradeIcon:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
+							elseif posUp == "BOTTOMLEFT" then
+								button.ItemUpgradeIcon:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 2, 2)
+							else
+								button.ItemUpgradeIcon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 2)
+							end
 							button.ItemUpgradeIcon:Show()
 						elseif button.ItemUpgradeIcon then
 							button.ItemUpgradeIcon:Hide()
@@ -4105,16 +4266,16 @@ local function updateFlyoutButtonInfo(button)
 					end
 				end)
 			end
-			elseif button.ItemLevelText then
-				if button.ItemBoundType then button.ItemBoundType:Hide() end
+		elseif button.ItemLevelText then
+			if button.ItemBoundType then button.ItemBoundType:Hide() end
 			if button.ItemUpgradeArrow then button.ItemUpgradeArrow:Hide() end
 			if button.ItemUpgradeIcon then button.ItemUpgradeIcon:Hide() end
-				button.ItemLevelText:Hide()
-			end
+			button.ItemLevelText:Hide()
+		end
 	elseif button.ItemLevelText then
 		if button.ItemBoundType then button.ItemBoundType:Hide() end
-	if button.ItemUpgradeArrow then button.ItemUpgradeArrow:Hide() end
-	if button.ItemUpgradeIcon then button.ItemUpgradeIcon:Hide() end
+		if button.ItemUpgradeArrow then button.ItemUpgradeArrow:Hide() end
+		if button.ItemUpgradeIcon then button.ItemUpgradeIcon:Hide() end
 		button.ItemLevelText:Hide()
 	end
 end
@@ -4458,6 +4619,7 @@ local function initUnitFrame()
 	addon.functions.InitDBValue("unitFrameMaxNameLength", addon.variables.unitFrameMaxNameLength)
 	addon.functions.InitDBValue("unitFrameScaleEnabled", false)
 	addon.functions.InitDBValue("unitFrameScale", addon.variables.unitFrameScale)
+	addon.functions.InitDBValue("hiddenCastBars", addon.db["hiddenCastBars"] or {})
 	if addon.db["hideHitIndicatorPlayer"] then PlayerFrame.PlayerFrameContent.PlayerFrameContentMain.HitIndicator:Hide() end
 
 	if PetHitIndicator then hooksecurefunc(PetHitIndicator, "Show", function(self)
@@ -4558,9 +4720,36 @@ local function initUnitFrame()
 		if CompactPartyFrame then CompactPartyFrame:SetScale(addon.db["unitFrameScale"]) end
 	end
 
+	-- Cast bar visibility handling
+	local castBarFrames = {
+		PlayerCastingBarFrame = function() return _G.PlayerCastingBarFrame end,
+		TargetFrameSpellBar = function() return _G.TargetFrameSpellBar end,
+		FocusFrameSpellBar = function() return _G.FocusFrameSpellBar end,
+	}
+
+	local function EnsureCastbarHook(frame)
+		if not frame or frame.EQOL_CastbarHooked then return end
+		frame:HookScript("OnShow", function(self)
+			if addon.db and addon.db.hiddenCastBars and addon.db.hiddenCastBars[self:GetName()] then self:Hide() end
+		end)
+		frame.EQOL_CastbarHooked = true
+	end
+
+	function addon.functions.ApplyCastBarVisibility()
+		if not addon.db or type(addon.db.hiddenCastBars) ~= "table" then return end
+		for key, getter in pairs(castBarFrames) do
+			local frame = getter and getter() or _G[key]
+			if frame then
+				EnsureCastbarHook(frame)
+				if addon.db.hiddenCastBars[key] then frame:Hide() end
+			end
+		end
+	end
+
 	if addon.db["hideRaidFrameBuffs"] then addon.functions.updateRaidFrameBuffs() end
 	if addon.db["unitFrameTruncateNames"] then addon.functions.updateUnitFrameNames() end
 	if addon.db["unitFrameScaleEnabled"] then addon.functions.updatePartyFrameScale() end
+	addon.functions.ApplyCastBarVisibility()
 
 	for _, cbData in ipairs(addon.variables.unitFrameNames) do
 		if cbData.var and cbData.name then
@@ -4732,30 +4921,59 @@ local function initUI()
 	addon.functions.InitDBValue("minimapSinkHoleData", {})
 	addon.functions.InitDBValue("hideQuickJoinToast", false)
 	addon.functions.InitDBValue("enableSquareMinimap", false)
+	addon.functions.InitDBValue("enableSquareMinimapBorder", false)
+	addon.functions.InitDBValue("squareMinimapBorderSize", 1)
+	addon.functions.InitDBValue("squareMinimapBorderColor", { r = 0, g = 0, b = 0 })
+	addon.functions.InitDBValue("hiddenMinimapElements", addon.db["hiddenMinimapElements"] or {})
 	addon.functions.InitDBValue("persistAuctionHouseFilter", false)
 	addon.functions.InitDBValue("alwaysUserCurExpAuctionHouse", false)
 	addon.functions.InitDBValue("hideDynamicFlightBar", false)
 	addon.functions.InitDBValue("enableExtendedMerchant", false)
-    addon.functions.InitDBValue("showInstanceDifficulty", false)
-    -- anchor no longer used; position controlled by offsets from CENTER
-    addon.functions.InitDBValue("instanceDifficultyOffsetX", 0)
-    addon.functions.InitDBValue("instanceDifficultyOffsetY", 0)
-    addon.functions.InitDBValue("instanceDifficultyFontSize", 14)
-    addon.functions.InitDBValue("instanceDifficultyUseColors", false)
-    if type(addon.db["instanceDifficultyColors"]) ~= "table" then addon.db["instanceDifficultyColors"] = {} end
-    -- Ensure default color entries exist
-    local defaultColors = {
-        NM = { r = 0.20, g = 0.95, b = 0.20 }, -- Normal: Green
-        HC = { r = 0.25, g = 0.55, b = 1.00 }, -- Heroic: Blue
-        M = { r = 0.80, g = 0.40, b = 1.00 }, -- Mythic: Violet
-        MPLUS = { r = 0.80, g = 0.40, b = 1.00 }, -- Mythic+: Violet
-        LFR = { r = 1.00, g = 1.00, b = 1.00 }, -- LFR: White (editable)
-        TW = { r = 1.00, g = 1.00, b = 1.00 }, -- Timewalking: White (editable)
-    }
-    for k, v in pairs(defaultColors) do
-        if type(addon.db["instanceDifficultyColors"][k]) ~= "table" then addon.db["instanceDifficultyColors"][k] = v end
-    end
+	addon.functions.InitDBValue("showInstanceDifficulty", false)
+	-- anchor no longer used; position controlled by offsets from CENTER
+	addon.functions.InitDBValue("instanceDifficultyOffsetX", 0)
+	addon.functions.InitDBValue("instanceDifficultyOffsetY", 0)
+	addon.functions.InitDBValue("instanceDifficultyFontSize", 14)
+	addon.functions.InitDBValue("instanceDifficultyUseColors", false)
+	if type(addon.db["instanceDifficultyColors"]) ~= "table" then addon.db["instanceDifficultyColors"] = {} end
+	-- Ensure default color entries exist
+	local defaultColors = {
+		NM = { r = 0.20, g = 0.95, b = 0.20 }, -- Normal: Green
+		HC = { r = 0.25, g = 0.55, b = 1.00 }, -- Heroic: Blue
+		M = { r = 0.80, g = 0.40, b = 1.00 }, -- Mythic: Violet
+		MPLUS = { r = 0.80, g = 0.40, b = 1.00 }, -- Mythic+: Violet
+		LFR = { r = 1.00, g = 1.00, b = 1.00 }, -- LFR: White (editable)
+		TW = { r = 1.00, g = 1.00, b = 1.00 }, -- Timewalking: White (editable)
+	}
+	for k, v in pairs(defaultColors) do
+		if type(addon.db["instanceDifficultyColors"][k]) ~= "table" then addon.db["instanceDifficultyColors"][k] = v end
+	end
 	-- addon.functions.InitDBValue("instanceDifficultyUseIcon", false)
+
+	-- Game Menu (ESC) scaling
+	addon.functions.InitDBValue("gameMenuScaleEnabled", false)
+	addon.functions.InitDBValue("gameMenuScale", 1.0)
+
+	local gmHooked = false
+	function addon.functions.applyGameMenuScale()
+		if not GameMenuFrame then return end
+		local scale = 1.0
+		if addon.db and addon.db["gameMenuScaleEnabled"] and addon.db["gameMenuScale"] then scale = addon.db["gameMenuScale"] end
+		GameMenuFrame:SetScale(scale)
+	end
+
+	function addon.functions.ensureGameMenuHooks()
+		if gmHooked then return end
+		if not GameMenuFrame then return end
+		GameMenuFrame:HookScript("OnShow", function() addon.functions.applyGameMenuScale() end)
+		-- Re-apply on size changes to keep proportions consistent
+		GameMenuFrame:HookScript("OnSizeChanged", function() addon.functions.applyGameMenuScale() end)
+		gmHooked = true
+	end
+
+	-- Prepare hooks early (frame is part of base UI)
+	addon.functions.ensureGameMenuHooks()
+	addon.functions.applyGameMenuScale()
 
 	table.insert(addon.variables.unitFrameNames, {
 		name = "MicroMenu",
@@ -4784,6 +5002,71 @@ local function initUI()
 		function GetMinimapShape() return "SQUARE" end
 	end
 	if addon.db["enableSquareMinimap"] then makeSquareMinimap() end
+
+	-- Border for square minimap
+	function addon.functions.applySquareMinimapBorder()
+		if not Minimap then return end
+		local enableBorder = addon.db and addon.db["enableSquareMinimapBorder"]
+		local isSquare = addon.db and addon.db["enableSquareMinimap"]
+
+		-- Ensure holder frame exists (above minimap texture, below buttons)
+		if not addon.general.squareMinimapBorderFrame then
+			local f = CreateFrame("Frame", nil, Minimap)
+			f:SetFrameStrata("LOW") -- below MEDIUM buttons, above BACKGROUND
+			f:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 2)
+			f:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 0, 0)
+			f:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 0, 0)
+
+			-- Create 4 edge textures
+			f.tTop = f:CreateTexture(nil, "ARTWORK")
+			f.tBottom = f:CreateTexture(nil, "ARTWORK")
+			f.tLeft = f:CreateTexture(nil, "ARTWORK")
+			f.tRight = f:CreateTexture(nil, "ARTWORK")
+			addon.general.squareMinimapBorderFrame = f
+		end
+
+		local f = addon.general.squareMinimapBorderFrame
+		local size = (addon.db and addon.db.squareMinimapBorderSize) or 1
+		local col = (addon.db and addon.db.squareMinimapBorderColor) or { r = 0, g = 0, b = 0 }
+
+		local r, g, b = col.r or 0, col.g or 0, col.b or 0
+
+		-- Top
+		f.tTop:ClearAllPoints()
+		f.tTop:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+		f.tTop:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+		f.tTop:SetHeight(size)
+		f.tTop:SetColorTexture(r, g, b, 1)
+		-- Bottom
+		f.tBottom:ClearAllPoints()
+		f.tBottom:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+		f.tBottom:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+		f.tBottom:SetHeight(size)
+		f.tBottom:SetColorTexture(r, g, b, 1)
+		-- Left
+		f.tLeft:ClearAllPoints()
+		f.tLeft:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+		f.tLeft:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+		f.tLeft:SetWidth(size)
+		f.tLeft:SetColorTexture(r, g, b, 1)
+		-- Right
+		f.tRight:ClearAllPoints()
+		f.tRight:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+		f.tRight:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+		f.tRight:SetWidth(size)
+		f.tRight:SetColorTexture(r, g, b, 1)
+
+		if enableBorder and isSquare then
+			f:Show()
+		else
+			f:Hide()
+		end
+	end
+
+	-- Apply border at startup
+	C_Timer.After(0, function()
+		if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+	end)
 
 	function addon.functions.toggleMinimapButton(value)
 		if value == false then
@@ -4827,6 +5110,64 @@ local function initUI()
 		end
 	end
 	addon.functions.toggleQuickJoinToastButton(addon.db["hideQuickJoinToast"])
+
+	-- Hide/show specific minimap elements based on multi-select
+	local function getMinimapElementFrames()
+		local t = {}
+		-- Tracking icon
+		t.Tracking = {}
+		if MinimapCluster and MinimapCluster.Tracking then table.insert(t.Tracking, MinimapCluster.Tracking) end
+		if _G["MiniMapTracking"] then table.insert(t.Tracking, _G["MiniMapTracking"]) end
+		-- Zone info (package)
+		t.ZoneInfo = {}
+		if MinimapCluster then
+			if MinimapCluster.BorderTop then table.insert(t.ZoneInfo, MinimapCluster.BorderTop) end
+			if MinimapCluster.ZoneTextButton then table.insert(t.ZoneInfo, MinimapCluster.ZoneTextButton) end
+		end
+		-- Clock
+		t.Clock = {}
+		if _G["TimeManagerClockButton"] then table.insert(t.Clock, _G["TimeManagerClockButton"]) end
+		-- Calendar
+		t.Calendar = {}
+		if _G["GameTimeFrame"] then table.insert(t.Calendar, _G["GameTimeFrame"]) end
+		-- Mail
+		t.Mail = {}
+		if MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.MailFrame then table.insert(t.Mail, MinimapCluster.IndicatorFrame.MailFrame) end
+		if _G["MiniMapMailFrame"] then table.insert(t.Mail, _G["MiniMapMailFrame"]) end
+		if _G["MinimapMailFrame"] then table.insert(t.Mail, _G["MinimapMailFrame"]) end
+		-- Addon compartment
+		t.AddonCompartment = {}
+		if _G["AddonCompartmentFrame"] then table.insert(t.AddonCompartment, _G["AddonCompartmentFrame"]) end
+		return t
+	end
+
+	function addon.functions.ApplyMinimapElementVisibility()
+		local cfg = addon.db and addon.db.hiddenMinimapElements or {}
+		local elems = getMinimapElementFrames()
+		for key, frames in pairs(elems) do
+			local shouldHide = cfg and cfg[key]
+			for _, f in ipairs(frames) do
+				if shouldHide then
+					f:Hide()
+				else
+					f:Show()
+				end
+				if not f._eqolMinimapHideHooked then
+					f._eqolMinimapHideHooked = true
+					local hookKey = key
+					f:HookScript("OnShow", function(self)
+						local c = addon.db and addon.db.hiddenMinimapElements
+						if c and c[hookKey] then self:Hide() end
+					end)
+				end
+			end
+		end
+	end
+
+	-- Apply on load with a tiny delay to ensure frames exist
+	C_Timer.After(0, function()
+		if addon.functions.ApplyMinimapElementVisibility then addon.functions.ApplyMinimapElementVisibility() end
+	end)
 
 	-- Apply merchant extension on load if enabled
 	if addon.db["enableExtendedMerchant"] and addon.Merchant and addon.Merchant.Enable then addon.Merchant:Enable() end

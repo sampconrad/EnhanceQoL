@@ -254,6 +254,12 @@ function addon.functions.createWrapperData(data, container, L)
 				widget:SetWidth(checkboxData.width or 100)
 				if checkboxData.callback then widget:SetCallback("OnClick", checkboxData.callback) end
 				group:AddChild(widget)
+		elseif checkboxData.type == "Label" then
+			widget = AceGUI:Create("Label")
+			widget:SetText(checkboxData.text or (checkboxData.var and L[checkboxData.var]) or "")
+			widget:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
+			widget:SetFullWidth(true)
+			group:AddChild(widget)
 		elseif checkboxData.type == "Dropdown" then
 			widget:SetLabel(checkboxData.text or "")
 			if checkboxData.order then
