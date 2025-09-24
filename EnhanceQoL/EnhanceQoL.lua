@@ -1434,6 +1434,8 @@ local function addMinimapFrame(container)
                 addon.functions.checkReloadFrame()
             end,
         },
+        
+        
         -- Multi-select dropdown: Hide minimap elements
         {
             parent = "",
@@ -1491,6 +1493,55 @@ local function addMinimapFrame(container)
 		-- 	end,
 		-- },
 	}
+
+	-- Show border toggle only when square minimap is enabled
+	if addon.db["enableSquareMinimap"] then
+		table.insert(data, {
+			parent = "",
+			var = "enableSquareMinimapBorder",
+			text = L["enableSquareMinimapBorder"],
+			desc = L["enableSquareMinimapBorderDesc"],
+			type = "CheckBox",
+			displayOrder = 1000,
+			callback = function(self, _, value)
+				addon.db["enableSquareMinimapBorder"] = value
+				if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+				container:ReleaseChildren()
+				addMinimapFrame(container)
+			end,
+		})
+	end
+
+	-- Square minimap border options (size/color)
+	if addon.db["enableSquareMinimap"] and addon.db["enableSquareMinimapBorder"] then
+		table.insert(data, {
+			parent = "",
+			var = "squareMinimapBorderSize",
+			type = "Slider",
+			text = L["squareMinimapBorderSize"],
+			value = addon.db["squareMinimapBorderSize"],
+			min = 1,
+			max = 8,
+			step = 1,
+			displayOrder = 1001,
+			callback = function(_, _, val)
+				addon.db["squareMinimapBorderSize"] = val
+				if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+			end,
+		})
+		table.insert(data, {
+			parent = "",
+			var = "squareMinimapBorderColor",
+			type = "ColorPicker",
+			text = L["squareMinimapBorderColor"],
+			value = addon.db["squareMinimapBorderColor"],
+			displayOrder = 1002,
+			callback = function(r, g, b)
+				addon.db["squareMinimapBorderColor"] = { r = r, g = g, b = b }
+				if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+			end,
+		})
+	end
 
 	if addon.db["enableMinimapButtonBin"] then
 		table.insert(data, {
@@ -4857,6 +4908,9 @@ local function initUI()
 	addon.functions.InitDBValue("minimapSinkHoleData", {})
 	addon.functions.InitDBValue("hideQuickJoinToast", false)
 	addon.functions.InitDBValue("enableSquareMinimap", false)
+	addon.functions.InitDBValue("enableSquareMinimapBorder", false)
+	addon.functions.InitDBValue("squareMinimapBorderSize", 1)
+	addon.functions.InitDBValue("squareMinimapBorderColor", { r = 0, g = 0, b = 0 })
 	addon.functions.InitDBValue("hiddenMinimapElements", addon.db["hiddenMinimapElements"] or {})
 	addon.functions.InitDBValue("persistAuctionHouseFilter", false)
 	addon.functions.InitDBValue("alwaysUserCurExpAuctionHouse", false)
@@ -4938,7 +4992,68 @@ local function initUI()
 		Minimap:SetMaskTexture("Interface\\BUTTONS\\WHITE8X8")
 		function GetMinimapShape() return "SQUARE" end
 	end
-	if addon.db["enableSquareMinimap"] then makeSquareMinimap() end
+    if addon.db["enableSquareMinimap"] then makeSquareMinimap() end
+    
+    -- Border for square minimap
+    function addon.functions.applySquareMinimapBorder()
+        if not Minimap then return end
+        local enableBorder = addon.db and addon.db["enableSquareMinimapBorder"]
+        local isSquare = addon.db and addon.db["enableSquareMinimap"]
+
+        -- Ensure holder frame exists (above minimap texture, below buttons)
+        if not addon.general.squareMinimapBorderFrame then
+            local f = CreateFrame("Frame", nil, Minimap)
+            f:SetFrameStrata("LOW") -- below MEDIUM buttons, above BACKGROUND
+            f:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 2)
+            f:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 0, 0)
+            f:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 0, 0)
+
+            -- Create 4 edge textures
+            f.tTop = f:CreateTexture(nil, "ARTWORK")
+            f.tBottom = f:CreateTexture(nil, "ARTWORK")
+            f.tLeft = f:CreateTexture(nil, "ARTWORK")
+            f.tRight = f:CreateTexture(nil, "ARTWORK")
+            addon.general.squareMinimapBorderFrame = f
+        end
+
+        local f = addon.general.squareMinimapBorderFrame
+        local size = (addon.db and addon.db.squareMinimapBorderSize) or 1
+        local col = (addon.db and addon.db.squareMinimapBorderColor) or { r = 0, g = 0, b = 0 }
+
+        local r, g, b = col.r or 0, col.g or 0, col.b or 0
+
+        -- Top
+        f.tTop:ClearAllPoints()
+        f.tTop:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+        f.tTop:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+        f.tTop:SetHeight(size)
+        f.tTop:SetColorTexture(r, g, b, 1)
+        -- Bottom
+        f.tBottom:ClearAllPoints()
+        f.tBottom:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+        f.tBottom:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+        f.tBottom:SetHeight(size)
+        f.tBottom:SetColorTexture(r, g, b, 1)
+        -- Left
+        f.tLeft:ClearAllPoints()
+        f.tLeft:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+        f.tLeft:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+        f.tLeft:SetWidth(size)
+        f.tLeft:SetColorTexture(r, g, b, 1)
+        -- Right
+        f.tRight:ClearAllPoints()
+        f.tRight:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+        f.tRight:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+        f.tRight:SetWidth(size)
+        f.tRight:SetColorTexture(r, g, b, 1)
+
+        if enableBorder and isSquare then f:Show() else f:Hide() end
+    end
+    
+    -- Apply border at startup
+    C_Timer.After(0, function()
+        if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+    end)
 
 	function addon.functions.toggleMinimapButton(value)
 		if value == false then

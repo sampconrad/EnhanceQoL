@@ -286,6 +286,10 @@ L["enableLootspecQuickswitchDesc"] = "Left-click a specialization to set your lo
 
 L["enableSquareMinimap"] = "Use a square minimap instead of the normal round"
 L["enableSquareMinimapDesc"] = "This option required a reload"
+L["enableSquareMinimapBorder"] = "Add a thin border around the square minimap"
+L["enableSquareMinimapBorderDesc"] = "Adds a subtle border when the square minimap is enabled"
+L["squareMinimapBorderSize"] = "Square minimap border size"
+L["squareMinimapBorderColor"] = "Square minimap border color"
 L["showInstanceDifficulty"] = "Show instance difficulty"
 L["showInstanceDifficultyDesc"] = "Replace the default icon with a short text label (NM, HC, M, M+, LFR) showing the current instance difficulty."
 L["enableLandingPageMenu"] = "Enable Landing Page context menu"

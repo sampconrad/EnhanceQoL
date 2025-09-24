@@ -25,6 +25,7 @@
 - **Castbars:** Option to hide Player, Target and Focus-castbar
 
 - **Minimap hiding:** Option to hide some icons on the minimap
+- **Minimap border:** Option to add a border around the minimap (only in square mode)
 
 ### 🔄 Changed
 
