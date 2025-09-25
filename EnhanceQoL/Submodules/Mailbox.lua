@@ -251,58 +251,54 @@ local function BuildFiltered()
 		wipe(Mailbox.filtered)
 		return
 	end
-  wipe(Mailbox.filtered)
-  -- determine own character to hide from list (normalize realms by removing spaces)
-  local function lowerNoSpaces(s) return (s or ""):lower():gsub("%s", "") end
-  local meName, meRealm = UnitFullName("player")
-  meRealm = meRealm or (GetRealmName() or "")
-  local myKeyLower = meName and string.format("%s-%s", meName, meRealm):lower() or nil
-  local myKeyLowerNS = meName and string.format("%s-%s", meName, meRealm) or nil
-  myKeyLowerNS = lowerNoSpaces(myKeyLowerNS)
-  local needle = (Mailbox.searchText or ""):lower()
-  for key, rec in pairs(addon.db.mailboxContacts) do
-    -- skip own character (compare raw-lower and also lower-without-spaces for realm)
-    local skip = false
-    if myKeyLower and key and key:lower() == myKeyLower then
-      skip = true
-    else
-      local keyNS = lowerNoSpaces(key)
-      if myKeyLowerNS and keyNS == myKeyLowerNS then
-        skip = true
-      elseif meName and rec then
-        local rn = rec.name and rec.name:lower()
-        local rr = lowerNoSpaces(rec.realm)
-        if rn and rn == meName:lower() and rr == lowerNoSpaces(meRealm) then
-          skip = true
-        end
-      end
-    end
-    if skip then
-      -- continue
-    else
-      local name = rec.name or key
-      local realm = rec.realm or ""
-      local class = rec.class or ""
-      local r, g, b = getClassColor(class)
-      local displayName = string.format("|cff%02x%02x%02x%s|r", r * 255, g * 255, b * 255, name)
+	wipe(Mailbox.filtered)
+	-- determine own character to hide from list (normalize realms by removing spaces)
+	local function lowerNoSpaces(s) return (s or ""):lower():gsub("%s", "") end
+	local meName, meRealm = UnitFullName("player")
+	meRealm = meRealm or (GetRealmName() or "")
+	local myKeyLower = meName and string.format("%s-%s", meName, meRealm):lower() or nil
+	local myKeyLowerNS = meName and string.format("%s-%s", meName, meRealm) or nil
+	myKeyLowerNS = lowerNoSpaces(myKeyLowerNS)
+	local needle = (Mailbox.searchText or ""):lower()
+	for key, rec in pairs(addon.db.mailboxContacts) do
+		-- skip own character (compare raw-lower and also lower-without-spaces for realm)
+		local skip = false
+		if myKeyLower and key and key:lower() == myKeyLower then
+			skip = true
+		else
+			local keyNS = lowerNoSpaces(key)
+			if myKeyLowerNS and keyNS == myKeyLowerNS then
+				skip = true
+			elseif meName and rec then
+				local rn = rec.name and rec.name:lower()
+				local rr = lowerNoSpaces(rec.realm)
+				if rn and rn == meName:lower() and rr == lowerNoSpaces(meRealm) then skip = true end
+			end
+		end
+		if skip then
+		-- continue
+		else
+			local name = rec.name or key
+			local realm = rec.realm or ""
+			local class = rec.class or ""
+			local r, g, b = getClassColor(class)
+			local displayName = string.format("|cff%02x%02x%02x%s|r", r * 255, g * 255, b * 255, name)
 
-      local match
-      if needle == "" then
-        match = true
-      else
-        if string.find(name:lower(), needle, 1, true) then match = true end
-        if not match and realm ~= "" and string.find(realm:lower(), needle, 1, true) then match = true end
-      end
-      if match then
-        table.insert(Mailbox.filtered, {
-          key = key,
-          name = name,
-          nameColored = displayName,
-          realm = realm,
-        })
-      end
-    end
-  end
+			local match
+			if needle == "" then
+				match = true
+			else
+				if string.find(name:lower(), needle, 1, true) then match = true end
+				if not match and realm ~= "" and string.find(realm:lower(), needle, 1, true) then match = true end
+			end
+			if match then table.insert(Mailbox.filtered, {
+				key = key,
+				name = name,
+				nameColored = displayName,
+				realm = realm,
+			}) end
+		end
+	end
 
 	table.sort(Mailbox.filtered, function(a, b)
 		local sk = Mailbox.sortKey
@@ -400,28 +396,28 @@ function EQOLMailboxFrame_OnLoad(frame)
 		c = c + 1
 	end
 
-  function Mailbox:EnsureRows()
-    if not self.scrollFrame then return end
-    local have = (self.rows and #self.rows) or 0
-    local height = self.scrollFrame:GetHeight() or 0
-    -- If we only have 0/1 buttons but the frame is tall, rebuild buttons after the frame is visible
-    if have <= 1 and height > (ROW_HEIGHT * 4) then
-      -- Force re-create by clearing the cached buttons table
-      self.scrollFrame.buttons = nil
-    elseif have > 1 then
-      return
-    end
+	function Mailbox:EnsureRows()
+		if not self.scrollFrame then return end
+		local have = (self.rows and #self.rows) or 0
+		local height = self.scrollFrame:GetHeight() or 0
+		-- If we only have 0/1 buttons but the frame is tall, rebuild buttons after the frame is visible
+		if have <= 1 and height > (ROW_HEIGHT * 4) then
+			-- Force re-create by clearing the cached buttons table
+			self.scrollFrame.buttons = nil
+		elseif have > 1 then
+			return
+		end
 
-    HybridScrollFrame_CreateButtons(self.scrollFrame, "EQOLMailboxRowTemplate", 5, -6)
-    self.rows = self.scrollFrame.buttons or {}
-    self.scrollFrame.rows = self.rows
-    for _, row in ipairs(self.rows) do
-      Mixin(row, RowMixin)
-      row:OnAcquired()
-    end
-    self.scrollFrame.update = function() self:UpdateRows() end
-  end
-  Mailbox:EnsureRows()
+		HybridScrollFrame_CreateButtons(self.scrollFrame, "EQOLMailboxRowTemplate", 5, -6)
+		self.rows = self.scrollFrame.buttons or {}
+		self.scrollFrame.rows = self.rows
+		for _, row in ipairs(self.rows) do
+			Mixin(row, RowMixin)
+			row:OnAcquired()
+		end
+		self.scrollFrame.update = function() self:UpdateRows() end
+	end
+	Mailbox:EnsureRows()
 
 	-- Search box handler
 	if Mailbox.searchBox then Mailbox.searchBox:SetScript("OnTextChanged", function(self)
@@ -443,10 +439,10 @@ end
 
 -- Called from XML OnShow to finalize rows after the frame has a real height
 function EQOLMailboxFrame_OnShow(frame)
-  if not addon or not addon.Mailbox then return end
-  local mb = addon.Mailbox
-  mb:EnsureRows()
-  mb:RefreshList(true)
+	if not addon or not addon.Mailbox then return end
+	local mb = addon.Mailbox
+	mb:EnsureRows()
+	mb:RefreshList(true)
 end
 
 -- Register a local login listener to add the player if enabled

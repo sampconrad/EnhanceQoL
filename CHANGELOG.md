@@ -2,45 +2,40 @@
 
 ## [5.0.0] – 2025-09-30
 
+### 🧭 Major change — Teleport Compendium (redesign)
+
+- **Legacy window removed:** The old standalone Teleport Compendium UI has been **fully retired**.
+- **Now built into the World Map:** Open the World Map (`M`) and click the **Teleport** icon in the right dock to open the new panel.
+- **Native look & feel:** Uses Blizzard’s layout, scrolling and categories (Favorites, Home, expansions) for a seamless experience.
+- **Cleaner & faster:** Fewer custom frames, lower taint risk, and better compatibility with other UI mods/skins.
+
 ### ✨ Added
 
-- **Teleport Compendium:** Added 30 missing spells/items
-
-- **Merchant Frame:** Option to expand the merchant frame (20 items per page)
-
-- **Tooltip (Mythic+):** Option to choose which score details to show on units  
-  _(overall score, best dungeon, season overview)_
-
-- **Teleport Compendium UI:** Modern world-map integration with a native-feeling UI  
-  _(seamless; looks and behaves like a Blizzard panel)_
-
-- **Item upgrade arrows:** Option to show a small arrow on bag items that are upgrades over your equipped gear
-
-  - On flyouts, the comparison uses the **actual items** in your inventory (e.g., evaluates both trinket slots), not just the equipped slot
-
-- **Health Macro:** Option to use **combat potions** in combat
-- **Health Macro:** Custom priority order to allow either _custom spells_, _potions_, _healthstones_ or _combat potions_ to be used
-
-- **Mailbox Address book:** Option to add an address book to the send mail frame which consists of your alt chars
-
-- **GameMenu size:** Option to scale the Game Menu
-
-- **Castbars:** Option to hide Player, Target and Focus-castbar
-
-- **Minimap hiding:** Option to hide some icons on the minimap
-- **Minimap border:** Option to add a border around the minimap (only in square mode)
-
-- **Bossframe Health:** Choose to show Health current, percent or both all the time
-  - Only works when you don't use the CVar for statusText = 1 (not always show the numbers on all Unit Frames)
+- **Teleport Compendium (data):** Added **30** missing teleport spells/items.
+- **Mythic+ Tooltips:** Choose which score details to show on unit tooltips (overall score, best dungeon, season overview).
+- **Upgrade Indicators:** Optional arrow overlay on bag items that are upgrades vs. your equipped gear.  
+  ▸ On flyouts the comparison evaluates the **actual items** in your bags (e.g., both trinket slots), not only the equipped slot.
+- **Merchant Frame:** Option to expand the merchant page to **20 items** per page.
+- **Mailbox Address Book:** Address book on the Send Mail UI populated with your alts.
+- **Castbars:** Option to hide **Player**, **Target**, and **Focus** castbars.
+- **Minimap Options:**  
+  ▸ Hide selected minimap icons.  
+  ▸ Optional border in **square** minimap mode.
+- **Game Menu:** Scaling option for the Game Menu.
+- **Health Macro:**  
+  ▸ Option to use **combat potions/custom spells** in combat.  
+  ▸ Customizable priority: **custom spells**, **potions**, **healthstones**, **combat potions**.
+- **Boss Frame Health Text:** Always show **percent**, **value**, or **both** on boss frames **independent** of the global CVar.  
+  ▸ Especially useful if you keep `statusText = 0`. If you set `statusText = 1` (Blizzard “always show”), this is usually redundant.
 
 ### 🔄 Changed
 
-- **Declutter:** Removed some old and obsolete options, changed the position and category of some options and made it more "übersichtlich?"
+- **Settings Cleanup:** Removed obsolete options, regrouped categories, and streamlined labels for a clearer configuration.
 
 ### 🐛 Fixed
 
-- **Health Macro:** _Invigorating Healing Potion_ used the wrong healing amount
-- **Missing localizations:** Some dialogs had missing localized strings
+- **Health Macro:** _Invigorating Healing Potion_ used the wrong healing amount — corrected.
+- **Localization:** Fixed several dialogs with missing localized strings.
 
 ---
 

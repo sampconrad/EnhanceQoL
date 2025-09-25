@@ -485,6 +485,10 @@ local function CreateLegendRowButton(parent, entry, width, height)
 			b.Icon:SetDesaturated(true)
 			b.Icon:SetAlpha(0.5)
 		end
+		-- Make label clearly appear unavailable
+		if b.Label and b.Label.SetTextColor then
+			b.Label:SetTextColor(0.6, 0.6, 0.6)
+		end
 		-- Allow mouse for tooltip/right-click favorite, but prevent left-click actions
 		b:EnableMouse(true)
 		b:SetAttribute("type1", nil)
@@ -494,6 +498,10 @@ local function CreateLegendRowButton(parent, entry, width, height)
 		if b.Icon then
 			b.Icon:SetDesaturated(false)
 			b.Icon:SetAlpha(1)
+		end
+		-- Restore normal label color for known/owned teleports (gold-like)
+		if b.Label and b.Label.SetTextColor then
+			b.Label:SetTextColor(1.0, 0.82, 0.0)
 		end
 		b:EnableMouse(true)
 	end
