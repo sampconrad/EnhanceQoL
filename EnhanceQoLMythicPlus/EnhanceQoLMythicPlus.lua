@@ -1281,10 +1281,10 @@ function addon.MythicPlus.functions.refreshTalentFrameIfOpen()
 	if not activeTalentContainer then return end
     local sel = addon.variables.statusTable.selected or ""
     local pos = sel:find("mythicplus\001talents", 1, true)
-    if pos == 1 or sel:find("general\001mythicplus\001talents", 1, true) or sel:find("general\001combat\001dungeon\001talents", 1, true) then
-		activeTalentContainer:ReleaseChildren()
-		addTalentFrame(activeTalentContainer)
-	end
+    if pos == 1 or sel:find("general\001mythicplus\001talents", 1, true) or sel:find("general\001combat\001talents", 1, true) then
+        activeTalentContainer:ReleaseChildren()
+        addTalentFrame(activeTalentContainer)
+    end
 end
 
 -- Register Mythic+ panels under General -> Combat & Dungeons -> Dungeon
@@ -1301,7 +1301,7 @@ local mpChildren = {
 }
 
 for _, child in ipairs(mpChildren) do
-    addon.functions.addToTree("general\001combat\001dungeon", child, true)
+    addon.functions.addToTree("general\001combat", child, true)
 end
 
 -- Place Group Filter under Party
@@ -1322,16 +1322,20 @@ function addon.MythicPlus.functions.treeCallback(container, group)
     if pos then
         group = group:sub(pos)
     else
+        -- Map legacy "dungeon" paths or flattened "combat" paths to mythicplus namespace
+        local ppos = group:find("party\001groupfilter", 1, true)
+        if ppos then group = "mythicplus\001groupfilter" end
+        local ppos2 = group:find("party\001potiontracker", 1, true)
+        if ppos2 then group = "mythicplus\001potiontracker" end
+        local npos = group:find("nav\001teleports", 1, true)
+        if npos then group = "mythicplus\001teleports" end
+
         local dpos = group:find("dungeon\001", 1, true)
         if dpos then
             group = "mythicplus\001" .. group:sub(dpos + #("dungeon\001"))
         else
-            local ppos = group:find("party\001groupfilter", 1, true)
-            if ppos then group = "mythicplus\001groupfilter" end
-            local ppos2 = group:find("party\001potiontracker", 1, true)
-            if ppos2 then group = "mythicplus\001potiontracker" end
-            local npos = group:find("nav\001teleports", 1, true)
-            if npos then group = "mythicplus\001teleports" end
+            local cpos = group:find("combat\001", 1, true)
+            if cpos then group = "mythicplus\001" .. group:sub(cpos + #("combat\001")) end
         end
     end
 

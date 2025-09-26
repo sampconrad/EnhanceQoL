@@ -6171,7 +6171,6 @@ local function CreateUI()
 				text = L["CombatDungeons"],
 				children = {
 					{ value = "party", text = PARTY },
-					{ value = "dungeon", text = L["Dungeon"] },
 				},
 			},
 			-- Map & Navigation
@@ -6261,13 +6260,14 @@ local function CreateUI()
 			addMoneyFrame(container)
 		-- Combat & Dungeons
 		elseif group == "general\001combat" then
-			addCategoryIntro(container, "CombatDungeons", "CombatDungeonsIntro")
+			addDungeonFrame(container, true)
 		elseif group == "general\001combat\001party" then
 			addPartyFrame(container)
-		elseif group == "general\001combat\001dungeon" then
-			addDungeonFrame(container, true)
-		elseif string.sub(group, 1, string.len("general\001combat\001dungeon\001")) == "general\001combat\001dungeon\001" then
-			-- Forward dungeon subpages (e.g., keystone, automark) to Mythic+ UI
+		-- Forward former Dungeon (Mythic+) subpages directly under Combat
+		elseif
+			string.sub(group, 1, string.len("general\001combat\001")) == "general\001combat\001"
+			and string.sub(group, 1, string.len("general\001combat\001party")) ~= "general\001combat\001party"
+		then
 			addon.MythicPlus.functions.treeCallback(container, group)
 		elseif group == "general\001combat\001party\001groupfilter" then
 			addon.MythicPlus.functions.treeCallback(container, group)
