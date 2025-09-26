@@ -147,6 +147,8 @@ addon.functions.InitDBValue("teleportNameCache", {})
 addon.functions.InitDBValue("teleportFavorites", {})
 -- Enable/disable World Map Teleport Panel independently
 addon.functions.InitDBValue("teleportsWorldMapEnabled", true)
+-- Also show the classic current season list in the World Map panel
+addon.functions.InitDBValue("teleportsWorldMapShowSeason", true)
 -- Favorites override is now always active in code
 addon.functions.InitDBValue("teleportFrameLocked", true)
 addon.functions.InitDBValue("teleportFrameData", {})

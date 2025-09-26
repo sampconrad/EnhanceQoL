@@ -769,6 +769,15 @@ local function addTeleportFrame(container)
 	end, L["teleportsWorldMapEnabledDesc"])
 	groupCore:AddChild(cbWorldMapEnabled)
 
+	-- Show the classic season list inside the World Map panel
+	local cbWorldMapSeason = addon.functions.createCheckboxAce(L["teleportsWorldMapShowSeason"], addon.db["teleportsWorldMapShowSeason"], function(self, _, value)
+		addon.db["teleportsWorldMapShowSeason"] = value
+		if addon.MythicPlus.functions.RefreshWorldMapTeleportPanel then addon.MythicPlus.functions.RefreshWorldMapTeleportPanel() end
+		container:ReleaseChildren()
+		addTeleportFrame(container)
+	end, L["teleportsWorldMapShowSeasonDesc"])
+	groupCore:AddChild(cbWorldMapSeason)
+
 	-- Show a short usage hint when the World Map panel is enabled
 	if addon.db["teleportsWorldMapEnabled"] then
 		local hint = addon.functions.createLabelAce(

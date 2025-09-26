@@ -54,6 +54,12 @@ local function BuildSpellEntries()
     return addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 end
 
+local function BuildSeasonSection()
+    if not addon or not addon.MythicPlus or not addon.MythicPlus.functions then return nil end
+    if not addon.MythicPlus.functions.BuildCurrentSeasonTeleportSection then return nil end
+    return addon.MythicPlus.functions.BuildCurrentSeasonTeleportSection()
+end
+
 -- Open World Map to a mapID and create a user waypoint pin at x,y (0..1)
 local function OpenMapAndCreatePin(mapID, x, y)
     if not mapID or not x or not y then return end
@@ -522,18 +528,43 @@ local function PopulatePanel()
 	if not panel then return end
 	ClearContent()
 
-	-- keep references for lightweight cooldown refresh
-	panel._allButtons = {}
+    -- keep references for lightweight cooldown refresh
+    panel._allButtons = {}
 
-	local sections = BuildSpellEntries()
-	if not sections or #sections == 0 then
-		local msg = (L["teleportCompendiumHeadline"] or "Teleports") .. ": None available"
-		local label = scrollBox:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-		label:SetPoint("TOPLEFT", 10, -10)
-		label:SetText(msg)
-		scrollBox:SetHeight(40)
-		return
-	end
+    -- Combine sections with preferred order: Favorites, HOME, Season, then others
+    local combined = {}
+    local comp = BuildSpellEntries() or {}
+    local favoritesSec, homeSec
+    local others = {}
+    for _, sec in ipairs(comp) do
+        local t = sec and sec.title
+        if t == FAVORITES then
+            favoritesSec = sec
+        elseif t == HOME then
+            homeSec = sec
+        else
+            table.insert(others, sec)
+        end
+    end
+
+    if favoritesSec then table.insert(combined, favoritesSec) end
+    if homeSec then table.insert(combined, homeSec) end
+
+    if addon.db and addon.db["teleportsWorldMapShowSeason"] then
+        local seasonSec = BuildSeasonSection()
+        if seasonSec and seasonSec.items and #seasonSec.items > 0 then table.insert(combined, seasonSec) end
+    end
+
+    for _, sec in ipairs(others) do table.insert(combined, sec) end
+
+    if not combined or #combined == 0 then
+        local msg = (L["teleportCompendiumHeadline"] or "Teleports") .. ": None available"
+        local label = scrollBox:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+        label:SetPoint("TOPLEFT", 10, -10)
+        label:SetText(msg)
+        scrollBox:SetHeight(40)
+        return
+    end
 
 	-- Layout metrics similar to MapLegendScrollFrame
 	local leftPadding = 12
@@ -550,7 +581,7 @@ local function PopulatePanel()
 	local colWidth = math.floor((usableWidth - 0) / stride) -- no horizontal spacing requested
 
 	local yOffset = -topPadding
-	for _, section in ipairs(sections) do
+    for _, section in ipairs(combined) do
 		-- category container
 		local category = CreateFrame("Frame", nil, scrollBox)
 		category:SetPoint("TOPLEFT", leftPadding, yOffset)
