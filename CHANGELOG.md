@@ -9,10 +9,22 @@
 - **Native look & feel:** Uses Blizzard’s layout, scrolling and categories (Favorites, Home, expansions) for a seamless experience.
 - **Cleaner & faster:** Fewer custom frames, lower taint risk, and better compatibility with other UI mods/skins.
 
-### 🧭 Major change — Options cleanup
+### 🧭 Major change — Options overhaul (read me)
 
-- **Removed Mythic+** and implemented it into the basic **General** panel
-- **Completely restructur:** Removed obsolete options, regrouped categories, and streamlined labels for a clearer configuration.
+- New navigation with clear top‑level groups. The whole options UI is reorganized for faster discovery and less scrolling:
+  - Combat & Dungeons — hosts all combat modules: Aura Tracker, Cast Tracker, Resource Bars, Cooldown Notify, Drink Macro, Combat Meter, and Mythic+.
+  - Items & Inventory — split into Loot, Gear & Upgrades, and Vendors & Economy (auto‑sell, Craft Shopper, mailbox address book, etc.).
+  - Map & Navigation — quest helpers and the Teleport Compendium panel hook‑ins.
+  - UI & Input — action bars, chat, unit frames, data panel, social, and system toggles.
+  - Media & Sound — central place for SharedMedia and sound muting (if those modules are enabled).
+  - Profiles — Ace3 profile management.
+- Consolidated/renamed pages. Many options moved to more obvious homes and labels got simplified. Obsolete or duplicate toggles were removed.
+- Mythic+ options are no longer a separate root; they live under Combat & Dungeons and add their Teleports tab under Map & Navigation.
+
+Heads‑up (migration notes)
+- Saved profiles are preserved. Because names/locations changed, a few options may show as “new” or appear reset — re‑enable them once in the new location.
+- Minimap button and AddOn Compartment open the new options window; Teleport Compendium is now on the World Map dock (click the Teleport icon).
+- If a setting seems missing, look under the new parent group listed above; nothing critical was removed beyond duplicates/legacy.
 
 ### ✨ Added
 

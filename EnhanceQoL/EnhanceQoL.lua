@@ -1,4 +1,5 @@
 -- luacheck: globals DefaultCompactUnitFrameSetup CompactUnitFrame_UpdateAuras CompactUnitFrame_UpdateName UnitTokenFromGUID C_Bank
+-- luacheck: globals HUD_EDIT_MODE_MINIMAP_LABEL
 -- luacheck: globals Menu GameTooltip_SetTitle GameTooltip_AddNormalLine EnhanceQoL
 -- luacheck: globals GenericTraitUI_LoadUI GenericTraitFrame
 -- luacheck: globals CancelDuel DeclineGroup C_PetBattles
@@ -1178,7 +1179,7 @@ local function addChatFrame(container)
 	local groupFade = addon.functions.createContainer("InlineGroup", "List")
 	wrapper:AddChild(groupFade)
 
-	local data = {
+	local fadeData = {
 		{
 			var = "chatFrameFadeEnabled",
 			text = L["chatFrameFadeEnabled"],
@@ -1192,9 +1193,9 @@ local function addChatFrame(container)
 		},
 	}
 
-	table.sort(data, function(a, b) return a.text < b.text end)
+	table.sort(fadeData, function(a, b) return a.text < b.text end)
 
-	for _, cbData in ipairs(data) do
+	for _, cbData in ipairs(fadeData) do
 		local desc
 		if cbData.desc then desc = cbData.desc end
 		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], cbData.func, desc)
