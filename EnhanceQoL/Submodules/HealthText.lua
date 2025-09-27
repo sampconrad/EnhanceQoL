@@ -40,17 +40,24 @@ local function abbr(n)
     end
 end
 
+local function formatPct(pct)
+    -- Round to 2 decimals, then trim trailing zeros and optional decimal point
+    local s = string.format("%.2f", pct)
+    s = s:gsub("%.?0+$", "")
+    return s .. "%"
+end
+
 local function fmt(mode, cur, max)
     cur = cur or 0
     if mode == "ABS" then
         return abbr(cur)
     end
     local pct = 0
-    if (max or 0) > 0 then pct = math.floor((cur / max) * 100 + 0.5) end
+    if (max or 0) > 0 then pct = (cur / max) * 100 end
     if mode == "PERCENT" then
-        return string.format("%d%%", pct)
+        return formatPct(pct)
     elseif mode == "BOTH" then
-        return string.format("%d%% (%s)", pct, abbr(cur))
+        return string.format("%s (%s)", formatPct(pct), abbr(cur))
     else
         return ""
     end
