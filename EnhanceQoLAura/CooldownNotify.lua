@@ -637,13 +637,18 @@ local function buildCategoryOptions(container, catId)
 	spellEdit:SetRelativeWidth(0.6)
 	group:AddChild(spellEdit)
 
+	-- Action buttons in a 2-column flow (50% width each)
+	local actionsRow = addon.functions.createContainer("SimpleGroup", "Flow")
+	group:AddChild(actionsRow)
+
 	local trinket13Btn = addon.functions.createButtonAce(L["TrackTrinketSlot"]:format(13), 150, function()
 		CN.functions.addTrinketCooldown(catId, 13)
 		refreshTree(catId)
 		container:ReleaseChildren()
 		buildCategoryOptions(container, catId)
 	end)
-	group:AddChild(trinket13Btn)
+	trinket13Btn:SetRelativeWidth(0.5)
+	actionsRow:AddChild(trinket13Btn)
 
 	local trinket14Btn = addon.functions.createButtonAce(L["TrackTrinketSlot"]:format(14), 150, function()
 		CN.functions.addTrinketCooldown(catId, 14)
@@ -651,7 +656,8 @@ local function buildCategoryOptions(container, catId)
 		container:ReleaseChildren()
 		buildCategoryOptions(container, catId)
 	end)
-	group:AddChild(trinket14Btn)
+	trinket14Btn:SetRelativeWidth(0.5)
+	actionsRow:AddChild(trinket14Btn)
 
 	local exportBtn = addon.functions.createButtonAce(L["ExportCategory"], 150, function()
 		local data = exportCategory(catId)
@@ -676,10 +682,12 @@ local function buildCategoryOptions(container, catId)
 		end
 		StaticPopup_Show("EQOL_EXPORT_CATEGORY")
 	end)
-	group:AddChild(exportBtn)
+	exportBtn:SetRelativeWidth(0.5)
+	actionsRow:AddChild(exportBtn)
 
 	local shareBtn = addon.functions.createButtonAce(L["ShareCategory"] or "Share Category", 150, function() ShareCategory(catId) end)
-	group:AddChild(shareBtn)
+	shareBtn:SetRelativeWidth(0.5)
+	actionsRow:AddChild(shareBtn)
 
 	local testBtn = addon.functions.createButtonAce(L["Test"] or "Test", 150, function()
 		ensureAnchor(catId)
@@ -714,8 +722,9 @@ local function buildCategoryOptions(container, catId)
 			DCP:SetScript("OnUpdate", OnUpdate)
 			DCP:Show()
 		end
-	end)
-	group:AddChild(testBtn)
+		end)
+	testBtn:SetRelativeWidth(0.5)
+	actionsRow:AddChild(testBtn)
 
 	local delBtn = addon.functions.createButtonAce(L["DeleteCategory"], 150, function()
 		local catName = addon.db.cooldownNotifyCategories[catId].name or ""
@@ -749,7 +758,8 @@ local function buildCategoryOptions(container, catId)
 		end
 		StaticPopup_Show("EQOL_DELETE_CDN_CATEGORY", catName)
 	end)
-	group:AddChild(delBtn)
+	delBtn:SetRelativeWidth(0.5)
+	actionsRow:AddChild(delBtn)
 	container:DoLayout()
 end
 

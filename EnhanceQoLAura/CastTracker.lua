@@ -630,8 +630,8 @@ local function buildCategoryOptions(scroll, catId)
 	local nameEdit = addon.functions.createEditboxAce(L["CategoryName"], db.name, function(self, _, text)
 		if text ~= "" then db.name = text end
 		refreshTree(catId)
-		container:ReleaseChildren()
-		buildCategoryOptions(container, catId)
+		scroll:ReleaseChildren()
+		buildCategoryOptions(scroll, catId)
 	end)
 	container:AddChild(nameEdit)
 
@@ -768,13 +768,17 @@ local function buildCategoryOptions(scroll, catId)
 			self:SetText("")
 			rebuildAltMapping()
 			refreshTree(catId)
-			container:ReleaseChildren()
-			buildCategoryOptions(container, catId)
+			scroll:ReleaseChildren()
+			buildCategoryOptions(scroll, catId)
 		end
 	end)
 	groupSpells:AddChild(addEdit)
 
 	container:AddChild(addon.functions.createSpacerAce())
+
+	-- Action buttons in a 2-column flow (50% width each)
+	local actionsRow = addon.functions.createContainer("SimpleGroup", "Flow")
+	container:AddChild(actionsRow)
 
 	local exportBtn = addon.functions.createButtonAce(L["ExportCategory"], 150, function()
 		local data = exportCategory(catId)
@@ -799,10 +803,12 @@ local function buildCategoryOptions(scroll, catId)
 		end
 		StaticPopup_Show("EQOL_EXPORT_CATEGORY")
 	end)
-	container:AddChild(exportBtn)
+	exportBtn:SetRelativeWidth(0.5)
+	actionsRow:AddChild(exportBtn)
 
 	local shareBtn = addon.functions.createButtonAce(L["ShareCategory"] or "Share Category", 150, function() ShareCategory(catId) end)
-	container:AddChild(shareBtn)
+	shareBtn:SetRelativeWidth(0.5)
+	actionsRow:AddChild(shareBtn)
 
 	local importBtn = addon.functions.createButtonAce(L["ImportCategory"], 150, function()
 		StaticPopupDialogs["EQOL_IMPORT_CATEGORY_BTN"] = StaticPopupDialogs["EQOL_IMPORT_CATEGORY_BTN"]
@@ -845,7 +851,8 @@ local function buildCategoryOptions(scroll, catId)
 		end
 		StaticPopup_Show("EQOL_IMPORT_CATEGORY_BTN")
 	end)
-	container:AddChild(importBtn)
+	importBtn:SetRelativeWidth(0.5)
+	actionsRow:AddChild(importBtn)
 
 	local delBtn = addon.functions.createButtonAce(L["DeleteCategory"], 150, function()
 		local catName = addon.db.castTrackerCategories[catId].name or ""
@@ -887,11 +894,12 @@ local function buildCategoryOptions(scroll, catId)
 			updateEventRegistration()
 			selectedCategory = next(addon.db.castTrackerCategories) or 1
 			refreshTree(selectedCategory)
-			container:ReleaseChildren()
+			scroll:ReleaseChildren()
 		end
 		StaticPopup_Show("EQOL_DELETE_CAST_CATEGORY", catName)
 	end)
-	container:AddChild(delBtn)
+	delBtn:SetRelativeWidth(0.5)
+	actionsRow:AddChild(delBtn)
 	scroll:DoLayout()
 end
 
