@@ -437,6 +437,8 @@ globals = {
 	"AuraUtil.ForEachAura",
 	"AutoChooseCurrentGraphicsSetting",
 	"AutoEquipCursorItem",
+	"PlayerFrame_UpdatePlayerRestLoop",
+	"PlayerFrame_UpdateStatus",
 	"AutoLootMailItem",
 	"AutoStoreGuildBankItem",
 	"BNAcceptFriendInvite",

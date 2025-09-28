@@ -1,5 +1,18 @@
 # Changelog
 
+## [5.1.0] – 2025-09-28
+
+### ✨ Added
+
+- Unit Frames: Checkbox to hide the resting animation and glow on the Player frame.
+
+### 🧹 Cleanup
+
+- Removed obsolete UI pages and unused tree callbacks (old Unitframe page, confirmations/mailbox stubs).
+- Dropped no-op Bank hook and other dead helpers to reduce noise and maintenance.
+
+---
+
 ## [5.0.0] – 2025-09-28
 
 ### 🧭 Major change — Teleport Compendium (redesign)
@@ -22,6 +35,7 @@
 - Mythic+ options are no longer a separate root; they live under Combat & Dungeons and add their Teleports tab under Map & Navigation.
 
 Heads‑up (migration notes)
+
 - Saved profiles are preserved. Because names/locations changed, a few options may show as “new” or appear reset — re‑enable them once in the new location.
 - Minimap button and AddOn Compartment open the new options window; Teleport Compendium is now on the World Map dock (click the Teleport icon).
 - If a setting seems missing, look under the new parent group listed above; nothing critical was removed beyond duplicates/legacy.
