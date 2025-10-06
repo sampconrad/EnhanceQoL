@@ -3771,9 +3771,9 @@ local function addSocialFrame(container)
 end
 
 local function buildDatapanelFrame(container)
-	local DataPanel = addon.DataPanel
-	local DataHub = addon.DataHub
-	local panels = DataPanel.List()
+    local DataPanel = addon.DataPanel
+    local DataHub = addon.DataHub
+    local panels = DataPanel.List()
 
 	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
 	container:AddChild(scroll)
@@ -3782,13 +3782,26 @@ local function buildDatapanelFrame(container)
 	scroll:AddChild(wrapper)
 
 	-- Panel management controls
-	local controlGroup = addon.functions.createContainer("InlineGroup", "Flow")
-	controlGroup:SetTitle("Panels")
-	wrapper:AddChild(controlGroup)
+    local controlGroup = addon.functions.createContainer("InlineGroup", "Flow")
+    controlGroup:SetTitle("Panels")
+    wrapper:AddChild(controlGroup)
 
-	local newName = addon.functions.createEditboxAce("Panel Name")
-	newName:SetRelativeWidth(0.4)
-	controlGroup:AddChild(newName)
+    -- Global option: require Shift to move panels
+    addon.db = addon.db or {}
+    addon.db.dataPanelsOptions = addon.db.dataPanelsOptions or {}
+    local shiftLock = addon.functions.createCheckboxAce(
+        L["Lock DataPanel position (hold Shift to move)"] or "Lock DataPanel position (hold Shift to move)",
+        addon.db.dataPanelsOptions.requireShiftToMove == true,
+        function(_, _, val)
+            addon.db.dataPanelsOptions.requireShiftToMove = val and true or false
+        end
+    )
+    shiftLock:SetRelativeWidth(1.0)
+    controlGroup:AddChild(shiftLock)
+
+    local newName = addon.functions.createEditboxAce("Panel Name")
+    newName:SetRelativeWidth(0.4)
+    controlGroup:AddChild(newName)
 
 	local addButton = addon.functions.createButtonAce("Add Panel", 120, function()
 		local id = newName:GetText()
@@ -3840,9 +3853,9 @@ local function buildDatapanelFrame(container)
 	for _, id in ipairs(panelOrder) do
 		local panel = DataPanel.Create(id, nil, true)
 		local info = panel.info
-		local groupPanel = addon.functions.createContainer("InlineGroup", "List")
-		groupPanel:SetTitle(id)
-		wrapper:AddChild(groupPanel)
+        local groupPanel = addon.functions.createContainer("InlineGroup", "List")
+        groupPanel:SetTitle(id)
+        wrapper:AddChild(groupPanel)
 
 		local widthSlider = addon.functions.createSliderAce("Width: " .. info.width, info.width, 50, 1000, 1, function(self, _, val)
 			panel.frame:SetWidth(val)
@@ -3854,7 +3867,18 @@ local function buildDatapanelFrame(container)
 			panel.frame:SetHeight(val)
 			self:SetLabel("Height: " .. val)
 		end)
-		groupPanel:AddChild(heightSlider)
+        groupPanel:AddChild(heightSlider)
+
+        -- Per-panel: hide border
+        local borderToggle = addon.functions.createCheckboxAce(
+            L["Hide border"] or "Hide border",
+            info.noBorder == true,
+            function(_, _, val)
+                info.noBorder = val and true or false
+                if panel.ApplyBorder then panel:ApplyBorder() end
+            end
+        )
+        groupPanel:AddChild(borderToggle)
 
 		local streams = panels[id] or {}
 		local currentLabel

@@ -10,6 +10,10 @@ L["Hide Minimap Button"] = "Hide Minimap Button"
 L["Left-Click to show options"] = "Left-Click to show options"
 L["Right-Click for options"] = "Right-click for options"
 
+-- DataPanel
+L["Lock DataPanel position (hold Shift to move)"] = "Lock DataPanel position (hold Shift to move)"
+L["Hide border"] = "Hide border"
+
 -- Category titles
 L["ItemsInventory"] = "Items & Inventory"
 L["ContainerActions"] = "Container Actions"

@@ -4,15 +4,17 @@
 
 ### ✨ Added
 
-- Items & Inventory → Bags: Option “Close bags when opening Auction House”.
+- DataPanels: Global “Lock position” option — hold Shift to move panels.
+- DataPanels: Per‑panel toggle to hide the panel border.
+- Items & Inventory → Bags: Option “Close bags when opening the Auction House”.
   - Disabled by default. Enable to automatically close all bags when the Auction House opens.
 
 ### 🐛 Fixed
 
-- Delve-O-Bot 7001 and Delver's Mana-Bound Ethergate were not working on all chars with the new Teleport World Map
-- Fixed a lua error with the chat frame when you quick-reply and post an achivement into the chat frame
-- Cooldown time in potiontracker for Draught of Silent Footfalls was wrong
-- Fontsize wasn't restored after reload on Datapanels
+- Teleports: Delve‑O‑Bot 7001 and Delver’s Mana‑Bound Ethergate now work with the new World Map panel on all characters.
+- Chat: Fixed an error when quick‑replying and linking an achievement.
+- Potion Tracker: Correct cooldown for Draught of Silent Footfalls.
+- DataPanels: Font size now persists after a reload.
 
 ---
 
