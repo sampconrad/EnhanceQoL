@@ -6,27 +6,34 @@ local L = addon.L
 
 local panels = {}
 
+local function requireShiftToMove()
+    local opts = addon.db and addon.db.dataPanelsOptions
+    return opts and opts.requireShiftToMove == true
+end
+
 local function ensureSettings(id, name)
-	id = tostring(id)
-	addon.db = addon.db or {}
-	addon.db.dataPanels = addon.db.dataPanels or {}
-	local info = addon.db.dataPanels[id] or addon.db.dataPanels[tonumber(id)]
-	if not info then
-		info = {
-			point = "CENTER",
-			x = 0,
-			y = 0,
-			width = 200,
-			height = 20,
-			streams = {},
-			streamSet = {},
-			name = name or ("Panel " .. id),
-		}
-	else
-		info.streams = info.streams or {}
-		info.streamSet = info.streamSet or {}
-		info.name = info.name or name or ("Panel " .. id)
-	end
+    id = tostring(id)
+    addon.db = addon.db or {}
+    addon.db.dataPanels = addon.db.dataPanels or {}
+    local info = addon.db.dataPanels[id] or addon.db.dataPanels[tonumber(id)]
+    if not info then
+        info = {
+            point = "CENTER",
+            x = 0,
+            y = 0,
+            width = 200,
+            height = 20,
+            streams = {},
+            streamSet = {},
+            name = name or ("Panel " .. id),
+            noBorder = false,
+        }
+    else
+        info.streams = info.streams or {}
+        info.streamSet = info.streamSet or {}
+        info.name = info.name or name or ("Panel " .. id)
+        if info.noBorder == nil then info.noBorder = false end
+    end
 
 	addon.db.dataPanels[id] = info
 	if addon.db.dataPanels[tonumber(id)] then addon.db.dataPanels[tonumber(id)] = nil end
@@ -73,21 +80,22 @@ function DataPanel.Create(id, name, existingOnly)
 	-- create a new database entry for unknown IDs.
 	if existingOnly and not addon.db.dataPanels[id] and not addon.db.dataPanels[tonumber(id)] then return nil end
 
-	local info = ensureSettings(id, name)
-	local frame = CreateFrame("Frame", addonName .. "DataPanel" .. id, UIParent, "BackdropTemplate")
-	frame:SetSize(info.width, info.height)
-	frame:SetPoint(info.point, info.x, info.y)
-	frame:SetMovable(true)
-	frame:SetResizable(true)
-	frame:EnableMouse(true)
-	frame:RegisterForDrag("LeftButton")
-	frame:SetScript("OnDragStart", function(f)
-		-- mark dragging and hide any open tooltip so it won't get in the way
-		local panelObj = panels[id]
-		if panelObj then panelObj.isDragging = true end
-		GameTooltip:Hide()
-		f:StartMoving()
-	end)
+    local info = ensureSettings(id, name)
+    local frame = CreateFrame("Frame", addonName .. "DataPanel" .. id, UIParent, "BackdropTemplate")
+    frame:SetSize(info.width, info.height)
+    frame:SetPoint(info.point, info.x, info.y)
+    frame:SetMovable(true)
+    frame:SetResizable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function(f)
+        if requireShiftToMove() and not IsShiftKeyDown() then return end
+        -- mark dragging and hide any open tooltip so it won't get in the way
+        local panelObj = panels[id]
+        if panelObj then panelObj.isDragging = true end
+        GameTooltip:Hide()
+        f:StartMoving()
+    end)
 	frame:SetScript("OnDragStop", function(f)
 		f:StopMovingOrSizing()
 		savePosition(f, id)
@@ -113,22 +121,41 @@ function DataPanel.Create(id, name, existingOnly)
 		end
 	end)
 
-	frame:SetBackdrop({
-		bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-		edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-		tile = true,
-		tileSize = 16,
-		edgeSize = 16,
-		insets = { left = 4, right = 4, top = 4, bottom = 4 },
-	})
-	frame:SetBackdropColor(0, 0, 0, 0.5)
+    if not info.noBorder then
+        frame:SetBackdrop({
+            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+            edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+            tile = true,
+            tileSize = 16,
+            edgeSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 },
+        })
+        frame:SetBackdropColor(0, 0, 0, 0.5)
+    end
 
-	function panel:Refresh()
-		local changed = false
-		if not self.lastOrder or #self.lastOrder ~= #self.order then
-			changed = true
-		else
-			for i, name in ipairs(self.order) do
+    function panel:ApplyBorder()
+        local i = self.info
+        if i and i.noBorder then
+            self.frame:SetBackdrop(nil)
+        else
+            self.frame:SetBackdrop({
+                bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+                edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+                tile = true,
+                tileSize = 16,
+                edgeSize = 16,
+                insets = { left = 4, right = 4, top = 4, bottom = 4 },
+            })
+            self.frame:SetBackdropColor(0, 0, 0, 0.5)
+        end
+    end
+
+    function panel:Refresh()
+        local changed = false
+        if not self.lastOrder or #self.lastOrder ~= #self.order then
+            changed = true
+        else
+            for i, name in ipairs(self.order) do
 				if self.lastOrder[i] ~= name or (self.lastWidths and self.lastWidths[name] ~= self.streams[name].lastWidth) then
 					changed = true
 					break
@@ -161,23 +188,24 @@ function DataPanel.Create(id, name, existingOnly)
 
 	function panel:AddStream(name)
 		if self.streams[name] then return end
-		local button = CreateFrame("Button", nil, self.frame)
-		button:SetHeight(self.frame:GetHeight())
-		local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-		text:SetAllPoints()
-		text:SetJustifyH("LEFT")
-		local data = { button = button, text = text, lastWidth = text:GetStringWidth(), lastText = "" }
-		button.slot = data
-		-- allow dragging even when hovering stream buttons
-		button:RegisterForDrag("LeftButton")
-		button:SetScript("OnDragStart", function(b)
-			local p = panels[id]
-			if p and p.frame then
-				p.isDragging = true
-				GameTooltip:Hide()
-				p.frame:StartMoving()
-			end
-		end)
+        local button = CreateFrame("Button", nil, self.frame)
+        button:SetHeight(self.frame:GetHeight())
+        local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        text:SetAllPoints()
+        text:SetJustifyH("LEFT")
+        local data = { button = button, text = text, lastWidth = text:GetStringWidth(), lastText = "" }
+        button.slot = data
+        -- allow dragging even when hovering stream buttons
+        button:RegisterForDrag("LeftButton")
+        button:SetScript("OnDragStart", function(b)
+            if requireShiftToMove() and not IsShiftKeyDown() then return end
+            local p = panels[id]
+            if p and p.frame then
+                p.isDragging = true
+                GameTooltip:Hide()
+                p.frame:StartMoving()
+            end
+        end)
 		button:SetScript("OnDragStop", function(b)
 			local p = panels[id]
 			if p and p.frame then
@@ -250,14 +278,15 @@ function DataPanel.Create(id, name, existingOnly)
 					child.currencyID = part.id
 					-- enable dragging from part segments too
 					child:RegisterForDrag("LeftButton")
-					child:SetScript("OnDragStart", function()
-						local p = panels[id]
-						if p and p.frame then
-							p.isDragging = true
-							GameTooltip:Hide()
-							p.frame:StartMoving()
-						end
-					end)
+                child:SetScript("OnDragStart", function()
+                    if requireShiftToMove() and not IsShiftKeyDown() then return end
+                    local p = panels[id]
+                    if p and p.frame then
+                        p.isDragging = true
+                        GameTooltip:Hide()
+                        p.frame:StartMoving()
+                    end
+                end)
 					child:SetScript("OnDragStop", function()
 						local p = panels[id]
 						if p and p.frame then
@@ -330,9 +359,10 @@ function DataPanel.Create(id, name, existingOnly)
 				end
 			end
 
-			if payload.fontSize and data.fontSize ~= payload.fontSize then
-				data.text:SetFont(font, payload.fontSize, "OUTLINE")
-				data.fontSize = payload.fontSize
+			local newSize = payload.fontSize or data.fontSize
+			if newSize and data.fontSize ~= newSize then
+				data.text:SetFont(font, newSize, "OUTLINE")
+				data.fontSize = newSize
 				if not payload.parts then
 					local width = data.text:GetStringWidth()
 					if width ~= data.lastWidth then

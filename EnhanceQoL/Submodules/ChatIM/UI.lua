@@ -508,17 +508,18 @@ function ChatIM:AddMessage(partner, text, outbound, isBN, bnetID)
 	tab.msg:SetMaxLines(ChatIM.maxHistoryLines)
 
 	if outbound then
-		if isBN then
-			ChatEdit_SetLastToldTarget(partner, "BN_WHISPER")
-		else
-			ChatEdit_SetLastToldTarget(partner, "WHISPER")
-		end
-	else
-		if isBN then
-			ChatEdit_SetLastTellTarget(partner, "BN_WHISPER")
-		else
-			ChatEdit_SetLastTellTarget(partner, "WHISPER")
-		end
+		--! EQOL Whisper Sink: no manual last-tell updates; Blizzard sets it via sink frame
+		-- 		if isBN then
+		-- 		ChatEdit_SetLastToldTarget(partner, "BN_WHISPER")
+		-- 	else
+		-- 		ChatEdit_SetLastToldTarget(partner, "WHISPER")
+		-- 	end
+		-- else
+		-- 	if isBN then
+		-- 		ChatEdit_SetLastTellTarget(partner, "BN_WHISPER")
+		-- 	else
+		-- 		ChatEdit_SetLastTellTarget(partner, "WHISPER")
+		-- 	end
 	end
 
 	if self.activeTab ~= partner then

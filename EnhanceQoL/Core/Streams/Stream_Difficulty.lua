@@ -76,6 +76,7 @@ local function getShortLabel(difficultyID)
 end
 
 local function checkDifficulty(stream)
+	ensureDB()
 	local dg = getShortLabel(GetDungeonDifficultyID())
 	local raid = getShortLabel(GetRaidDifficultyID())
 

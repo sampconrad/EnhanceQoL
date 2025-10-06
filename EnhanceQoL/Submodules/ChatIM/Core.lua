@@ -7,11 +7,18 @@ else
 end
 local LSM = LibStub("LibSharedMedia-3.0")
 
+--! EQOL Whisper Sink: All related changes are marked with this tag
+--! EQOL Whisper Sink: to allow easy removal once Blizzard fixes the bug.
+--! EQOL Whisper Sink: see docs/KnownIssues_Blizzard.md for context and revert steps.
 local ChatIM = addon.ChatIM or {}
 addon.ChatIM = ChatIM
 ChatIM.enabled = false
 ChatIM.whisperHooked = ChatIM.whisperHooked or false
 ChatIM.soundPath = "Interface\\AddOns\\" .. parentAddonName .. "\\Sounds\\ChatIM\\"
+--! EQOL Whisper Sink: state for hidden sink + original groups
+ChatIM._originalGroups = ChatIM._originalGroups or nil
+ChatIM._sinkFrame = ChatIM._sinkFrame or nil
+ChatIM._sinkActive = ChatIM._sinkActive or false
 
 function ChatIM:BuildSoundTable()
 	local result = {}
@@ -110,6 +117,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
 		local msg, target, _, _, _, _, _, _, _, _, _, _, bnetID = ...
 		ChatIM:AddMessage(target, msg, true, true, bnetID)
 		focusTab(target)
+	elseif event == "PLAYER_LOGIN" or event == "UPDATE_CHAT_WINDOWS" then
+		--! EQOL Whisper Sink: initialize or recover after chat frame reset
+		if ChatIM.enabled and not ChatIM._sinkActive then ChatIM:TrySetupWhisperSink() end
+	elseif event == "PLAYER_LOGOUT" then
+		-- Restore any moved message groups on logout to avoid persisting state
+		ChatIM:RestoreWhisperGroups()
 	end
 end)
 
@@ -119,6 +132,9 @@ local function updateRegistration()
 		frame:RegisterEvent("CHAT_MSG_BN_WHISPER")
 		frame:RegisterEvent("CHAT_MSG_WHISPER_INFORM")
 		frame:RegisterEvent("CHAT_MSG_BN_WHISPER_INFORM")
+		frame:RegisterEvent("PLAYER_LOGIN")
+		--! EQOL Whisper Sink: re-init on login and when chat windows reset
+		frame:RegisterEvent("UPDATE_CHAT_WINDOWS")
 		if addon.db and addon.db["chatIMHideInCombat"] then
 			frame:RegisterEvent("PLAYER_REGEN_DISABLED")
 			frame:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -127,10 +143,10 @@ local function updateRegistration()
 			frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
 		end
 
-		ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER", whisperFilter)
-		ChatFrame_AddMessageEventFilter("CHAT_MSG_BN_WHISPER", whisperFilter)
-		ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER_INFORM", whisperFilter)
-		ChatFrame_AddMessageEventFilter("CHAT_MSG_BN_WHISPER_INFORM", whisperFilter)
+		-- Ensure we restore groups on logout
+		frame:RegisterEvent("PLAYER_LOGOUT")
+
+		--! EQOL Whisper Sink: using message group routing instead of global filters
 
 		EnhanceQoL_IMHistory = EnhanceQoL_IMHistory or {}
 		ChatIM.history = EnhanceQoL_IMHistory
@@ -142,11 +158,115 @@ local function updateRegistration()
 	end
 end
 
+--! EQOL Whisper Sink: move whisper message groups to a hidden frame (no INFORM variants)
+--! EQOL Whisper Sink BEGIN
+local SINK_GROUPS = { "WHISPER", "BN_WHISPER" }
+
+local function containsGroup(chatFrame, group)
+	if type(ChatFrame_ContainsMessageGroup) == "function" then return ChatFrame_ContainsMessageGroup(chatFrame, group) end
+	-- Fallback: not strictly accurate, assume true to be conservative
+	return true
+end
+
+--! EQOL Whisper Sink: create sink window and rewire message groups
+function ChatIM:SetupWhisperSink()
+	if self._sinkActive then return end
+
+	--! EQOL Whisper Sink: ensure a hidden chat frame exists as sink
+	local sink = self._sinkFrame
+	if not sink then
+		--! EQOL Whisper Sink: create a new floating chat window; we'll hide and undock it
+		sink = FCF_OpenNewWindow("EQOL_WhisperSink")
+		if not sink then return end
+		sink:SetMovable(false)
+		sink:EnableMouse(false)
+		FCF_UnDockFrame(sink)
+		sink:Hide()
+		sink:SetClampedToScreen(false)
+		sink:ClearAllPoints()
+		sink:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10000, 0)
+		sink:SetUserPlaced(false)
+		self._sinkFrame = sink
+	end
+
+	--! EQOL Whisper Sink: make sure sink doesn't receive any other messages
+	if type(ChatFrame_RemoveAllMessageGroups) == "function" then ChatFrame_RemoveAllMessageGroups(sink) end
+
+	--! EQOL Whisper Sink: collect current frames and record which groups they have, then move them
+	self._originalGroups = {}
+	for i = 1, (NUM_CHAT_WINDOWS or 0) do
+		local f = _G["ChatFrame" .. i]
+		if f and f ~= self._sinkFrame then
+			for _, g in ipairs(SINK_GROUPS) do
+				if containsGroup(f, g) then
+					self._originalGroups[f] = self._originalGroups[f] or {}
+					self._originalGroups[f][g] = true
+					ChatFrame_RemoveMessageGroup(f, g)
+				end
+			end
+		end
+	end
+
+	for _, g in ipairs(SINK_GROUPS) do
+		ChatFrame_AddMessageGroup(sink, g)
+	end
+
+	self._sinkActive = true
+end
+
+--! EQOL Whisper Sink: wait for chat system to be fully ready
+local function chatFramesReady()
+	local cf1 = _G.ChatFrame1
+	return type(FCF_OpenNewWindow) == "function" and cf1 and cf1.selectedColorTable and cf1.messageTypeList
+end
+
+--! EQOL Whisper Sink: safe entry with retry/timer
+function ChatIM:TrySetupWhisperSink()
+	if self._sinkActive then return end
+	if not chatFramesReady() then
+		if not self._sinkRetryScheduled and C_Timer and C_Timer.After then
+			self._sinkRetryScheduled = true
+			C_Timer.After(1.5, function()
+				self._sinkRetryScheduled = false
+				if ChatIM.enabled and not ChatIM._sinkActive then ChatIM:TrySetupWhisperSink() end
+			end)
+		end
+		return
+	end
+	self:SetupWhisperSink()
+end
+
+function ChatIM:RestoreWhisperGroups()
+	-- Move groups back to their original frames and close the sink
+	local sink = self._sinkFrame
+	if sink then
+		for _, g in ipairs(SINK_GROUPS) do
+			ChatFrame_RemoveMessageGroup(sink, g)
+		end
+		if type(FCF_Close) == "function" then pcall(FCF_Close, sink) end
+		self._sinkFrame = nil
+	end
+
+	if self._originalGroups then
+		for f, groups in pairs(self._originalGroups) do
+			for g, had in pairs(groups) do
+				if had then ChatFrame_AddMessageGroup(f, g) end
+			end
+		end
+	end
+	self._originalGroups = nil
+	self._sinkActive = false
+end
+
+--! EQOL Whisper Sink END
+
 function ChatIM:SetEnabled(val)
 	self.enabled = val and true or false
 	if self.enabled then
 		self:SetMaxHistoryLines(addon.db and addon.db["chatIMMaxHistory"])
 		self:CreateUI()
+		--! EQOL Whisper Sink: deferred init on enable
+		self:TrySetupWhisperSink()
 		if not self.whisperHooked then
 			hooksecurefunc("ChatFrame_SendTell", function(name)
 				if not ChatIM.enabled then return end
@@ -173,6 +293,9 @@ function ChatIM:SetEnabled(val)
 			end)
 			self.whisperHooked = true
 		end
+	else
+		--! EQOL Whisper Sink: disabling → restore chat groups and close sink
+		self:RestoreWhisperGroups()
 	end
 	updateRegistration()
 end

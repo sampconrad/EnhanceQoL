@@ -68,6 +68,7 @@ local function formatGoldString(copper)
 end
 
 local function checkMoney(stream)
+	ensureDB()
 	local money = GetMoney() or 0
 	local gText, s, c = formatGoldString(money)
 	local size = db and db.fontSize or 12

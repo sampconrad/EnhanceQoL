@@ -24,7 +24,7 @@ local allowedSpells = { -- Tinker Engineering
 	[453162] = { duration = 300, isInvis = false }, -- Potion Bomb of Recobery
 	[453205] = { duration = 300, isInvis = false }, -- Potion Bomb of Power
 	[431914] = { duration = 300, isInvis = false }, -- Potion of Unwavering Focus
-	[431424] = { duration = 600, isInvis = true }, -- Draught of Silent Footfalls
+	[431424] = { duration = 300, isInvis = true }, -- Draught of Silent Footfalls
 	[431419] = { duration = 300, isInvis = false, icon = 236873 }, -- Cavedweller's Delight Heal/Mana Pot counts as combat, -- Potion of Silent Footfalls
 	[431418] = { duration = 300, isInvis = false, icon = 5931166 }, -- Algari Mana Potion
 	[431416] = { duration = 300, isInvis = false, isHealpot = true, icon = 5931169 }, -- Algari Healing Potion

@@ -1,11 +1,29 @@
 # Changelog
 
-## [5.2.0] – 2025-10-01
+## [5.2.0] – 2025-10-06
 
 ### ✨ Added
 
-- Items & Inventory → Bags: Option “Close bags when opening Auction House”.
+- DataPanels: Global “Lock position” option — hold Shift to move panels.
+- DataPanels: Per‑panel toggle to hide the panel border.
+- Items & Inventory → Bags: Option “Close bags when opening the Auction House”.
   - Disabled by default. Enable to automatically close all bags when the Auction House opens.
+
+### 🔄 Changed
+
+- Gear & Upgrades → Character: Clearer controls for what to show.
+  - One picker for the Character Frame (item level, gems, enchants, gem tooltips, durability, catalyst charges).
+  - One separate picker for the Inspect Frame (item level, gems, enchants, gem tooltips).
+  - Old individual checkboxes were folded into these pickers to keep the page tidy.
+
+### 🐛 Fixed
+
+- Teleports: Delve‑O‑Bot 7001 and Delver’s Mana‑Bound Ethergate now work with the new World Map panel on all characters.
+- Chat: Fixed an error when quick‑replying and linking an achievement.
+- Potion Tracker: Correct cooldown for Draught of Silent Footfalls.
+- DataPanels: Font size now persists after a reload.
+
+---
 
 ## [5.1.1] – 2025-10-01
 

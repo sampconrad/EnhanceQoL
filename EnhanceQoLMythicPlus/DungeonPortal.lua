@@ -734,200 +734,210 @@ end
 -- mirroring availability rules from the compendium. Returns
 -- { title = string, items = { entries... } }
 function addon.MythicPlus.functions.BuildCurrentSeasonTeleportSection()
-    -- Determine active challenge map IDs for this season
-    local activeSet = {}
-    local mt = C_ChallengeMode and C_ChallengeMode.GetMapTable and C_ChallengeMode.GetMapTable() or {}
-    for _, id in ipairs(mt) do activeSet[id] = true end
+	-- Determine active challenge map IDs for this season
+	local activeSet = {}
+	local mt = C_ChallengeMode and C_ChallengeMode.GetMapTable and C_ChallengeMode.GetMapTable() or {}
+	for _, id in ipairs(mt) do
+		activeSet[id] = true
+	end
 
-    -- Resolve the display text for an entry, preferring modern/zone names
-    local function resolveDisplayText(spellID, data)
-        local label = data and data.text or ""
-        if data and type(data.modern) == "string" and data.modern ~= "" then return data.modern end
+	-- Resolve the display text for an entry, preferring modern/zone names
+	local function resolveDisplayText(spellID, data)
+		local label = data and data.text or ""
+		if data and type(data.modern) == "string" and data.modern ~= "" then return data.modern end
 
-        local function cachedMapName(keyPrefix, id)
-            if not id then return nil end
-            local cacheKey = tostring(keyPrefix) .. ":" .. tostring(id)
-            addon.db.teleportNameCache = addon.db.teleportNameCache or {}
-            local cached = addon.db.teleportNameCache[cacheKey]
-            if cached and cached ~= "" then return cached end
-            local mi = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(id)
-            local name = mi and mi.name or nil
-            if name and name ~= "" then addon.db.teleportNameCache[cacheKey] = name end
-            return name
-        end
+		local function cachedMapName(keyPrefix, id)
+			if not id then return nil end
+			local cacheKey = tostring(keyPrefix) .. ":" .. tostring(id)
+			addon.db.teleportNameCache = addon.db.teleportNameCache or {}
+			local cached = addon.db.teleportNameCache[cacheKey]
+			if cached and cached ~= "" then return cached end
+			local mi = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(id)
+			local name = mi and mi.name or nil
+			if name and name ~= "" then addon.db.teleportNameCache[cacheKey] = name end
+			return name
+		end
 
-        if data and type(data.zoneID) == "number" then
-            local n = cachedMapName("zone", data.zoneID)
-            if n and n ~= "" then return n end
-        end
+		if data and type(data.zoneID) == "number" then
+			local n = cachedMapName("zone", data.zoneID)
+			if n and n ~= "" then return n end
+		end
 
-        if data and type(data.mapID) == "table" then
-            local keys = {}
-            for cid in pairs(data.mapID) do table.insert(keys, cid) end
-            table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
-            for _, cid in ipairs(keys) do
-                local v = data.mapID[cid]
-                if type(v) == "table" and type(v.zoneID) == "number" then
-                    local n = cachedMapName("zone", v.zoneID)
-                    if n and n ~= "" then return n end
-                end
-            end
-        end
-        return label
-    end
+		if data and type(data.mapID) == "table" then
+			local keys = {}
+			for cid in pairs(data.mapID) do
+				table.insert(keys, cid)
+			end
+			table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+			for _, cid in ipairs(keys) do
+				local v = data.mapID[cid]
+				if type(v) == "table" and type(v.zoneID) == "number" then
+					local n = cachedMapName("zone", v.zoneID)
+					if n and n ~= "" then return n end
+				end
+			end
+		end
+		return label
+	end
 
-    local hasEngineering, hasGnomish, hasGoblin = checkProfession(), false, false
-    if hasEngineering then hasGnomish, hasGoblin = GetEngineeringBranch() end
-    local aMapID = C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
-    local pMapID; do
-        local mi = aMapID and C_Map.GetMapInfo and C_Map.GetMapInfo(aMapID)
-        if mi and mi.parentMapID then pMapID = mi.parentMapID end
-    end
-    addon.MythicPlus.functions.setRandomHearthstone()
+	local hasEngineering, hasGnomish, hasGoblin = checkProfession(), false, false
+	if hasEngineering then
+		hasGnomish, hasGoblin = GetEngineeringBranch()
+	end
+	local aMapID = C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+	local pMapID
+	do
+		local mi = aMapID and C_Map.GetMapInfo and C_Map.GetMapInfo(aMapID)
+		if mi and mi.parentMapID then pMapID = mi.parentMapID end
+	end
+	addon.MythicPlus.functions.setRandomHearthstone()
 
-    local favorites = addon.db.teleportFavorites or {}
-    local baseComp = addon.MythicPlus.variables.portalCompendium or {}
+	local favorites = addon.db.teleportFavorites or {}
+	local baseComp = addon.MythicPlus.variables.portalCompendium or {}
 
-    local list = {}
-    for _, section in pairs(baseComp) do
-        for spellID, data in pairs(section.spells or {}) do
-            local inSeason = false
-            if data.cId and type(data.cId) == "table" then
-                for cId in pairs(data.cId) do if activeSet[cId] then inSeason = true break end end
-            end
-            if inSeason then
+	local list = {}
+	for _, section in pairs(baseComp) do
+		for spellID, data in pairs(section.spells or {}) do
+			local inSeason = false
+			if data.cId and type(data.cId) == "table" then
+				for cId in pairs(data.cId) do
+					if activeSet[cId] then
+						inSeason = true
+						break
+					end
+				end
+			end
+			if inSeason then
+				local specOk = true
+				if data.isGnomish then specOk = specOk and hasGnomish end
+				if data.isGoblin then specOk = specOk and hasGoblin end
 
-            local specOk = true
-            if data.isGnomish then specOk = specOk and hasGnomish end
-            if data.isGoblin then specOk = specOk and hasGoblin end
+				-- Handle item variants per class
+				if data.isItem and type(data.itemID) == "table" then
+					local allowedIDs = data.itemID
+					if data.classItemID and addon.variables and addon.variables.unitClass then
+						local classToken = addon.variables.unitClass
+						local classSpecific = data.classItemID[classToken]
+						if classSpecific then
+							allowedIDs = { classSpecific }
+						else
+							allowedIDs = {}
+						end
+					end
 
-            -- Handle item variants per class
-            if data.isItem and type(data.itemID) == "table" then
-                local allowedIDs = data.itemID
-                if data.classItemID and addon.variables and addon.variables.unitClass then
-                    local classToken = addon.variables.unitClass
-                    local classSpecific = data.classItemID[classToken]
-                    if classSpecific then
-                        allowedIDs = { classSpecific }
-                    else
-                        allowedIDs = {}
-                    end
-                end
+					local baseShow = specOk
+						and (not data.faction or data.faction == faction)
+						and (not data.map or ((type(data.map) == "number" and (data.map == aMapID or data.map == pMapID)) or (type(data.map) == "table" and (data.map[aMapID] or data.map[pMapID]))))
+						and (not data.isEngineering or hasEngineering)
+						and (not data.isClassTP or (addon.variables and addon.variables.unitClass == data.isClassTP))
+						and (not data.isRaceTP or (addon.variables and addon.variables.unitRace == data.isRaceTP))
+						and (not data.isMagePortal or (addon.variables and addon.variables.unitClass == "MAGE"))
 
-                local baseShow = specOk
-                    and (not data.faction or data.faction == faction)
-                    and (not data.map or ((type(data.map) == "number" and (data.map == aMapID or data.map == pMapID)) or (type(data.map) == "table" and (data.map[aMapID] or data.map[pMapID]))))
-                    and (not data.isEngineering or hasEngineering)
-                    and (not data.isClassTP or (addon.variables and addon.variables.unitClass == data.isClassTP))
-                    and (not data.isRaceTP or (addon.variables and addon.variables.unitRace == data.isRaceTP))
-                    and (not data.isMagePortal or (addon.variables and addon.variables.unitClass == "MAGE"))
+					for _, iid in ipairs(allowedIDs) do
+						local knownX = C_Item.GetItemCount(iid) > 0
+						local showX = baseShow and (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and knownX))
+						if not showX and favorites[spellID] then showX = (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and knownX)) end
+						if showX then
+							local iconID = data.icon
+							if not iconID then
+								local _, _, itemIcon = C_Item.GetItemInfoInstant(iid)
+								iconID = itemIcon
+							end
+							table.insert(list, {
+								spellID = spellID,
+								text = resolveDisplayText(spellID, data),
+								iconID = iconID,
+								isKnown = knownX,
+								isToy = false,
+								toyID = false,
+								isItem = true,
+								itemID = iid,
+								isClassTP = data.isClassTP or false,
+								isMagePortal = data.isMagePortal or false,
+								equipSlot = data.equipSlot,
+								isFavorite = favorites[spellID] and true or false,
+								locID = data.locID,
+								x = data.x,
+								y = data.y,
+							})
+						end
+					end
+				else
+					local known = (C_SpellBook.IsSpellInSpellBook(spellID) and not data.isToy)
+						or (hasEngineering and specOk and data.toyID and not data.isHearthstone and isToyUsable(data.toyID))
+						or (data.isItem and C_Item.GetItemCount(FirstOwnedItemID(data.itemID)) > 0)
+						or (data.isHearthstone and isToyUsable(data.toyID))
 
-                for _, iid in ipairs(allowedIDs) do
-                    local knownX = C_Item.GetItemCount(iid) > 0
-                    local showX = baseShow and (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and knownX))
-                    if not showX and favorites[spellID] then showX = (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and knownX)) end
-                    if showX then
-                        local iconID = data.icon
-                        if not iconID then
-                            local _, _, itemIcon = C_Item.GetItemInfoInstant(iid)
-                            iconID = itemIcon
-                        end
-                        table.insert(list, {
-                            spellID = spellID,
-                            text = resolveDisplayText(spellID, data),
-                            iconID = iconID,
-                            isKnown = knownX,
-                            isToy = false,
-                            toyID = false,
-                            isItem = true,
-                            itemID = iid,
-                            isClassTP = data.isClassTP or false,
-                            isMagePortal = data.isMagePortal or false,
-                            equipSlot = data.equipSlot,
-                            isFavorite = favorites[spellID] and true or false,
-                            locID = data.locID,
-                            x = data.x,
-                            y = data.y,
-                        })
-                    end
-                end
-            else
-                local known = (C_SpellBook.IsSpellInSpellBook(spellID) and not data.isToy)
-                    or (hasEngineering and specOk and data.toyID and not data.isHearthstone and isToyUsable(data.toyID))
-                    or (data.isItem and C_Item.GetItemCount(FirstOwnedItemID(data.itemID)) > 0)
-                    or (data.isHearthstone and isToyUsable(data.toyID))
+					local showSpell = specOk
+						and (not data.faction or data.faction == faction)
+						and (not data.map or ((type(data.map) == "number" and data.map == aMapID) or (type(data.map) == "table" and data.map[aMapID])))
+						and (not data.isEngineering or hasEngineering)
+						and (not data.isClassTP or (addon.variables and addon.variables.unitClass == data.isClassTP))
+						and (not data.isRaceTP or (addon.variables and addon.variables.unitRace == data.isRaceTP))
+						and (not data.isMagePortal or (addon.variables and addon.variables.unitClass == "MAGE"))
+						and (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and known))
 
-                local showSpell = specOk
-                    and (not data.faction or data.faction == faction)
-                    and (not data.map or ((type(data.map) == "number" and data.map == aMapID) or (type(data.map) == "table" and data.map[aMapID])))
-                    and (not data.isEngineering or hasEngineering)
-                    and (not data.isClassTP or (addon.variables and addon.variables.unitClass == data.isClassTP))
-                    and (not data.isRaceTP or (addon.variables and addon.variables.unitRace == data.isRaceTP))
-                    and (not data.isMagePortal or (addon.variables and addon.variables.unitClass == "MAGE"))
-                    and (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and known))
+					if not showSpell and favorites[spellID] then showSpell = (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and known)) end
 
-                if not showSpell and favorites[spellID] then showSpell = (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and known)) end
+					if showSpell then
+						local iconID
+						local chosenItemID
+						if data.isItem then
+							chosenItemID = FirstOwnedItemID(data.itemID)
+							local _, _, itemIcon = C_Item.GetItemInfoInstant(chosenItemID)
+							iconID = data.icon or itemIcon
+						elseif data.isToy then
+							if data.icon then
+								iconID = data.icon
+							else
+								local _, _, toyIcon = C_ToyBox.GetToyInfo(data.toyID)
+								iconID = toyIcon
+							end
+						else
+							local si = C_Spell.GetSpellInfo(spellID)
+							iconID = si and si.iconID or nil
+						end
 
-                if showSpell then
-                    local iconID
-                    local chosenItemID
-                    if data.isItem then
-                        chosenItemID = FirstOwnedItemID(data.itemID)
-                        local _, _, itemIcon = C_Item.GetItemInfoInstant(chosenItemID)
-                        iconID = data.icon or itemIcon
-                    elseif data.isToy then
-                        if data.icon then
-                            iconID = data.icon
-                        else
-                            local _, _, toyIcon = C_ToyBox.GetToyInfo(data.toyID)
-                            iconID = toyIcon
-                        end
-                    else
-                        local si = C_Spell.GetSpellInfo(spellID)
-                        iconID = si and si.iconID or nil
-                    end
+						table.insert(list, {
+							spellID = spellID,
+							text = resolveDisplayText(spellID, data),
+							iconID = iconID,
+							isKnown = known,
+							isToy = data.isToy or false,
+							toyID = data.toyID or false,
+							isItem = data.isItem or false,
+							itemID = chosenItemID or data.itemID or false,
+							isClassTP = data.isClassTP or false,
+							isMagePortal = data.isMagePortal or false,
+							equipSlot = data.equipSlot,
+							isFavorite = favorites[spellID] and true or false,
+							locID = data.locID,
+							x = data.x,
+							y = data.y,
+						})
+					end
+				end
+			end
+		end
+	end
 
-                    table.insert(list, {
-                        spellID = spellID,
-                        text = resolveDisplayText(spellID, data),
-                        iconID = iconID,
-                        isKnown = known,
-                        isToy = data.isToy or false,
-                        toyID = data.toyID or false,
-                        isItem = data.isItem or false,
-                        itemID = chosenItemID or data.itemID or false,
-                        isClassTP = data.isClassTP or false,
-                        isMagePortal = data.isMagePortal or false,
-                        equipSlot = data.equipSlot,
-                        isFavorite = favorites[spellID] and true or false,
-                        locID = data.locID,
-                        x = data.x,
-                        y = data.y,
-                    })
-                end
-            end
+	table.sort(list, function(a, b)
+		if a == nil and b == nil then return false end
+		if a == nil then return false end
+		if b == nil then return true end
+		local at, bt = a.text or "", b.text or ""
+		if at ~= bt then return at < bt end
+		local aTP = (a.isClassTP and true or false)
+		local bTP = (b.isClassTP and true or false)
+		local aPort, bPort = a.isMagePortal or false, b.isMagePortal or false
+		if aTP ~= bTP then return aTP end
+		if aPort ~= bPort then return not aPort end
+		return (a.spellID or 0) < (b.spellID or 0)
+	end)
 
-            end
-        end
-    end
-
-    table.sort(list, function(a, b)
-        if a == nil and b == nil then return false end
-        if a == nil then return false end
-        if b == nil then return true end
-        local at, bt = a.text or "", b.text or ""
-        if at ~= bt then return at < bt end
-        local aTP = (a.isClassTP and true or false)
-        local bTP = (b.isClassTP and true or false)
-        local aPort, bPort = a.isMagePortal or false, b.isMagePortal or false
-        if aTP ~= bTP then return aTP end
-        if aPort ~= bPort then return not aPort end
-        return (a.spellID or 0) < (b.spellID or 0)
-    end)
-
-    local title = MYTHIC_DUNGEON_SEASON
-    if type(title) == "string" then title = string.gsub(title, "%s*%b()", "") end
-    return { title = title or "Mythic+ Season", items = list }
+	local title = MYTHIC_DUNGEON_SEASON
+	if type(title) == "string" then title = string.gsub(title, "%s*%b()", "") end
+	return { title = title or "Mythic+ Season", items = list }
 end
 
 function checkCooldown()

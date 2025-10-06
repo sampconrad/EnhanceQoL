@@ -454,6 +454,12 @@ local function evaluateCondition(cond, aura)
 		local val = tonumber(cond.value) or 0
 		if cond.operator == "~=" or cond.operator == "!=" then return eid ~= val end
 		return eid == val
+	elseif cond.type == "known" then
+		if not isNumber(cond.value) then return true end
+		local sid = tonumber(cond.value) or 0
+		local known = (C_SpellBook and C_SpellBook.IsSpellInSpellBook and C_SpellBook.IsSpellInSpellBook(sid)) or false
+		if cond.operator == "~=" or cond.operator == "!=" then return not known end
+		return known
 	end
 	return true
 end
@@ -2110,13 +2116,13 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 				hideOnEscape = true,
 				preferredIndex = 3,
 			}
-        StaticPopupDialogs["EQOL_EXPORT_CATEGORY"].OnShow = function(self)
-            self:SetFrameStrata("TOOLTIP")
-            local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
-            editBox:SetText(data)
-            editBox:HighlightText()
-            editBox:SetFocus()
-        end
+		StaticPopupDialogs["EQOL_EXPORT_CATEGORY"].OnShow = function(self)
+			self:SetFrameStrata("TOOLTIP")
+			local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
+			editBox:SetText(data)
+			editBox:HighlightText()
+			editBox:SetFocus()
+		end
 		StaticPopup_Show("EQOL_EXPORT_CATEGORY")
 	end)
 	exportBtn:SetRelativeWidth(0.5)
@@ -2138,7 +2144,7 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 				hideOnEscape = true,
 				preferredIndex = 3,
 			}
-        StaticPopupDialogs["EQOL_DELETE_CATEGORY"].OnShow = function(self) self:SetFrameStrata("TOOLTIP") end
+		StaticPopupDialogs["EQOL_DELETE_CATEGORY"].OnShow = function(self) self:SetFrameStrata("TOOLTIP") end
 		StaticPopupDialogs["EQOL_DELETE_CATEGORY"].OnAccept = function()
 			-- clean up all buff data for this category
 			for buffId, buff in pairs(addon.db["buffTrackerCategories"][catId].buffs or {}) do
@@ -2374,6 +2380,8 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 					local row = addon.functions.createContainer("SimpleGroup", "Flow")
 					row:SetFullWidth(true)
 					local typeDropOptions = { missing = L["ConditionMissing"], time = L["ConditionTime"] }
+					-- available for all track types
+					typeDropOptions["known"] = L["ConditionSpellKnown"]
 					if buff.trackType ~= "ENCHANT" then
 						typeDropOptions["stack"] = L["ConditionStacks"]
 					else
@@ -2387,7 +2395,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 						elseif val == "missing" and type(child.value) ~= "boolean" then
 							child.value = true
 						end
-						if val == "enchant" and child.operator ~= "==" and child.operator ~= "!=" then child.operator = "==" end
+						if (val == "enchant" or val == "known") and child.operator ~= "==" and child.operator ~= "!=" then child.operator = "==" end
 						container:ReleaseChildren()
 						addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 						scanBuffs()
@@ -2397,7 +2405,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 					row:AddChild(typeDrop)
 
 					local ops = { [">"] = ">", ["<"] = "<", [">="] = ">=", ["<="] = "<=", ["=="] = "==", ["!="] = "!=" }
-					if child.type == "missing" or child.type == "enchant" then ops = { ["=="] = "==", ["!="] = "!=" } end
+					if child.type == "missing" or child.type == "enchant" or child.type == "known" then ops = { ["=="] = "==", ["!="] = "!=" } end
 					local opDrop = addon.functions.createDropdownAce(nil, ops, nil, function(_, _, val)
 						child.operator = val
 						scanBuffs()
@@ -2421,7 +2429,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 							scanBuffs()
 						end)
 						valEdit:SetRelativeWidth(0.3)
-						if child.type == "enchant" then valEdit.editbox:SetNumeric(true) end
+						if child.type == "enchant" or child.type == "known" then valEdit.editbox:SetNumeric(true) end
 						row:AddChild(valEdit)
 					end
 
@@ -2667,13 +2675,13 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 					hideOnEscape = true,
 					preferredIndex = 3,
 				}
-            StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnShow = function(self)
-                local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
-                self:SetFrameStrata("TOOLTIP")
-                editBox:SetText("")
-                editBox:SetFocus()
-                self.Text:SetText(L["ImportCategory"])
-            end
+			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnShow = function(self)
+				local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
+				self:SetFrameStrata("TOOLTIP")
+				editBox:SetText("")
+				editBox:SetFocus()
+				self.Text:SetText(L["ImportCategory"])
+			end
 			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].EditBoxOnTextChanged = function(editBox)
 				local frame = editBox:GetParent()
 				local name, count = previewImportCategory(editBox:GetText())
@@ -2823,16 +2831,16 @@ local function HandleEQOLLink(link, text, button, frame)
 			end,
 		}
 
-    StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"].OnShow = function(self, data)
-        self:SetFrameStrata("TOOLTIP")
-        local encoded = incoming[data]
-        local name, count = previewImportCategory(encoded or "")
-        if name then
-            self.text:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
-        else
-            self.text:SetText(L["ImportCategory"])
-        end
-    end
+	StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"].OnShow = function(self, data)
+		self:SetFrameStrata("TOOLTIP")
+		local encoded = incoming[data]
+		local name, count = previewImportCategory(encoded or "")
+		if name then
+			self.text:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
+		else
+			self.text:SetText(L["ImportCategory"])
+		end
+	end
 
 	StaticPopup_Show("EQOL_IMPORT_FROM_SHARE", nil, nil, pktID)
 end

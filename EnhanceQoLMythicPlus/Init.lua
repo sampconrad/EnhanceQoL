@@ -481,9 +481,8 @@ addon.MythicPlus.variables.portalCompendium = {
 			[1226482] = { text = "LOU", isRaid = true, locID = 2346, x = 0.4151, y = 0.4880, zoneID = 2346 },
 			[1223041] = { text = addon.MythicPlus.variables.hearthstoneName or "HS", isItem = true, itemID = 234389, isRaid = true, icon = 3718248, map = 2406, zoneID = 2406 },
 			[1239155] = { text = "MFO", isRaid = true, locID = 2371, x = 0.4153, y = 0.2141, zoneID = 2460 },
-			[467470] = { text = DELVE_LABEL, isToy = true, toyID = 230850 },
-
-			[1234526] = { text = DELVE_LABEL, isToy = true, toyID = 243056, icon = 7137505, locID = 2339, x = 0.4775, y = 0.4447, zoneID = 2339 },
+			[467470] = { text = DELVE_LABEL, isToy = true, toyID = 230850, isHearthstone = true },
+			[1234526] = { text = DELVE_LABEL, isToy = true, toyID = 243056, isHearthstone = true, icon = 7137505, locID = 2339, x = 0.4775, y = 0.4447, zoneID = 2339 },
 		},
 	},
 	[110] = {

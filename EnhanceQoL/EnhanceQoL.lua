@@ -542,6 +542,43 @@ local doneHook = false
 local inspectDone = {}
 local inspectUnit = nil
 addon.enchantTextCache = addon.enchantTextCache or {}
+-- New helpers for Character vs Inspect display options
+local function _ensureDisplayDB()
+	addon.db = addon.db or {}
+	-- migrate legacy toggles to new multi-select tables once
+	if not addon.db.charDisplayOptions then
+		addon.db.charDisplayOptions = {}
+		if addon.db["showIlvlOnCharframe"] then addon.db.charDisplayOptions.ilvl = true end
+		if addon.db["showGemsOnCharframe"] then addon.db.charDisplayOptions.gems = true end
+		if addon.db["showEnchantOnCharframe"] then addon.db.charDisplayOptions.enchants = true end
+		if addon.db["showGemsTooltipOnCharframe"] then addon.db.charDisplayOptions.gemtip = true end
+	end
+	if not addon.db.inspectDisplayOptions then
+		addon.db.inspectDisplayOptions = {}
+		for k, v in pairs(addon.db.charDisplayOptions) do
+			addon.db.inspectDisplayOptions[k] = v
+		end
+	end
+end
+
+local function CharOpt(opt)
+	_ensureDisplayDB()
+	local t = addon.db.charDisplayOptions or {}
+	return t[opt] == true
+end
+
+local function InspectOpt(opt)
+	_ensureDisplayDB()
+	local t = addon.db.inspectDisplayOptions or {}
+	return t[opt] == true
+end
+
+local function AnyInspectEnabled()
+	_ensureDisplayDB()
+	local t = addon.db.inspectDisplayOptions or {}
+	return t.ilvl or t.gems or t.enchants or t.gemtip
+end
+
 local function CheckItemGems(element, itemLink, emptySocketsCount, key, pdElement, attempts)
 	attempts = attempts or 1 -- Anzahl der Versuche
 	if attempts > 10 then -- Abbruch nach 5 Versuchen, um Endlosschleifen zu vermeiden
@@ -557,7 +594,13 @@ local function CheckItemGems(element, itemLink, emptySocketsCount, key, pdElemen
 			element.gems[i].icon:SetTexture(icon)
 			element.gems[i].icon:SetVertexColor(1, 1, 1)
 			element.gems[i]:SetScript("OnEnter", function(self)
-				if gemLink and addon.db["showGemsTooltipOnCharframe"] then
+				local showTip
+				if pdElement == InspectPaperDollFrame then
+					showTip = InspectOpt("gemtip")
+				else
+					showTip = CharOpt("gemtip")
+				end
+				if gemLink and showTip then
 					local anchor = "ANCHOR_CURSOR"
 					if addon.db["TooltipAnchorType"] == 3 then anchor = "ANCHOR_CURSOR_LEFT" end
 					if addon.db["TooltipAnchorType"] == 4 then anchor = "ANCHOR_CURSOR_RIGHT" end
@@ -710,8 +753,8 @@ local function onInspect(arg1)
 		inspectUnit = InspectFrame.unit
 		inspectDone = {}
 	end
-	if not addon.db["showIlvlOnCharframe"] and pdElement.ilvl then pdElement.ilvl:SetText("") end
-	if not pdElement.ilvl and addon.db["showIlvlOnCharframe"] then
+	if not InspectOpt("ilvl") and pdElement.ilvl then pdElement.ilvl:SetText("") end
+	if not pdElement.ilvl and InspectOpt("ilvl") then
 		pdElement.ilvlBackground = pdElement:CreateTexture(nil, "BACKGROUND")
 		pdElement.ilvlBackground:SetColorTexture(0, 0, 0, 0.8) -- Schwarzer Hintergrund mit 80% Transparenz
 		pdElement.ilvlBackground:SetPoint("TOPRIGHT", pdElement, "TOPRIGHT", -2, -28)
@@ -763,7 +806,7 @@ local function onInspect(arg1)
 				if eItem and not eItem:IsItemEmpty() then
 					eItem:ContinueOnItemLoad(function()
 						inspectDone[key] = true
-						if addon.db["showGemsOnCharframe"] then
+						if InspectOpt("gems") then
 							local itemStats = C_Item.GetItemStats(itemLink)
 							local socketCount = 0
 							for statName, statValue in pairs(itemStats) do
@@ -821,7 +864,7 @@ local function onInspect(arg1)
 							end
 						end
 
-						if addon.db["showIlvlOnCharframe"] then
+						if InspectOpt("ilvl") then
 							local double = false
 							if key == 16 then
 								local offhandLink = GetInventoryItemLink(unit, 17)
@@ -864,7 +907,7 @@ local function onInspect(arg1)
 							local textWidth = element.ilvl:GetStringWidth()
 							element.ilvlBackground:SetSize(textWidth + 6, element.ilvl:GetStringHeight() + 4) -- Mehr Padding für bessere Lesbarkeit
 						end
-						if addon.db["showEnchantOnCharframe"] then
+						if InspectOpt("enchants") then
 							if not element.enchant then
 								element.enchant = element:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
 								if addon.variables.itemSlotSide[key] == 0 then
@@ -917,7 +960,7 @@ local function onInspect(arg1)
 			end
 		end
 	end
-	if addon.db["showIlvlOnCharframe"] and ilvlSum > 0 then pdElement.ilvl:SetText("" .. (math.floor((ilvlSum / 16) * 100 + 0.5) / 100)) end
+	if InspectOpt("ilvl") and ilvlSum > 0 then pdElement.ilvl:SetText("" .. (math.floor((ilvlSum / 16) * 100 + 0.5) / 100)) end
 end
 
 local function setIlvlText(element, slot)
@@ -935,7 +978,7 @@ local function setIlvlText(element, slot)
 		end
 
 		if element.borderGradient then element.borderGradient:Hide() end
-		if addon.db["showGemsOnCharframe"] == false and addon.db["showIlvlOnCharframe"] == false and addon.db["showEnchantOnCharframe"] == false then
+		if not (CharOpt("gems") or CharOpt("ilvl") or CharOpt("enchants")) then
 			element.ilvl:SetFormattedText("")
 			element.enchant:SetText("")
 			element.ilvlBackground:Hide()
@@ -947,7 +990,7 @@ local function setIlvlText(element, slot)
 			eItem:ContinueOnItemLoad(function()
 				local link = eItem:GetItemLink()
 				local _, itemID, enchantID = string.match(link, "item:(%d+):(%d*):(%d*):(%d*):(%d*):(%d*):(%d*):(%d*):(%d*):(%d*):(%d*)")
-				if addon.db["showGemsOnCharframe"] then
+				if CharOpt("gems") then
 					local itemStats = C_Item.GetItemStats(link)
 					local socketCount = 0
 					for statName, statValue in pairs(itemStats) do
@@ -986,7 +1029,7 @@ local function setIlvlText(element, slot)
 
 				local enchantText = getTooltipInfoFromLink(link)
 
-				if addon.db["showIlvlOnCharframe"] then
+				if CharOpt("ilvl") then
 					local color = eItem:GetItemQualityColor()
 					local itemLevelText = eItem:GetCurrentItemLevel()
 
@@ -1017,7 +1060,7 @@ local function setIlvlText(element, slot)
 					element.ilvlBackground:Hide()
 				end
 
-				if addon.db["showEnchantOnCharframe"] and element.borderGradient then
+				if CharOpt("enchants") and element.borderGradient then
 					local foundEnchant = enchantText ~= nil
 					if foundEnchant then element.enchant:SetFormattedText(enchantText) end
 
@@ -2898,244 +2941,253 @@ local function addCharacterFrame(container)
 	}
 	local posOrder = { "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" }
 
-	local data = {
+	-- Base layout
+	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
 
-		{
-			parent = INFO,
-			var = "showIlvlOnCharframe",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["showIlvlOnCharframe"] = value
-				setCharFrame()
-			end,
-		},
-		{
-			parent = INFO,
-			var = "showGemsTooltipOnCharframe",
-			type = "CheckBox",
-			callback = function(self, _, value) addon.db["showGemsTooltipOnCharframe"] = value end,
-		},
-		{
-			parent = INFO,
-			var = "showGemsOnCharframe",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["showGemsOnCharframe"] = value
-				setCharFrame()
-			end,
-		},
-		{
-			parent = INFO,
-			var = "showEnchantOnCharframe",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["showEnchantOnCharframe"] = value
-				setCharFrame()
-			end,
-		},
-		{
-			parent = INFO,
-			var = "showDurabilityOnCharframe",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["showDurabilityOnCharframe"] = value
-				calculateDurability()
-				if value then
+	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+	wrapper:SetFullWidth(true)
+	scroll:AddChild(wrapper)
+
+	-- Multi-dropdowns (Character/Inspect)
+	_ensureDisplayDB()
+	local ddGroup = addon.functions.createContainer("InlineGroup", "List")
+	ddGroup:SetTitle(L["Character & Inspect Info"] or "Character & Inspect Info")
+	wrapper:AddChild(ddGroup)
+
+	local AceGUI = addon.AceGUI
+	local optionsList = {
+		ilvl = STAT_AVERAGE_ITEM_LEVEL or "Item Level",
+		gems = AUCTION_CATEGORY_GEMS or "Gems",
+		enchants = ENCHANTS or "Enchants",
+		gemtip = L["Gem slot tooltip"] or "Gem slot tooltip",
+		durability = DURABILITY or "Durability",
+		catalyst = "Catalyst Charges",
+	}
+
+	local ddChar = AceGUI:Create("Dropdown")
+	ddChar:SetLabel(L["Show on Character Frame"] or "Show on Character Frame")
+	ddChar:SetMultiselect(true)
+	ddChar:SetFullWidth(true)
+	ddChar:SetList(optionsList)
+	for k in pairs(optionsList) do
+		if k == "durability" then
+			ddChar:SetItemValue(k, addon.db and addon.db["showDurabilityOnCharframe"] == true)
+		elseif k == "catalyst" then
+			ddChar:SetItemValue(k, addon.db and addon.db["showCatalystChargesOnCharframe"] == true)
+		else
+			local t = addon.db.charDisplayOptions or {}
+			ddChar:SetItemValue(k, t[k] == true)
+		end
+	end
+	ddChar:SetCallback("OnValueChanged", function(_, _, key, val)
+		_ensureDisplayDB()
+		local b = val and true or false
+		if key == "durability" then
+			addon.db["showDurabilityOnCharframe"] = b
+			calculateDurability()
+			if addon.general and addon.general.durabilityIconFrame then
+				if b then
 					addon.general.durabilityIconFrame:Show()
 				else
 					addon.general.durabilityIconFrame:Hide()
 				end
-			end,
-		},
-		{
-			-- TODO remove after 01.01.2026 (or when midnight drops earlier)
-			parent = INFO,
-			var = "showCloakUpgradeButton",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["showCloakUpgradeButton"] = value
-				if addon.functions.updateCloakUpgradeButton then addon.functions.updateCloakUpgradeButton() end
-			end,
-		},
-		{
-			parent = INFO,
-			var = "showCatalystChargesOnCharframe",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["showCatalystChargesOnCharframe"] = value
-				if addon.general and addon.general.iconFrame then
-					if value and addon.variables.catalystID then
-						local cataclystInfo = C_CurrencyInfo.GetCurrencyInfo(addon.variables.catalystID)
-						addon.general.iconFrame.count:SetText(cataclystInfo.quantity)
-						addon.general.iconFrame:Show()
-					else
-						addon.general.iconFrame:Hide()
-					end
+			end
+			addon.db.charDisplayOptions.durability = b
+		elseif key == "catalyst" then
+			addon.db["showCatalystChargesOnCharframe"] = b
+			if addon.general and addon.general.iconFrame then
+				if b and addon.variables and addon.variables.catalystID then
+					local c = C_CurrencyInfo.GetCurrencyInfo(addon.variables.catalystID)
+					if c then addon.general.iconFrame.count:SetText(c.quantity) end
+					addon.general.iconFrame:Show()
+				else
+					addon.general.iconFrame:Hide()
 				end
-			end,
-		},
+			end
+			addon.db.charDisplayOptions.catalyst = b
+		else
+			addon.db.charDisplayOptions[key] = b
+			setCharFrame()
+		end
+	end)
+	ddGroup:AddChild(ddChar)
 
-		-- Moved from Upgrades submenu into Character page
-		{
-			parent = INFO,
-			var = "instantCatalystEnabled",
-			type = "CheckBox",
-			desc = L["instantCatalystEnabledDesc"],
-			callback = function(self, _, value)
-				addon.db["instantCatalystEnabled"] = value
-				addon.functions.toggleInstantCatalystButton(value)
-			end,
-		},
-		{
-			parent = INFO,
-			var = "openCharframeOnUpgrade",
-			type = "CheckBox",
-			callback = function(self, _, value) addon.db["openCharframeOnUpgrade"] = value end,
-		},
-
-		{
-			parent = AUCTION_CATEGORY_GEMS,
-			var = "enableGemHelper",
-			type = "CheckBox",
-			desc = L["enableGemHelperDesc"],
-			callback = function(self, _, value)
-				addon.db["enableGemHelper"] = value
-				if not value and EnhanceQoLGemHelper then
-					EnhanceQoLGemHelper:Hide()
-					EnhanceQoLGemHelper = nil
-				end
-			end,
-		},
-		{
-			parent = LFG_LIST_ITEM_LEVEL_INSTR_SHORT,
-			var = "charIlvlPosition",
-			type = "Dropdown",
-			order = posOrder,
-			text = L["charIlvlPosition"],
-			list = posList,
-			callback = function(self, _, value)
-				addon.db["charIlvlPosition"] = value
-				setCharFrame()
-			end,
-			relWidth = 0.4,
-			value = addon.db["charIlvlPosition"],
-		},
+	local ddInsp = AceGUI:Create("Dropdown")
+	ddInsp:SetLabel(L["Show on Inspect Frame"] or "Show on Inspect Frame")
+	ddInsp:SetMultiselect(true)
+	ddInsp:SetFullWidth(true)
+	local inspOptionsList = {
+		ilvl = STAT_AVERAGE_ITEM_LEVEL or "Item Level",
+		gems = AUCTION_CATEGORY_GEMS or "Gems",
+		enchants = ENCHANTS or "Enchants",
+		gemtip = L["Gem slot tooltip"] or "Gem slot tooltip",
 	}
+	ddInsp:SetList(inspOptionsList)
+	for k in pairs(inspOptionsList) do
+		local t = addon.db.inspectDisplayOptions or {}
+		ddInsp:SetItemValue(k, t[k] == true)
+	end
+	ddInsp:SetCallback("OnValueChanged", function(_, _, key, val)
+		_ensureDisplayDB()
+		addon.db.inspectDisplayOptions[key] = val and true or false
+		if InspectFrame and InspectFrame:IsShown() and InspectFrame.unit then
+			local guid = UnitGUID(InspectFrame.unit)
+			if guid then onInspect(guid) end
+		end
+	end)
+	ddGroup:AddChild(ddInsp)
 
+	-- Info group
+	local groupInfo = addon.functions.createContainer("InlineGroup", "List")
+	groupInfo:SetTitle(INFO)
+	wrapper:AddChild(groupInfo)
+
+	local cbCloak = addon.functions.createCheckboxAce(L["showCloakUpgradeButton"], addon.db["showCloakUpgradeButton"], function(_, _, value)
+		addon.db["showCloakUpgradeButton"] = value
+		if addon.functions.updateCloakUpgradeButton then addon.functions.updateCloakUpgradeButton() end
+	end)
+	groupInfo:AddChild(cbCloak)
+
+	local cbInstant = addon.functions.createCheckboxAce(L["instantCatalystEnabled"], addon.db["instantCatalystEnabled"], function(_, _, value)
+		addon.db["instantCatalystEnabled"] = value
+		addon.functions.toggleInstantCatalystButton(value)
+	end, L["instantCatalystEnabledDesc"])
+	groupInfo:AddChild(cbInstant)
+
+	local cbOpenChar = addon.functions.createCheckboxAce(L["openCharframeOnUpgrade"], addon.db["openCharframeOnUpgrade"], function(_, _, value) addon.db["openCharframeOnUpgrade"] = value end)
+	groupInfo:AddChild(cbOpenChar)
+
+	-- Ilvl position group
+	local groupIlvl = addon.functions.createContainer("InlineGroup", "List")
+	groupIlvl:SetTitle(LFG_LIST_ITEM_LEVEL_INSTR_SHORT)
+	wrapper:AddChild(groupIlvl)
+	local dropIlvl = addon.functions.createDropdownAce(L["charIlvlPosition"], posList, posOrder, function(self, _, value)
+		addon.db["charIlvlPosition"] = value
+		setCharFrame()
+	end)
+	dropIlvl:SetValue(addon.db["charIlvlPosition"])
+	dropIlvl:SetRelativeWidth(0.4)
+	groupIlvl:AddChild(dropIlvl)
+
+	-- Gems group
+	local groupGems = addon.functions.createContainer("InlineGroup", "List")
+	groupGems:SetTitle(AUCTION_CATEGORY_GEMS)
+	wrapper:AddChild(groupGems)
+	local cbGemHelper = addon.functions.createCheckboxAce(L["enableGemHelper"], addon.db["enableGemHelper"], function(_, _, value)
+		addon.db["enableGemHelper"] = value
+		if not value and EnhanceQoLGemHelper then
+			EnhanceQoLGemHelper:Hide()
+			EnhanceQoLGemHelper = nil
+		end
+	end, L["enableGemHelperDesc"])
+	groupGems:AddChild(cbGemHelper)
+
+	-- Class specific
 	local classname = select(2, UnitClass("player"))
-	-- Classspecific stuff
-	if classname == "DEATHKNIGHT" then
-		table.insert(data, {
-			parent = headerClassInfo,
-			var = "deathknight_HideRuneFrame",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["deathknight_HideRuneFrame"] = value
-				if value then
-					RuneFrame:Hide()
-				else
-					RuneFrame:Show()
-				end
-			end,
-		})
-		addTotemHideToggle("deathknight_HideTotemBar", data)
-	elseif classname == "DRUID" then
-		addTotemHideToggle("druid_HideTotemBar", data)
-		table.insert(data, {
-			parent = headerClassInfo,
-			var = "druid_HideComboPoint",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["druid_HideComboPoint"] = value
-				if value then
-					DruidComboPointBarFrame:Hide()
-				else
-					DruidComboPointBarFrame:Show()
-				end
-			end,
-		})
-	elseif classname == "EVOKER" then
-		table.insert(data, {
-			parent = headerClassInfo,
-			var = "evoker_HideEssence",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["evoker_HideEssence"] = value
-				if value then
-					EssencePlayerFrame:Hide()
-				else
-					EssencePlayerFrame:Show()
-				end
-			end,
-		})
-	elseif classname == "MAGE" then
-		addTotemHideToggle("mage_HideTotemBar", data)
-	elseif classname == "MONK" then
-		table.insert(data, {
-			parent = headerClassInfo,
-			var = "monk_HideHarmonyBar",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["monk_HideHarmonyBar"] = value
-				if value then
-					MonkHarmonyBarFrame:Hide()
-				else
-					MonkHarmonyBarFrame:Show()
-				end
-			end,
-		})
-		addTotemHideToggle("monk_HideTotemBar", data)
-	elseif classname == "PRIEST" then
-		addTotemHideToggle("priest_HideTotemBar", data)
-	elseif classname == "SHAMAN" then
-		addTotemHideToggle("shaman_HideTotem", data)
-	elseif classname == "ROGUE" then
-		table.insert(data, {
-			parent = headerClassInfo,
-			var = "rogue_HideComboPoint",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["rogue_HideComboPoint"] = value
-				if value then
-					RogueComboPointBarFrame:Hide()
-				else
-					RogueComboPointBarFrame:Show()
-				end
-			end,
-		})
-	elseif classname == "PALADIN" then
-		table.insert(data, {
-			parent = headerClassInfo,
-			var = "paladin_HideHolyPower",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["paladin_HideHolyPower"] = value
-				if value then
-					PaladinPowerBarFrame:Hide()
-				else
-					PaladinPowerBarFrame:Show()
-				end
-			end,
-		})
-		addTotemHideToggle("paladin_HideTotemBar", data)
-	elseif classname == "WARLOCK" then
-		table.insert(data, {
-			parent = headerClassInfo,
-			var = "warlock_HideSoulShardBar",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["warlock_HideSoulShardBar"] = value
-				if value then
-					WarlockPowerFrame:Hide()
-				else
-					WarlockPowerFrame:Show()
-				end
-			end,
-		})
-		addTotemHideToggle("warlock_HideTotemBar", data)
+	local groupClass = addon.functions.createContainer("InlineGroup", "List")
+	groupClass:SetTitle(headerClassInfo)
+	wrapper:AddChild(groupClass)
+
+	local function addTotemCheckbox(dbKey)
+		local cb = addon.functions.createCheckboxAce(L["shaman_HideTotem"], addon.db[dbKey], function(_, _, value)
+			addon.db[dbKey] = value
+			if value then
+				if TotemFrame then TotemFrame:Hide() end
+			else
+				if TotemFrame then TotemFrame:Show() end
+			end
+		end)
+		groupClass:AddChild(cb)
 	end
 
-	addon.functions.createWrapperData(data, container, L)
+	if classname == "DEATHKNIGHT" then
+		local cb = addon.functions.createCheckboxAce(L["deathknight_HideRuneFrame"], addon.db["deathknight_HideRuneFrame"], function(_, _, value)
+			addon.db["deathknight_HideRuneFrame"] = value
+			if value then
+				if RuneFrame then RuneFrame:Hide() end
+			else
+				if RuneFrame then RuneFrame:Show() end
+			end
+		end)
+		groupClass:AddChild(cb)
+		addTotemCheckbox("deathknight_HideTotemBar")
+	elseif classname == "DRUID" then
+		addTotemCheckbox("druid_HideTotemBar")
+		local cb = addon.functions.createCheckboxAce(L["druid_HideComboPoint"], addon.db["druid_HideComboPoint"], function(_, _, value)
+			addon.db["druid_HideComboPoint"] = value
+			if value then
+				if DruidComboPointBarFrame then DruidComboPointBarFrame:Hide() end
+			else
+				if DruidComboPointBarFrame then DruidComboPointBarFrame:Show() end
+			end
+		end)
+		groupClass:AddChild(cb)
+	elseif classname == "EVOKER" then
+		local cb = addon.functions.createCheckboxAce(L["evoker_HideEssence"], addon.db["evoker_HideEssence"], function(_, _, value)
+			addon.db["evoker_HideEssence"] = value
+			if value then
+				if EssencePlayerFrame then EssencePlayerFrame:Hide() end
+			else
+				if EssencePlayerFrame then EssencePlayerFrame:Show() end
+			end
+		end)
+		groupClass:AddChild(cb)
+	elseif classname == "MAGE" then
+		addTotemCheckbox("mage_HideTotemBar")
+	elseif classname == "MONK" then
+		local cb = addon.functions.createCheckboxAce(L["monk_HideHarmonyBar"], addon.db["monk_HideHarmonyBar"], function(_, _, value)
+			addon.db["monk_HideHarmonyBar"] = value
+			if value then
+				if MonkHarmonyBarFrame then MonkHarmonyBarFrame:Hide() end
+			else
+				if MonkHarmonyBarFrame then MonkHarmonyBarFrame:Show() end
+			end
+		end)
+		groupClass:AddChild(cb)
+		addTotemCheckbox("monk_HideTotemBar")
+	elseif classname == "PRIEST" then
+		addTotemCheckbox("priest_HideTotemBar")
+	elseif classname == "SHAMAN" then
+		addTotemCheckbox("shaman_HideTotem")
+	elseif classname == "ROGUE" then
+		local cb = addon.functions.createCheckboxAce(L["rogue_HideComboPoint"], addon.db["rogue_HideComboPoint"], function(_, _, value)
+			addon.db["rogue_HideComboPoint"] = value
+			if value then
+				if RogueComboPointBarFrame then RogueComboPointBarFrame:Hide() end
+			else
+				if RogueComboPointBarFrame then RogueComboPointBarFrame:Show() end
+			end
+		end)
+		groupClass:AddChild(cb)
+	elseif classname == "PALADIN" then
+		local cb = addon.functions.createCheckboxAce(L["paladin_HideHolyPower"], addon.db["paladin_HideHolyPower"], function(_, _, value)
+			addon.db["paladin_HideHolyPower"] = value
+			if value then
+				if PaladinPowerBarFrame then PaladinPowerBarFrame:Hide() end
+			else
+				if PaladinPowerBarFrame then PaladinPowerBarFrame:Show() end
+			end
+		end)
+		groupClass:AddChild(cb)
+		addTotemCheckbox("paladin_HideTotemBar")
+	elseif classname == "WARLOCK" then
+		local cb = addon.functions.createCheckboxAce(L["warlock_HideSoulShardBar"], addon.db["warlock_HideSoulShardBar"], function(_, _, value)
+			addon.db["warlock_HideSoulShardBar"] = value
+			if value then
+				if WarlockPowerFrame then WarlockPowerFrame:Hide() end
+			else
+				if WarlockPowerFrame then WarlockPowerFrame:Show() end
+			end
+		end)
+		groupClass:AddChild(cb)
+		addTotemCheckbox("warlock_HideTotemBar")
+	end
+
+	scroll:DoLayout()
+	wrapper:DoLayout()
 end
 
 -- Returns the raw Misc options table so we can reuse subsets in other views
@@ -3786,6 +3838,17 @@ local function buildDatapanelFrame(container)
 	controlGroup:SetTitle("Panels")
 	wrapper:AddChild(controlGroup)
 
+	-- Global option: require Shift to move panels
+	addon.db = addon.db or {}
+	addon.db.dataPanelsOptions = addon.db.dataPanelsOptions or {}
+	local shiftLock = addon.functions.createCheckboxAce(
+		L["Lock DataPanel position (hold Shift to move)"] or "Lock DataPanel position (hold Shift to move)",
+		addon.db.dataPanelsOptions.requireShiftToMove == true,
+		function(_, _, val) addon.db.dataPanelsOptions.requireShiftToMove = val and true or false end
+	)
+	shiftLock:SetRelativeWidth(1.0)
+	controlGroup:AddChild(shiftLock)
+
 	local newName = addon.functions.createEditboxAce("Panel Name")
 	newName:SetRelativeWidth(0.4)
 	controlGroup:AddChild(newName)
@@ -3855,6 +3918,13 @@ local function buildDatapanelFrame(container)
 			self:SetLabel("Height: " .. val)
 		end)
 		groupPanel:AddChild(heightSlider)
+
+		-- Per-panel: hide border
+		local borderToggle = addon.functions.createCheckboxAce(L["Hide border"] or "Hide border", info.noBorder == true, function(_, _, val)
+			info.noBorder = val and true or false
+			if panel.ApplyBorder then panel:ApplyBorder() end
+		end)
+		groupPanel:AddChild(borderToggle)
 
 		local streams = panels[id] or {}
 		local currentLabel
@@ -4207,7 +4277,7 @@ end
 local function updateFlyoutButtonInfo(button)
 	if not button then return end
 
-	if addon.db["showIlvlOnCharframe"] then
+	if CharOpt("ilvl") then
 		-- Reset stale overlays on recycled flyout buttons
 		if button.ItemUpgradeArrow then button.ItemUpgradeArrow:Hide() end
 		if button.ItemUpgradeIcon then button.ItemUpgradeIcon:Hide() end
@@ -6895,7 +6965,7 @@ local eventHandlers = {
 		end
 	end,
 	["ENCHANT_SPELL_COMPLETED"] = function(arg1, arg2)
-		if PaperDollFrame:IsShown() and addon.db["showEnchantOnCharframe"] and arg1 == true and arg2 and arg2.equipmentSlotIndex then
+		if PaperDollFrame:IsShown() and CharOpt("enchants") and arg1 == true and arg2 and arg2.equipmentSlotIndex then
 			C_Timer.After(1, function() setIlvlText(addon.variables.itemSlots[arg2.equipmentSlotIndex], arg2.equipmentSlotIndex) end)
 		end
 	end,
@@ -6970,7 +7040,7 @@ local eventHandlers = {
 		end
 	end,
 	["INSPECT_READY"] = function(arg1)
-		if addon.db["showIlvlOnCharframe"] or addon.db["showGemsOnCharframe"] or addon.db["showEnchantOnCharframe"] then onInspect(arg1) end
+		if AnyInspectEnabled() then onInspect(arg1) end
 	end,
 	["ITEM_INTERACTION_ITEM_SELECTION_UPDATED"] = function(arg1)
 		if not ItemInteractionFrame or not ItemInteractionFrame:IsShown() then return end
@@ -7171,7 +7241,7 @@ local eventHandlers = {
 		if addon.db["autoChooseQuest"] and not IsShiftKeyDown() and IsQuestCompletable() then CompleteQuest() end
 	end,
 	["SOCKET_INFO_UPDATE"] = function()
-		if PaperDollFrame:IsShown() and addon.db["showGemsOnCharframe"] then C_Timer.After(0.5, function() setCharFrame() end) end
+		if PaperDollFrame:IsShown() and CharOpt("gems") then C_Timer.After(0.5, function() setCharFrame() end) end
 	end,
 	["ZONE_CHANGED_NEW_AREA"] = function()
 		if addon.variables.hookedOrderHall == false then

@@ -94,6 +94,7 @@ end
 local slotOrder = { 1, 2, 3, 15, 5, 9, 10, 6, 7, 8, 11, 12, 13, 14, 16, 17 } -- Head, Neck, Shoulder, Cloak, ...
 local lines = {}
 local function calculateDurability(stream)
+	ensureDB()
 	local maxDur, currentDura, critDura = 0, 0, 0
 	wipe(lines)
 
