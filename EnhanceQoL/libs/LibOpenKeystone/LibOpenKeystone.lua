@@ -3,6 +3,9 @@ local MAJOR, MINOR = "LibOpenKeystone-1.0", 5
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end
 
+-- forward declarations for luacheck/lint friendliness
+local ReadOwnKeystone, SendLogged, BuildKPayload
+
 -- Storage
 lib.UnitData = lib.UnitData or {} -- [ "Name" or "Name-Realm" ] = { challengeMapID=..., level=..., lastSeen=... }
 lib._callbacks = lib._callbacks or { KeystoneUpdate = {}, KeystoneWipe = {} }
@@ -62,8 +65,11 @@ local function IsMPlusActive()
 end
 
 local function GetCurrentExpansionMaxLevel()
-	if GetMaxLevelForExpansionLevel and LE_EXPANSION_LEVEL_CURRENT then return GetMaxLevelForExpansionLevel(LE_EXPANSION_LEVEL_CURRENT) end
-	if GetMaxLevelForPlayerExpansion then return GetMaxLevelForPlayerExpansion() end
+	local gmlfe = _G and _G.GetMaxLevelForExpansionLevel
+	local lec = _G and _G.LE_EXPANSION_LEVEL_CURRENT
+	if gmlfe and lec then return gmlfe(lec) end
+	local gmlfpe = _G and _G.GetMaxLevelForPlayerExpansion
+	if gmlfpe then return gmlfpe() end
 	return nil
 end
 
@@ -119,7 +125,7 @@ local function Fire(event, ...)
 end
 
 -- Local keystone read (Retail APIs; with fallbacks)
-local function ReadOwnKeystone()
+function ReadOwnKeystone()
 	local mapID, level = 0, 0
 	if C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID then
 		mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID() or 0
@@ -141,7 +147,7 @@ function lib.WipeKeystoneData()
 end
 
 -- Safe/logged send (uses our custom send prefix only)
-local function SendLogged(text, channel)
+function SendLogged(text, channel)
 	-- Zielkanal ermitteln
 	local ch = channel
 	if not ch then
@@ -183,7 +189,7 @@ end
 
 -- Build / parse payloads
 -- LOR-compatible: no name in payload
-local function BuildKPayload(mapID, level)
+function BuildKPayload(mapID, level)
 	mapID = tonumber(mapID) or 0
 	level = tonumber(level) or 0
 	return string.format("%s,%d,%d", KDATA_PREFIX, mapID, level)

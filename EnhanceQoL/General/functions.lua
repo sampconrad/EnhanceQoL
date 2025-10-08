@@ -25,7 +25,8 @@ end
 -- Global helper: detect Timerunner (Timerunning Season active)
 -- Safe-guard for older clients without the API
 function addon.functions.IsTimerunner()
-	if type(PlayerGetTimerunningSeasonID) == "function" then return PlayerGetTimerunningSeasonID() ~= nil end
+	local fn = _G and _G.PlayerGetTimerunningSeasonID
+	if type(fn) == "function" then return fn() ~= nil end
 	return false
 end
 
