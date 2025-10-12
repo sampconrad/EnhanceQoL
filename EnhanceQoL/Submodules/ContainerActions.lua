@@ -129,7 +129,7 @@ function ContainerActions:EnsureButton()
 	local button = CreateFrame("Button", "EnhanceQoLContainerActionButton", UIParent, "ActionButtonTemplate,SecureActionButtonTemplate")
 	button:SetSize(BUTTON_SIZE, BUTTON_SIZE)
 	button:RegisterForClicks("AnyUp", "AnyDown")
-
+	button:SetAttribute("pressAndHoldAction", false) -- verhindert Wiederholen beim Halten
 	button:SetAttribute("*type*", nil)
 	SetButtonIconTexCoord(button, 0.08, 0.92, 0.08, 0.92)
 	if button.HotKey then button.HotKey:SetText("") end
@@ -224,9 +224,7 @@ function ContainerActions:OnCombatEnd()
 		self.previewRestoreAfterCombat = nil
 		self:ShowAnchorPreview()
 	end
-	if self.pendingVisibility == nil and self.desiredVisibility ~= nil then
-		self:RequestVisibility(self.desiredVisibility)
-	end
+	if self.pendingVisibility == nil and self.desiredVisibility ~= nil then self:RequestVisibility(self.desiredVisibility) end
 end
 
 function ContainerActions:ShowAnchorPreview()
@@ -384,16 +382,16 @@ function ContainerActions:ApplyButtonEntry(entry)
 		button.entry = entry
 		SetButtonIconTexture(button, entry.icon or PREVIEW_ICON)
 		button.itemLink = entry.link
-		local macroText = string.format("/use %d %d", entry.bag, entry.slot)
 
-		button:SetAttribute("*type*", nil)
-		button:SetAttribute("type", "macro")
-		button:SetAttribute("macrotext", macroText)
-		button:SetAttribute("type1", "macro")
-		button:SetAttribute("macrotext1", macroText)
-		button:SetAttribute("type2", nil)
-		button:SetAttribute("macrotext2", nil)
-		button:SetAttribute("item", nil)
+		if not button.entry or button.entry.bag ~= entry.bag or button.entry.slot ~= entry.slot then
+			local macroText = string.format("/use %d %d", entry.bag, entry.slot)
+
+			button:SetAttribute("*type*", "macro") -- wirkt auf alle Maustasten
+			button:SetAttribute("macrotext", macroText) -- eine Quelle reicht
+			local macroText = ("/use %d %d"):format(entry.bag, entry.slot)
+		end
+
+		button:SetAttribute("item", nil) -- (Sicherheits-)Reset
 	else
 		button.entry = nil
 		SetButtonIconTexture(button, nil)
@@ -416,13 +414,11 @@ function ContainerActions:RequestVisibility(show)
 	if self.previewActive then show = true end
 	if InCombat() then
 		self.pendingVisibility = show and true or false
-		if not show and not self.previewActive then
-			button:SetAlpha(0)
-		end
+		if not show and not self.previewActive then button:SetAlpha(0) end
 		return
 	end
 	if show then
-	if not self.previewActive then button:SetAlpha(1) end
+		if not self.previewActive then button:SetAlpha(1) end
 		if not button:IsShown() then button:Show() end
 	else
 		if not self.previewActive then button:SetAlpha(0) end
@@ -495,9 +491,7 @@ function ContainerActions:ScanBags()
 								local stack = info.stackCount or 1
 								local uses = 0
 								if stack >= (minStack or 1) and chunk and chunk > 0 then uses = math.floor(stack / chunk) end
-								if uses > 0 then
-									table.insert(secureItems, self:BuildEntry(bag, slot, info, { count = uses, chunk = chunk, meta = autoConfig }))
-								end
+								if uses > 0 then table.insert(secureItems, self:BuildEntry(bag, slot, info, { count = uses, chunk = chunk, meta = autoConfig })) end
 							else
 								table.insert(secureItems, self:BuildEntry(bag, slot, info))
 							end
