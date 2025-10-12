@@ -174,12 +174,14 @@ end
 function ContainerActions:Init()
 	if self.initialized then return end
 	self.initialized = true
+	self.itemCache = self.itemCache or {}
 	self.secureItems = {}
 	self.pendingItem = nil
 	self.pendingVisibility = nil
 	self.awaitingRefresh = nil
 	self.previewActive = false
 	self.previewRestoreAfterCombat = nil
+	self.desiredVisibility = nil
 	self:EnsureAnchor()
 	self:EnsureButton()
 
@@ -239,7 +241,6 @@ function ContainerActions:ShowAnchorPreview()
 	self:ApplyAnchorPosition()
 
 	local button = self:EnsureButton()
-	button:EnableMouse(false)
 	button:SetAlpha(0.8)
 	SetButtonIconTexture(button, PREVIEW_ICON)
 	if button.Count then button.Count:SetText("") end
@@ -259,10 +260,7 @@ function ContainerActions:HideAnchorPreview(skipVisibility)
 	self.previewActive = false
 	if self.anchor then self.anchor:Hide() end
 	local button = self.button
-	if button then
-		button:EnableMouse(true)
-		button:SetAlpha(1)
-	end
+	if button then button:SetAlpha(1) end
 	if skipVisibility then return end
 	if not self:IsEnabled() or #self.secureItems == 0 then
 		self:ApplyButtonEntry(nil)
@@ -302,6 +300,77 @@ function ContainerActions:UpdateCount()
 	else
 		self.button.Count:SetText("")
 	end
+end
+
+function ContainerActions:RememberItemInfo(itemID, config, info, overrides)
+	self.itemCache = self.itemCache or {}
+	local entry = self.itemCache[itemID]
+	if not entry then
+		entry = { itemID = itemID }
+		self.itemCache[itemID] = entry
+	end
+	if info and info.iconFileID and info.iconFileID ~= 0 then entry.icon = info.iconFileID end
+	if overrides and overrides.chunk then entry.chunk = overrides.chunk end
+	if config and type(config) == "table" then
+		local chunk = config.chunk or config.stackSize or config.minStack
+		if chunk and chunk > 0 then entry.chunk = chunk end
+	end
+	local name, _, _, _, _, icon = C_Item.GetItemInfo(itemID)
+	if not icon or icon == 0 then
+		local _, _, _, _, _, iconInstant = C_Item.GetItemInfoInstant(itemID)
+		icon = iconInstant or icon
+	end
+	if name and name ~= "" then entry.name = name end
+	if icon and icon ~= 0 then entry.icon = icon end
+	if not entry.name then entry.name = ("item:%d"):format(itemID) end
+	if (not name or name == "") and not entry.loading then
+		entry.loading = true
+		local itemObj = Item:CreateFromItemID(itemID)
+		if itemObj and itemObj.ContinueOnItemLoad then
+			itemObj:ContinueOnItemLoad(function()
+				local data = ContainerActions.itemCache and ContainerActions.itemCache[itemID]
+				if not data then return end
+				local loadedName = select(1, C_Item.GetItemInfo(itemID)) or select(1, C_Item.GetItemInfoInstant(itemID))
+				if loadedName and loadedName ~= "" then data.name = loadedName end
+				data.loading = nil
+			end)
+		else
+			entry.loading = nil
+		end
+	end
+	return entry
+end
+
+function ContainerActions:IsItemEnabled(itemID)
+	local disabled = addon.db and addon.db.containerAutoOpenDisabled
+	return not (disabled and disabled[itemID])
+end
+
+function ContainerActions:GetManagedItemList()
+	self:Init()
+	local list = {}
+	local source = addon.general and addon.general.variables and addon.general.variables.autoOpen or {}
+	for itemID, config in pairs(source) do
+		local overrides
+		if type(config) == "table" then overrides = { chunk = config.chunk or config.minStack, meta = config } end
+		local cache = self:RememberItemInfo(itemID, config, nil, overrides)
+		table.insert(list, {
+			itemID = itemID,
+			name = cache.name or ("item:" .. itemID),
+			chunk = cache.chunk,
+			icon = cache.icon,
+		})
+	end
+	table.sort(list, function(a, b)
+		if a.name == b.name then return a.itemID < b.itemID end
+		return a.name < b.name
+	end)
+	return list
+end
+
+function ContainerActions:OnItemToggle(itemID, enabled)
+	self:Init()
+	if addon.functions and addon.functions.checkForContainer then addon.functions.checkForContainer() end
 end
 
 function ContainerActions:ApplyButtonEntry(entry)
@@ -349,21 +418,14 @@ function ContainerActions:RequestVisibility(show)
 		self.pendingVisibility = show and true or false
 		if not show and not self.previewActive then
 			button:SetAlpha(0)
-			button:EnableMouse(false)
 		end
 		return
 	end
 	if show then
-		if not self.previewActive then
-			button:SetAlpha(1)
-			button:EnableMouse(true)
-		end
+	if not self.previewActive then button:SetAlpha(1) end
 		if not button:IsShown() then button:Show() end
 	else
-		if not self.previewActive then
-			button:SetAlpha(0)
-			button:EnableMouse(false)
-		end
+		if not self.previewActive then button:SetAlpha(0) end
 		if button:IsShown() then button:Hide() end
 	end
 end
@@ -399,6 +461,7 @@ end
 
 function ContainerActions:BuildEntry(bag, slot, info, overrides)
 	overrides = overrides or {}
+	self:RememberItemInfo(info.itemID, overrides.meta, info, overrides)
 	return {
 		bag = bag,
 		slot = slot,
@@ -424,17 +487,20 @@ function ContainerActions:ScanBags()
 				if info and info.itemID and not info.isLocked then
 					local autoConfig = addon.general and addon.general.variables and addon.general.variables.autoOpen and addon.general.variables.autoOpen[info.itemID]
 					if autoConfig then
-						if type(autoConfig) == "table" then
-							local chunk = autoConfig.chunk or autoConfig.stackSize or autoConfig.minStack or 1
-							local minStack = autoConfig.minStack or chunk
-							local stack = info.stackCount or 1
-							local uses = 0
-							if stack >= minStack and chunk > 0 then uses = math.floor(stack / chunk) end
-							if uses > 0 then
-								table.insert(secureItems, self:BuildEntry(bag, slot, info, { count = uses, chunk = chunk, meta = autoConfig }))
+						self:RememberItemInfo(info.itemID, autoConfig, info)
+						if self:IsItemEnabled(info.itemID) then
+							if type(autoConfig) == "table" then
+								local chunk = autoConfig.chunk or autoConfig.stackSize or autoConfig.minStack or 1
+								local minStack = autoConfig.minStack or chunk
+								local stack = info.stackCount or 1
+								local uses = 0
+								if stack >= (minStack or 1) and chunk and chunk > 0 then uses = math.floor(stack / chunk) end
+								if uses > 0 then
+									table.insert(secureItems, self:BuildEntry(bag, slot, info, { count = uses, chunk = chunk, meta = autoConfig }))
+								end
+							else
+								table.insert(secureItems, self:BuildEntry(bag, slot, info))
 							end
-						else
-							table.insert(secureItems, self:BuildEntry(bag, slot, info))
 						end
 					else
 						if self:IsTooltipOpenable(bag, slot) then table.insert(safeItems, { bag = bag, slot = slot }) end

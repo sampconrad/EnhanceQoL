@@ -3282,6 +3282,15 @@ local function addContainerActionsFrame(container)
 	group:SetTitle(L["ContainerActions"])
 	wrapper:AddChild(group)
 
+	if addon.ContainerActions and addon.ContainerActions.Init then addon.ContainerActions:Init() end
+
+	local featureDesc = L["containerActionsFeatureDesc"]
+	if featureDesc and featureDesc ~= "" then
+		local featureLabel = addon.functions.createLabelAce(featureDesc, { r = 0.8, g = 0.8, b = 0.8 })
+		featureLabel:SetFullWidth(true)
+		group:AddChild(featureLabel)
+	end
+
 	local anchorButton
 	local function updateAnchorButtonLabel()
 		if not anchorButton then return end
@@ -3319,9 +3328,69 @@ local function addContainerActionsFrame(container)
 		group:AddChild(helpLabel)
 	end
 
+	local managedGroup = addon.functions.createContainer("InlineGroup", "List")
+	managedGroup:SetFullWidth(true)
+	managedGroup:SetTitle(L["containerActionsManagedItems"])
+	group:AddChild(managedGroup)
+
+	local toggleDesc = L["containerActionsToggleDesc"]
+	if toggleDesc and toggleDesc ~= "" then
+		local toggleLabel = addon.functions.createLabelAce(toggleDesc, { r = 0.8, g = 0.8, b = 0.8 })
+		toggleLabel:SetFullWidth(true)
+		managedGroup:AddChild(toggleLabel)
+	end
+
+	local managedList = addon.ContainerActions and addon.ContainerActions:GetManagedItemList() or {}
+	if #managedList == 0 then
+		local noneLabel = addon.functions.createLabelAce(L["containerActionsNoManagedItems"], { r = 0.7, g = 0.7, b = 0.7 })
+		noneLabel:SetFullWidth(true)
+		managedGroup:AddChild(noneLabel)
+	else
+		for _, data in ipairs(managedList) do
+			local enabled = not (addon.db.containerAutoOpenDisabled and addon.db.containerAutoOpenDisabled[data.itemID])
+			local label = data.name or ("item:" .. data.itemID)
+			local descText
+			if data.chunk and data.chunk > 1 then
+				label = label .. L["containerActionsChunkSuffix"]:format(data.chunk)
+				descText = L["containerActionsChunkNote"]:format(data.chunk)
+			end
+			local cb = addon.functions.createCheckboxAce(label, enabled, function(_, _, value)
+				addon.db.containerAutoOpenDisabled = addon.db.containerAutoOpenDisabled or {}
+				if value then
+					addon.db.containerAutoOpenDisabled[data.itemID] = nil
+				else
+					addon.db.containerAutoOpenDisabled[data.itemID] = true
+				end
+				if addon.ContainerActions and addon.ContainerActions.OnItemToggle then addon.ContainerActions:OnItemToggle(data.itemID, value) end
+			end, descText)
+			cb:SetDisabled(not addon.db["automaticallyOpenContainer"])
+			if data.icon then
+				cb:SetImage(data.icon)
+				if cb.SetImageSize then cb:SetImageSize(16, 16) end
+			end
+			local itemID = data.itemID
+			local noteText = descText
+			local frame = cb.frame
+			if frame then
+				frame:HookScript("OnEnter", function()
+					GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+					if itemID then GameTooltip:SetItemByID(itemID) end
+					if noteText and noteText ~= "" then
+						GameTooltip:AddLine(" ")
+						GameTooltip:AddLine(noteText, 0.9, 0.9, 0.9, true)
+					end
+					GameTooltip:Show()
+				end)
+				frame:HookScript("OnLeave", GameTooltip_Hide)
+			end
+			managedGroup:AddChild(cb)
+		end
+	end
+
 	scroll:DoLayout()
 	wrapper:DoLayout()
 	group:DoLayout()
+	managedGroup:DoLayout()
 end
 
 -- Check if a misc option exists (avoids empty debug-only pages)
@@ -4889,6 +4958,7 @@ local function initMisc()
 	addon.functions.InitDBValue("instantCatalystEnabled", false)
 	addon.functions.InitDBValue("automaticallyOpenContainer", false)
 	addon.functions.InitDBValue("containerActionAnchor", { point = "CENTER", relativePoint = "CENTER", x = 0, y = -200 })
+	addon.functions.InitDBValue("containerAutoOpenDisabled", {})
 
 	-- Hook all static popups, because not the first one has to be the one for sell all junk if another popup is already shown
 	for i = 1, 4 do
