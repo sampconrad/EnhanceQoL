@@ -2161,6 +2161,18 @@ local function addVendorMainFrame2(container)
 		end, L["enableExtendedMerchantDesc"])
 		g:AddChild(w)
 
+		local highlightKnownCheckbox = addon.functions.createCheckboxAce(L["markKnownOnMerchant"], addon.db["markKnownOnMerchant"], function(_, _, value)
+			addon.db["markKnownOnMerchant"] = value
+			if MerchantFrame and MerchantFrame:IsShown() then
+				if MerchantFrame.selectedTab == 2 then
+					if MerchantFrame_UpdateBuybackInfo then MerchantFrame_UpdateBuybackInfo() end
+				else
+					if MerchantFrame_UpdateMerchantInfo then MerchantFrame_UpdateMerchantInfo() end
+				end
+			end
+		end, L["markKnownOnMerchantDesc"])
+		g:AddChild(highlightKnownCheckbox)
+
 		if known then
 			g:ResumeLayout()
 			doLayout()
@@ -3264,6 +3276,8 @@ end
 
 -- Show a simple informational text on empty category roots
 
+local initLootToast
+
 local function addLootFrame(container, d)
 	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
 	scroll:SetFullWidth(true)
@@ -3277,19 +3291,6 @@ local function addLootFrame(container, d)
 	wrapper:AddChild(groupCore)
 
 	local data = {
-		{
-			parent = "",
-			var = "enableLootToastFilter",
-			text = L["enableLootToastFilter"],
-			desc = L["enableLootToastFilterDesc"],
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["enableLootToastFilter"] = value
-				addon.variables.requireReload = true
-				container:ReleaseChildren()
-				addLootFrame(container)
-			end,
-		},
 		{
 			parent = "",
 			var = "autoQuickLoot",
@@ -3356,10 +3357,50 @@ local function addLootFrame(container, d)
 		groupCore:AddChild(cbShift)
 	end
 
+	local lootToastGroup = addon.functions.createContainer("InlineGroup", "List")
+	lootToastGroup:SetTitle(L["lootToastSectionTitle"])
+	wrapper:AddChild(lootToastGroup)
+
+	local anchorToggle = addon.functions.createCheckboxAce(L["moveLootToast"], addon.db.enableLootToastAnchor, function(self, _, value)
+		addon.db.enableLootToastAnchor = value
+		if addon.LootToast and addon.LootToast.OnAnchorOptionChanged then addon.LootToast:OnAnchorOptionChanged(value) end
+		initLootToast()
+		container:ReleaseChildren()
+		addLootFrame(container)
+	end, L["moveLootToastDesc"])
+	lootToastGroup:AddChild(anchorToggle)
+
+	local anchorButton = addon.functions.createButtonAce(L["lootToastAnchorButton"], 200, function()
+		if not addon.db.enableLootToastAnchor then return end
+		addon.LootToast:ToggleAnchorPreview()
+	end)
+	anchorButton:SetFullWidth(true)
+	anchorButton:SetDisabled(not addon.db.enableLootToastAnchor)
+	lootToastGroup:AddChild(anchorButton)
+
+	local anchorLabel = addon.functions.createLabelAce("")
+	anchorLabel:SetFullWidth(true)
+	local anchorHelp = L["lootToastAnchorHelp"] or L["lootToastAnchorLabel"] or ""
+	if not addon.db.enableLootToastAnchor then
+		anchorHelp = "|cff999999" .. anchorHelp .. "|r"
+	else
+		anchorHelp = "|cffffd700" .. anchorHelp .. "|r"
+	end
+	anchorLabel:SetText(anchorHelp)
+	lootToastGroup:AddChild(anchorLabel)
+
+	local filterToggle = addon.functions.createCheckboxAce(L["enableLootToastFilter"], addon.db.enableLootToastFilter, function(self, _, value)
+		addon.db.enableLootToastFilter = value
+		initLootToast()
+		container:ReleaseChildren()
+		addLootFrame(container)
+	end, L["enableLootToastFilterDesc"])
+	lootToastGroup:AddChild(filterToggle)
+
 	if addon.db.enableLootToastFilter then
-		local group = addon.functions.createContainer("InlineGroup", "List")
-		group:SetTitle(L["enableLootToastFilter"])
-		wrapper:AddChild(group)
+		local filterGroup = addon.functions.createContainer("InlineGroup", "List")
+		filterGroup:SetTitle(L["lootToastFilterSettings"])
+		lootToastGroup:AddChild(filterGroup)
 
 		local tabs = {
 			{ text = ITEM_QUALITY3_DESC, value = tostring(Enum.ItemQuality.Rare) },
@@ -3440,13 +3481,13 @@ local function addLootFrame(container, d)
 				label:SetFullWidth(true)
 				tabContainer:AddChild(label)
 
-				local refreshLabel
-				refreshLabel = function()
+				local function refreshLabel()
 					local text
 					if rarity ~= "include" then
 						local extras = {}
 						if filter.mounts then table.insert(extras, MOUNTS:lower()) end
 						if filter.pets then table.insert(extras, PETS:lower()) end
+						if filter.upgrade then table.insert(extras, L["lootToastExtrasUpgrades"]) end
 						local eText = ""
 						if #extras > 0 then eText = L["alwaysShow"] .. table.concat(extras, " " .. L["andWord"] .. " ") end
 						if filter.ilvl then
@@ -3462,6 +3503,7 @@ local function addLootFrame(container, d)
 
 				tabContainer:AddChild(addon.functions.createCheckboxAce(L["lootToastCheckIlvl"], filter.ilvl, function(self, _, v)
 					addon.db.lootToastFilters[q].ilvl = v
+					filter.ilvl = v
 					refreshLabel()
 				end))
 				local slider = addon.functions.createSliderAce(L["lootToastItemLevel"] .. ": " .. addon.db.lootToastItemLevels[q], addon.db.lootToastItemLevels[q], 0, 1000, 1, function(self, _, val)
@@ -3470,14 +3512,29 @@ local function addLootFrame(container, d)
 					refreshLabel()
 				end)
 				tabContainer:AddChild(slider)
-				tabContainer:AddChild(addon.functions.createCheckboxAce(L["lootToastIncludeMounts"], filter.mounts, function(self, _, v)
-					addon.db.lootToastFilters[q].mounts = v
-					refreshLabel()
-				end))
-				tabContainer:AddChild(addon.functions.createCheckboxAce(L["lootToastIncludePets"], filter.pets, function(self, _, v)
-					addon.db.lootToastFilters[q].pets = v
-					refreshLabel()
-				end))
+
+				local alwaysList = {
+					mounts = L["lootToastAlwaysShowMounts"],
+					pets = L["lootToastAlwaysShowPets"],
+					upgrade = L["lootToastAlwaysShowUpgrades"],
+				}
+				local alwaysOrder = { "mounts", "pets", "upgrade" }
+				local dropdownAlways = addon.functions.createDropdownAce(L["lootToastAlwaysShow"], alwaysList, alwaysOrder, function(self, _, key, checked)
+					if not key then return end
+					local isChecked = checked and true or false
+					if addon.db.lootToastFilters[q][key] ~= nil then
+						addon.db.lootToastFilters[q][key] = isChecked
+						filter[key] = isChecked
+						self:SetItemValue(key, isChecked)
+						refreshLabel()
+					end
+				end)
+				dropdownAlways:SetMultiselect(true)
+				for _, key in ipairs(alwaysOrder) do
+					dropdownAlways:SetItemValue(key, not not filter[key])
+				end
+				tabContainer:AddChild(dropdownAlways)
+
 				refreshLabel()
 			end
 			scroll:DoLayout()
@@ -3488,7 +3545,7 @@ local function addLootFrame(container, d)
 			container:ReleaseChildren()
 			addLootFrame(container)
 		end)
-		group:AddChild(cbSound)
+		filterGroup:AddChild(cbSound)
 
 		if addon.db.lootToastUseCustomSound then
 			if addon.ChatIM and addon.ChatIM.BuildSoundTable and not addon.ChatIM.availableSounds then addon.ChatIM:BuildSoundTable() end
@@ -3504,15 +3561,16 @@ local function addLootFrame(container, d)
 				if file then PlaySoundFile(file, "Master") end
 			end)
 			dropSound:SetValue(addon.db.lootToastCustomSoundFile)
-			group:AddChild(dropSound)
+			filterGroup:AddChild(dropSound)
 		end
 
 		local tabGroup = addon.functions.createContainer("TabGroup", "Flow")
 		tabGroup:SetTabs(tabs)
 		tabGroup:SetCallback("OnGroupSelected", function(tabContainer, _, groupVal) buildTab(tabContainer, groupVal) end)
-		group:AddChild(tabGroup)
+		filterGroup:AddChild(tabGroup)
 		tabGroup:SelectTab(tabs[1].value)
 	end
+
 	scroll:DoLayout()
 end
 
@@ -4005,190 +4063,250 @@ local function buildDatapanelFrame(container)
 	scroll:DoLayout()
 end
 
+local TooltipUtil = TooltipUtil
+
+local function merchantItemIsKnown(itemIndex)
+	if not C_TooltipInfo or not C_TooltipInfo.GetMerchantItem then return false end
+	local tooltipData = C_TooltipInfo.GetMerchantItem(itemIndex)
+	if not tooltipData then return false end
+	if TooltipUtil and TooltipUtil.SurfaceArgs then TooltipUtil.SurfaceArgs(tooltipData) end
+	if not tooltipData.lines then return false end
+	for _, line in ipairs(tooltipData.lines) do
+		if TooltipUtil and TooltipUtil.SurfaceArgs then TooltipUtil.SurfaceArgs(line) end
+		local text = line.leftText or line.rightText
+		if text and text:find(ITEM_SPELL_KNOWN, 1, true) then return true end
+	end
+	return false
+end
+
+local function setMerchantKnownIcon(itemButton, state)
+	if not itemButton then return end
+	if state then
+		if not itemButton.MerchantKnownIcon then
+			local icon = itemButton:CreateTexture(nil, "OVERLAY", nil, 7)
+			if icon.SetAtlas and icon:SetAtlas("common-icon-checkmark") then
+				icon:SetTexCoord(0, 1, 0, 1)
+			else
+				icon:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+			end
+			icon:SetSize(18, 18)
+			icon:SetPoint("TOPLEFT", itemButton, "TOPLEFT", -2, 2)
+			icon:SetVertexColor(0.2, 0.9, 0.2, 0.9)
+			itemButton.MerchantKnownIcon = icon
+		end
+		itemButton.MerchantKnownIcon:Show()
+	else
+		if itemButton.MerchantKnownIcon then itemButton.MerchantKnownIcon:Hide() end
+	end
+end
+
 local function updateMerchantButtonInfo()
-	if addon.db["showIlvlOnMerchantframe"] then
-		local itemsPerPage = MERCHANT_ITEMS_PER_PAGE or 10 -- Anzahl der Items pro Seite (Standard 10)
-		local currentPage = MerchantFrame.page or 1 -- Aktuelle Seite
-		local startIndex = (currentPage - 1) * itemsPerPage + 1 -- Startindex basierend auf der aktuellen Seite
-
+	local showIlvl = addon.db["showIlvlOnMerchantframe"]
+	local highlightKnown = addon.db["markKnownOnMerchant"]
+	if not showIlvl and not highlightKnown then
+		local itemsPerPage = MERCHANT_ITEMS_PER_PAGE or 10
 		for i = 1, itemsPerPage do
-			local itemIndex = startIndex + i - 1
 			local itemButton = _G["MerchantItem" .. i .. "ItemButton"]
-			local itemLink = GetMerchantItemLink(itemIndex)
-
 			if itemButton then
-				-- Clear any stale overlays from recycled buttons
+				setMerchantKnownIcon(itemButton, false)
+				if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
 				if itemButton.ItemUpgradeArrow then itemButton.ItemUpgradeArrow:Hide() end
-				if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
-				if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
-				if itemLink and itemLink:find("item:") then
-					local eItem = Item:CreateFromItemLink(itemLink)
-					eItem:ContinueOnItemLoad(function()
-						-- local itemName, _, _, _, _, _, _, _, itemEquipLoc = C_Item.GetItemInfo(itemLink)
-						local _, _, _, _, _, _, _, _, itemEquipLoc, _, _, classID, subclassID = C_Item.GetItemInfo(itemLink)
+				if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
+				if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+			end
+		end
+		return
+	end
 
-						if
-							(itemEquipLoc ~= "INVTYPE_NON_EQUIP_IGNORE" or (classID == 4 and subclassID == 0)) and not (classID == 4 and subclassID == 5) -- Cosmetic
-						then
-							local link = eItem:GetItemLink()
-							local invSlot = select(4, C_Item.GetItemInfoInstant(link))
-							if nil == addon.variables.allowedEquipSlotsBagIlvl[invSlot] then
-								if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
-								if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
-								return
-							end
+	local itemsPerPage = MERCHANT_ITEMS_PER_PAGE or 10 -- Anzahl der Items pro Seite (Standard 10)
+	local currentPage = MerchantFrame.page or 1 -- Aktuelle Seite
+	local startIndex = (currentPage - 1) * itemsPerPage + 1 -- Startindex basierend auf der aktuellen Seite
 
-							if not itemButton.ItemLevelText then
-								itemButton.ItemLevelText = itemButton:CreateFontString(nil, "OVERLAY")
-								itemButton.ItemLevelText:SetFont(addon.variables.defaultFont, 16, "OUTLINE")
-								itemButton.ItemLevelText:SetShadowOffset(1, -1)
-								itemButton.ItemLevelText:SetShadowColor(0, 0, 0, 1)
-							end
-							itemButton.ItemLevelText:ClearAllPoints()
-							local pos = addon.db["bagIlvlPosition"] or "TOPRIGHT"
-							if pos == "TOPLEFT" then
-								itemButton.ItemLevelText:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
-							elseif pos == "BOTTOMLEFT" then
-								itemButton.ItemLevelText:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
-							elseif pos == "BOTTOMRIGHT" then
-								itemButton.ItemLevelText:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
-							else
-								itemButton.ItemLevelText:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -1)
-							end
+	for i = 1, itemsPerPage do
+		local itemIndex = startIndex + i - 1
+		local itemButton = _G["MerchantItem" .. i .. "ItemButton"]
+		local itemLink = GetMerchantItemLink(itemIndex)
 
-							local color = eItem:GetItemQualityColor()
-							local candidateIlvl = eItem:GetCurrentItemLevel()
-							itemButton.ItemLevelText:SetText(candidateIlvl)
-							itemButton.ItemLevelText:SetTextColor(color.r, color.g, color.b, 1)
-							itemButton.ItemLevelText:Show()
-							local bType
+		if itemButton then
+			if highlightKnown then
+				local isKnown = itemLink and merchantItemIsKnown(itemIndex)
+				setMerchantKnownIcon(itemButton, isKnown)
+			else
+				setMerchantKnownIcon(itemButton, false)
+			end
+			-- Clear any stale overlays from recycled buttons
+			if itemButton.ItemUpgradeArrow then itemButton.ItemUpgradeArrow:Hide() end
+			if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
+			if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
+			if showIlvl and itemLink and itemLink:find("item:") then
+				local eItem = Item:CreateFromItemLink(itemLink)
+				eItem:ContinueOnItemLoad(function()
+					-- local itemName, _, _, _, _, _, _, _, itemEquipLoc = C_Item.GetItemInfo(itemLink)
+					local _, _, _, _, _, _, _, _, itemEquipLoc, _, _, classID, subclassID = C_Item.GetItemInfo(itemLink)
 
-							-- Upgrade arrow for Merchant items
-							if addon.db["showUpgradeArrowOnBagItems"] then
-								local function getEquipSlotsFor(equipLoc)
-									if equipLoc == "INVTYPE_FINGER" then
-										return { 11, 12 }
-									elseif equipLoc == "INVTYPE_TRINKET" then
-										return { 13, 14 }
-									elseif equipLoc == "INVTYPE_HEAD" then
-										return { 1 }
-									elseif equipLoc == "INVTYPE_NECK" then
-										return { 2 }
-									elseif equipLoc == "INVTYPE_SHOULDER" then
-										return { 3 }
-									elseif equipLoc == "INVTYPE_CLOAK" then
-										return { 15 }
-									elseif equipLoc == "INVTYPE_CHEST" or equipLoc == "INVTYPE_ROBE" then
-										return { 5 }
-									elseif equipLoc == "INVTYPE_WRIST" then
-										return { 9 }
-									elseif equipLoc == "INVTYPE_HAND" then
-										return { 10 }
-									elseif equipLoc == "INVTYPE_WAIST" then
-										return { 6 }
-									elseif equipLoc == "INVTYPE_LEGS" then
-										return { 7 }
-									elseif equipLoc == "INVTYPE_FEET" then
-										return { 8 }
-									elseif equipLoc == "INVTYPE_WEAPONMAINHAND" or equipLoc == "INVTYPE_2HWEAPON" or equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" then
-										return { 16 }
-									elseif equipLoc == "INVTYPE_WEAPONOFFHAND" or equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_SHIELD" then
-										return { 17 }
-									elseif equipLoc == "INVTYPE_WEAPON" then
-										return { 16, 17 }
-									end
-									return nil
-								end
-
-								local invSlot = select(4, C_Item.GetItemInfoInstant(itemLink))
-								local slots = getEquipSlotsFor(invSlot)
-								local baseline
-								if slots and #slots > 0 then
-									for _, s in ipairs(slots) do
-										local eqLink = GetInventoryItemLink("player", s)
-										local eqIlvl = eqLink and (C_Item.GetDetailedItemLevelInfo(eqLink) or 0) or 0
-										if baseline == nil then
-											baseline = eqIlvl
-										else
-											baseline = math.min(baseline, eqIlvl)
-										end
-									end
-								end
-								local isUpgrade = baseline ~= nil and candidateIlvl and candidateIlvl > baseline
-								if isUpgrade then
-									if not itemButton.ItemUpgradeIcon then
-										itemButton.ItemUpgradeIcon = itemButton:CreateTexture(nil, "OVERLAY")
-										itemButton.ItemUpgradeIcon:SetSize(14, 14)
-									end
-									itemButton.ItemUpgradeIcon:SetTexture("Interface\\AddOns\\EnhanceQoL\\Icons\\upgradeilvl.tga")
-									itemButton.ItemUpgradeIcon:ClearAllPoints()
-									local posUp = addon.db["bagUpgradeIconPosition"] or "BOTTOMRIGHT"
-									if posUp == "TOPRIGHT" then
-										itemButton.ItemUpgradeIcon:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
-									elseif posUp == "TOPLEFT" then
-										itemButton.ItemUpgradeIcon:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
-									elseif posUp == "BOTTOMLEFT" then
-										itemButton.ItemUpgradeIcon:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
-									else
-										itemButton.ItemUpgradeIcon:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
-									end
-									itemButton.ItemUpgradeIcon:Show()
-								elseif itemButton.ItemUpgradeIcon then
-									itemButton.ItemUpgradeIcon:Hide()
-								end
-							end
-
-							if addon.db["showBindOnBagItems"] then
-								local data = C_TooltipInfo.GetMerchantItem(itemIndex)
-								for i, v in pairs(data.lines) do
-									if v.type == 20 then
-										if v.leftText == ITEM_BIND_ON_EQUIP then
-											bType = "BoE"
-										elseif v.leftText == ITEM_ACCOUNTBOUND_UNTIL_EQUIP or v.leftText == ITEM_BIND_TO_ACCOUNT_UNTIL_EQUIP then
-											bType = "WuE"
-										elseif v.leftText == ITEM_ACCOUNTBOUND or v.leftText == ITEM_BIND_TO_BNETACCOUNT then
-											bType = "WB"
-										end
-										break
-									end
-								end
-							end
-							if bType then
-								if not itemButton.ItemBoundType then
-									itemButton.ItemBoundType = itemButton:CreateFontString(nil, "OVERLAY")
-									itemButton.ItemBoundType:SetFont(addon.variables.defaultFont, 10, "OUTLINE")
-									itemButton.ItemBoundType:SetShadowOffset(2, 2)
-									itemButton.ItemBoundType:SetShadowColor(0, 0, 0, 1)
-								end
-								itemButton.ItemBoundType:ClearAllPoints()
-								if addon.db["bagIlvlPosition"] == "BOTTOMLEFT" then
-									itemButton.ItemBoundType:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
-								elseif addon.db["bagIlvlPosition"] == "BOTTOMRIGHT" then
-									itemButton.ItemBoundType:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
-								else
-									itemButton.ItemBoundType:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
-								end
-								itemButton.ItemBoundType:SetFormattedText(bType)
-								itemButton.ItemBoundType:Show()
-							elseif itemButton.ItemBoundType then
-								itemButton.ItemBoundType:Hide()
-							end
-						else
+					if
+						(itemEquipLoc ~= "INVTYPE_NON_EQUIP_IGNORE" or (classID == 4 and subclassID == 0)) and not (classID == 4 and subclassID == 5) -- Cosmetic
+					then
+						local link = eItem:GetItemLink()
+						local invSlot = select(4, C_Item.GetItemInfoInstant(link))
+						if nil == addon.variables.allowedEquipSlotsBagIlvl[invSlot] then
 							if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
 							if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+							return
 						end
-					end)
-				else
-					if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
-					if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
-				end
+
+						if not itemButton.ItemLevelText then
+							itemButton.ItemLevelText = itemButton:CreateFontString(nil, "OVERLAY")
+							itemButton.ItemLevelText:SetFont(addon.variables.defaultFont, 16, "OUTLINE")
+							itemButton.ItemLevelText:SetShadowOffset(1, -1)
+							itemButton.ItemLevelText:SetShadowColor(0, 0, 0, 1)
+						end
+						itemButton.ItemLevelText:ClearAllPoints()
+						local pos = addon.db["bagIlvlPosition"] or "TOPRIGHT"
+						if pos == "TOPLEFT" then
+							itemButton.ItemLevelText:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
+						elseif pos == "BOTTOMLEFT" then
+							itemButton.ItemLevelText:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
+						elseif pos == "BOTTOMRIGHT" then
+							itemButton.ItemLevelText:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
+						else
+							itemButton.ItemLevelText:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -1)
+						end
+
+						local color = eItem:GetItemQualityColor()
+						local candidateIlvl = eItem:GetCurrentItemLevel()
+						itemButton.ItemLevelText:SetText(candidateIlvl)
+						itemButton.ItemLevelText:SetTextColor(color.r, color.g, color.b, 1)
+						itemButton.ItemLevelText:Show()
+						local bType
+
+						-- Upgrade arrow for Merchant items
+						if addon.db["showUpgradeArrowOnBagItems"] then
+							local function getEquipSlotsFor(equipLoc)
+								if equipLoc == "INVTYPE_FINGER" then
+									return { 11, 12 }
+								elseif equipLoc == "INVTYPE_TRINKET" then
+									return { 13, 14 }
+								elseif equipLoc == "INVTYPE_HEAD" then
+									return { 1 }
+								elseif equipLoc == "INVTYPE_NECK" then
+									return { 2 }
+								elseif equipLoc == "INVTYPE_SHOULDER" then
+									return { 3 }
+								elseif equipLoc == "INVTYPE_CLOAK" then
+									return { 15 }
+								elseif equipLoc == "INVTYPE_CHEST" or equipLoc == "INVTYPE_ROBE" then
+									return { 5 }
+								elseif equipLoc == "INVTYPE_WRIST" then
+									return { 9 }
+								elseif equipLoc == "INVTYPE_HAND" then
+									return { 10 }
+								elseif equipLoc == "INVTYPE_WAIST" then
+									return { 6 }
+								elseif equipLoc == "INVTYPE_LEGS" then
+									return { 7 }
+								elseif equipLoc == "INVTYPE_FEET" then
+									return { 8 }
+								elseif equipLoc == "INVTYPE_WEAPONMAINHAND" or equipLoc == "INVTYPE_2HWEAPON" or equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" then
+									return { 16 }
+								elseif equipLoc == "INVTYPE_WEAPONOFFHAND" or equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_SHIELD" then
+									return { 17 }
+								elseif equipLoc == "INVTYPE_WEAPON" then
+									return { 16, 17 }
+								end
+								return nil
+							end
+
+							local invSlot = select(4, C_Item.GetItemInfoInstant(itemLink))
+							local slots = getEquipSlotsFor(invSlot)
+							local baseline
+							if slots and #slots > 0 then
+								for _, s in ipairs(slots) do
+									local eqLink = GetInventoryItemLink("player", s)
+									local eqIlvl = eqLink and (C_Item.GetDetailedItemLevelInfo(eqLink) or 0) or 0
+									if baseline == nil then
+										baseline = eqIlvl
+									else
+										baseline = math.min(baseline, eqIlvl)
+									end
+								end
+							end
+							local isUpgrade = baseline ~= nil and candidateIlvl and candidateIlvl > baseline
+							if isUpgrade then
+								if not itemButton.ItemUpgradeIcon then
+									itemButton.ItemUpgradeIcon = itemButton:CreateTexture(nil, "OVERLAY")
+									itemButton.ItemUpgradeIcon:SetSize(14, 14)
+								end
+								itemButton.ItemUpgradeIcon:SetTexture("Interface\\AddOns\\EnhanceQoL\\Icons\\upgradeilvl.tga")
+								itemButton.ItemUpgradeIcon:ClearAllPoints()
+								local posUp = addon.db["bagUpgradeIconPosition"] or "BOTTOMRIGHT"
+								if posUp == "TOPRIGHT" then
+									itemButton.ItemUpgradeIcon:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
+								elseif posUp == "TOPLEFT" then
+									itemButton.ItemUpgradeIcon:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
+								elseif posUp == "BOTTOMLEFT" then
+									itemButton.ItemUpgradeIcon:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
+								else
+									itemButton.ItemUpgradeIcon:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
+								end
+								itemButton.ItemUpgradeIcon:Show()
+							elseif itemButton.ItemUpgradeIcon then
+								itemButton.ItemUpgradeIcon:Hide()
+							end
+						end
+
+						if addon.db["showBindOnBagItems"] then
+							local data = C_TooltipInfo.GetMerchantItem(itemIndex)
+							for i, v in pairs(data.lines) do
+								if v.type == 20 then
+									if v.leftText == ITEM_BIND_ON_EQUIP then
+										bType = "BoE"
+									elseif v.leftText == ITEM_ACCOUNTBOUND_UNTIL_EQUIP or v.leftText == ITEM_BIND_TO_ACCOUNT_UNTIL_EQUIP then
+										bType = "WuE"
+									elseif v.leftText == ITEM_ACCOUNTBOUND or v.leftText == ITEM_BIND_TO_BNETACCOUNT then
+										bType = "WB"
+									end
+									break
+								end
+							end
+						end
+						if bType then
+							if not itemButton.ItemBoundType then
+								itemButton.ItemBoundType = itemButton:CreateFontString(nil, "OVERLAY")
+								itemButton.ItemBoundType:SetFont(addon.variables.defaultFont, 10, "OUTLINE")
+								itemButton.ItemBoundType:SetShadowOffset(2, 2)
+								itemButton.ItemBoundType:SetShadowColor(0, 0, 0, 1)
+							end
+							itemButton.ItemBoundType:ClearAllPoints()
+							if addon.db["bagIlvlPosition"] == "BOTTOMLEFT" then
+								itemButton.ItemBoundType:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
+							elseif addon.db["bagIlvlPosition"] == "BOTTOMRIGHT" then
+								itemButton.ItemBoundType:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
+							else
+								itemButton.ItemBoundType:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
+							end
+							itemButton.ItemBoundType:SetFormattedText(bType)
+							itemButton.ItemBoundType:Show()
+						elseif itemButton.ItemBoundType then
+							itemButton.ItemBoundType:Hide()
+						end
+					else
+						if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
+						if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+					end
+				end)
+			else
+				if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
+				if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
 			end
 		end
 	end
 end
 
 local function updateBuybackButtonInfo()
-	if not addon.db["showIlvlOnMerchantframe"] then return end
+	local showIlvl = addon.db["showIlvlOnMerchantframe"]
+	local highlightKnown = addon.db["markKnownOnMerchant"]
+	if not showIlvl and not highlightKnown then return end
 
 	local itemsPerPage = BUYBACK_ITEMS_PER_PAGE or 12
 	for i = 1, itemsPerPage do
@@ -4196,7 +4314,11 @@ local function updateBuybackButtonInfo()
 		local itemLink = GetBuybackItemLink(i)
 
 		if itemButton then
-			if itemLink and itemLink:find("item:") then
+			setMerchantKnownIcon(itemButton, false)
+			if not showIlvl then
+				if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
+				if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+			elseif itemLink and itemLink:find("item:") then
 				local eItem = Item:CreateFromItemLink(itemLink)
 				eItem:ContinueOnItemLoad(function()
 					local _, _, _, _, _, _, _, _, itemEquipLoc, _, _, classID, subclassID = C_Item.GetItemInfo(itemLink)
@@ -4811,6 +4933,7 @@ local function initMisc()
 end
 
 local function initLoot()
+	addon.functions.InitDBValue("enableLootToastAnchor", false)
 	addon.functions.InitDBValue("enableLootToastFilter", false)
 	addon.functions.InitDBValue("lootToastItemLevels", {
 		[Enum.ItemQuality.Rare] = 600,
@@ -4825,13 +4948,18 @@ local function initLoot()
 		addon.db.lootToastItemLevel = nil
 	end
 	addon.functions.InitDBValue("lootToastFilters", {
-		[Enum.ItemQuality.Rare] = { ilvl = true, mounts = true, pets = true },
-		[Enum.ItemQuality.Epic] = { ilvl = true, mounts = true, pets = true },
-		[Enum.ItemQuality.Legendary] = { ilvl = true, mounts = true, pets = true },
+		[Enum.ItemQuality.Rare] = { ilvl = true, mounts = true, pets = true, upgrade = false },
+		[Enum.ItemQuality.Epic] = { ilvl = true, mounts = true, pets = true, upgrade = false },
+		[Enum.ItemQuality.Legendary] = { ilvl = true, mounts = true, pets = true, upgrade = false },
 	})
+	for _, quality in ipairs({ Enum.ItemQuality.Rare, Enum.ItemQuality.Epic, Enum.ItemQuality.Legendary }) do
+		local filter = addon.db.lootToastFilters[quality]
+		if filter.upgrade == nil then filter.upgrade = false end
+	end
 	addon.functions.InitDBValue("lootToastIncludeIDs", {})
 	addon.functions.InitDBValue("lootToastUseCustomSound", false)
 	addon.functions.InitDBValue("lootToastCustomSoundFile", "")
+	addon.functions.InitDBValue("lootToastAnchor", { point = "BOTTOM", relativePoint = "BOTTOM", x = 0, y = 240 })
 	if addon.ChatIM and addon.ChatIM.BuildSoundTable and not addon.ChatIM.availableSounds then addon.ChatIM:BuildSoundTable() end
 end
 
@@ -5198,8 +5326,8 @@ local function initSocial()
 	if addon.Ignore and addon.Ignore.UpdateAnchor then addon.Ignore:UpdateAnchor() end
 end
 
-local function initLootToast()
-	if addon.db.enableLootToastFilter and addon.LootToast and addon.LootToast.Enable then
+initLootToast = function()
+	if (addon.db.enableLootToastFilter or addon.db.enableLootToastAnchor) and addon.LootToast and addon.LootToast.Enable then
 		addon.LootToast:Enable()
 	elseif addon.LootToast and addon.LootToast.Disable then
 		addon.LootToast:Disable()
@@ -6047,6 +6175,7 @@ end
 local function initCharacter()
 	addon.functions.InitDBValue("showIlvlOnBankFrame", false)
 	addon.functions.InitDBValue("showIlvlOnMerchantframe", false)
+	addon.functions.InitDBValue("markKnownOnMerchant", false)
 	addon.functions.InitDBValue("showIlvlOnCharframe", false)
 	addon.functions.InitDBValue("showIlvlOnBagItems", false)
 	addon.functions.InitDBValue("showBagFilterMenu", false)

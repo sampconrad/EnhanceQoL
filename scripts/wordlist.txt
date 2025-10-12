@@ -150,6 +150,7 @@ Tount;180;"[[pbas -60]]";Taunt
 Transission;180;"[[pbas -60]]"
 Trinket;180;"[[pbas -60]]"
 Turn;160;"[[pbas -60]]"
+Upgrade;180;"[[pbas -60]]"
 Use
 Volley;180;"[[pbas -60]]"
 Watch your Feet;190;"[[pbas -50]]";Watch your Feet

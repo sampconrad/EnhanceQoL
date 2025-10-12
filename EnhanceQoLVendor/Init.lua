@@ -42,6 +42,9 @@ addon.functions.InitDBValue("vendorShowSellOverlay", false)
 addon.functions.InitDBValue("vendorShowSellHighContrast", false)
 addon.functions.InitDBValue("vendorShowSellTooltip", false)
 addon.functions.InitDBValue("vendorCraftShopperEnable", false)
+addon.functions.InitDBValue("vendorScrapAuto", false)
+addon.functions.InitDBValue("vendorScrapMaxQuality", Enum.ItemQuality.Rare)
+addon.functions.InitDBValue("vendorScrapMinLevelDiff", 0)
 
 for key, value in pairs(addon.Vendor.variables.tabNames) do
 	addon.functions.InitDBValue("vendor" .. value .. "Enable", false)

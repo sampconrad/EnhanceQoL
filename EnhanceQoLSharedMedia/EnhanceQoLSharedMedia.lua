@@ -165,6 +165,7 @@ addon.SharedMedia.sounds = {
 	{ key = "Revival", label = "EQOL: |cFF000000|rRevival |T1020466:16|t", path = voiceoverPath .. "Revival.ogg" },
 	{ key = "Tiger's Lust", label = "EQOL: |cFF000000|rTiger's Lust |T651727:16|t", path = voiceoverPath .. "Tiger's Lust.ogg" },
 	{ key = "Autumn", label = "EQOL: |cFF000000|rAutumn |T3636843:16|t", path = voiceoverPath .. "Autumn.ogg" },
+	{ key = "Upgrade", label = "EQOL: Upgrade", path = voiceoverPath .. "Upgrade.ogg" },
 	{ key = "Freedom", label = "EQOL: |cFF000000|rFreedom |T135968:16|t", path = voiceoverPath .. "Freedom.ogg" },
 	{ key = "Devotion Aura", label = "EQOL: |cFF000000|rDevotion Aura |T135893:16|t", path = voiceoverPath .. "Devotion Aura.ogg" },
 	{ key = "Lay on Hands", label = "EQOL: |cFF000000|rLay on Hands |T135928:16|t", path = voiceoverPath .. "Lay on Hands.ogg" },

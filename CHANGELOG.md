@@ -5,9 +5,16 @@
 ### ✨ Added
 
 - Legion Remix to the Infinite Bazaar for remix characters
+- New Sound: Upgrade
+- Loot toast filters per rarity now include an "Always show upgrades" checkbox that compares the drop against your equipped gear (class/spec aware)
+- Option to move the loot toast message with a draggable anchor
+- Merchants: highlight collectibles you already know with a green checkmark overlay (Items & Inventory → Vendors & Economy → Merchant)
+- Vendors & Economy → Selling & Shopping → Remix (EnhanceQoLVendor): new auto-scrap toggle and controls to streamline Remix scrapping
 
 ### 🔄 Changed
 
+- Loot toast settings are grouped together; the anchor button is only enabled once "Move loot toast" is toggled on
+- Loot toast "Always show" choices for mounts, pets, and upgrades now live in a single dropdown
 - Portal Compendium shows only timerunner related spells as remix character
 
 ---

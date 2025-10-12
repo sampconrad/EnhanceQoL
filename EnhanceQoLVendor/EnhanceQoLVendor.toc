@@ -24,5 +24,6 @@
 Init.lua
 locales\[TextLocale].lua
 
+Autoscrap.lua
 EnhanceQoLVendor.lua
 CraftShopper.lua
