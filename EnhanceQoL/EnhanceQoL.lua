@@ -7031,9 +7031,9 @@ local function openItems(items)
 			-- if iLoc then
 			-- 	if C_Item.IsLocked(iLoc) then C_Item.UnlockItem(iLoc) end
 			-- end
-			C_Timer.After(0.1, function()
+			C_Timer.After(0.15, function()
 				C_Container.UseContainerItem(item.bag, item.slot)
-				C_Timer.After(0.4, openNextItem) -- 100ms Pause zwischen den Verkäufen
+				C_Timer.After(0.4, openNextItem) -- 400ms Pause zwischen den boxen
 			end)
 		end
 	end

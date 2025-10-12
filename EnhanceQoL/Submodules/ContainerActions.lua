@@ -16,9 +16,7 @@ local BUTTON_SIZE = 48
 local PREVIEW_ICON = "Interface\\Icons\\INV_Misc_Bag_10"
 local DEFAULT_ANCHOR = { point = "CENTER", relativePoint = "CENTER", x = 0, y = -200 }
 
-local function InCombat()
-	return InCombatLockdown and InCombatLockdown()
-end
+local function InCombat() return InCombatLockdown and InCombatLockdown() end
 
 local function FormatAnchorPoint(data)
 	data = data or {}
@@ -53,9 +51,7 @@ local function SetButtonIconTexCoord(button, ...)
 	if icon and icon.SetTexCoord then icon:SetTexCoord(...) end
 end
 
-function ContainerActions:IsEnabled()
-	return addon.db and addon.db["automaticallyOpenContainer"]
-end
+function ContainerActions:IsEnabled() return addon.db and addon.db["automaticallyOpenContainer"] end
 
 function ContainerActions:GetAnchorConfig()
 	addon.db.containerActionAnchor = FormatAnchorPoint(addon.db.containerActionAnchor)
@@ -130,10 +126,11 @@ end
 function ContainerActions:EnsureButton()
 	if self.button then return self.button end
 
-	local button = CreateFrame("Button", "EnhanceQoLContainerActionButton", UIParent, "SecureActionButtonTemplate,ActionButtonTemplate")
+	local button = CreateFrame("Button", "EnhanceQoLContainerActionButton", UIParent, "ActionButtonTemplate,SecureActionButtonTemplate")
 	button:SetSize(BUTTON_SIZE, BUTTON_SIZE)
-	button:RegisterForClicks("AnyUp")
-	button:SetAttribute("*type*", "item")
+	button:RegisterForClicks("AnyUp", "AnyDown")
+
+	button:SetAttribute("*type*", nil)
 	SetButtonIconTexCoord(button, 0.08, 0.92, 0.08, 0.92)
 	if button.HotKey then button.HotKey:SetText("") end
 	if button.Name then button.Name:Hide() end
@@ -244,6 +241,10 @@ function ContainerActions:ShowAnchorPreview()
 	SetButtonIconTexture(button, PREVIEW_ICON)
 	if button.Count then button.Count:SetText("") end
 	if button:GetAttribute("item") then button:SetAttribute("item", nil) end
+	button:SetAttribute("macrotext", nil)
+	button:SetAttribute("type1", nil)
+	button:SetAttribute("macrotext1", nil)
+	button:SetAttribute("type", nil)
 	button.entry = nil
 	self:RequestVisibility(true)
 end
@@ -308,13 +309,22 @@ function ContainerActions:ApplyButtonEntry(entry)
 		button.entry = entry
 		SetButtonIconTexture(button, entry.icon or PREVIEW_ICON)
 		button.itemLink = entry.link
-		local attribute = string.format("%d %d", entry.bag, entry.slot)
-		if button:GetAttribute("item") ~= attribute then button:SetAttribute("item", attribute) end
+		local macroText = string.format("/use item:%d", entry.itemID)
+
+		button:EnableMouse(true)
+		button:SetAttribute("*type*", "item")
+		button:SetAttribute("item", string.format("%d %d", entry.bag, entry.slot))
+		button:SetAttribute("unit", nil) -- optional; set to "player" for self-targeting items
+		button:SetAttribute("macrotext", nil) -- ensure no stale macro remains
 	else
 		button.entry = nil
 		SetButtonIconTexture(button, nil)
 		button.itemLink = nil
-		if button:GetAttribute("item") ~= nil then button:SetAttribute("item", nil) end
+		button:SetAttribute("macrotext", nil)
+		button:SetAttribute("macrotext1", nil)
+		button:SetAttribute("type", nil)
+		button:SetAttribute("type1", nil)
+		button:SetAttribute("item", nil)
 	end
 	self:UpdateCount()
 end
@@ -410,7 +420,7 @@ function ContainerActions:OnPostClick()
 	if not self:IsEnabled() then return end
 	if self.awaitingRefresh then return end
 	self.awaitingRefresh = true
-	C_Timer.After(0.3, function()
+	C_Timer.After(0.5, function()
 		ContainerActions.awaitingRefresh = nil
 		if addon.functions and addon.functions.checkForContainer then addon.functions.checkForContainer() end
 	end)
