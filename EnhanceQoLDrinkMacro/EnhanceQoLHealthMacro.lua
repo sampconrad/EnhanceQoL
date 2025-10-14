@@ -69,6 +69,28 @@ local function buildMacroString(item)
 end
 
 local lastMacroKey
+local wipe = table and table.wipe or nil
+local function clearTable(tbl)
+	if wipe then
+		wipe(tbl)
+	else
+		for k in pairs(tbl) do
+			tbl[k] = nil
+		end
+	end
+end
+
+local spellKnownCache = {}
+local spellCooldownCache = {}
+local itemCooldownCache = {}
+local spellNameCache = {}
+local SyncEventRegistration
+
+local function resetCooldownCaches()
+	clearTable(spellKnownCache)
+	clearTable(spellCooldownCache)
+	clearTable(itemCooldownCache)
+end
 
 local function numericId(v)
 	if not v or not v.getId then return nil end
@@ -77,44 +99,94 @@ local function numericId(v)
 	return tonumber(string.match(s, "%d+"))
 end
 
-local function isOffCooldown(entry)
-	if not entry then return false end
-	-- Spells: check spell cooldown if known
-	if entry.isSpell then
-		if not C_SpellBook.IsSpellInSpellBook(entry.id) then return false end
-		local cd = C_Spell.GetSpellCooldown(entry.id)
-		if not cd or not cd.startTime or cd.startTime == 0 then return true end
-		if not cd.duration or cd.duration == 0 then return true end
-		local now = GetTime()
-		return (cd.startTime + cd.duration) <= now
-	end
-	-- Items
-	local itemID = numericId(entry)
-	if not itemID then return true end
-	local start, duration, enable = GetItemCooldown(itemID)
-	if not start or start == 0 then return true end
-	if duration == 0 then return true end
-	local now = GetTime()
-	return (start + duration) <= now
-end
-
 local function cooldownRemaining(entry)
 	if not entry then return math.huge end
 	if entry.isSpell then
-		if not C_SpellBook.IsSpellInSpellBook(entry.id) then return math.huge end
-		local cd = C_Spell.GetSpellCooldown(entry.id)
-		if not cd or not cd.startTime or cd.startTime == 0 or not cd.duration or cd.duration == 0 then return 0 end
-		local remain = (cd.startTime + cd.duration) - GetTime()
+		local spellId = entry.id
+		if not spellId then return math.huge end
+		local isKnown = spellKnownCache[spellId]
+		if isKnown == nil then
+			isKnown = C_SpellBook.IsSpellInSpellBook(spellId) and true or false
+			spellKnownCache[spellId] = isKnown
+		end
+		if not isKnown then return math.huge end
+		local cached = spellCooldownCache[spellId]
+		local start, duration
+		if cached then
+			start, duration = cached.start, cached.duration
+		else
+			local cd = C_Spell.GetSpellCooldown(spellId)
+			start = cd and cd.startTime or 0
+			duration = cd and cd.duration or 0
+			spellCooldownCache[spellId] = { start = start, duration = duration }
+		end
+		if start == 0 or duration == 0 then return 0 end
+		local remain = (start + duration) - GetTime()
 		if remain < 0 then return 0 end
 		return remain
 	end
 	local itemID = numericId(entry)
 	if not itemID then return 0 end
-	local start, duration, enable = GetItemCooldown(itemID)
+	local cached = itemCooldownCache[itemID]
+	local start, duration
+	if cached then
+		start, duration = cached.start, cached.duration
+	else
+		start, duration = GetItemCooldown(itemID)
+		itemCooldownCache[itemID] = { start = start or 0, duration = duration or 0 }
+	end
 	if not start or start == 0 or not duration or duration == 0 then return 0 end
 	local remain = (start + duration) - GetTime()
 	if remain < 0 then return 0 end
 	return remain
+end
+
+local function createNeedsTable() return { recup = false, talent = false, allowed = false, macro = false, macroSkipAllowed = false } end
+
+local bucketWindow = 0.20
+local bucketPending = false
+local needs = createNeedsTable()
+
+local function BucketSchedule(reason)
+	if reason == "macroOnly" then
+		needs.macro = true
+		needs.macroSkipAllowed = true
+	elseif reason then
+		if needs[reason] ~= nil then
+			needs[reason] = true
+		else
+			needs.macro = true
+		end
+	end
+	if bucketPending then return end
+	bucketPending = true
+	C_Timer.After(bucketWindow, function()
+		bucketPending = false
+		local currentNeeds = needs
+		needs = createNeedsTable()
+
+		local runRecup = currentNeeds.recup
+		local runTalent = currentNeeds.talent
+		local runAllowed = currentNeeds.allowed
+		local runMacro = currentNeeds.macro
+		local skipAllowed = runAllowed or currentNeeds.macroSkipAllowed
+
+		if runRecup and addon.db.healthUseRecuperate and addon.Recuperate and addon.Recuperate.Update then
+			addon.Recuperate.Update()
+		end
+		if runTalent and addon.db.healthUseCustomSpells and addon.Health and addon.Health.functions and addon.Health.functions.refreshTalentCache then
+			addon.Health.functions.refreshTalentCache()
+		end
+		if runTalent then
+			clearTable(spellNameCache)
+		end
+		if runAllowed and addon.Health and addon.Health.functions and addon.Health.functions.updateAllowedHealth then
+			addon.Health.functions.updateAllowedHealth()
+		end
+		if runMacro and addon.Health and addon.Health.functions and addon.Health.functions.updateHealthMacro then
+			addon.Health.functions.updateHealthMacro(false, skipAllowed)
+		end
+	end)
 end
 
 local function getKnownCustomSpells()
@@ -122,15 +194,56 @@ local function getKnownCustomSpells()
 	if not addon.db.healthUseCustomSpells then return list end
 	local ids = addon.db.healthCustomSpells or {}
 	for _, sid in ipairs(ids) do
-		local info = C_Spell.GetSpellInfo(sid)
-		if info and info.name and C_SpellBook.IsSpellInSpellBook(sid) then
-			local obj = addon.functions.newItem(sid, info.name, true)
-			obj.type = "spell"
-			obj.heal = 0 -- unknown; ordering handled by preferences
-			table.insert(list, obj)
+		local inBook = spellKnownCache[sid]
+		if inBook == nil then
+			inBook = C_SpellBook.IsSpellInSpellBook(sid) and true or false
+			spellKnownCache[sid] = inBook
+		end
+		if inBook then
+			local spellName = spellNameCache[sid]
+			if spellName == nil then
+				local info = C_Spell.GetSpellInfo(sid)
+				spellName = info and info.name or false
+				spellNameCache[sid] = spellName
+			end
+			if spellName and spellName ~= false then
+				local obj = addon.functions.newItem(sid, spellName, true)
+				obj.type = "spell"
+				obj.heal = 0 -- unknown; ordering handled by preferences
+				table.insert(list, obj)
+			end
+		else
+			if spellNameCache[sid] ~= nil then spellNameCache[sid] = nil end
 		end
 	end
 	return list
+end
+
+local function normalizeOrder(order)
+	local seen, out = {}, {}
+	for i = 1, 4 do
+		local c = order and order[i] or nil
+		if c and c ~= "none" and not seen[c] then
+			table.insert(out, c)
+			seen[c] = true
+		end
+	end
+	for i = #out + 1, 4 do
+		out[i] = "none"
+	end
+	return out
+end
+
+local function defaultPriorityOrder()
+	return { "stone", "potion", addon.db.healthUseCombatPotions and "combatpotion" or "none", "none" }
+end
+
+local function ensurePriorityOrder()
+	local order = addon.db.healthPriorityOrder
+	if not order or #order == 0 then
+		order = defaultPriorityOrder()
+	end
+	addon.db.healthPriorityOrder = normalizeOrder(order)
 end
 
 local function preferCat(cat)
@@ -155,11 +268,8 @@ end
 -- Helpers to distinguish combat vs non-combat potions
 local function isCombatPotionItem(v)
 	local id = numericId(v)
-	if not id or not addon.Health or not addon.Health.healthList then return false end
-	for _, e in ipairs(addon.Health.healthList) do
-		if e.id == id then return e.isCombatPotion == true end
-	end
-	return false
+	if not id or not addon.Health or not addon.Health._combatPotionByID then return false end
+	return addon.Health._combatPotionByID[id] == true
 end
 
 local function getBestCombatPotion()
@@ -198,9 +308,7 @@ local function buildResetToken()
 end
 
 local function buildMacro()
-	local stone = getBestAvailableByType("stone")
-	local nonCombatPotion = getBestNonCombatPotion()
-	local combatPotion = addon.db.healthUseCombatPotions and getBestCombatPotion() or nil
+	resetCooldownCaches()
 	local spells = getKnownCustomSpells()
 
 	-- Priority-based sequence (always)
@@ -208,12 +316,16 @@ local function buildMacro()
 
 	local function bestOf(list)
 		if not list or #list == 0 then return nil end
-		table.sort(list, function(a, b)
-			local ra, rb = cooldownRemaining(a), cooldownRemaining(b)
-			if ra ~= rb then return ra < rb end
-			return (a.heal or 0) > (b.heal or 0)
-		end)
-		return list[1]
+		local best, bestRem, bestHeal = nil, math.huge, -1
+		for i = 1, #list do
+			local v = list[i]
+			local rem = cooldownRemaining(v)
+			local heal = v.heal or 0
+			if (rem < bestRem) or (rem == bestRem and heal > bestHeal) then
+				best, bestRem, bestHeal = v, rem, heal
+			end
+		end
+		return best
 	end
 
 	local function getCatList(cat)
@@ -234,27 +346,12 @@ local function buildMacro()
 		return ret
 	end
 
-	local function normalizeOrder(order)
-		local seen, out = {}, {}
-		for i = 1, 4 do
-			local c = order and order[i] or nil
-			if c and c ~= "none" and not seen[c] then
-				table.insert(out, c)
-				seen[c] = true
-			end
-		end
-		-- fill remaining with none
-		for i = #out + 1, 4 do
-			out[i] = "none"
-		end
-		return out
-	end
-
 	local order = addon.db.healthPriorityOrder
-	-- default order similar to old behavior
-	if not order then order = { "stone", "potion", addon.db.healthUseCombatPotions and "combatpotion" or "none", "none" } end
-	order = normalizeOrder(order)
-	addon.db.healthPriorityOrder = order
+	if not order or #order == 0 then
+		order = normalizeOrder(defaultPriorityOrder())
+	else
+		order = normalizeOrder(order)
+	end
 
 	-- Build according to priority order (ignore legacy useBoth/other)
 	for i = 1, 4 do
@@ -328,11 +425,14 @@ local function buildMacro()
 	end
 end
 
-function addon.Health.functions.updateHealthMacro(ignoreCombat)
-	if not addon.db.healthMacroEnabled then return end
+function addon.Health.functions.updateHealthMacro(ignoreCombat, skipAllowedRefresh)
+	if not addon.db.healthMacroEnabled then
+		SyncEventRegistration()
+		return
+	end
 	if UnitAffectingCombat("player") and ignoreCombat == false then return end
 	createMacroIfMissing()
-	addon.Health.functions.updateAllowedHealth()
+	if not skipAllowedRefresh then addon.Health.functions.updateAllowedHealth() end
 	buildMacro()
 end
 
@@ -342,13 +442,37 @@ frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:RegisterEvent("BAG_UPDATE_DELAYED")
 frame:RegisterEvent("PLAYER_LEVEL_UP")
-frame:RegisterEvent("SPELLS_CHANGED")
-frame:RegisterEvent("PLAYER_TALENT_UPDATE")
 frame:RegisterEvent("UNIT_MAXHEALTH")
 frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
-frame:RegisterEvent("BAG_UPDATE_COOLDOWN")
+-- Optional spell/cooldown events are registered dynamically
 
-local pendingUpdate = false
+SyncEventRegistration = function()
+	if not addon.db then return end
+	if not addon.db.healthMacroEnabled then
+		frame:UnregisterEvent("SPELLS_CHANGED")
+		frame:UnregisterEvent("PLAYER_TALENT_UPDATE")
+		frame:UnregisterEvent("BAG_UPDATE_COOLDOWN")
+		return
+	end
+
+	if addon.db.healthUseRecuperate or addon.db.healthUseCustomSpells then
+		frame:RegisterEvent("SPELLS_CHANGED")
+		frame:RegisterEvent("PLAYER_TALENT_UPDATE")
+	else
+		frame:UnregisterEvent("SPELLS_CHANGED")
+		frame:UnregisterEvent("PLAYER_TALENT_UPDATE")
+	end
+
+	if addon.db.healthReorderByCooldown then
+		frame:RegisterEvent("BAG_UPDATE_COOLDOWN")
+	else
+		frame:UnregisterEvent("BAG_UPDATE_COOLDOWN")
+	end
+end
+
+addon.Health.functions.syncEventRegistration = SyncEventRegistration
+addon.Health.functions.ensurePriorityOrder = ensurePriorityOrder
+
 frame:SetScript("OnEvent", function(_, event, arg1)
 	if event == "PLAYER_LOGIN" then
 		-- Migrate old settings to new priority model
@@ -389,37 +513,38 @@ frame:SetScript("OnEvent", function(_, event, arg1)
 			addon.db.healthPriorityOrder = tmp
 		end
 		migrateOldPriority()
-		if addon.Recuperate and addon.Recuperate.Update then addon.Recuperate.Update() end
-		if addon.Health and addon.Health.functions and addon.Health.functions.refreshTalentCache then addon.Health.functions.refreshTalentCache() end
-		addon.Health.functions.updateAllowedHealth()
-		addon.Health.functions.updateHealthMacro(false)
+		ensurePriorityOrder()
+		SyncEventRegistration()
+		if addon.db.healthUseRecuperate then BucketSchedule("recup") end
+		if addon.db.healthUseCustomSpells then BucketSchedule("talent") end
+		BucketSchedule("allowed")
+		BucketSchedule("macro")
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		if addon.Health and addon.Health.functions and addon.Health.functions.refreshTalentCache then addon.Health.functions.refreshTalentCache() end
-		addon.Health.functions.updateAllowedHealth()
-		addon.Health.functions.updateHealthMacro(true)
+		if addon.db.healthUseCustomSpells then BucketSchedule("talent") end
+		BucketSchedule("allowed")
+		BucketSchedule("macro")
 	elseif event == "BAG_UPDATE_DELAYED" then
-		if not pendingUpdate then
-			pendingUpdate = true
-			C_Timer.After(0.15, function()
-				addon.Health.functions.updateHealthMacro(false)
-				pendingUpdate = false
-			end)
-		end
+		BucketSchedule("allowed")
+		BucketSchedule("macro")
 	elseif event == "PLAYER_LEVEL_UP" then
-		addon.Health.functions.updateAllowedHealth()
-		if not UnitAffectingCombat("player") then addon.Health.functions.updateHealthMacro(true) end
+		BucketSchedule("allowed")
+		if not UnitAffectingCombat("player") then BucketSchedule("macro") end
 	elseif event == "SPELLS_CHANGED" or event == "PLAYER_TALENT_UPDATE" then
-		if addon.Recuperate and addon.Recuperate.Update then addon.Recuperate.Update() end
-		if addon.Health and addon.Health.functions and addon.Health.functions.refreshTalentCache then addon.Health.functions.refreshTalentCache() end
-		addon.Health.functions.updateAllowedHealth()
-		addon.Health.functions.updateHealthMacro(false)
-	elseif event == "UNIT_MAXHEALTH" then
-		if arg1 == "player" then
-			addon.Health.functions.updateAllowedHealth()
-			addon.Health.functions.updateHealthMacro(false)
+		if addon.db.healthUseRecuperate then BucketSchedule("recup") end
+		if addon.db.healthUseCustomSpells then
+			BucketSchedule("talent")
+			BucketSchedule("allowed")
+			BucketSchedule("macro")
 		end
-	elseif event == "PLAYER_EQUIPMENT_CHANGED" or event == "BAG_UPDATE_COOLDOWN" then
-		addon.Health.functions.updateAllowedHealth()
-		addon.Health.functions.updateHealthMacro(false)
+	elseif event == "UNIT_MAXHEALTH" then
+		if arg1 == "player" and not UnitAffectingCombat("player") then
+			BucketSchedule("allowed")
+			BucketSchedule("macro")
+		end
+	elseif event == "PLAYER_EQUIPMENT_CHANGED" then
+		BucketSchedule("allowed")
+		BucketSchedule("macro")
+	elseif event == "BAG_UPDATE_COOLDOWN" then
+		if addon.db.healthReorderByCooldown then BucketSchedule("macroOnly") end
 	end
 end)

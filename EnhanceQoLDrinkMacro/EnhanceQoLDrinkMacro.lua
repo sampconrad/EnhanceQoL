@@ -342,6 +342,7 @@ local function addDrinkFrame(container)
 		-- Enable first
 		local cbEnable = addon.functions.createCheckboxAce(L["Enable Health Macro"], addon.db.healthMacroEnabled, function(_, _, v)
 			addon.db.healthMacroEnabled = v
+			if addon.Health and addon.Health.functions and addon.Health.functions.syncEventRegistration then addon.Health.functions.syncEventRegistration() end
 			addon.Health.functions.updateHealthMacro(false)
 			buildHealth()
 		end)
@@ -358,6 +359,7 @@ local function addDrinkFrame(container)
 		-- Recuperate out of combat
 		local cbRecup = addon.functions.createCheckboxAce(L["Use Recuperate out of combat"], addon.db.healthUseRecuperate, function(_, _, value)
 			addon.db.healthUseRecuperate = value
+			if addon.Health and addon.Health.functions and addon.Health.functions.syncEventRegistration then addon.Health.functions.syncEventRegistration() end
 			addon.Health.functions.updateHealthMacro(false)
 		end)
 		g:AddChild(cbRecup)
@@ -387,6 +389,7 @@ local function addDrinkFrame(container)
 					if addon.db.healthPriorityOrder[i] == "combatpotion" then addon.db.healthPriorityOrder[i] = "none" end
 				end
 			end
+			if addon.Health and addon.Health.functions and addon.Health.functions.ensurePriorityOrder then addon.Health.functions.ensurePriorityOrder() end
 			addon.Health.functions.updateHealthMacro(false)
 			buildHealth()
 		end)
@@ -532,6 +535,8 @@ local function addDrinkFrame(container)
 					if addon.db.healthPriorityOrder[i] == "spell" then addon.db.healthPriorityOrder[i] = "none" end
 				end
 			end
+			if addon.Health and addon.Health.functions and addon.Health.functions.ensurePriorityOrder then addon.Health.functions.ensurePriorityOrder() end
+			if addon.Health and addon.Health.functions and addon.Health.functions.syncEventRegistration then addon.Health.functions.syncEventRegistration() end
 			addon.Health.functions.updateHealthMacro(false)
 			buildHealth()
 		end)

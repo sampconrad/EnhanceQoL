@@ -115,6 +115,8 @@ L["mythicPlusEnableObjectiveTracker"] = "Automate Objective Tracker"
 L["mythicPlusEnableObjectiveTrackerDesc"] = "At the start of a Mythic+ run, automatically hide / collapse all objective tracker blocks."
 L["mythicPlusObjectiveTrackerSetting"] = "Behavior"
 L["collapse"] = "Collapse"
+L["mythicPlusShowChestTimers"] = "Show Mythic+ chest timers"
+L["mythicPlusShowChestTimersDesc"] = "Display +2/+3 upgrade timers alongside the dungeon timer."
 
 L["mythicPlusNoHealerMark"] = "Remove the marker from me when I’m in the healer role"
 L["HideTracker"] = "Hide"

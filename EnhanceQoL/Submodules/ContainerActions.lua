@@ -173,7 +173,7 @@ function ContainerActions:EnsureButton()
 
 	local button = CreateFrame("Button", "EnhanceQoLContainerActionButton", UIParent, "ActionButtonTemplate,SecureActionButtonTemplate")
 	button:SetSize(BUTTON_SIZE, BUTTON_SIZE)
-	button:RegisterForClicks("AnyUp", "AnyDown")
+	button:RegisterForClicks("LeftButtonUp", "LeftButtonDown")
 	button:SetAttribute("pressAndHoldAction", false) -- verhindert Wiederholen beim Halten
 	button:SetAttribute("*type*", nil)
 	SetButtonIconTexCoord(button, 0.08, 0.92, 0.08, 0.92)
@@ -195,6 +195,8 @@ function ContainerActions:EnsureButton()
 			GameTooltip:SetBagItem(btn.entry.bag, btn.entry.slot)
 			local extra = L["containerActionsButtonTooltip"]
 			if extra and extra ~= "" then GameTooltip:AddLine(extra, 0.9, 0.9, 0.9, true) end
+			local hint = L["containerActionsBanTooltip"]
+			if hint and hint ~= "" then GameTooltip:AddLine(hint, 0.4, 0.8, 0.4, true) end
 			GameTooltip:Show()
 		else
 			local text = L["containerActionsNoItems"] or ""
@@ -207,6 +209,9 @@ function ContainerActions:EnsureButton()
 	end)
 	button:SetScript("OnLeave", GameTooltip_Hide)
 	button:SetScript("PostClick", function() ContainerActions:OnPostClick() end)
+	button:SetScript("OnMouseUp", function(_, mouseButton)
+		if mouseButton == "RightButton" and IsShiftKeyDown() then ContainerActions:TryBlacklistCurrentEntry() end
+	end)
 
 	RegisterStateDriver(button, "visibility", "[combat] hide; show")
 
@@ -417,8 +422,146 @@ function ContainerActions:RememberItemInfo(itemID, config, info, overrides)
 end
 
 function ContainerActions:IsItemEnabled(itemID)
+	return not self:IsItemBlacklisted(itemID)
+end
+
+function ContainerActions:IsItemBlacklisted(itemID)
 	local disabled = addon.db and addon.db.containerAutoOpenDisabled
-	return not (disabled and disabled[itemID])
+	return disabled and disabled[itemID] and true or false
+end
+
+function ContainerActions:EnsureBlacklistTable()
+	addon.db.containerAutoOpenDisabled = addon.db.containerAutoOpenDisabled or {}
+	return addon.db.containerAutoOpenDisabled
+end
+
+function ContainerActions:GetItemDisplayName(itemID)
+	if not itemID then return ("item:%s"):format(tostring(itemID or "?")) end
+	local cache = self.itemCache and self.itemCache[itemID]
+	if cache and cache.name then return cache.name end
+	local name = C_Item.GetItemInfo(itemID)
+	if not name or name == "" then
+		local instantName = select(1, C_Item.GetItemInfoInstant(itemID))
+		if instantName and instantName ~= "" then name = instantName end
+	end
+	if name and name ~= "" then return name end
+	local entry = self:RememberItemInfo(itemID)
+	if entry and entry.name then return entry.name end
+	return ("item:%d"):format(itemID)
+end
+
+local function PrintMessage(message)
+	if not message or message == "" then return end
+	if DEFAULT_CHAT_FRAME then
+		DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99EnhanceQoL|r: " .. message)
+	else
+		print("|cff33ff99EnhanceQoL|r: " .. message)
+	end
+end
+
+function ContainerActions:AddItemToBlacklist(itemID, quiet)
+	itemID = tonumber(itemID)
+	if not itemID then return false, "invalid" end
+	if InCombat() then return false, "combat" end
+	local tbl = self:EnsureBlacklistTable()
+	if tbl[itemID] then return false, "exists" end
+	tbl[itemID] = true
+	self:RememberItemInfo(itemID)
+	if not quiet then
+		local msg = L["containerActionsBlacklistAdded"]
+		if msg and msg ~= "" then
+			PrintMessage(msg:format(self:GetItemDisplayName(itemID), itemID))
+		else
+			PrintMessage(("Blocked %s (%d)."):format(self:GetItemDisplayName(itemID), itemID))
+		end
+	end
+	self:OnBlacklistChanged()
+	return true
+end
+
+function ContainerActions:RemoveItemFromBlacklist(itemID, quiet)
+	itemID = tonumber(itemID)
+	if not itemID then return false, "invalid" end
+	if InCombat() then return false, "combat" end
+	local tbl = addon.db and addon.db.containerAutoOpenDisabled
+	if not tbl or not tbl[itemID] then return false, "missing" end
+	tbl[itemID] = nil
+	if not quiet then
+		local msg = L["containerActionsBlacklistRemoved"]
+		if msg and msg ~= "" then
+			PrintMessage(msg:format(self:GetItemDisplayName(itemID), itemID))
+		else
+			PrintMessage(("Unblocked %s (%d)."):format(self:GetItemDisplayName(itemID), itemID))
+		end
+	end
+	self:OnBlacklistChanged()
+	return true
+end
+
+function ContainerActions:OnBlacklistChanged()
+	if addon.functions and addon.functions.checkForContainer then addon.functions.checkForContainer() end
+end
+
+function ContainerActions:HandleBlacklistError(reason, itemID)
+	local msg
+	if reason == "combat" then
+		msg = L["containerActionsBlacklistCombat"]
+	elseif reason == "exists" then
+		msg = L["containerActionsBlacklistExists"]
+	elseif reason == "invalid" then
+		msg = L["containerActionsBlacklistInvalid"]
+	elseif reason == "missing" then
+		msg = L["containerActionsBlacklistMissing"]
+	end
+	if msg and msg ~= "" then
+		if itemID and msg:find("%%") then
+			PrintMessage(msg:format(self:GetItemDisplayName(itemID), itemID))
+		else
+			PrintMessage(msg)
+		end
+	elseif reason then
+		PrintMessage(("Blacklist operation failed (%s)."):format(reason))
+	end
+end
+
+function ContainerActions:ParseInputToItemID(input)
+	if type(input) == "number" then return input end
+	if type(input) == "table" and input.itemID then return tonumber(input.itemID) end
+	if type(input) ~= "string" then return nil end
+	local trimmed = input:gsub("^%s+", ""):gsub("%s+$", "")
+	if trimmed == "" then return nil end
+	local linkID = trimmed:match("item:(%d+)")
+	if linkID then return tonumber(linkID) end
+	local directID = trimmed:match("^(%d+)$")
+	if directID then return tonumber(directID) end
+	return nil
+end
+
+function ContainerActions:GetBlacklistEntries()
+	local entries = {}
+	local tbl = addon.db and addon.db.containerAutoOpenDisabled
+	if not tbl then return entries end
+	for itemID in pairs(tbl) do
+		local cache = self:RememberItemInfo(itemID)
+		entries[#entries + 1] = {
+			itemID = itemID,
+			name = cache and cache.name or self:GetItemDisplayName(itemID),
+			icon = cache and cache.icon,
+		}
+	end
+	table.sort(entries, function(a, b)
+		if a.name == b.name then return a.itemID < b.itemID end
+		return a.name < b.name
+	end)
+	return entries
+end
+
+function ContainerActions:TryBlacklistCurrentEntry()
+	if self.previewActive then return end
+	local entry = self.currentEntry
+	if not entry or not entry.itemID then return end
+	local ok, reason = self:AddItemToBlacklist(entry.itemID)
+	if not ok then self:HandleBlacklistError(reason, entry.itemID) end
 end
 
 function ContainerActions:GetManagedItemList()
@@ -740,7 +883,10 @@ function ContainerActions:ScanBags()
 				local info = C_Container.GetContainerItemInfo(bag, slot)
 				if info and info.itemID and not info.isLocked then
 					local autoConfig = addon.general and addon.general.variables and addon.general.variables.autoOpen and addon.general.variables.autoOpen[info.itemID]
-					if autoConfig then
+					local isBlacklisted = self:IsItemBlacklisted(info.itemID)
+					if isBlacklisted then
+						self:RememberItemInfo(info.itemID, nil, info)
+					elseif autoConfig then
 						self:RememberItemInfo(info.itemID, autoConfig, info)
 						if self:IsItemEnabled(info.itemID) then
 							if type(autoConfig) == "table" then

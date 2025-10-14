@@ -135,6 +135,9 @@ hooksecurefunc(ScenarioObjectiveTracker.ChallengeModeBlock, "UpdateTime", functi
 			end
 		end
 	end
+
+	if not addon.db["enableKeystoneHelper"] or not addon.db["mythicPlusShowChestTimers"] then return end
+
 	-- Always show chest timers in challenge mode
 	local timeLeft = math.max(0, self.timeLimit - elapsedTime)
 	local chest3Time = self.timeLimit * 0.4
@@ -363,123 +366,6 @@ end
 -- Setze den Event-Handler
 frameLoad:SetScript("OnEvent", eventHandler)
 
-local function addDungeonBrowserFrame(container) end
-
-local function addKeystoneFrame(container)
-	local groupCore
-	local embedded = container and container._eqolEmbed
-	if embedded then
-		groupCore = container
-		if groupCore.PauseLayout then groupCore:PauseLayout() end
-		groupCore:ReleaseChildren()
-	else
-		local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-		scroll:SetFullWidth(true)
-		scroll:SetFullHeight(true)
-		container:AddChild(scroll)
-
-		local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-		scroll:AddChild(wrapper)
-
-		groupCore = addon.functions.createContainer("InlineGroup", "List")
-		wrapper:AddChild(groupCore)
-	end
-
-	local data = {
-		{
-			text = L["enableKeystoneHelper"],
-			var = "enableKeystoneHelper",
-			func = function(self, _, value)
-				addon.db["enableKeystoneHelper"] = value
-				groupCore:ReleaseChildren()
-				addKeystoneFrame(groupCore)
-				if _G["ChallengesKeystoneFrame"] and ChallengesKeystoneFrame:IsShown() then checkKeyStone() end
-			end,
-			desc = L["enableKeystoneHelperDesc"],
-		},
-	}
-	table.sort(data, function(a, b) return a.text < b.text end)
-
-	for _, cbData in ipairs(data) do
-		local uFunc = function(self, _, value) addon.db[cbData.var] = value end
-		if cbData.func then uFunc = cbData.func end
-		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc, cbData.desc)
-		groupCore:AddChild(cbElement)
-	end
-
-	if addon.db["enableKeystoneHelper"] then
-		local groupEnabled = addon.functions.createContainer("InlineGroup", "List")
-		groupCore:AddChild(groupEnabled)
-
-		local data = {
-			{
-				text = L["Automatically insert keystone"],
-				var = "autoInsertKeystone",
-			},
-			{
-				text = L["Close all bags on keystone insert"],
-				var = "closeBagsOnKeyInsert",
-			},
-			{
-				text = L["autoKeyStart"],
-				var = "autoKeyStart",
-			},
-			{
-				text = L["groupfinderShowPartyKeystone"],
-				var = "groupfinderShowPartyKeystone",
-				func = function(self, _, value)
-					addon.db["groupfinderShowPartyKeystone"] = value
-					addon.MythicPlus.functions.togglePartyKeystone()
-				end,
-				desc = L["groupfinderShowPartyKeystoneDesc"],
-			},
-		}
-
-		table.sort(data, function(a, b) return a.text < b.text end)
-
-		for _, cbData in ipairs(data) do
-			local uFunc = function(self, _, value) addon.db[cbData.var] = value end
-			if cbData.func then uFunc = cbData.func end
-			local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc)
-			groupEnabled:AddChild(cbElement)
-		end
-
-		local list, order = addon.functions.prepareListForDropdown({ [1] = L["None"], [2] = L["Blizzard Pull Timer"], [3] = L["DBM / BigWigs Pull Timer"], [4] = L["Both"] })
-
-		local row0 = addon.functions.createContainer("SimpleGroup", "Flow")
-		groupEnabled:AddChild(row0)
-		local dropPullTimerType = addon.functions.createDropdownAce(L["PullTimer"], list, order, function(self, _, value) addon.db["PullTimerType"] = value end)
-		dropPullTimerType:SetValue(addon.db["PullTimerType"])
-		dropPullTimerType:SetFullWidth(false)
-		if dropPullTimerType.SetRelativeWidth then dropPullTimerType:SetRelativeWidth(0.5) end
-		row0:AddChild(dropPullTimerType)
-
-		local cbNoChat = addon.functions.createCheckboxAce(L["noChatOnPullTimer"], addon.db["noChatOnPullTimer"], function(_, _, v) addon.db["noChatOnPullTimer"] = v end)
-		if cbNoChat.SetRelativeWidth then cbNoChat:SetRelativeWidth(0.5) end
-		row0:AddChild(cbNoChat)
-
-		local longSlider = addon.functions.createSliderAce(L["sliderLongTime"] .. ": " .. addon.db["pullTimerLongTime"] .. "s", addon.db["pullTimerLongTime"], 0, 60, 1, function(self, _, value2)
-			addon.db["pullTimerLongTime"] = value2
-			self:SetLabel(L["sliderLongTime"] .. ": " .. value2 .. "s")
-		end)
-		longSlider:SetFullWidth(false)
-		longSlider:SetWidth(300)
-		groupEnabled:AddChild(longSlider)
-
-		groupEnabled:AddChild(addon.functions.createSpacerAce())
-
-		local shortSlider = addon.functions.createSliderAce(L["sliderShortTime"] .. ": " .. addon.db["pullTimerShortTime"] .. "s", addon.db["pullTimerShortTime"], 0, 60, 1, function(self, _, value2)
-			addon.db["pullTimerShortTime"] = value2
-			self:SetLabel(L["sliderShortTime"] .. ": " .. value2 .. "s")
-		end)
-		shortSlider:SetFullWidth(false)
-		shortSlider:SetWidth(300)
-		groupEnabled:AddChild(shortSlider)
-	end
-
-	if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
-end
-
 local function addPotionTrackerFrame(container)
 	local scroll = addon.functions.createContainer("ScrollFrame", "List")
 	scroll:SetFullWidth(true)
@@ -606,77 +492,6 @@ local function addPotionTrackerFrame(container)
 		end
 	end
 	scroll:DoLayout()
-end
-
-local function addBRFrame(container)
-	local groupCore
-	local embedded = container and container._eqolEmbed
-	if embedded then
-		groupCore = container
-		if groupCore.PauseLayout then groupCore:PauseLayout() end
-		groupCore:ReleaseChildren()
-	else
-		local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-		scroll:SetFullWidth(true)
-		scroll:SetFullHeight(true)
-		container:AddChild(scroll)
-
-		local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-		scroll:AddChild(wrapper)
-
-		groupCore = addon.functions.createContainer("InlineGroup", "List")
-		wrapper:AddChild(groupCore)
-	end
-	groupCore:SetTitle(L["brTrackerHeadline"])
-
-	local cbBREnabled = addon.functions.createCheckboxAce(L["mythicPlusBRTrackerEnabled"], addon.db["mythicPlusBRTrackerEnabled"], function(self, _, value)
-		addon.db["mythicPlusBRTrackerEnabled"] = value
-		createBRFrame()
-		groupCore:ReleaseChildren()
-		addBRFrame(groupCore)
-	end)
-	groupCore:AddChild(cbBREnabled)
-
-	if addon.db["mythicPlusBRTrackerEnabled"] then
-		local data = {
-			{
-				text = L["mythicPlusBRTrackerLocked"],
-				var = "mythicPlusBRTrackerLocked",
-				func = function(self, _, value)
-					addon.db["mythicPlusBRTrackerLocked"] = value
-					createBRFrame()
-				end,
-			},
-		}
-
-		table.sort(data, function(a, b) return a.text < b.text end)
-
-		for _, cbData in ipairs(data) do
-			local uFunc = function(self, _, value)
-				addon.db[cbData.var] = value
-				addon.MythicPlus.functions.toggleFrame()
-			end
-			if cbData.func then uFunc = cbData.func end
-			local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc)
-			groupCore:AddChild(cbElement)
-		end
-
-		local sButtonSize = addon.functions.createSliderAce(
-			L["mythicPlusBRButtonSizeHeadline"] .. ": " .. addon.db["mythicPlusBRButtonSize"],
-			addon.db["mythicPlusBRButtonSize"],
-			20,
-			100,
-			1,
-			function(self, _, value2)
-				addon.db["mythicPlusBRButtonSize"] = value2
-				createBRFrame()
-				self:SetLabel(L["mythicPlusBRButtonSizeHeadline"] .. ": " .. value2)
-			end
-		)
-		groupCore:AddChild(sButtonSize)
-	end
-
-	if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
 end
 
 local function addTeleportFrame(container)
@@ -920,134 +735,6 @@ local function addAutoMarkFrame(container)
 		sub:AddChild(dd)
 	end
 	scroll:DoLayout()
-end
-
-local function addObjectiveTrackerFrame(container)
-	local groupCore
-	local embedded = container and container._eqolEmbed
-	if embedded then
-		groupCore = container
-		if groupCore.PauseLayout then groupCore:PauseLayout() end
-		groupCore:ReleaseChildren()
-	else
-		local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-		scroll:SetFullWidth(true)
-		scroll:SetFullHeight(true)
-		container:AddChild(scroll)
-
-		local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-		scroll:AddChild(wrapper)
-
-		groupCore = addon.functions.createContainer("InlineGroup", "List")
-		wrapper:AddChild(groupCore)
-	end
-
-	local data = {
-		{
-			text = L["mythicPlusEnableObjectiveTracker"],
-			var = "mythicPlusEnableObjectiveTracker",
-			func = function(self, _, value)
-				addon.db["mythicPlusEnableObjectiveTracker"] = value
-				groupCore:ReleaseChildren()
-				addObjectiveTrackerFrame(groupCore)
-				addon.MythicPlus.functions.setObjectiveFrames()
-			end,
-			desc = L["mythicPlusEnableObjectiveTrackerDesc"],
-		},
-	}
-	for _, cbData in ipairs(data) do
-		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], cbData.func, cbData.desc)
-		groupCore:AddChild(cbElement)
-	end
-	if addon.db["mythicPlusEnableObjectiveTracker"] then
-		local list, order = addon.functions.prepareListForDropdown({ [1] = L["HideTracker"], [2] = L["collapse"] })
-
-		local dropHideCollapseTracker = addon.functions.createDropdownAce(L["mythicPlusObjectiveTrackerSetting"], list, order, function(self, _, value)
-			addon.db["mythicPlusObjectiveTrackerSetting"] = value
-			addon.MythicPlus.functions.setObjectiveFrames()
-		end)
-		if addon.db["mythicPlusObjectiveTrackerSetting"] then dropHideCollapseTracker:SetValue(addon.db["mythicPlusObjectiveTrackerSetting"]) end
-
-		groupCore:AddChild(dropHideCollapseTracker)
-	end
-
-	if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
-end
-
-local function addGroupFilterFrame(container)
-	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	container:AddChild(wrapper)
-
-	local groupCore = addon.functions.createContainer("InlineGroup", "List")
-	wrapper:AddChild(groupCore)
-
-	local data = {
-		{
-			text = L["mythicPlusEnableDungeonFilter"],
-			var = "mythicPlusEnableDungeonFilter",
-			desc = L["mythicPlusEnableDungeonFilterDesc"]:format(REPORT_GROUP_FINDER_ADVERTISEMENT),
-			func = function(self, _, value)
-				addon.db["mythicPlusEnableDungeonFilter"] = value
-				if value then
-					addon.MythicPlus.functions.addDungeonFilter()
-				else
-					addon.MythicPlus.functions.removeDungeonFilter()
-				end
-				container:ReleaseChildren()
-				addGroupFilterFrame(container)
-			end,
-		},
-	}
-	if addon.db["mythicPlusEnableDungeonFilter"] then
-		table.insert(data, {
-			text = L["mythicPlusEnableDungeonFilterClearReset"],
-			var = "mythicPlusEnableDungeonFilterClearReset",
-			func = function(self, _, value) addon.db["mythicPlusEnableDungeonFilterClearReset"] = value end,
-		})
-	end
-
-	for _, cbData in ipairs(data) do
-		local uFunc = function(self, _, value) addon.db[cbData.var] = value end
-		if cbData.func then uFunc = cbData.func end
-		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc, cbData.desc)
-		groupCore:AddChild(cbElement)
-	end
-end
-
-local function addRatingFrame(container)
-	local groupCore
-	local embedded = container and container._eqolEmbed
-	if embedded then
-		groupCore = container
-		if groupCore.PauseLayout then groupCore:PauseLayout() end
-		groupCore:ReleaseChildren()
-	else
-		local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-		container:AddChild(wrapper)
-
-		groupCore = addon.functions.createContainer("InlineGroup", "List")
-		wrapper:AddChild(groupCore)
-	end
-
-	local data = {
-		{
-			text = L["groupfinderShowDungeonScoreFrame"]:format(DUNGEON_SCORE),
-			var = "groupfinderShowDungeonScoreFrame",
-			func = function(self, _, value)
-				addon.db["groupfinderShowDungeonScoreFrame"] = value
-				addon.MythicPlus.functions.toggleFrame()
-			end,
-		},
-	}
-
-	for _, cbData in ipairs(data) do
-		local uFunc = function(self, _, value) addon.db[cbData.var] = value end
-		if cbData.func then uFunc = cbData.func end
-		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc)
-		groupCore:AddChild(cbElement)
-	end
-
-	if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
 end
 
 local activeTalentContainer
@@ -1326,6 +1013,13 @@ local function addMythicPlusRootFrame(container)
 			addon.db["enableKeystoneHelper"] = value
 			buildKeystone()
 			if _G["ChallengesKeystoneFrame"] and ChallengesKeystoneFrame:IsShown() then checkKeyStone() end
+			if C_MythicPlus.IsMythicPlusActive() and value == false then
+				local block = ScenarioObjectiveTracker and ScenarioObjectiveTracker.ChallengeModeBlock
+				if block then
+					if block.ChestTimeText2 then block.ChestTimeText2:SetText("") end
+					if block.ChestTimeText3 then block.ChestTimeText3:SetText("") end
+				end
+			end
 		end, L["enableKeystoneHelperDesc"])
 		g:AddChild(cbEnable)
 
@@ -1342,6 +1036,21 @@ local function addMythicPlusRootFrame(container)
 						addon.MythicPlus.functions.togglePartyKeystone()
 					end,
 					desc = L["groupfinderShowPartyKeystoneDesc"],
+				},
+				{
+					text = L["mythicPlusShowChestTimers"],
+					var = "mythicPlusShowChestTimers",
+					func = function(self, _, value)
+						addon.db["mythicPlusShowChestTimers"] = value
+						if not value then
+							local block = ScenarioObjectiveTracker and ScenarioObjectiveTracker.ChallengeModeBlock
+							if block then
+								if block.ChestTimeText2 then block.ChestTimeText2:SetText("") end
+								if block.ChestTimeText3 then block.ChestTimeText3:SetText("") end
+							end
+						end
+					end,
+					desc = L["mythicPlusShowChestTimersDesc"],
 				},
 			}
 			table.sort(data, function(a, b) return a.text < b.text end)

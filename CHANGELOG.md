@@ -1,5 +1,18 @@
 # Changelog
 
+## [5.5.0] – 2025-10-14
+
+### ✨ Added
+
+- Mythic+: New “Show Mythic+ chest timers” toggle (enabled by default) so players running AngryKeystones or similar can hide the duplicate +2/+3 timer overlay.
+- Container Actions: Auto-open loot boxes for you and surface an action button for the few that still need a click (reputation insignias, Epoch Mementos, mounts); Shift+Right-Click to blacklist or add your own favourites.
+
+### 🐛 Fixed
+
+- Performance increasement to healthmacro
+
+---
+
 ## [5.4.0] – 2025-10-12
 
 ### ✨ Added

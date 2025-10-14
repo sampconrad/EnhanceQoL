@@ -12,6 +12,7 @@ local UnitHealthMax = UnitHealthMax
 local newItem = addon.functions.newItem
 local insert = table.insert
 local sort = table.sort
+local wipe = table.wipe
 
 -- Cache for O(1) checks
 addon.Health.cache = addon.Health.cache or {}
@@ -107,6 +108,21 @@ addon.Health.healthList = {
 	-- Other healing items (examples; toggleable)
 	-- Add additional healing clickies here if desired
 }
+
+addon.Health._combatPotionByID = addon.Health._combatPotionByID or {}
+do
+	local map = addon.Health._combatPotionByID
+	if wipe then
+		wipe(map)
+	else
+		for k in pairs(map) do
+			map[k] = nil
+		end
+	end
+	for _, e in ipairs(addon.Health.healthList) do
+		if e.id then map[e.id] = e.isCombatPotion == true end
+	end
+end
 
 -- Prepared lists and best-of per type
 addon.Health.filteredHealth = {}

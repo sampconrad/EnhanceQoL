@@ -3374,59 +3374,110 @@ local function addContainerActionsFrame(container)
 	managedGroup:SetTitle(L["containerActionsManagedItems"])
 	group:AddChild(managedGroup)
 
-	local toggleDesc = L["containerActionsToggleDesc"]
-	if toggleDesc and toggleDesc ~= "" then
-		local toggleLabel = addon.functions.createLabelAce(toggleDesc, { r = 0.8, g = 0.8, b = 0.8 })
-		toggleLabel:SetFullWidth(true)
-		managedGroup:AddChild(toggleLabel)
+	local blacklistDesc = L["containerActionsBlacklistDesc"]
+	if blacklistDesc and blacklistDesc ~= "" then
+		local descLabel = addon.functions.createLabelAce(blacklistDesc, { r = 0.8, g = 0.8, b = 0.8 })
+		descLabel:SetFullWidth(true)
+		managedGroup:AddChild(descLabel)
 	end
 
-	local managedList = addon.ContainerActions and addon.ContainerActions:GetManagedItemList() or {}
-	if #managedList == 0 then
-		local noneLabel = addon.functions.createLabelAce(L["containerActionsNoManagedItems"], { r = 0.7, g = 0.7, b = 0.7 })
-		noneLabel:SetFullWidth(true)
-		managedGroup:AddChild(noneLabel)
-	else
-		for _, data in ipairs(managedList) do
-			local enabled = not (addon.db.containerAutoOpenDisabled and addon.db.containerAutoOpenDisabled[data.itemID])
-			local label = data.name or ("item:" .. data.itemID)
-			local descText
-			if data.chunk and data.chunk > 1 then
-				label = label .. L["containerActionsChunkSuffix"]:format(data.chunk)
-				descText = L["containerActionsChunkNote"]:format(data.chunk)
-			end
-			local cb = addon.functions.createCheckboxAce(label, enabled, function(_, _, value)
-				addon.db.containerAutoOpenDisabled = addon.db.containerAutoOpenDisabled or {}
-				if value then
-					addon.db.containerAutoOpenDisabled[data.itemID] = nil
-				else
-					addon.db.containerAutoOpenDisabled[data.itemID] = true
-				end
-				if addon.ContainerActions and addon.ContainerActions.OnItemToggle then addon.ContainerActions:OnItemToggle(data.itemID, value) end
-			end, descText)
-			cb:SetDisabled(not addon.db["automaticallyOpenContainer"])
-			if data.icon then
-				cb:SetImage(data.icon)
-				if cb.SetImageSize then cb:SetImageSize(16, 16) end
-			end
-			local itemID = data.itemID
-			local noteText = descText
-			local frame = cb.frame
-			if frame then
-				frame:HookScript("OnEnter", function()
-					GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
-					if itemID then GameTooltip:SetItemByID(itemID) end
-					if noteText and noteText ~= "" then
-						GameTooltip:AddLine(" ")
-						GameTooltip:AddLine(noteText, 0.9, 0.9, 0.9, true)
-					end
-					GameTooltip:Show()
-				end)
-				frame:HookScript("OnLeave", GameTooltip_Hide)
-			end
-			managedGroup:AddChild(cb)
-		end
+	local blacklistHint = L["containerActionsBlacklistHint"]
+	if blacklistHint and blacklistHint ~= "" then
+		local hintLabel = addon.functions.createLabelAce(blacklistHint, { r = 0.6, g = 0.9, b = 0.6 })
+		hintLabel:SetFullWidth(true)
+		managedGroup:AddChild(hintLabel)
 	end
+
+	local blacklistDropdown = AceGUI:Create("Dropdown")
+	blacklistDropdown:SetFullWidth(true)
+	blacklistDropdown:SetLabel(L["containerActionsBlacklistLabel"])
+
+	local removeButton = AceGUI:Create("Button")
+	removeButton:SetText(L["containerActionsBlacklistRemove"])
+	removeButton:SetDisabled(true)
+
+	local selectedBlacklistID
+	local function refreshBlacklistDropdown(selectedID)
+		if not addon.ContainerActions then return end
+		local entries = addon.ContainerActions:GetBlacklistEntries()
+		local list, order = {}, {}
+		local entryFormat = L["containerActionsBlacklistEntry"] or "%s - %d"
+		for _, data in ipairs(entries) do
+			local displayName = data.name or ("item:" .. data.itemID)
+			local ok, line = pcall(string.format, entryFormat, displayName, data.itemID)
+			if not ok then line = ("%s - %d"):format(displayName, data.itemID) end
+			local key = tostring(data.itemID)
+			list[key] = line
+			order[#order + 1] = key
+		end
+		blacklistDropdown:SetList(list, order)
+		if #order == 0 then
+			blacklistDropdown:SetText(L["containerActionsBlacklistEmpty"])
+			blacklistDropdown:SetValue(nil)
+			removeButton:SetDisabled(true)
+			selectedBlacklistID = nil
+			return
+		end
+		if selectedID then
+			local key = tostring(selectedID)
+			if list[key] then
+				blacklistDropdown:SetValue(key)
+				removeButton:SetDisabled(false)
+				selectedBlacklistID = tonumber(key)
+				return
+			end
+		end
+		blacklistDropdown:SetValue(nil)
+		removeButton:SetDisabled(true)
+		selectedBlacklistID = nil
+	end
+
+	blacklistDropdown:SetCallback("OnValueChanged", function(_, _, key)
+		if key then
+			selectedBlacklistID = tonumber(key)
+			removeButton:SetDisabled(false)
+		else
+			selectedBlacklistID = nil
+			removeButton:SetDisabled(true)
+		end
+	end)
+
+	refreshBlacklistDropdown()
+	managedGroup:AddChild(blacklistDropdown)
+
+	removeButton:SetCallback("OnClick", function()
+		if not selectedBlacklistID or not addon.ContainerActions then return end
+		local ok, reason = addon.ContainerActions:RemoveItemFromBlacklist(selectedBlacklistID)
+		if not ok then
+			addon.ContainerActions:HandleBlacklistError(reason, selectedBlacklistID)
+		else
+			refreshBlacklistDropdown()
+		end
+	end)
+	removeButton:SetFullWidth(true)
+	managedGroup:AddChild(removeButton)
+
+	local addBox = AceGUI:Create("EditBox")
+	addBox:SetFullWidth(true)
+	addBox:SetLabel(L["containerActionsBlacklistAddLabel"])
+	if addBox.SetPlaceholderText then addBox:SetPlaceholderText(L["containerActionsBlacklistAddPlaceholder"]) end
+	addBox:SetCallback("OnEnterPressed", function(widget, _, text)
+		if not addon.ContainerActions then return end
+		local itemID = addon.ContainerActions:ParseInputToItemID(text)
+		if not itemID then
+			addon.ContainerActions:HandleBlacklistError("invalid")
+			return
+		end
+		local ok, reason = addon.ContainerActions:AddItemToBlacklist(itemID)
+		if ok then
+			widget:SetText("")
+			widget:ClearFocus()
+			refreshBlacklistDropdown(itemID)
+		else
+			addon.ContainerActions:HandleBlacklistError(reason, itemID)
+		end
+	end)
+	managedGroup:AddChild(addBox)
 
 	scroll:DoLayout()
 	wrapper:DoLayout()

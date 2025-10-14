@@ -56,6 +56,9 @@ addon.functions.InitDBValue("mythicPlusIgnoreHeroic", true)
 addon.functions.InitDBValue("mythicPlusIgnoreNormal", true)
 addon.functions.InitDBValue("mythicPlusIgnoreTimewalking", true)
 
+-- Mythic+ timer tweaks
+addon.functions.InitDBValue("mythicPlusShowChestTimers", true)
+
 -- BR Tracker
 addon.functions.InitDBValue("mythicPlusBRTrackerEnabled", false)
 addon.functions.InitDBValue("mythicPlusBRTrackerLocked", false)
