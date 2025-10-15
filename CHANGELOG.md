@@ -5,7 +5,7 @@
 ### ✨ Added
 
 - Tooltip: Unit tab now includes a "Hide health bar on Tooltip" toggle so you can hide the GameTooltip health bar.
-- Action Bars: New "Hide macro names" checkbox (disabled by default) to suppress macro labels on action buttons.
+- Action Bars: New "Hide macro names" checkbox to suppress macro labels on action buttons.
 
 ### 🔄 Changed
 
