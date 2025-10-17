@@ -6,6 +6,7 @@
 
 - Option to mark collected battle pets at merchants
 - Missing chests for quick opening
+- UI & Input → CVar: Added optional persistence toggle and grouped controls for new CVars (Auto Push to Action Bar, personal nameplate in combat, mouseover cast, cooldown viewer, raid/PvP class colors).
 
 ### 🔄 Changed
 

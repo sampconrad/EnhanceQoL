@@ -2758,50 +2758,92 @@ local function addCVarFrame(container, d)
 
 	local data = addon.variables.cvarOptions
 
-	local cvarList = {}
+	local categories = {}
 	for key, optionData in pairs(data) do
-		table.insert(cvarList, {
+		local categoryKey = optionData.category or "cvarCategoryMisc"
+		if not categories[categoryKey] then categories[categoryKey] = {} end
+		table.insert(categories[categoryKey], {
 			key = key,
 			description = optionData.description,
 			trueValue = optionData.trueValue,
 			falseValue = optionData.falseValue,
 			register = optionData.register or nil,
 			persistent = optionData.persistent or nil,
+			category = categoryKey,
 		})
 	end
 
-	table.sort(cvarList, function(a, b) return (a.description or "") < (b.description or "") end)
+	local function addCategoryGroup(categoryKey, entries)
+		if not entries or #entries == 0 then return end
 
-	for _, entry in ipairs(cvarList) do
-		local cvarKey = entry.key
-		local cvarDesc = entry.description
-		local cvarTrue = entry.trueValue
-		local cvarFalse = entry.falseValue
+		table.sort(entries, function(a, b) return (a.description or "") < (b.description or "") end)
 
-		if entry.register and nil == GetCVar(cvarKey) then C_CVar.RegisterCVar(cvarKey, cvarTrue) end
+		local categoryGroup = addon.functions.createContainer("InlineGroup", "List")
+		categoryGroup:SetTitle(L[categoryKey] or categoryKey)
+		categoryGroup:SetFullWidth(true)
+		groupCore:AddChild(categoryGroup)
 
-		local actValue = (GetCVar(cvarKey) == cvarTrue)
+		for _, entry in ipairs(entries) do
+			local cvarKey = entry.key
+			local cvarDesc = entry.description
+			local cvarTrue = entry.trueValue
+			local cvarFalse = entry.falseValue
 
-		local cbElement = addon.functions.createCheckboxAce(cvarDesc, actValue, function(self, _, value)
-			addon.variables.requireReload = true
-			local newValue
-			if value then
-				newValue = cvarTrue
-			else
-				newValue = cvarFalse
-			end
+			if entry.register and nil == GetCVar(cvarKey) then C_CVar.RegisterCVar(cvarKey, cvarTrue) end
 
-			if entry.persistent then
-				addon.db.cvarOverrides = addon.db.cvarOverrides or {}
-				addon.db.cvarOverrides[cvarKey] = newValue
-			end
+			local actValue = (GetCVar(cvarKey) == cvarTrue)
 
-			setCVarValue(cvarKey, newValue)
+			local cbElement = addon.functions.createCheckboxAce(cvarDesc, actValue, function(self, _, value)
+				addon.variables.requireReload = true
+				local newValue
+				if value then
+					newValue = cvarTrue
+				else
+					newValue = cvarFalse
+				end
+
+				if entry.persistent then
+					addon.db.cvarOverrides = addon.db.cvarOverrides or {}
+					addon.db.cvarOverrides[cvarKey] = newValue
+				end
+
+				setCVarValue(cvarKey, newValue)
+			end)
+			cbElement.trueValue = cvarTrue
+			cbElement.falseValue = cvarFalse
+
+			categoryGroup:AddChild(cbElement)
+		end
+	end
+
+	local categoryOrder = {
+		"cvarCategoryUtility",
+		"cvarCategoryMovementInput",
+		"cvarCategoryDisplay",
+		"cvarCategorySystem",
+		"cvarCategoryMisc",
+	}
+
+	for _, categoryKey in ipairs(categoryOrder) do
+		if categories[categoryKey] then
+			addCategoryGroup(categoryKey, categories[categoryKey])
+			categories[categoryKey] = nil
+		end
+	end
+
+	if next(categories) then
+		local remaining = {}
+		for categoryKey, entries in pairs(categories) do
+			table.insert(remaining, { key = categoryKey, entries = entries })
+		end
+		table.sort(remaining, function(a, b)
+			local labelA = L[a.key] or a.key
+			local labelB = L[b.key] or b.key
+			return labelA < labelB
 		end)
-		cbElement.trueValue = cvarTrue
-		cbElement.falseValue = cvarFalse
-
-		groupCore:AddChild(cbElement)
+		for _, bucket in ipairs(remaining) do
+			addCategoryGroup(bucket.key, bucket.entries)
+		end
 	end
 	scroll:DoLayout()
 end
