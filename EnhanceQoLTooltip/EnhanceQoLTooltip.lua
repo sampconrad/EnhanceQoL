@@ -51,7 +51,6 @@ local function UpdateInspectEventRegistration()
 		fInspect:RegisterEvent("INSPECT_READY")
 	else
 		pendingGUID, pendingUnit = nil, nil
-		if ClearInspectPlayer then ClearInspectPlayer() end
 	end
 end
 
@@ -143,7 +142,6 @@ fInspect:SetScript("OnEvent", function(_, ev, guid)
 	c.last = now()
 	InspectCache[guid] = c
 
-	if ClearInspectPlayer then ClearInspectPlayer() end
 	-- If the currently shown tooltip is for this unit, update it immediately
 	RefreshTooltipForGUID(guid)
 end)

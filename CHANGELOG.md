@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.7.1] – 2025-10-17
+
+### 🐛 Fixed
+
+- Tooltip inspect integration no longer clears inspect data early, so the Blizzard inspect frame opens correctly even when showing spec and item level in tooltips.
+
+---
+
 ## [5.7.0] – 2025-10-16
 
 ### ✨ Added
