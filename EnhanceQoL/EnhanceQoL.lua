@@ -2767,16 +2767,11 @@ local function addCVarFrame(container, d)
 	persistenceGroup:SetTitle(L["cvarPersistenceHeader"])
 	wrapper:AddChild(persistenceGroup)
 
-	local persistenceCheckbox = addon.functions.createCheckboxAce(
-		L["cvarPersistence"],
-		addon.db.cvarPersistenceEnabled,
-		function(self, _, value)
-			addon.db.cvarPersistenceEnabled = value and true or false
-			addon.variables.requireReload = true
-			if addon.functions.initializePersistentCVars then addon.functions.initializePersistentCVars() end
-		end,
-		L["cvarPersistenceDesc"]
-	)
+	local persistenceCheckbox = addon.functions.createCheckboxAce(L["cvarPersistence"], addon.db.cvarPersistenceEnabled, function(self, _, value)
+		addon.db.cvarPersistenceEnabled = value and true or false
+		addon.variables.requireReload = true
+		if addon.functions.initializePersistentCVars then addon.functions.initializePersistentCVars() end
+	end, L["cvarPersistenceDesc"])
 	persistenceGroup:AddChild(persistenceCheckbox)
 
 	local groupCore = addon.functions.createContainer("InlineGroup", "List")
@@ -4675,8 +4670,17 @@ end
 local TooltipUtil = _G.TooltipUtil
 
 local function merchantItemIsKnown(itemIndex)
-	if not C_TooltipInfo or not C_TooltipInfo.GetMerchantItem then return false end
-	local tooltipData = C_TooltipInfo.GetMerchantItem(itemIndex)
+	if not itemIndex or itemIndex <= 0 then return false end
+	if not C_TooltipInfo or (not C_TooltipInfo.GetMerchantItem and not C_TooltipInfo.GetHyperlink) then return false end
+
+	local tooltipData
+	if C_TooltipInfo.GetMerchantItem then tooltipData = C_TooltipInfo.GetMerchantItem(itemIndex) end
+
+	if not tooltipData and C_TooltipInfo.GetHyperlink and GetMerchantItemLink then
+		local itemLink = GetMerchantItemLink(itemIndex)
+		if itemLink then tooltipData = C_TooltipInfo.GetHyperlink(itemLink) end
+	end
+
 	if not tooltipData then return false end
 	if TooltipUtil and TooltipUtil.SurfaceArgs then TooltipUtil.SurfaceArgs(tooltipData) end
 	if not tooltipData.lines then return false end
@@ -4872,7 +4876,7 @@ local function setMerchantKnownIcon(itemButton, state)
 	end
 end
 
-local function updateMerchantButtonInfo()
+local function applyMerchantButtonInfo()
 	local showIlvl = addon.db["showIlvlOnMerchantframe"]
 	local highlightKnown = addon.db["markKnownOnMerchant"]
 	local highlightCollectedPets = addon.db["markCollectedPetsOnMerchant"]
@@ -4896,192 +4900,221 @@ local function updateMerchantButtonInfo()
 	local startIndex = (currentPage - 1) * itemsPerPage + 1 -- Startindex basierend auf der aktuellen Seite
 
 	for i = 1, itemsPerPage do
-		local itemIndex = startIndex + i - 1
 		local itemButton = _G["MerchantItem" .. i .. "ItemButton"]
-		local itemLink = GetMerchantItemLink(itemIndex)
-
 		if itemButton then
-			local shouldHighlight = false
-			if highlightKnown and merchantItemIsKnown(itemIndex) then
-				shouldHighlight = true
-			elseif highlightCollectedPets then
+			if not itemButton:IsShown() then
+				setMerchantKnownIcon(itemButton, false)
+				if itemButton.ItemUpgradeArrow then itemButton.ItemUpgradeArrow:Hide() end
+				if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
+				if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
+				if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+			else
+				local itemIndex = startIndex + i - 1
+				local buttonID = itemButton:GetID()
+				if buttonID and buttonID > 0 then itemIndex = buttonID end
+
+				local itemLink = itemIndex and GetMerchantItemLink(itemIndex) or nil
+
 				if itemLink then
-					local isBattlePetClass = false
-					local itemID, classID, subclassID, _ = nil, nil, nil, nil
-					itemID, _, _, _, _, classID, subclassID = C_Item.GetItemInfoInstant(itemLink)
+					local merchantButton = itemButton:GetParent()
+					if merchantButton and merchantButton.GetName and merchantButton:GetName():find("^MerchantItem%d+$") then MerchantFrameItem_UpdateQuality(merchantButton, itemLink) end
+				end
+
+				local shouldHighlight = false
+				if highlightKnown and merchantItemIsKnown(itemIndex) then
+					shouldHighlight = true
+				elseif highlightCollectedPets and itemLink then
+					local itemID, _, _, _, _, classID, subclassID = C_Item.GetItemInfoInstant(itemLink)
 					if classID == 15 and subclassID == 2 then
 						local collected = IsPetAlreadyCollectedFromItem(itemID)
 						if collected then shouldHighlight = true end
 					end
 				end
-			end
-			setMerchantKnownIcon(itemButton, shouldHighlight)
-			-- Clear any stale overlays from recycled buttons
-			if itemButton.ItemUpgradeArrow then itemButton.ItemUpgradeArrow:Hide() end
-			if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
-			if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
-			if showIlvl and itemLink and itemLink:find("item:") then
-				local eItem = Item:CreateFromItemLink(itemLink)
-				eItem:ContinueOnItemLoad(function()
-					-- local itemName, _, _, _, _, _, _, _, itemEquipLoc = C_Item.GetItemInfo(itemLink)
-					local _, _, _, _, _, _, _, _, itemEquipLoc, _, _, classID, subclassID = C_Item.GetItemInfo(itemLink)
+				setMerchantKnownIcon(itemButton, shouldHighlight)
+				-- Clear any stale overlays from recycled buttons
+				if itemButton.ItemUpgradeArrow then itemButton.ItemUpgradeArrow:Hide() end
+				if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
+				if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
+				if showIlvl and itemLink and itemLink:find("item:") then
+					local eItem = Item:CreateFromItemLink(itemLink)
+					eItem:ContinueOnItemLoad(function()
+						-- local itemName, _, _, _, _, _, _, _, itemEquipLoc = C_Item.GetItemInfo(itemLink)
+						local _, _, _, _, _, _, _, _, itemEquipLoc, _, _, classID, subclassID = C_Item.GetItemInfo(itemLink)
 
-					if
-						(itemEquipLoc ~= "INVTYPE_NON_EQUIP_IGNORE" or (classID == 4 and subclassID == 0)) and not (classID == 4 and subclassID == 5) -- Cosmetic
-					then
-						local link = eItem:GetItemLink()
-						local invSlot = select(4, C_Item.GetItemInfoInstant(link))
-						if nil == addon.variables.allowedEquipSlotsBagIlvl[invSlot] then
+						if
+							(itemEquipLoc ~= "INVTYPE_NON_EQUIP_IGNORE" or (classID == 4 and subclassID == 0)) and not (classID == 4 and subclassID == 5) -- Cosmetic
+						then
+							local link = eItem:GetItemLink()
+							local invSlot = select(4, C_Item.GetItemInfoInstant(link))
+							if nil == addon.variables.allowedEquipSlotsBagIlvl[invSlot] then
+								if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
+								if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+								return
+							end
+
+							if not itemButton.ItemLevelText then
+								itemButton.ItemLevelText = itemButton:CreateFontString(nil, "OVERLAY")
+								itemButton.ItemLevelText:SetFont(addon.variables.defaultFont, 16, "OUTLINE")
+								itemButton.ItemLevelText:SetShadowOffset(1, -1)
+								itemButton.ItemLevelText:SetShadowColor(0, 0, 0, 1)
+							end
+							itemButton.ItemLevelText:ClearAllPoints()
+							local pos = addon.db["bagIlvlPosition"] or "TOPRIGHT"
+							if pos == "TOPLEFT" then
+								itemButton.ItemLevelText:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
+							elseif pos == "BOTTOMLEFT" then
+								itemButton.ItemLevelText:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
+							elseif pos == "BOTTOMRIGHT" then
+								itemButton.ItemLevelText:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
+							else
+								itemButton.ItemLevelText:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -1)
+							end
+
+							local color = eItem:GetItemQualityColor()
+							local candidateIlvl = eItem:GetCurrentItemLevel()
+							itemButton.ItemLevelText:SetText(candidateIlvl)
+							itemButton.ItemLevelText:SetTextColor(color.r, color.g, color.b, 1)
+							itemButton.ItemLevelText:Show()
+							local bType
+
+							-- Upgrade arrow for Merchant items
+							if addon.db["showUpgradeArrowOnBagItems"] then
+								local function getEquipSlotsFor(equipLoc)
+									if equipLoc == "INVTYPE_FINGER" then
+										return { 11, 12 }
+									elseif equipLoc == "INVTYPE_TRINKET" then
+										return { 13, 14 }
+									elseif equipLoc == "INVTYPE_HEAD" then
+										return { 1 }
+									elseif equipLoc == "INVTYPE_NECK" then
+										return { 2 }
+									elseif equipLoc == "INVTYPE_SHOULDER" then
+										return { 3 }
+									elseif equipLoc == "INVTYPE_CLOAK" then
+										return { 15 }
+									elseif equipLoc == "INVTYPE_CHEST" or equipLoc == "INVTYPE_ROBE" then
+										return { 5 }
+									elseif equipLoc == "INVTYPE_WRIST" then
+										return { 9 }
+									elseif equipLoc == "INVTYPE_HAND" then
+										return { 10 }
+									elseif equipLoc == "INVTYPE_WAIST" then
+										return { 6 }
+									elseif equipLoc == "INVTYPE_LEGS" then
+										return { 7 }
+									elseif equipLoc == "INVTYPE_FEET" then
+										return { 8 }
+									elseif equipLoc == "INVTYPE_WEAPONMAINHAND" or equipLoc == "INVTYPE_2HWEAPON" or equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" then
+										return { 16 }
+									elseif equipLoc == "INVTYPE_WEAPONOFFHAND" or equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_SHIELD" then
+										return { 17 }
+									elseif equipLoc == "INVTYPE_WEAPON" then
+										return { 16, 17 }
+									end
+									return nil
+								end
+
+								local invSlot = select(4, C_Item.GetItemInfoInstant(itemLink))
+								local slots = getEquipSlotsFor(invSlot)
+								local baseline
+								if slots and #slots > 0 then
+									for _, s in ipairs(slots) do
+										local eqLink = GetInventoryItemLink("player", s)
+										local eqIlvl = eqLink and (C_Item.GetDetailedItemLevelInfo(eqLink) or 0) or 0
+										if baseline == nil then
+											baseline = eqIlvl
+										else
+											baseline = math.min(baseline, eqIlvl)
+										end
+									end
+								end
+								local isUpgrade = baseline ~= nil and candidateIlvl and candidateIlvl > baseline
+								if isUpgrade then
+									if not itemButton.ItemUpgradeIcon then
+										itemButton.ItemUpgradeIcon = itemButton:CreateTexture(nil, "OVERLAY")
+										itemButton.ItemUpgradeIcon:SetSize(14, 14)
+									end
+									itemButton.ItemUpgradeIcon:SetTexture("Interface\\AddOns\\EnhanceQoL\\Icons\\upgradeilvl.tga")
+									itemButton.ItemUpgradeIcon:ClearAllPoints()
+									local posUp = addon.db["bagUpgradeIconPosition"] or "BOTTOMRIGHT"
+									if posUp == "TOPRIGHT" then
+										itemButton.ItemUpgradeIcon:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
+									elseif posUp == "TOPLEFT" then
+										itemButton.ItemUpgradeIcon:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
+									elseif posUp == "BOTTOMLEFT" then
+										itemButton.ItemUpgradeIcon:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
+									else
+										itemButton.ItemUpgradeIcon:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
+									end
+									itemButton.ItemUpgradeIcon:Show()
+								elseif itemButton.ItemUpgradeIcon then
+									itemButton.ItemUpgradeIcon:Hide()
+								end
+							end
+
+							if addon.db["showBindOnBagItems"] then
+								local data = C_TooltipInfo.GetMerchantItem(itemIndex)
+								for i, v in pairs(data.lines) do
+									if v.type == 20 then
+										if v.leftText == ITEM_BIND_ON_EQUIP then
+											bType = "BoE"
+										elseif v.leftText == ITEM_ACCOUNTBOUND_UNTIL_EQUIP or v.leftText == ITEM_BIND_TO_ACCOUNT_UNTIL_EQUIP then
+											bType = "WuE"
+										elseif v.leftText == ITEM_ACCOUNTBOUND or v.leftText == ITEM_BIND_TO_BNETACCOUNT then
+											bType = "WB"
+										end
+										break
+									end
+								end
+							end
+							if bType then
+								if not itemButton.ItemBoundType then
+									itemButton.ItemBoundType = itemButton:CreateFontString(nil, "OVERLAY")
+									itemButton.ItemBoundType:SetFont(addon.variables.defaultFont, 10, "OUTLINE")
+									itemButton.ItemBoundType:SetShadowOffset(2, 2)
+									itemButton.ItemBoundType:SetShadowColor(0, 0, 0, 1)
+								end
+								itemButton.ItemBoundType:ClearAllPoints()
+								if addon.db["bagIlvlPosition"] == "BOTTOMLEFT" then
+									itemButton.ItemBoundType:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
+								elseif addon.db["bagIlvlPosition"] == "BOTTOMRIGHT" then
+									itemButton.ItemBoundType:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
+								else
+									itemButton.ItemBoundType:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
+								end
+								itemButton.ItemBoundType:SetFormattedText(bType)
+								itemButton.ItemBoundType:Show()
+							elseif itemButton.ItemBoundType then
+								itemButton.ItemBoundType:Hide()
+							end
+						else
 							if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
 							if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
-							return
 						end
-
-						if not itemButton.ItemLevelText then
-							itemButton.ItemLevelText = itemButton:CreateFontString(nil, "OVERLAY")
-							itemButton.ItemLevelText:SetFont(addon.variables.defaultFont, 16, "OUTLINE")
-							itemButton.ItemLevelText:SetShadowOffset(1, -1)
-							itemButton.ItemLevelText:SetShadowColor(0, 0, 0, 1)
-						end
-						itemButton.ItemLevelText:ClearAllPoints()
-						local pos = addon.db["bagIlvlPosition"] or "TOPRIGHT"
-						if pos == "TOPLEFT" then
-							itemButton.ItemLevelText:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
-						elseif pos == "BOTTOMLEFT" then
-							itemButton.ItemLevelText:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
-						elseif pos == "BOTTOMRIGHT" then
-							itemButton.ItemLevelText:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
-						else
-							itemButton.ItemLevelText:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -1)
-						end
-
-						local color = eItem:GetItemQualityColor()
-						local candidateIlvl = eItem:GetCurrentItemLevel()
-						itemButton.ItemLevelText:SetText(candidateIlvl)
-						itemButton.ItemLevelText:SetTextColor(color.r, color.g, color.b, 1)
-						itemButton.ItemLevelText:Show()
-						local bType
-
-						-- Upgrade arrow for Merchant items
-						if addon.db["showUpgradeArrowOnBagItems"] then
-							local function getEquipSlotsFor(equipLoc)
-								if equipLoc == "INVTYPE_FINGER" then
-									return { 11, 12 }
-								elseif equipLoc == "INVTYPE_TRINKET" then
-									return { 13, 14 }
-								elseif equipLoc == "INVTYPE_HEAD" then
-									return { 1 }
-								elseif equipLoc == "INVTYPE_NECK" then
-									return { 2 }
-								elseif equipLoc == "INVTYPE_SHOULDER" then
-									return { 3 }
-								elseif equipLoc == "INVTYPE_CLOAK" then
-									return { 15 }
-								elseif equipLoc == "INVTYPE_CHEST" or equipLoc == "INVTYPE_ROBE" then
-									return { 5 }
-								elseif equipLoc == "INVTYPE_WRIST" then
-									return { 9 }
-								elseif equipLoc == "INVTYPE_HAND" then
-									return { 10 }
-								elseif equipLoc == "INVTYPE_WAIST" then
-									return { 6 }
-								elseif equipLoc == "INVTYPE_LEGS" then
-									return { 7 }
-								elseif equipLoc == "INVTYPE_FEET" then
-									return { 8 }
-								elseif equipLoc == "INVTYPE_WEAPONMAINHAND" or equipLoc == "INVTYPE_2HWEAPON" or equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" then
-									return { 16 }
-								elseif equipLoc == "INVTYPE_WEAPONOFFHAND" or equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_SHIELD" then
-									return { 17 }
-								elseif equipLoc == "INVTYPE_WEAPON" then
-									return { 16, 17 }
-								end
-								return nil
-							end
-
-							local invSlot = select(4, C_Item.GetItemInfoInstant(itemLink))
-							local slots = getEquipSlotsFor(invSlot)
-							local baseline
-							if slots and #slots > 0 then
-								for _, s in ipairs(slots) do
-									local eqLink = GetInventoryItemLink("player", s)
-									local eqIlvl = eqLink and (C_Item.GetDetailedItemLevelInfo(eqLink) or 0) or 0
-									if baseline == nil then
-										baseline = eqIlvl
-									else
-										baseline = math.min(baseline, eqIlvl)
-									end
-								end
-							end
-							local isUpgrade = baseline ~= nil and candidateIlvl and candidateIlvl > baseline
-							if isUpgrade then
-								if not itemButton.ItemUpgradeIcon then
-									itemButton.ItemUpgradeIcon = itemButton:CreateTexture(nil, "OVERLAY")
-									itemButton.ItemUpgradeIcon:SetSize(14, 14)
-								end
-								itemButton.ItemUpgradeIcon:SetTexture("Interface\\AddOns\\EnhanceQoL\\Icons\\upgradeilvl.tga")
-								itemButton.ItemUpgradeIcon:ClearAllPoints()
-								local posUp = addon.db["bagUpgradeIconPosition"] or "BOTTOMRIGHT"
-								if posUp == "TOPRIGHT" then
-									itemButton.ItemUpgradeIcon:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
-								elseif posUp == "TOPLEFT" then
-									itemButton.ItemUpgradeIcon:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
-								elseif posUp == "BOTTOMLEFT" then
-									itemButton.ItemUpgradeIcon:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
-								else
-									itemButton.ItemUpgradeIcon:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
-								end
-								itemButton.ItemUpgradeIcon:Show()
-							elseif itemButton.ItemUpgradeIcon then
-								itemButton.ItemUpgradeIcon:Hide()
-							end
-						end
-
-						if addon.db["showBindOnBagItems"] then
-							local data = C_TooltipInfo.GetMerchantItem(itemIndex)
-							for i, v in pairs(data.lines) do
-								if v.type == 20 then
-									if v.leftText == ITEM_BIND_ON_EQUIP then
-										bType = "BoE"
-									elseif v.leftText == ITEM_ACCOUNTBOUND_UNTIL_EQUIP or v.leftText == ITEM_BIND_TO_ACCOUNT_UNTIL_EQUIP then
-										bType = "WuE"
-									elseif v.leftText == ITEM_ACCOUNTBOUND or v.leftText == ITEM_BIND_TO_BNETACCOUNT then
-										bType = "WB"
-									end
-									break
-								end
-							end
-						end
-						if bType then
-							if not itemButton.ItemBoundType then
-								itemButton.ItemBoundType = itemButton:CreateFontString(nil, "OVERLAY")
-								itemButton.ItemBoundType:SetFont(addon.variables.defaultFont, 10, "OUTLINE")
-								itemButton.ItemBoundType:SetShadowOffset(2, 2)
-								itemButton.ItemBoundType:SetShadowColor(0, 0, 0, 1)
-							end
-							itemButton.ItemBoundType:ClearAllPoints()
-							if addon.db["bagIlvlPosition"] == "BOTTOMLEFT" then
-								itemButton.ItemBoundType:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
-							elseif addon.db["bagIlvlPosition"] == "BOTTOMRIGHT" then
-								itemButton.ItemBoundType:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
-							else
-								itemButton.ItemBoundType:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
-							end
-							itemButton.ItemBoundType:SetFormattedText(bType)
-							itemButton.ItemBoundType:Show()
-						elseif itemButton.ItemBoundType then
-							itemButton.ItemBoundType:Hide()
-						end
-					else
-						if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
-						if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
-					end
-				end)
-			else
-				if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
-				if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+					end)
+				else
+					if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
+					if itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+				end
 			end
 		end
+	end
+end
+
+local merchantRefreshPending = false
+
+local function updateMerchantButtonInfo()
+	if merchantRefreshPending then return end
+	merchantRefreshPending = true
+
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, function()
+			merchantRefreshPending = false
+			applyMerchantButtonInfo()
+		end)
+	else
+		merchantRefreshPending = false
+		applyMerchantButtonInfo()
 	end
 end
 

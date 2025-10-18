@@ -9,6 +9,7 @@
 ### 🐛 Fixed
 
 - Tooltip inspect integration no longer clears inspect data early, so the Blizzard inspect frame opens correctly even when showing spec and item level in tooltips.
+- Merchant highlights now respect addons that hide or reindex vendor entries (e.g. TroveTally), so known/collected overlays no longer stick to ghost items.
 
 ---
 
