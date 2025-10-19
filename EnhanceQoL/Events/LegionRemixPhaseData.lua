@@ -346,6 +346,40 @@ EnhanceQoLLegionRemixPhaseData = {
 
 		-- 5) Infinite Echoes
 	},
+	rare_appearance = {
+		[242368] = 1, -- The First Satyr's Spaulders
+		[151524] = 3, -- Hammer of Vigilance
+		[255006] = 4, -- Taeshalach (Set)
+		[253273] = 4, -- Scythe of the Unmaker (Set)
+	},
+	set = {
+		-- 1) Skies of Fire (Default für alle nicht genannten)
+		[4502] = 1,
+		[4500] = 1,
+
+		[4494] = 1,
+		[4495] = 1,
+		[4511] = 1,
+		[4498] = 1,
+
+		[4496] = 1,
+		[4505] = 1,
+		[4504] = 1,
+
+		[4503] = 1,
+		[4501] = 1,
+		[4499] = 1,
+		[4497] = 1,
+		
+		-- 3) Legionfall
+		[4506] = 3,
+
+		-- 4) Argus Eternal
+		[4509] = 4,
+		[4507] = 4,
+		[4508] = 4,
+		[4510] = 4,
+	},
 	pet = {
 		[1929] = 1,
 		[1719] = 1,

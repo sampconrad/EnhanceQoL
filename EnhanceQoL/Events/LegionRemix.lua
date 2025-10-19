@@ -14,7 +14,7 @@ local LegionRemix = addon.Events.LegionRemix
 local AceGUI = LibStub("AceGUI-3.0")
 local L = LibStub("AceLocale-3.0"):GetLocale(PARENT_ADDON)
 
-local DEFAULT_PHASE_KEYS = { "mount", "item", "toy", "pet", "achievement" }
+local DEFAULT_PHASE_KEYS = { "mount", "item", "toy", "pet", "achievement", "rare_appearance", "cloaks" }
 local PHASE_LOOKUP = _G.EnhanceQoLLegionRemixPhaseData or {}
 for _, key in ipairs(DEFAULT_PHASE_KEYS) do
 	if type(PHASE_LOOKUP[key]) ~= "table" then PHASE_LOOKUP[key] = {} end
@@ -344,19 +344,11 @@ local CATEGORY_DATA = {
 			{ type = "pet", cost = 100000, items = { 1803, 1937, 1719 } },
 		},
 	},
-
-
-
-
-
-
-
-	
 	{
-		key = "raidfinder",
-		label = T("Raid Finder", RAID_FINDER or "Raid Finder"),
+		key = "rare_appearance",
+		label = T("Rare Appearance", RARE_APPEARANCES or "Rare Appearances"),
 		groups = {
-			{ type = "set_mixed", cost = 20000, items = { 186, 182, 178, 174 } },
+			{ type = "transmog", cost = 30000, items = { 242368, 151524, 255006, 253273 } },
 		},
 	},
 	{
@@ -381,7 +373,6 @@ local CATEGORY_DATA = {
 					WARRIOR = { 939, 1295, 1518 },
 				},
 			},
-			{ type = "transmog", cost = 30000, items = { 152094, 242368, 151524 } },
 			{ type = "set_mixed", cost = 30000, items = { 5276 } },
 		},
 	},
@@ -444,6 +435,7 @@ local function normalizePhaseKind(kind)
 	if kind == "toy" then return "toy" end
 	if kind == "pet" then return "pet" end
 	if kind == "transmog" or kind == "item" then return "item" end
+	if kind == "set" then return "set" end
 	return nil
 end
 
@@ -913,7 +905,7 @@ function LegionRemix:PlayerHasSet(setId)
 	end
 
 	local primaryAppearances = C_TransmogSets.GetSetPrimaryAppearances(setId)
-	if not primaryAppearances then
+	if not primaryAppearances or #primaryAppearances == 0 then
 		cache[setId] = false
 		return false
 	end
@@ -952,7 +944,7 @@ function LegionRemix:PlayerHasTransmog(itemId)
 	local cache = ensureTable(self.cache.transmog)
 	self.cache.transmog = cache
 	if cache[itemId] ~= nil then return cache[itemId] end
-	cache[itemId] = C_TransmogCollection.PlayerHasTransmog(itemId) and true or false
+	cache[itemId] = C_TransmogCollection.PlayerHasTransmog(itemId, 1) and true or false
 	return cache[itemId]
 end
 
