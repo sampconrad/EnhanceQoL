@@ -2311,175 +2311,176 @@ function LegionRemix:BuildOptionsUI(container)
 	addCheckbox(scroll, L["Enable overlay"], function()
 		local db = LegionRemix:GetDB()
 		return db and db.overlayEnabled
-	end, function(value) LegionRemix:SetOverlayEnabled(value) end)
-
-	addCheckbox(scroll, L["Collapse progress list by default"], function()
-		local db = LegionRemix:GetDB()
-		return db and db.collapsed
-	end, function(value) LegionRemix:SetCollapsed(value) end)
-
-	addCheckbox(scroll, L["Lock overlay position"], function()
-		local db = LegionRemix:GetDB()
-		return db and db.locked
 	end, function(value)
-		local db = LegionRemix:GetDB()
-		if db then
-			db.locked = value
-			LegionRemix:RefreshLockButton()
+		LegionRemix:SetOverlayEnabled(value)
+		container:ReleaseChildren()
+		LegionRemix:BuildOptionsUI(container)
+	end)
+
+	if LegionRemix:GetDB().overlayEnabled then
+		addCheckbox(scroll, L["Collapse progress list by default"], function()
+			local db = LegionRemix:GetDB()
+			return db and db.collapsed
+		end, function(value) LegionRemix:SetCollapsed(value) end)
+
+		addCheckbox(scroll, L["Lock overlay position"], function()
+			local db = LegionRemix:GetDB()
+			return db and db.locked
+		end, function(value)
+			local db = LegionRemix:GetDB()
+			if db then
+				db.locked = value
+				LegionRemix:RefreshLockButton()
+			end
+		end)
+
+		addSpacer(scroll)
+
+		local scaleSlider = AceGUI:Create("Slider")
+		scaleSlider:SetLabel(L["Overlay Scale"])
+		scaleSlider:SetSliderValues(0.6, 1.6, 0.05)
+		local initialScale = LegionRemix:GetOverlayScale()
+		if type(initialScale) ~= "number" then initialScale = DEFAULTS.overlayScale or 1 end
+		scaleSlider:SetValue(initialScale)
+		scaleSlider:SetFullWidth(true)
+		scaleSlider:SetCallback("OnValueChanged", function(_, _, val)
+			if type(val) ~= "number" then return end
+			LegionRemix:SetOverlayScale(val)
+		end)
+		scroll:AddChild(scaleSlider)
+
+		addSpacer(scroll)
+
+		local zoneDropdown = AceGUI:Create("Dropdown")
+		zoneDropdown:SetLabel(L["Show overlay in"])
+		zoneDropdown:SetMultiselect(true)
+		zoneDropdown:SetFullWidth(true)
+		local zoneOptions = LegionRemix:GetZoneFilterOptions()
+		zoneDropdown:SetList(zoneOptions, LegionRemix:GetZoneFilterOrder())
+		local function refreshZoneDropdown()
+			local refreshed = LegionRemix:GetZoneFilterOptions()
+			zoneDropdown:SetList(refreshed, LegionRemix:GetZoneFilterOrder())
+			for _, key in ipairs(LegionRemix:GetZoneFilterOrder()) do
+				zoneDropdown:SetItemValue(key, LegionRemix:IsZoneFilterEnabled(key))
+			end
 		end
-	end)
-
-	addSpacer(scroll)
-
-	local scaleSlider = AceGUI:Create("Slider")
-	scaleSlider:SetLabel(L["Overlay Scale"])
-	scaleSlider:SetSliderValues(0.6, 1.6, 0.05)
-	local initialScale = LegionRemix:GetOverlayScale()
-	if type(initialScale) ~= "number" then initialScale = DEFAULTS.overlayScale or 1 end
-	scaleSlider:SetValue(initialScale)
-	scaleSlider:SetFullWidth(true)
-	scaleSlider:SetCallback("OnValueChanged", function(_, _, val)
-		if type(val) ~= "number" then return end
-		LegionRemix:SetOverlayScale(val)
-	end)
-	scroll:AddChild(scaleSlider)
-
-	addSpacer(scroll)
-
-	local zoneDropdown = AceGUI:Create("Dropdown")
-	zoneDropdown:SetLabel(L["Show overlay in"])
-	zoneDropdown:SetMultiselect(true)
-	zoneDropdown:SetFullWidth(true)
-	local zoneOptions = LegionRemix:GetZoneFilterOptions()
-	zoneDropdown:SetList(zoneOptions, LegionRemix:GetZoneFilterOrder())
-	local function refreshZoneDropdown()
-		local refreshed = LegionRemix:GetZoneFilterOptions()
-		zoneDropdown:SetList(refreshed, LegionRemix:GetZoneFilterOrder())
-		for _, key in ipairs(LegionRemix:GetZoneFilterOrder()) do
-			zoneDropdown:SetItemValue(key, LegionRemix:IsZoneFilterEnabled(key))
-		end
-	end
-	zoneDropdown:SetCallback("OnValueChanged", function(_, _, key, state) LegionRemix:SetZoneFilter(key, state) end)
-	scroll:AddChild(zoneDropdown)
-	refreshZoneDropdown()
-
-	local zoneButtons = AceGUI:Create("SimpleGroup")
-	zoneButtons:SetLayout("Flow")
-	zoneButtons:SetFullWidth(true)
-	local allZonesBtn = AceGUI:Create("Button")
-	allZonesBtn:SetText(L["Remix Zones"])
-	allZonesBtn:SetWidth(140)
-	allZonesBtn:SetCallback("OnClick", function()
-		LegionRemix:ResetZoneFilters()
+		zoneDropdown:SetCallback("OnValueChanged", function(_, _, key, state) LegionRemix:SetZoneFilter(key, state) end)
+		scroll:AddChild(zoneDropdown)
 		refreshZoneDropdown()
-	end)
-	zoneButtons:AddChild(allZonesBtn)
 
-	local everywhereBtn = AceGUI:Create("Button")
-	everywhereBtn:SetText(L["Show Everywhere"])
-	everywhereBtn:SetWidth(160)
-	everywhereBtn:SetCallback("OnClick", function()
-		LegionRemix:SetZoneFilter("any", true)
-		refreshZoneDropdown()
-	end)
-	zoneButtons:AddChild(everywhereBtn)
-	scroll:AddChild(zoneButtons)
+		local zoneButtons = AceGUI:Create("SimpleGroup")
+		zoneButtons:SetLayout("Flow")
+		zoneButtons:SetFullWidth(true)
+		local allZonesBtn = AceGUI:Create("Button")
+		allZonesBtn:SetText(L["Remix Zones"])
+		allZonesBtn:SetWidth(140)
+		allZonesBtn:SetCallback("OnClick", function()
+			LegionRemix:ResetZoneFilters()
+			refreshZoneDropdown()
+		end)
+		zoneButtons:AddChild(allZonesBtn)
 
-	addSpacer(scroll)
+		local everywhereBtn = AceGUI:Create("Button")
+		everywhereBtn:SetText(L["Show Everywhere"])
+		everywhereBtn:SetWidth(160)
+		everywhereBtn:SetCallback("OnClick", function()
+			LegionRemix:SetZoneFilter("any", true)
+			refreshZoneDropdown()
+		end)
+		zoneButtons:AddChild(everywhereBtn)
+		scroll:AddChild(zoneButtons)
 
-	addCheckbox(scroll, L["Only consider sets wearable by the current character"], function()
-		local db = LegionRemix:GetDB()
-		return db and db.classOnly
-	end, function(value) LegionRemix:SetClassOnly(value) end)
+		addSpacer(scroll)
 
-	addCheckbox(scroll, L["Enhanced transmog tracking (slower on login)"], function()
-		local db = LegionRemix:GetDB()
-		return db and db.enhancedTracking
-	end, function(value) LegionRemix:SetEnhancedTracking(value) end)
+		addCheckbox(scroll, L["Only consider sets wearable by the current character"], function()
+			local db = LegionRemix:GetDB()
+			return db and db.classOnly
+		end, function(value) LegionRemix:SetClassOnly(value) end)
 
-	addCheckbox(
-		scroll,
-		L["Hide complete categories"],
-		function() return LegionRemix:IsHidingCompleteCategories() end,
-		function(value) LegionRemix:SetHideCompleteCategories(value) end
-	)
+		addCheckbox(scroll, L["Enhanced transmog tracking (slower on login)"], function()
+			local db = LegionRemix:GetDB()
+			return db and db.enhancedTracking
+		end, function(value) LegionRemix:SetEnhancedTracking(value) end)
 
-	addSpacer(scroll)
+		addCheckbox(scroll, L["Hide complete categories"], function() return LegionRemix:IsHidingCompleteCategories() end, function(value) LegionRemix:SetHideCompleteCategories(value) end)
 
-	local categoryDropdown = AceGUI:Create("Dropdown")
-	categoryDropdown:SetLabel(L["Visible categories"])
-	categoryDropdown:SetMultiselect(true)
-	categoryDropdown:SetFullWidth(true)
-	local categoryOptions = LegionRemix:GetCategoryOptions()
-	local categoryOrder = {}
-	for _, category in ipairs(CATEGORY_DATA) do
-		categoryOrder[#categoryOrder + 1] = category.key
-	end
-	categoryDropdown:SetList(categoryOptions, categoryOrder)
-	local function refreshCategoryDropdown()
-		categoryDropdown:SetList(LegionRemix:GetCategoryOptions(), categoryOrder)
+		addSpacer(scroll)
+
+		local categoryDropdown = AceGUI:Create("Dropdown")
+		categoryDropdown:SetLabel(L["Visible categories"])
+		categoryDropdown:SetMultiselect(true)
+		categoryDropdown:SetFullWidth(true)
+		local categoryOptions = LegionRemix:GetCategoryOptions()
+		local categoryOrder = {}
 		for _, category in ipairs(CATEGORY_DATA) do
-			categoryDropdown:SetItemValue(category.key, LegionRemix:IsCategoryVisible(category.key))
+			categoryOrder[#categoryOrder + 1] = category.key
 		end
-	end
-	categoryDropdown:SetCallback("OnValueChanged", function(_, _, key, state) LegionRemix:SetCategoryVisibility(key, state) end)
-	scroll:AddChild(categoryDropdown)
-	refreshCategoryDropdown()
-
-	local categoryButtons = AceGUI:Create("SimpleGroup")
-	categoryButtons:SetLayout("Flow")
-	categoryButtons:SetFullWidth(true)
-	local showAllCategories = AceGUI:Create("Button")
-	showAllCategories:SetText(L["Show all categories"])
-	showAllCategories:SetWidth(180)
-	showAllCategories:SetCallback("OnClick", function()
-		LegionRemix:ResetCategoryFilters()
+		categoryDropdown:SetList(categoryOptions, categoryOrder)
+		local function refreshCategoryDropdown()
+			categoryDropdown:SetList(LegionRemix:GetCategoryOptions(), categoryOrder)
+			for _, category in ipairs(CATEGORY_DATA) do
+				categoryDropdown:SetItemValue(category.key, LegionRemix:IsCategoryVisible(category.key))
+			end
+		end
+		categoryDropdown:SetCallback("OnValueChanged", function(_, _, key, state) LegionRemix:SetCategoryVisibility(key, state) end)
+		scroll:AddChild(categoryDropdown)
 		refreshCategoryDropdown()
-	end)
-	categoryButtons:AddChild(showAllCategories)
-	scroll:AddChild(categoryButtons)
 
-	addSpacer(scroll)
+		local categoryButtons = AceGUI:Create("SimpleGroup")
+		categoryButtons:SetLayout("Flow")
+		categoryButtons:SetFullWidth(true)
+		local showAllCategories = AceGUI:Create("Button")
+		showAllCategories:SetText(L["Show all categories"])
+		showAllCategories:SetWidth(180)
+		showAllCategories:SetCallback("OnClick", function()
+			LegionRemix:ResetCategoryFilters()
+			refreshCategoryDropdown()
+		end)
+		categoryButtons:AddChild(showAllCategories)
+		scroll:AddChild(categoryButtons)
 
-	local buttonsGroup = AceGUI:Create("SimpleGroup")
-	buttonsGroup:SetLayout("Flow")
-	buttonsGroup:SetFullWidth(true)
-	scroll:AddChild(buttonsGroup)
+		addSpacer(scroll)
 
-	local showBtn = AceGUI:Create("Button")
-	showBtn:SetText(L["Show overlay"])
-	showBtn:SetWidth(160)
-	showBtn:SetCallback("OnClick", function()
-		LegionRemix:SetHidden(false)
-		LegionRemix:SetOverlayEnabled(true)
-	end)
-	buttonsGroup:AddChild(showBtn)
+		local buttonsGroup = AceGUI:Create("SimpleGroup")
+		buttonsGroup:SetLayout("Flow")
+		buttonsGroup:SetFullWidth(true)
+		scroll:AddChild(buttonsGroup)
 
-	local hideBtn = AceGUI:Create("Button")
-	hideBtn:SetText(L["Hide overlay"])
-	hideBtn:SetWidth(160)
-	hideBtn:SetCallback("OnClick", function() LegionRemix:SetHidden(true) end)
-	buttonsGroup:AddChild(hideBtn)
+		local showBtn = AceGUI:Create("Button")
+		showBtn:SetText(L["Show overlay"])
+		showBtn:SetWidth(160)
+		showBtn:SetCallback("OnClick", function()
+			LegionRemix:SetHidden(false)
+			LegionRemix:SetOverlayEnabled(true)
+		end)
+		buttonsGroup:AddChild(showBtn)
 
-	local resetBtn = AceGUI:Create("Button")
-	resetBtn:SetText(RESET_POSITION)
-	resetBtn:SetWidth(160)
-	resetBtn:SetCallback("OnClick", function() LegionRemix:ResetPosition() end)
-	buttonsGroup:AddChild(resetBtn)
+		local hideBtn = AceGUI:Create("Button")
+		hideBtn:SetText(L["Hide overlay"])
+		hideBtn:SetWidth(160)
+		hideBtn:SetCallback("OnClick", function() LegionRemix:SetHidden(true) end)
+		buttonsGroup:AddChild(hideBtn)
 
-	local refreshBtn = AceGUI:Create("Button")
-	refreshBtn:SetText(REFRESH)
-	refreshBtn:SetWidth(160)
-	refreshBtn:SetCallback("OnClick", function() LegionRemix:RefreshData() end)
-	buttonsGroup:AddChild(refreshBtn)
+		local resetBtn = AceGUI:Create("Button")
+		resetBtn:SetText(RESET_POSITION)
+		resetBtn:SetWidth(160)
+		resetBtn:SetCallback("OnClick", function() LegionRemix:ResetPosition() end)
+		buttonsGroup:AddChild(resetBtn)
 
-	addSpacer(scroll)
+		local refreshBtn = AceGUI:Create("Button")
+		refreshBtn:SetText(REFRESH)
+		refreshBtn:SetWidth(160)
+		refreshBtn:SetCallback("OnClick", function() LegionRemix:RefreshData() end)
+		buttonsGroup:AddChild(refreshBtn)
 
-	local status = AceGUI:Create("Label")
-	status:SetFullWidth(true)
-	local remaining = math.max((LegionRemix.totalCost or 0) - (LegionRemix.totalCollected or 0), 0)
-	status:SetText(string.format(L["Remaining Bronze: %s"], formatBronze(remaining)))
-	scroll:AddChild(status)
+		addSpacer(scroll)
+
+		local status = AceGUI:Create("Label")
+		status:SetFullWidth(true)
+		local remaining = math.max((LegionRemix.totalCost or 0) - (LegionRemix.totalCollected or 0), 0)
+		status:SetText(string.format(L["Remaining Bronze: %s"], formatBronze(remaining)))
+		scroll:AddChild(status)
+	end
 end
 
 LegionRemix.functions = LegionRemix.functions or {}
