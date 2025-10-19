@@ -365,7 +365,7 @@ local CATEGORY_DATA = {
 			{
 				type = "set_achievement",
 				cost = 0,
-				items = { 177, 185, 181, 173, 5278, 5280 },
+				items = { 177, 185, 181, 173, 5278, 5280, 5279 },
 				requirements = {
 					[177] = 61026,
 					[185] = 61024,
@@ -374,6 +374,14 @@ local CATEGORY_DATA = {
 					[5278] = 61337,
 					[5279] = 61078,
 					[5280] = 42690,
+				},
+			},
+			{
+				type = "set_achievement_item",
+				cost = 0,
+				items = { 253285 },
+				requirements = {
+					[253285] = 42583,
 				},
 			},
 		},
@@ -1149,6 +1157,23 @@ function LegionRemix:ProcessGroup(categoryResult, group)
 			self:ProcessSetList(categoryResult, filtered, cost, requirements)
 		else
 			self:ProcessSetList(categoryResult, group.items or {}, cost, requirements)
+		end
+		return
+	end
+	if group.type == "set_achievement_item" then
+		local cost = group.cost or 0
+		local requirements = group.requirements
+		for _, itemId in ipairs(group.items) do
+			local entry = { kind = "transmog", id = itemId }
+			if requirements then
+				local requiredAchievement = requirements[itemId]
+				if requiredAchievement then
+					entry.requiredAchievement = requiredAchievement
+					entry.requirementComplete = self:PlayerHasAchievement(requiredAchievement)
+				end
+			end
+			local owned = self:PlayerHasTransmog(itemId)
+			addItemResult(categoryResult, owned, cost, entry)
 		end
 		return
 	end
