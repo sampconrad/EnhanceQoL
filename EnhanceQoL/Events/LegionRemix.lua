@@ -2313,7 +2313,7 @@ function LegionRemix:BuildOptionsUI(container)
 		return db and db.overlayEnabled
 	end, function(value) LegionRemix:SetOverlayEnabled(value) end)
 
-	addCheckbox(scroll, L["Collapse progress list by default"]:format(HERO_TALENTS_COLLAPSE), function()
+	addCheckbox(scroll, L["Collapse progress list by default"], function()
 		local db = LegionRemix:GetDB()
 		return db and db.collapsed
 	end, function(value) LegionRemix:SetCollapsed(value) end)
