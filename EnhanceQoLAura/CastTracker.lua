@@ -726,10 +726,15 @@ local function buildCategoryOptions(scroll, catId)
 	end)
 	container:AddChild(col)
 
-	local dirDrop = addon.functions.createDropdownAce(L["GrowthDirection"], { UP = "UP", DOWN = "DOWN" }, nil, function(self, _, val)
-		db.direction = val
-		CastTracker.functions.LayoutBars(catId)
-	end)
+	local dirDrop = addon.functions.createDropdownAce(
+		L["GrowthDirection"],
+		{ UP = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_UP, DOWN = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_DOWN },
+		nil,
+		function(self, _, val)
+			db.direction = val
+			CastTracker.functions.LayoutBars(catId)
+		end
+	)
 	dirDrop:SetValue(db.direction)
 	dirDrop:SetRelativeWidth(0.4)
 	container:AddChild(dirDrop)

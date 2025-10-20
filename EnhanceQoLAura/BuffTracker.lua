@@ -2120,10 +2120,20 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 	end)
 	core:AddChild(spacingSlider)
 
-	local dirDrop = addon.functions.createDropdownAce(L["GrowthDirection"], { LEFT = "LEFT", RIGHT = "RIGHT", UP = "UP", DOWN = "DOWN" }, nil, function(self, _, val)
-		cat.direction = val
-		updatePositions(catId)
-	end)
+	local dirDrop = addon.functions.createDropdownAce(
+		L["GrowthDirection"],
+		{
+			LEFT = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_LEFT,
+			RIGHT = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_RIGHT,
+			UP = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_UP,
+			DOWN = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_DOWN,
+		},
+		nil,
+		function(self, _, val)
+			cat.direction = val
+			updatePositions(catId)
+		end
+	)
 	dirDrop:SetValue(cat.direction)
 	dirDrop:SetRelativeWidth(0.4)
 	core:AddChild(dirDrop)
@@ -2433,7 +2443,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 		local function buildGroupUI(parent, group)
 			group.join = group.join or "AND"
 
-			local joinDrop = addon.functions.createDropdownAce(L["JoinType"], { AND = "AND", OR = "OR" }, nil, function(_, _, val)
+			local joinDrop = addon.functions.createDropdownAce(L["JoinType"], { AND = QUEST_LOGIC_AND, OR = QUEST_LOGIC_OR }, nil, function(_, _, val)
 				group.join = val
 				container:ReleaseChildren()
 				addon.Aura.functions.buildBuffOptions(container, catId, buffId)
