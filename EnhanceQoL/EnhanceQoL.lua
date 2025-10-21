@@ -6268,7 +6268,7 @@ local function initUI()
 		if not addon.general.squareMinimapBorderFrame then
 			local f = CreateFrame("Frame", nil, Minimap)
 			f:SetFrameStrata("LOW") -- below MEDIUM buttons, above BACKGROUND
-			f:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 2)
+			f:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 1)
 			f:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 0, 0)
 			f:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 0, 0)
 

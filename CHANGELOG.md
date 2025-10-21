@@ -7,6 +7,7 @@
 - Instance difficulty while in a guild group wasn't correctly hidden
 - Hearthstone in Teleport Compendium wasn't shown
 - Performance improvements because of multiple event calls
+- Frame level of minimap border sometimes overlapped Expansion Landing Page
 
 ---
 
