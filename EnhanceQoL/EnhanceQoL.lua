@@ -6266,9 +6266,9 @@ local function initUI()
 
 		-- Ensure holder frame exists (above minimap texture, below buttons)
 		if not addon.general.squareMinimapBorderFrame then
-			local f = CreateFrame("Frame", nil, Minimap)
+			local f = CreateFrame("Frame", "EQOLBORDER", Minimap)
 			f:SetFrameStrata("LOW") -- below MEDIUM buttons, above BACKGROUND
-			f:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 1)
+			f:SetFrameLevel((Minimap:GetFrameLevel() or 2))
 			f:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 0, 0)
 			f:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 0, 0)
 
