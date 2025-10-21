@@ -273,9 +273,6 @@ local EVENT_LIST = {
 	"TRANSMOG_SETS_UPDATE_FAVORITE",
 	"PLAYER_SPECIALIZATION_CHANGED",
 	"CURRENCY_DISPLAY_UPDATE",
-	"ZONE_CHANGED_NEW_AREA",
-	"ZONE_CHANGED",
-	"ZONE_CHANGED_INDOORS",
 }
 
 local CLASS_MASKS = {
@@ -1466,8 +1463,10 @@ function LegionRemix:UpdateActivationState()
 		if not self.active then
 			self.active = true
 			self:InvalidateAllCaches()
+			self:RefreshData()
+		else
+			self:UpdateOverlay()
 		end
-		self:RefreshData()
 	else
 		if self.eventsRegistered then self:UnregisterEvents() end
 		if self.active then self.active = false end
@@ -2202,27 +2201,36 @@ function LegionRemix:SetHidden(value)
 end
 
 LegionRemix.refreshPending = false
+LegionRemix.overlayPending = false
 
-function LegionRemix:RequestRefresh()
-	if not self:IsActive() then return end
-	if self.refreshPending then return end
+function LegionRemix:RequestRefresh(delay)
+	if not self:IsActive() or self.refreshPending then return end
 	self.refreshPending = true
-	C_Timer.After(0.25, function()
+	C_Timer.After(delay or 0.5, function()
 		self.refreshPending = false
 		self:RefreshData()
 	end)
 end
 
+function LegionRemix:RequestOverlayUpdate(delay)
+	if self.overlayPending then return end
+	self.overlayPending = true
+	C_Timer.After(delay or 0.2, function()
+		self.overlayPending = false
+		self:UpdateOverlay()
+	end)
+end
+
 local EVENT_TO_CACHE = {
-	NEW_MOUNT_ADDED = "mounts",
-	MOUNT_JOURNAL_USABILITY_CHANGED = "mounts",
-	TOYS_UPDATED = "toys",
-	PET_JOURNAL_LIST_UPDATE = "pets",
-	TRANSMOG_COLLECTION_SOURCE_ADDED = "sets",
-	TRANSMOG_COLLECTION_SOURCE_REMOVED = "sets",
-	TRANSMOG_COLLECTION_UPDATED = "sets",
-	TRANSMOG_SETS_UPDATE_FAVORITE = "sets",
-	PLAYER_SPECIALIZATION_CHANGED = "sets",
+	NEW_MOUNT_ADDED = { "mounts" },
+	MOUNT_JOURNAL_USABILITY_CHANGED = { "mounts" },
+	TOYS_UPDATED = { "toys" },
+	PET_JOURNAL_LIST_UPDATE = { "pets" },
+	TRANSMOG_COLLECTION_SOURCE_ADDED = { "sets", "slotGrid", "transmog" },
+	TRANSMOG_COLLECTION_SOURCE_REMOVED = { "sets", "slotGrid", "transmog" },
+	TRANSMOG_COLLECTION_UPDATED = { "sets", "slotGrid", "transmog" },
+	TRANSMOG_SETS_UPDATE_FAVORITE = { "sets" },
+	PLAYER_SPECIALIZATION_CHANGED = { "sets" },
 }
 
 function LegionRemix:OnEvent(event, arg1)
@@ -2230,18 +2238,39 @@ function LegionRemix:OnEvent(event, arg1)
 		self:UpdateActivationState()
 		return
 	end
+
 	if event == "PLAYER_ENTERING_WORLD" then
 		self.playerClass = nil
 		self:InvalidateAllCaches()
 		self:RequestRefresh()
-	elseif event == "CURRENCY_DISPLAY_UPDATE" then
-		if not arg1 or arg1 == BRONZE_CURRENCY_ID then self:UpdateOverlay() end
-	else
-		self:InvalidateAllCaches()
-		self:RequestRefresh()
+		return
 	end
 
-	if event == "ZONE_CHANGED_NEW_AREA" or event == "ZONE_CHANGED" or event == "ZONE_CHANGED_INDOORS" then self:UpdateOverlay() end
+	if event == "CURRENCY_DISPLAY_UPDATE" then
+		if not arg1 or arg1 == BRONZE_CURRENCY_ID then self:RequestOverlayUpdate() end
+		return
+	end
+
+	if event == "MOUNT_JOURNAL_USABILITY_CHANGED" then
+		self:RequestOverlayUpdate()
+		return
+	end
+
+	local cacheKey = EVENT_TO_CACHE[event]
+	if cacheKey then
+		if type(cacheKey) == "table" then
+			for _, key in ipairs(cacheKey) do
+				self.cache[key] = {}
+			end
+		else
+			self.cache[cacheKey] = {}
+		end
+		self:RequestRefresh(0.25)
+		return
+	end
+
+	self:InvalidateAllCaches()
+	self:RequestRefresh(0.75)
 end
 
 function LegionRemix:RegisterEvents()
@@ -2479,15 +2508,12 @@ activationWatcher:SetScript("OnEvent", function(_, event, ...)
 		LegionRemix:OnEvent(event, ...)
 		return
 	end
-
-	local wasRegistered = LegionRemix.eventsRegistered and true or false
-	LegionRemix:UpdateActivationState()
-	local isRegistered = LegionRemix.eventsRegistered and true or false
-
-	if not wasRegistered and isRegistered then
-		LegionRemix:OnEvent(event, ...)
+	if event == "PLAYER_ENTERING_WORLD" then
+		LegionRemix:UpdateActivationState()
 		return
 	end
-
-	if not isRegistered and addon and addon.db then LegionRemix:UpdateOverlay() end
+	if event == "ZONE_CHANGED_NEW_AREA" or event == "ZONE_CHANGED" or event == "ZONE_CHANGED_INDOORS" then
+		LegionRemix:RequestOverlayUpdate()
+		return
+	end
 end)
