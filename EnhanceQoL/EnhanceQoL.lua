@@ -3482,11 +3482,14 @@ local function addCharacterFrame(container)
 	end, L["instantCatalystEnabledDesc"])
 	groupInfo:AddChild(cbInstant)
 
-	local cbMovementSpeed =
-		addon.functions.createCheckboxAce(STAT_MOVEMENT_SPEED or "Movement Speed", addon.db["movementSpeedStatEnabled"], function(_, _, value)
-			addon.db["movementSpeedStatEnabled"] = value
+	local cbMovementSpeed = addon.functions.createCheckboxAce(STAT_MOVEMENT_SPEED or "Movement Speed", addon.db["movementSpeedStatEnabled"], function(_, _, value)
+		addon.db["movementSpeedStatEnabled"] = value
+		if value then
 			if addon.MovementSpeedStat and addon.MovementSpeedStat.Refresh then addon.MovementSpeedStat.Refresh() end
-		end)
+		else
+			addon.MovementSpeedStat.Disable()
+		end
+	end)
 	groupInfo:AddChild(cbMovementSpeed)
 
 	local cbOpenChar = addon.functions.createCheckboxAce(L["openCharframeOnUpgrade"], addon.db["openCharframeOnUpgrade"], function(_, _, value) addon.db["openCharframeOnUpgrade"] = value end)
@@ -4632,8 +4635,7 @@ local function buildDatapanelFrame(container)
 			for i, sid in ipairs(streams) do
 				titles[i] = streamList[sid] or sid
 			end
-			currentLabel =
-				addon.functions.createLabelAce(("%s: %s"):format(L["Streams"] or "Streams", table.concat(titles, ", ")))
+			currentLabel = addon.functions.createLabelAce(("%s: %s"):format(L["Streams"] or "Streams", table.concat(titles, ", ")))
 		else
 			local noneText = L["Streams: none"] or ((L["Streams"] or "Streams") .. ": " .. NONE)
 			currentLabel = addon.functions.createLabelAce(noneText)
