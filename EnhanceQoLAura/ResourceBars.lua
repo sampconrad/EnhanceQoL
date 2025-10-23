@@ -1264,6 +1264,7 @@ function addon.Aura.functions.addResourceFrame(container)
 				local defaultStyle = (sel == "MANA") and "PERCENT" or "CURMAX"
 				local curStyle = cfg.textStyle or defaultStyle
 				local curFont = cfg.fontSize or 16
+				local vertical = cfg.verticalFill == true
 
 				-- Size row (50%/50%)
 				local sizeRow2 = addon.functions.createContainer("SimpleGroup", "Flow")
