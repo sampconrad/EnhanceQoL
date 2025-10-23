@@ -81,6 +81,7 @@ local getBarSettings
 local getAnchor
 local layoutRunes
 local updatePowerBar
+local forceColorUpdate
 local lastBarSelectionPerSpec = {}
 local DEFAULT_STACK_SPACING = -1
 local SEPARATOR_THICKNESS = 1
@@ -919,7 +920,7 @@ function addon.Aura.functions.addResourceFrame(container)
 				return sliderX, sliderY
 			end
 
-			local function addColorControls(parent, cfg, specIndex)
+			local function addColorControls(parent, cfg, specIndex, pType)
 				cfg.barColor = cfg.barColor or { 1, 1, 1, 1 }
 				cfg.maxColor = cfg.maxColor or { 1, 1, 1, 1 }
 				local group = addon.functions.createContainer("InlineGroup", "Flow")
@@ -929,6 +930,7 @@ function addon.Aura.functions.addResourceFrame(container)
 
 				local function notifyRefresh()
 					if addon.Aura.ResourceBars and addon.Aura.ResourceBars.MaybeRefreshActive then addon.Aura.ResourceBars.MaybeRefreshActive(specIndex) end
+					if specIndex == addon.variables.unitSpec and forceColorUpdate then forceColorUpdate(pType) end
 				end
 
 				local colorPicker
@@ -1166,7 +1168,7 @@ function addon.Aura.functions.addResourceFrame(container)
 				textOffsetSliders = { addTextOffsetControlsUI(groupConfig, hCfg, specIndex) }
 				updateHealthOffsetDisabled()
 				addFontControls(groupConfig, hCfg)
-				addColorControls(groupConfig, hCfg, specIndex)
+				addColorControls(groupConfig, hCfg, specIndex, "HEALTH")
 
 				-- Bar Texture (Health)
 				local function buildTextureOptions()
@@ -1281,7 +1283,7 @@ function addon.Aura.functions.addResourceFrame(container)
 					textOffsetSliders = { addTextOffsetControlsUI(groupConfig, cfg, specIndex) }
 					updateOffsetDisabled()
 					addFontControls(groupConfig, cfg)
-					addColorControls(groupConfig, cfg, specIndex)
+					addColorControls(groupConfig, cfg, specIndex, sel)
 
 					-- Bar Texture (Power types incl. RUNES)
 					local function buildTextureOptions2()
@@ -2065,6 +2067,15 @@ function updatePowerBar(type, runeSlot)
 
 		local cr, cg, cb = bar:GetStatusBarColor()
 	end
+end
+
+function forceColorUpdate(pType)
+	if pType == "HEALTH" then
+		updateHealthBar("FORCE_COLOR")
+		return
+	end
+
+	if pType and powerbar[pType] then updatePowerBar(pType) end
 end
 
 -- Create/update separator ticks for a given bar type if enabled
