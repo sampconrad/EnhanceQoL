@@ -30,7 +30,7 @@ local function setGlow(bar, cfg, shouldShow, r, g, b)
 	if not tex then
 		tex = bar:CreateTexture(nil, "OVERLAY")
 		tex:SetTexture("Interface\\Buttons\\WHITE8x8")
-		tex:SetBlendMode("ADD")
+		tex:SetBlendMode(ADD or "ADD")
 		tex:SetAllPoints()
 		bar._glowTex = tex
 	end
@@ -102,11 +102,10 @@ local powerbar = {}
 local powerfrequent = {}
 local getBarSettings
 local getAnchor
-local getStackSpacing
 local layoutRunes
 local updatePowerBar
 local lastBarSelectionPerSpec = {}
-local BAR_STACK_SPACING = -1
+local DEFAULT_STACK_SPACING = 0
 local SEPARATOR_THICKNESS = 1
 local SEP_DEFAULT = { 1, 1, 1, 0.5 }
 local DEFAULT_RB_TEX = "Interface\\Buttons\\WHITE8x8" -- historical default (Solid)
@@ -281,13 +280,20 @@ end
 local function applyBarFillColor(bar, cfg, pType)
 	if not bar then return end
 	cfg = cfg or {}
+	local r, g, b, a
 	if cfg.useBarColor then
 		local color = cfg.barColor or { 1, 1, 1, 1 }
-		bar:SetStatusBarColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+		r, g, b, a = color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1
 	else
-		local r, g, b = getPowerBarColor(pType or "MANA")
-		bar:SetStatusBarColor(r, g, b)
+		r, g, b = getPowerBarColor(pType or "MANA")
+		a = (cfg.barColor and cfg.barColor[4]) or 1
 	end
+	bar:SetStatusBarColor(r, g, b, a or 1)
+	bar._baseColor = bar._baseColor or {}
+	bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = r, g, b, a or 1
+	bar._lastColor = bar._lastColor or {}
+	bar._lastColor[1], bar._lastColor[2], bar._lastColor[3], bar._lastColor[4] = r, g, b, a or 1
+	bar._usingMaxColor = false
 end
 
 local function configureBarBehavior(bar, cfg, pType)
@@ -513,7 +519,7 @@ function addon.Aura.functions.addResourceFrame(container)
 				info.y = info.y or 0
 				if (info.relativeFrame or "UIParent") == "UIParent" then info.autoSpacing = nil end
 
-				local stackSpacing = getStackSpacing and getStackSpacing(specIndex) or BAR_STACK_SPACING
+				local stackSpacing = DEFAULT_STACK_SPACING
 				if info.autoSpacing and (info.relativeFrame or "UIParent") ~= "UIParent" then
 					info.x = 0
 					info.y = stackSpacing
@@ -677,6 +683,8 @@ function addon.Aura.functions.addResourceFrame(container)
 							textOffset = { x = 0, y = 0 },
 							useBarColor = false,
 							barColor = { 1, 1, 1, 1 },
+							useMaxColor = false,
+							maxColor = { 1, 1, 1, 1 },
 							showSeparator = false,
 							separatorColor = { 1, 1, 1, 0.5 },
 							separatorThickness = SEPARATOR_THICKNESS,
@@ -718,15 +726,14 @@ function addon.Aura.functions.addResourceFrame(container)
 					textOffset = { x = 0, y = 0 },
 					useBarColor = false,
 					barColor = { 1, 1, 1, 1 },
+					useMaxColor = false,
+					maxColor = { 1, 1, 1, 1 },
 					reverseFill = false,
 					verticalFill = false,
 					smoothFill = false,
 					glowAtCap = false,
 					anchor = {},
 				}
-			dbSpec.layout = dbSpec.layout or {}
-			if dbSpec.layout.stackSpacing == nil then dbSpec.layout.stackSpacing = BAR_STACK_SPACING end
-
 			local function fontDropdownData()
 				local map = {
 					[addon.variables.defaultFont] = L["Default"] or "Default",
@@ -939,16 +946,32 @@ function addon.Aura.functions.addResourceFrame(container)
 
 			local function addColorControls(parent, cfg, specIndex)
 				cfg.barColor = cfg.barColor or { 1, 1, 1, 1 }
+				cfg.maxColor = cfg.maxColor or { 1, 1, 1, 1 }
 				local group = addon.functions.createContainer("InlineGroup", "Flow")
 				group:SetTitle(L["Colors"] or "Colors")
 				group:SetFullWidth(true)
 				parent:AddChild(group)
 
+				local function notifyRefresh()
+					if addon.Aura.ResourceBars and addon.Aura.ResourceBars.MaybeRefreshActive then addon.Aura.ResourceBars.MaybeRefreshActive(specIndex) end
+				end
+
 				local colorPicker
+				local maxColorPicker
+				local maxColorCheckbox
+				local function refreshMaxColorControls()
+					local glowEnabled = cfg.glowAtCap == true
+					if maxColorCheckbox then maxColorCheckbox:SetDisabled(not glowEnabled) end
+					if maxColorPicker then
+						local disable = not (glowEnabled and cfg.useMaxColor == true)
+						maxColorPicker:SetDisabled(disable)
+					end
+				end
+
 				local cb = addon.functions.createCheckboxAce(L["Use custom color"] or "Use custom color", cfg.useBarColor == true, function(_, _, val)
 					cfg.useBarColor = val and true or false
 					if colorPicker then colorPicker:SetDisabled(not cfg.useBarColor) end
-					if addon.Aura.ResourceBars and addon.Aura.ResourceBars.MaybeRefreshActive then addon.Aura.ResourceBars.MaybeRefreshActive(specIndex) end
+					notifyRefresh()
 				end)
 				cb:SetFullWidth(true)
 				group:AddChild(cb)
@@ -960,15 +983,42 @@ function addon.Aura.functions.addResourceFrame(container)
 				colorPicker:SetColor(bc[1] or 1, bc[2] or 1, bc[3] or 1, bc[4] or 1)
 				colorPicker:SetCallback("OnValueChanged", function(_, _, r, g, b, a)
 					cfg.barColor = { r, g, b, a }
-					if addon.Aura.ResourceBars and addon.Aura.ResourceBars.MaybeRefreshActive then addon.Aura.ResourceBars.MaybeRefreshActive(specIndex) end
+					notifyRefresh()
 				end)
 				colorPicker:SetFullWidth(false)
 				colorPicker:SetRelativeWidth(0.5)
 				colorPicker:SetDisabled(not (cfg.useBarColor == true))
 				group:AddChild(colorPicker)
+
+				maxColorCheckbox = addon.functions.createCheckboxAce(L["Use max color"] or "Use max color at maximum", cfg.useMaxColor == true, function(_, _, val)
+					cfg.useMaxColor = val and true or false
+					refreshMaxColorControls()
+					notifyRefresh()
+				end)
+				maxColorCheckbox:SetFullWidth(true)
+				group:AddChild(maxColorCheckbox)
+
+				maxColorPicker = AceGUI:Create("ColorPicker")
+				maxColorPicker:SetLabel(L["Max color"] or "Max color")
+				maxColorPicker:SetHasAlpha(true)
+				local mc = cfg.maxColor or { 1, 1, 1, 1 }
+				maxColorPicker:SetColor(mc[1] or 1, mc[2] or 1, mc[3] or 1, mc[4] or 1)
+				maxColorPicker:SetCallback("OnValueChanged", function(_, _, r, g, b, a)
+					cfg.maxColor = { r, g, b, a }
+					notifyRefresh()
+				end)
+				maxColorPicker:SetFullWidth(false)
+				maxColorPicker:SetRelativeWidth(0.5)
+				group:AddChild(maxColorPicker)
+
+				refreshMaxColorControls()
+
+				return {
+					refreshMaxColorControls = refreshMaxColorControls,
+				}
 			end
 
-			local function addBehaviorControls(parent, cfg, pType)
+			local function addBehaviorControls(parent, cfg, pType, colorHooks)
 				local group = addon.functions.createContainer("InlineGroup", "Flow")
 				group:SetTitle(L["Behavior"] or "Behavior")
 				group:SetFullWidth(true)
@@ -1002,6 +1052,7 @@ function addon.Aura.functions.addResourceFrame(container)
 
 					local cbGlow = addon.functions.createCheckboxAce(L["Glow at maximum"] or "Glow at maximum", cfg.glowAtCap == true, function(_, _, val)
 						cfg.glowAtCap = val and true or false
+						if colorHooks and colorHooks.refreshMaxColorControls then colorHooks.refreshMaxColorControls() end
 						if addon.Aura.ResourceBars and addon.Aura.ResourceBars.MaybeRefreshActive then addon.Aura.ResourceBars.MaybeRefreshActive(specIndex) end
 					end)
 					cbGlow:SetFullWidth(false)
@@ -1042,16 +1093,6 @@ function addon.Aura.functions.addResourceFrame(container)
 					groupToggles:AddChild(cb)
 				end
 			end
-
-			local layoutGroup = addon.functions.createContainer("InlineGroup", "Flow")
-			layoutGroup:SetTitle(L["Layout"] or "Layout")
-			container:AddChild(layoutGroup)
-			local sliderSpacing = addon.functions.createSliderAce(L["Bar spacing"] or "Bar spacing", dbSpec.layout.stackSpacing or BAR_STACK_SPACING, -64, 64, 1, function(self, _, val)
-				dbSpec.layout.stackSpacing = val
-				if addon.Aura.ResourceBars and addon.Aura.ResourceBars.MaybeRefreshActive then addon.Aura.ResourceBars.MaybeRefreshActive(specIndex) end
-			end)
-			sliderSpacing:SetFullWidth(true)
-			layoutGroup:AddChild(sliderSpacing)
 
 			-- Selection dropdown for configuring a single bar
 			local cfgList, cfgOrder = {}, {}
@@ -1168,7 +1209,7 @@ function addon.Aura.functions.addResourceFrame(container)
 				textOffsetSliders = { addTextOffsetControlsUI(groupConfig, hCfg, specIndex) }
 				updateHealthOffsetDisabled()
 				addFontControls(groupConfig, hCfg)
-				addColorControls(groupConfig, hCfg, specIndex)
+				local colorControls = addColorControls(groupConfig, hCfg, specIndex)
 
 				-- Bar Texture (Health)
 				local function buildTextureOptions()
@@ -1208,7 +1249,7 @@ function addon.Aura.functions.addResourceFrame(container)
 				ResourceBars.ui.textureDropdown = dropTex
 				dropTex._rb_cfgRef = hCfg
 				addBackdropControls(groupConfig, hCfg)
-				addBehaviorControls(groupConfig, hCfg, "HEALTH")
+				addBehaviorControls(groupConfig, hCfg, "HEALTH", colorControls)
 
 				addAnchorOptions("HEALTH", groupConfig, hCfg.anchor, frames, specIndex)
 			else
@@ -1283,7 +1324,7 @@ function addon.Aura.functions.addResourceFrame(container)
 					textOffsetSliders = { addTextOffsetControlsUI(groupConfig, cfg, specIndex) }
 					updateOffsetDisabled()
 					addFontControls(groupConfig, cfg)
-					addColorControls(groupConfig, cfg, specIndex)
+					local colorControls = addColorControls(groupConfig, cfg, specIndex)
 
 					-- Bar Texture (Power types incl. RUNES)
 					local function buildTextureOptions2()
@@ -1323,7 +1364,7 @@ function addon.Aura.functions.addResourceFrame(container)
 					ResourceBars.ui.textureDropdown = dropTex2
 					dropTex2._rb_cfgRef = cfg
 					addBackdropControls(groupConfig, cfg)
-					addBehaviorControls(groupConfig, cfg, sel)
+					addBehaviorControls(groupConfig, cfg, sel, colorControls)
 				else
 					-- RUNES specific options
 					local cbRT = addon.functions.createCheckboxAce(L["Show cooldown text"], cfg.showCooldownText == true, function(self, _, val)
@@ -1498,33 +1539,37 @@ local function updateHealthBar(evt)
 				healthBar.text:Show()
 			end
 		end
-		local colorR, colorG, colorB
+		local baseR, baseG, baseB, baseA
 		if settings.useBarColor then
 			local custom = settings.barColor or { 1, 1, 1, 1 }
-			colorR, colorG, colorB = custom[1] or 1, custom[2] or 1, custom[3] or 1
-			local cc = healthBar._customColor or {}
-			if cc[1] ~= colorR or cc[2] ~= colorG or cc[3] ~= colorB then
-				healthBar:SetStatusBarColor(colorR, colorG, colorB)
-				healthBar._customColor = { colorR, colorG, colorB }
-			end
-			healthBar._lastBracket = nil
+			baseR, baseG, baseB, baseA = custom[1] or 1, custom[2] or 1, custom[3] or 1, custom[4] or 1
 		else
-			local bracket, r, g, b
 			if percent >= 60 then
-				bracket, r, g, b = 3, 0, 0.7, 0
+				baseR, baseG, baseB, baseA = 0, 0.7, 0, 1
 			elseif percent >= 40 then
-				bracket, r, g, b = 2, 0.7, 0.7, 0
+				baseR, baseG, baseB, baseA = 0.7, 0.7, 0, 1
 			else
-				bracket, r, g, b = 1, 0.7, 0, 0
+				baseR, baseG, baseB, baseA = 0.7, 0, 0, 1
 			end
-			if healthBar._lastBracket ~= bracket then
-				healthBar:SetStatusBarColor(r, g, b)
-				healthBar._lastBracket = bracket
-			end
-			healthBar._customColor = nil
-			colorR, colorG, colorB = r, g, b
 		end
-		setGlow(healthBar, settings, settings.glowAtCap == true and curHealth >= maxHealth, colorR, colorG, colorB)
+		healthBar._baseColor = healthBar._baseColor or {}
+		healthBar._baseColor[1], healthBar._baseColor[2], healthBar._baseColor[3], healthBar._baseColor[4] = baseR, baseG, baseB, baseA
+
+		local reachedCap = maxHealth > 0 and curHealth >= maxHealth
+		local useMaxColor = settings.glowAtCap == true and settings.useMaxColor == true
+		local finalR, finalG, finalB, finalA = baseR, baseG, baseB, baseA
+		if useMaxColor and reachedCap then
+			local maxCol = settings.maxColor or { 1, 1, 1, 1 }
+			finalR, finalG, finalB, finalA = maxCol[1] or baseR, maxCol[2] or baseG, maxCol[3] or baseB, maxCol[4] or baseA
+		end
+
+		local last = healthBar._lastColor or {}
+		if last[1] ~= finalR or last[2] ~= finalG or last[3] ~= finalB or last[4] ~= finalA then
+			healthBar:SetStatusBarColor(finalR, finalG, finalB, finalA or 1)
+			healthBar._lastColor = { finalR, finalG, finalB, finalA or 1 }
+		end
+
+		setGlow(healthBar, settings, settings.glowAtCap == true and reachedCap, finalR, finalG, finalB)
 
 		local absorbBar = healthBar.absorbBar
 		if absorbBar then
@@ -1594,6 +1639,7 @@ local function createHealthBar()
 		-- Ensure correct parent when re-enabling
 		if mainFrame:GetParent() ~= UIParent then mainFrame:SetParent(UIParent) end
 		if healthBar and healthBar.GetParent and healthBar:GetParent() ~= UIParent then healthBar:SetParent(UIParent) end
+		if mainFrame.SetClampedToScreen then mainFrame:SetClampedToScreen(true) end
 		mainFrame:Show()
 		healthBar:Show()
 		return
@@ -1602,6 +1648,7 @@ local function createHealthBar()
 	-- Reuse existing named frames if they still exist from a previous enable
 	mainFrame = _G["EQOLResourceFrame"] or CreateFrame("frame", "EQOLResourceFrame", UIParent)
 	if mainFrame:GetParent() ~= UIParent then mainFrame:SetParent(UIParent) end
+	if mainFrame.SetClampedToScreen then mainFrame:SetClampedToScreen(true) end
 	healthBar = _G["EQOLHealthBar"] or CreateFrame("StatusBar", "EQOLHealthBar", UIParent, "BackdropTemplate")
 	if healthBar:GetParent() ~= UIParent then healthBar:SetParent(UIParent) end
 	do
@@ -1824,15 +1871,6 @@ function getBarSettings(pType)
 	return nil
 end
 
-function getStackSpacing(specIndex)
-	local class = addon.variables.unitClass
-	specIndex = specIndex or addon.variables.unitSpec
-	local classCfg = addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[class]
-	local specCfg = classCfg and classCfg[specIndex]
-	if specCfg and specCfg.layout and specCfg.layout.stackSpacing ~= nil then return specCfg.layout.stackSpacing end
-	return BAR_STACK_SPACING
-end
-
 function updatePowerBar(type, runeSlot)
 	if powerbar[type] and powerbar[type]:IsVisible() then
 		-- Special handling for DK Runes: six sub-bars that fill as cooldown progresses
@@ -2040,8 +2078,37 @@ function updatePowerBar(type, runeSlot)
 				bar.text:Show()
 			end
 		end
+		bar._baseColor = bar._baseColor or {}
+		if bar._baseColor[1] == nil then
+			local br, bg, bb, ba = bar:GetStatusBarColor()
+			bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = br, bg, bb, ba or 1
+		end
+
+		local reachedCap = curPower >= max(maxPower, 1)
+		local useMaxColor = cfg.glowAtCap == true and cfg.useMaxColor == true
+		if useMaxColor and reachedCap then
+			local maxCol = cfg.maxColor or { 1, 1, 1, 1 }
+			local mr, mg, mb, ma = maxCol[1] or 1, maxCol[2] or 1, maxCol[3] or 1, maxCol[4] or (bar._baseColor[4] or 1)
+			local last = bar._lastColor or {}
+			if bar._usingMaxColor ~= true or last[1] ~= mr or last[2] ~= mg or last[3] ~= mb or last[4] ~= ma then
+				bar:SetStatusBarColor(mr, mg, mb, ma)
+				bar._lastColor = { mr, mg, mb, ma }
+				bar._usingMaxColor = true
+			end
+		else
+			local base = bar._baseColor
+			if base then
+				local last = bar._lastColor or {}
+				if bar._usingMaxColor == true or last[1] ~= base[1] or last[2] ~= base[2] or last[3] ~= base[3] or last[4] ~= base[4] then
+					bar:SetStatusBarColor(base[1] or 1, base[2] or 1, base[3] or 1, base[4] or 1)
+					bar._lastColor = { base[1] or 1, base[2] or 1, base[3] or 1, base[4] or 1 }
+				end
+			end
+			bar._usingMaxColor = false
+		end
+
 		local cr, cg, cb = bar:GetStatusBarColor()
-		setGlow(bar, cfg, cfg.glowAtCap == true and curPower >= max(maxPower, 1), cr, cg, cb)
+		setGlow(bar, cfg, cfg.glowAtCap == true and reachedCap, cr, cg, cb)
 	end
 end
 
@@ -2269,7 +2336,7 @@ local function createPowerBar(type, anchor)
 		bar:SetStatusBarTexture(resolveTexture(cfg2))
 	end
 	bar:SetClampedToScreen(true)
-	local stackSpacing = getStackSpacing()
+	local stackSpacing = DEFAULT_STACK_SPACING
 
 	-- Anchor handling: during spec/trait refresh we suppress inter-bar anchoring
 	local a = getAnchor(type, addon.variables.unitSpec)
@@ -2913,7 +2980,7 @@ function ResourceBars.Refresh()
 				or (a.autoSpacing == nil and isEQOLFrameName(a.relativeFrame) and (a.point or "TOPLEFT") == "TOPLEFT" and (a.relativePoint or "BOTTOMLEFT") == "BOTTOMLEFT" and (a.x or 0) == 0)
 			then
 				a.x = 0
-				a.y = getStackSpacing()
+				a.y = DEFAULT_STACK_SPACING
 				a.autoSpacing = true
 			end
 			local rel, looped = resolveAnchor(a, pType)
@@ -3126,7 +3193,7 @@ function ResourceBars.ReanchorAll()
 				or (a.autoSpacing == nil and isEQOLFrameName(a.relativeFrame) and (a.point or "TOPLEFT") == "TOPLEFT" and (a.relativePoint or "BOTTOMLEFT") == "BOTTOMLEFT" and (a.x or 0) == 0)
 			then
 				a.x = 0
-				a.y = getStackSpacing(spec)
+				a.y = DEFAULT_STACK_SPACING
 				a.autoSpacing = true
 			end
 			local rel, looped = resolveAnchor(a, pType)
