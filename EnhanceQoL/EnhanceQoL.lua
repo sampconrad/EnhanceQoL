@@ -4556,117 +4556,14 @@ local function buildDatapanelFrame(container)
 	removeButton:SetRelativeWidth(0.3)
 	controlGroup:AddChild(removeButton)
 
-	-- Available streams for dropdowns
-	local streamList, streamOrder = {}, {}
-	local sortedStreams = {}
-	for id, stream in pairs(DataHub.streams) do
-		local title = (stream.meta and (stream.meta.title or stream.meta.name)) or id
-		streamList[id] = title
-		sortedStreams[#sortedStreams + 1] = { key = id, title = title }
-	end
-	table.sort(sortedStreams, function(a, b) return a.title < b.title end)
-	for _, entry in ipairs(sortedStreams) do
-		streamOrder[#streamOrder + 1] = entry.key
-	end
-
-	-- Display existing panels
-	for _, id in ipairs(panelOrder) do
-		local panel = DataPanel.Create(id, nil, true)
-		local info = panel.info
-		local groupPanel = addon.functions.createContainer("InlineGroup", "List")
-		groupPanel:SetTitle(id)
-		wrapper:AddChild(groupPanel)
-
-		local widthLabelText = HUD_EDIT_MODE_SETTING_CHAT_FRAME_WIDTH
-		local widthSlider = addon.functions.createSliderAce(("%s: %s"):format(widthLabelText, info.width), info.width, 50, 1000, 1, function(self, _, val)
-			panel.frame:SetWidth(val)
-			self:SetLabel(("%s: %s"):format(widthLabelText, val))
-		end)
-		groupPanel:AddChild(widthSlider)
-
-		local heightLabelText = HUD_EDIT_MODE_SETTING_CHAT_FRAME_HEIGHT
-		local heightSlider = addon.functions.createSliderAce(("%s: %s"):format(heightLabelText, info.height), info.height, 10, 500, 1, function(self, _, val)
-			panel.frame:SetHeight(val)
-			self:SetLabel(("%s: %s"):format(heightLabelText, val))
-		end)
-		groupPanel:AddChild(heightSlider)
-
-		-- Per-panel: hide border
-		local borderToggle = addon.functions.createCheckboxAce(L["Hide border"] or "Hide border", info.noBorder == true, function(_, _, val)
-			info.noBorder = val and true or false
-			if panel.ApplyBorder then panel:ApplyBorder() end
-		end)
-		groupPanel:AddChild(borderToggle)
-
-		local streams = panels[id] or {}
-		local currentLabel
-		if #streams > 0 then
-			local titles = {}
-			for i, sid in ipairs(streams) do
-				titles[i] = streamList[sid] or sid
-			end
-			currentLabel = addon.functions.createLabelAce(("%s: %s"):format(L["Streams"] or "Streams", table.concat(titles, ", ")))
-		else
-			local noneText = L["Streams: none"] or ((L["Streams"] or "Streams") .. ": " .. NONE)
-			currentLabel = addon.functions.createLabelAce(noneText)
-		end
-		currentLabel:SetFullWidth(true)
-		groupPanel:AddChild(currentLabel)
-
-		local removeStream -- forward declare for closures
-		local function rebuildRemoveDropdown()
-			local removeList2, removeOrder2 = {}, {}
-			local curStreams = panel.order or {}
-			for _, s in ipairs(curStreams) do
-				removeList2[s] = streamList[s] or s
-				removeOrder2[#removeOrder2 + 1] = s
-			end
-			table.sort(removeOrder2, function(a, b) return (removeList2[a] or a) < (removeList2[b] or b) end)
-			removeStream:SetList(removeList2, removeOrder2)
-			removeStream:SetValue(nil)
-			if groupPanel and groupPanel.DoLayout then groupPanel:DoLayout() end
-		end
-
-		local function refreshStreamsLabel()
-			local curStreams = panel.order or {}
-			if #curStreams > 0 then
-				local titles = {}
-				for i, sid in ipairs(curStreams) do
-					titles[i] = streamList[sid] or sid
-				end
-				currentLabel:SetText(("%s: %s"):format(L["Streams"] or "Streams", table.concat(titles, ", ")))
-			else
-				local noneText = L["Streams: none"] or ((L["Streams"] or "Streams") .. ": " .. NONE)
-				currentLabel:SetText(noneText)
-			end
-			if groupPanel and groupPanel.DoLayout then groupPanel:DoLayout() end
-		end
-
-		local addStream = addon.functions.createDropdownAce(L["Add Stream"] or "Add Stream", streamList, streamOrder, function(self, _, val)
-			if not val or val == "" then return end
-			panel:AddStream(val)
-			self:SetValue(nil)
-			refreshStreamsLabel()
-			rebuildRemoveDropdown()
-		end)
-		groupPanel:AddChild(addStream)
-
-		local removeList, removeOrder = {}, {}
-		for _, s in ipairs(streams) do
-			removeList[s] = streamList[s] or s
-			removeOrder[#removeOrder + 1] = s
-		end
-		table.sort(removeOrder, function(a, b) return removeList[a] < removeList[b] end)
-
-		removeStream = addon.functions.createDropdownAce(L["Remove Stream"] or "Remove Stream", removeList, removeOrder, function(self, _, val)
-			if not val or val == "" then return end
-			panel:RemoveStream(val)
-			self:SetValue(nil)
-			refreshStreamsLabel()
-			rebuildRemoveDropdown()
-		end)
-		groupPanel:AddChild(removeStream)
-	end
+	local editModeHint = addon.functions.createLabelAce(
+		"|cffffd700" .. (L["DataPanelEditModeHint"] or "Configure DataPanels in Edit Mode.") .. "|r",
+		nil,
+		nil,
+		12
+	)
+	editModeHint:SetFullWidth(true)
+	wrapper:AddChild(editModeHint)
 	scroll:DoLayout()
 end
 

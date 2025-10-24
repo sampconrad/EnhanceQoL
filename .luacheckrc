@@ -32,6 +32,7 @@ exclude_files = {
 	"EnhanceQoL/libs/LibOpenRaid/ThingsToMantain_Cata.lua",
 	"EnhanceQoL/libs/AceGUI-3.0/widgets/AceGUIWidget-MultiLineEditBox.lua",
 	"EnhanceQoL/libs/AceGUI-3.0/widgets/AceGUIWidget-EditBox.lua",
+	"EnhanceQoL/libs/LibEditMode/LibEditMode.lua",
 	".git/**",
 }
 ignore = {

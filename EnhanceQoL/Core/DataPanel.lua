@@ -3,96 +3,209 @@ addon.DataPanel = addon.DataPanel or {}
 local DataPanel = addon.DataPanel
 local DataHub = addon.DataHub
 local L = addon.L
+local EditMode = addon.EditMode
+local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
+
+local registerEditModePanel
 
 local panels = {}
 
+local function copyList(source)
+	local result = {}
+	if source then
+		for i, v in ipairs(source) do
+			result[i] = v
+		end
+	end
+	return result
+end
+
+local function streamDisplayName(name)
+	local stream = DataHub and DataHub.streams and DataHub.streams[name]
+	if stream and stream.meta then return stream.meta.title or stream.meta.name or name end
+	return name
+end
+
+local function sortedStreams()
+	local list = {}
+	if DataHub and DataHub.streams then
+		for name in pairs(DataHub.streams) do
+			list[#list + 1] = name
+		end
+	end
+	table.sort(list, function(a, b) return streamDisplayName(a) < streamDisplayName(b) end)
+	return list
+end
+
 local function requireShiftToMove()
-    local opts = addon.db and addon.db.dataPanelsOptions
-    return opts and opts.requireShiftToMove == true
+	local opts = addon.db and addon.db.dataPanelsOptions
+	return opts and opts.requireShiftToMove == true
 end
 
 local function shouldShowOptionsHint()
-    local opts = addon.db and addon.db.dataPanelsOptions
-    return not (opts and opts.hideRightClickHint)
+	local opts = addon.db and addon.db.dataPanelsOptions
+	return not (opts and opts.hideRightClickHint)
 end
 
-function DataPanel.ShouldShowOptionsHint()
-    return shouldShowOptionsHint()
-end
+function DataPanel.ShouldShowOptionsHint() return shouldShowOptionsHint() end
 
 function DataPanel.GetOptionsHintText()
-    if shouldShowOptionsHint() then
-        return L["Right-Click for options"]
-    end
+	if shouldShowOptionsHint() then return L["Right-Click for options"] end
+end
+
+local function registerEditModePanel(panel)
+	if not EditMode or not EditMode.RegisterFrame then return end
+	if panel.editModeRegistered then
+		if panel.editModeId then EditMode:RefreshFrame(panel.editModeId) end
+		return
+	end
+
+	local id = "dataPanel:" .. tostring(panel.id)
+	panel.frame.editModeName = panel.name
+
+	local defaults = {
+		point = panel.info.point or "CENTER",
+		x = panel.info.x or 0,
+		y = panel.info.y or 0,
+		width = panel.info.width or panel.frame:GetWidth() or 200,
+		height = panel.info.height or panel.frame:GetHeight() or 20,
+		hideBorder = panel.info.noBorder or false,
+		streams = copyList(panel.info.streams),
+	}
+
+	local settings
+	if SettingType then
+		settings = {
+			{
+				name = L["DataPanelWidth"],
+				kind = SettingType.Slider,
+				field = "width",
+				default = defaults.width,
+				minValue = 50,
+				maxValue = 800,
+				valueStep = 1,
+			},
+			{
+				name = L["DataPanelHeight"],
+				kind = SettingType.Slider,
+				field = "height",
+				default = defaults.height,
+				minValue = 16,
+				maxValue = 600,
+				valueStep = 1,
+			},
+			{
+				name = L["DataPanelHideBorder"],
+				kind = SettingType.Checkbox,
+				field = "hideBorder",
+				default = defaults.hideBorder,
+			},
+			{
+				name = L["DataPanelStreams"],
+				kind = SettingType.Dropdown,
+				field = "streams",
+				default = copyList(defaults.streams),
+				height = 240,
+				get = function() return copyList(panel.info.streams) end,
+				set = function(_, value)
+					panel.applyingFromEditMode = true
+					panel:ApplyStreams(copyList(value) or {})
+					panel.applyingFromEditMode = nil
+				end,
+				generator = function(_, rootDescription)
+					for _, streamName in ipairs(sortedStreams()) do
+						rootDescription:CreateCheckbox(streamDisplayName(streamName), function() return panel.info.streamSet and panel.info.streamSet[streamName] end, function()
+							local enabled = panel.info.streamSet and panel.info.streamSet[streamName]
+							if enabled then
+								panel:RemoveStream(streamName)
+							else
+								panel:AddStream(streamName)
+							end
+						end)
+					end
+				end,
+			},
+		}
+	end
+
+	EditMode:RegisterFrame(id, {
+		frame = panel.frame,
+		title = panel.name,
+		layoutDefaults = defaults,
+		onApply = function(_, _, data) panel:ApplyEditMode(data or {}) end,
+		onPositionChanged = function(_, _, data) panel:UpdatePositionInfo(data) end,
+		settings = settings,
+		showOutsideEditMode = true,
+	})
+	panel.editModeRegistered = true
+	panel.editModeId = id
 end
 
 function DataPanel.SetShowOptionsHint(val)
-    addon.db = addon.db or {}
-    addon.db.dataPanelsOptions = addon.db.dataPanelsOptions or {}
-    if val then
-        addon.db.dataPanelsOptions.hideRightClickHint = nil
-    else
-        addon.db.dataPanelsOptions.hideRightClickHint = true
-    end
+	addon.db = addon.db or {}
+	addon.db.dataPanelsOptions = addon.db.dataPanelsOptions or {}
+	if val then
+		addon.db.dataPanelsOptions.hideRightClickHint = nil
+	else
+		addon.db.dataPanelsOptions.hideRightClickHint = true
+	end
 end
 
 local function getMenuModifierSetting()
-    local opts = addon.db and addon.db.dataPanelsOptions
-    return (opts and opts.menuModifier) or "NONE"
+	local opts = addon.db and addon.db.dataPanelsOptions
+	return (opts and opts.menuModifier) or "NONE"
 end
 
 local function isModifierDown(mod)
-    if mod == "SHIFT" then
-        return IsShiftKeyDown()
-    elseif mod == "CTRL" then
-        return IsControlKeyDown()
-    elseif mod == "ALT" then
-        return IsAltKeyDown()
-    end
-    return true
+	if mod == "SHIFT" then
+		return IsShiftKeyDown()
+	elseif mod == "CTRL" then
+		return IsControlKeyDown()
+	elseif mod == "ALT" then
+		return IsAltKeyDown()
+	end
+	return true
 end
 
-function DataPanel.GetMenuModifier()
-    return getMenuModifierSetting()
-end
+function DataPanel.GetMenuModifier() return getMenuModifierSetting() end
 
 function DataPanel.SetMenuModifier(mod)
-    addon.db = addon.db or {}
-    addon.db.dataPanelsOptions = addon.db.dataPanelsOptions or {}
-    if not mod or not (mod == "NONE" or mod == "SHIFT" or mod == "CTRL" or mod == "ALT") then mod = "NONE" end
-    addon.db.dataPanelsOptions.menuModifier = mod
+	addon.db = addon.db or {}
+	addon.db.dataPanelsOptions = addon.db.dataPanelsOptions or {}
+	if not mod or not (mod == "NONE" or mod == "SHIFT" or mod == "CTRL" or mod == "ALT") then mod = "NONE" end
+	addon.db.dataPanelsOptions.menuModifier = mod
 end
 
 function DataPanel.IsMenuModifierActive(btn)
-    if btn and btn ~= "RightButton" then return true end
-    local mod = getMenuModifierSetting()
-    if mod == "NONE" then return true end
-    return isModifierDown(mod)
+	if btn and btn ~= "RightButton" then return true end
+	local mod = getMenuModifierSetting()
+	if mod == "NONE" then return true end
+	return isModifierDown(mod)
 end
 
 local function ensureSettings(id, name)
-    id = tostring(id)
-    addon.db = addon.db or {}
-    addon.db.dataPanels = addon.db.dataPanels or {}
-    local info = addon.db.dataPanels[id] or addon.db.dataPanels[tonumber(id)]
-    if not info then
-        info = {
-            point = "CENTER",
-            x = 0,
-            y = 0,
-            width = 200,
-            height = 20,
-            streams = {},
-            streamSet = {},
-            name = name or ((L["Panel"] or "Panel") .. " " .. id),
-            noBorder = false,
-        }
-    else
-        info.streams = info.streams or {}
-        info.streamSet = info.streamSet or {}
-        info.name = info.name or name or ((L["Panel"] or "Panel") .. " " .. id)
-        if info.noBorder == nil then info.noBorder = false end
-    end
+	id = tostring(id)
+	addon.db = addon.db or {}
+	addon.db.dataPanels = addon.db.dataPanels or {}
+	local info = addon.db.dataPanels[id] or addon.db.dataPanels[tonumber(id)]
+	if not info then
+		info = {
+			point = "CENTER",
+			x = 0,
+			y = 0,
+			width = 200,
+			height = 20,
+			streams = {},
+			streamSet = {},
+			name = name or ((L["Panel"] or "Panel") .. " " .. id),
+			noBorder = false,
+		}
+	else
+		info.streams = info.streams or {}
+		info.streamSet = info.streamSet or {}
+		info.name = info.name or name or ((L["Panel"] or "Panel") .. " " .. id)
+		if info.noBorder == nil then info.noBorder = false end
+	end
 
 	addon.db.dataPanels[id] = info
 	if addon.db.dataPanels[tonumber(id)] then addon.db.dataPanels[tonumber(id)] = nil end
@@ -115,6 +228,12 @@ local function savePosition(frame, id)
 	info.point, _, _, info.x, info.y = frame:GetPoint()
 	info.width = round2(frame:GetWidth())
 	info.height = round2(frame:GetHeight())
+	local panel = panels[id]
+	if panel then
+		panel:SyncEditModePosition(info.point, info.x, info.y)
+		panel:SyncEditModeValue("width", info.width)
+		panel:SyncEditModeValue("height", info.height)
+	end
 end
 
 function DataPanel.Create(id, name, existingOnly)
@@ -141,22 +260,22 @@ function DataPanel.Create(id, name, existingOnly)
 	-- create a new database entry for unknown IDs.
 	if existingOnly and not addon.db.dataPanels[id] and not addon.db.dataPanels[tonumber(id)] then return nil end
 
-    local info = ensureSettings(id, name)
-    local frame = CreateFrame("Frame", addonName .. "DataPanel" .. id, UIParent, "BackdropTemplate")
-    frame:SetSize(info.width, info.height)
-    frame:SetPoint(info.point, info.x, info.y)
-    frame:SetMovable(true)
-    frame:SetResizable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function(f)
-        if requireShiftToMove() and not IsShiftKeyDown() then return end
-        -- mark dragging and hide any open tooltip so it won't get in the way
-        local panelObj = panels[id]
-        if panelObj then panelObj.isDragging = true end
-        GameTooltip:Hide()
-        f:StartMoving()
-    end)
+	local info = ensureSettings(id, name)
+	local frame = CreateFrame("Frame", addonName .. "DataPanel" .. id, UIParent, "BackdropTemplate")
+	frame:SetSize(info.width, info.height)
+	frame:SetPoint(info.point, info.x, info.y)
+	frame:SetMovable(true)
+	frame:SetResizable(true)
+	frame:EnableMouse(true)
+	frame:RegisterForDrag("LeftButton")
+	frame:SetScript("OnDragStart", function(f)
+		if requireShiftToMove() and not IsShiftKeyDown() then return end
+		-- mark dragging and hide any open tooltip so it won't get in the way
+		local panelObj = panels[id]
+		if panelObj then panelObj.isDragging = true end
+		GameTooltip:Hide()
+		f:StartMoving()
+	end)
 	frame:SetScript("OnDragStop", function(f)
 		f:StopMovingOrSizing()
 		savePosition(f, id)
@@ -175,105 +294,184 @@ function DataPanel.Create(id, name, existingOnly)
 		end
 	end)
 
-    if not info.noBorder then
-        frame:SetBackdrop({
-            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-            edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-            tile = true,
-            tileSize = 16,
-            edgeSize = 16,
-            insets = { left = 4, right = 4, top = 4, bottom = 4 },
-        })
-        frame:SetBackdropColor(0, 0, 0, 0.5)
-    end
+	if not info.noBorder then
+		frame:SetBackdrop({
+			bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+			edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+			tile = true,
+			tileSize = 16,
+			edgeSize = 16,
+			insets = { left = 4, right = 4, top = 4, bottom = 4 },
+		})
+		frame:SetBackdropColor(0, 0, 0, 0.5)
+	end
 
-    function panel:ApplyBorder()
-        local i = self.info
-        if i and i.noBorder then
-            self.frame:SetBackdrop(nil)
-        else
-            self.frame:SetBackdrop({
-                bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-                edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-                tile = true,
-                tileSize = 16,
-                edgeSize = 16,
-                insets = { left = 4, right = 4, top = 4, bottom = 4 },
-            })
-            self.frame:SetBackdropColor(0, 0, 0, 0.5)
-        end
-    end
+	function panel:ApplyBorder()
+		local i = self.info
+		if i and i.noBorder then
+			self.frame:SetBackdrop(nil)
+		else
+			self.frame:SetBackdrop({
+				bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+				edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+				tile = true,
+				tileSize = 16,
+				edgeSize = 16,
+				insets = { left = 4, right = 4, top = 4, bottom = 4 },
+			})
+			self.frame:SetBackdropColor(0, 0, 0, 0.5)
+		end
+		self:SyncEditModeValue("hideBorder", i and i.noBorder or false)
+	end
 
-    function panel:Refresh()
-        local visible = {}
-        for _, name in ipairs(self.order) do
-            local data = self.streams[name]
-            if data then
-                if data.hidden then
-                    data.button:Hide()
-                else
-                    visible[#visible + 1] = name
-                end
-            end
-        end
+	function panel:SyncEditModeValue(field, value)
+		if not EditMode or not self.editModeId or self.suspendEditSync or self.applyingFromEditMode then return end
+		self.suspendEditSync = true
+		if field == "width" or field == "height" or field == "hideBorder" or field == "streams" then EditMode:SetValue(self.editModeId, field, value) end
+		self.suspendEditSync = nil
+	end
 
-        local changed = false
-        if not self.lastOrder or #self.lastOrder ~= #visible then
-            changed = true
-        else
-            for i, name in ipairs(visible) do
-                local data = self.streams[name]
-                if self.lastOrder[i] ~= name or (self.lastWidths and self.lastWidths[name] ~= (data.lastWidth or 0)) then
-                    changed = true
-                    break
-                end
-            end
-        end
-        if not changed then return end
+	function panel:SyncEditModePosition(point, x, y)
+		if not EditMode or not self.editModeId or self.suspendEditSync then return end
+		self.suspendEditSync = true
+		EditMode:SetFramePosition(self.editModeId, point, x, y)
+		self.suspendEditSync = nil
+	end
 
-        local prev
-        for _, name in ipairs(visible) do
-            local data = self.streams[name]
-            local btn = data.button
-            btn:Show()
-            btn:ClearAllPoints()
-            btn:SetWidth(data.lastWidth or 0)
-            if prev then
-                btn:SetPoint("LEFT", prev, "RIGHT", 5, 0)
-            else
-                btn:SetPoint("LEFT", self.frame, "LEFT", 5, 0)
-            end
-            prev = btn
-        end
+	function panel:SyncEditModeStreams()
+		if not EditMode or not self.editModeId then return end
+		self:SyncEditModeValue("streams", copyList(self.info.streams))
+	end
 
-        self.lastOrder = {}
-        self.lastWidths = {}
-        for i, name in ipairs(visible) do
-            self.lastOrder[i] = name
-            self.lastWidths[name] = self.streams[name].lastWidth or 0
-        end
-    end
+	function panel:UpdatePositionInfo(data)
+		if not data then return end
+		local info = self.info
+		if not info then return end
+		if data.point then info.point = data.point end
+		if data.x then info.x = data.x end
+		if data.y then info.y = data.y end
+	end
+
+	function panel:ApplyStreams(streamList)
+		self.suspendEditSync = true
+		local desired = {}
+		for _, name in ipairs(streamList or {}) do
+			desired[name] = true
+		end
+		for existing in pairs(self.streams) do
+			if not desired[existing] then self:RemoveStream(existing) end
+		end
+		for _, name in ipairs(streamList or {}) do
+			if not self.streams[name] then self:AddStream(name) end
+		end
+		self.order = {}
+		self.info.streams = {}
+		self.info.streamSet = {}
+		for _, name in ipairs(streamList or {}) do
+			if self.streams[name] then
+				self.order[#self.order + 1] = name
+				self.info.streams[#self.info.streams + 1] = name
+				self.info.streamSet[name] = true
+			end
+		end
+		self:Refresh()
+		self.suspendEditSync = nil
+		if not self.applyingFromEditMode then self:SyncEditModeStreams() end
+	end
+
+	function panel:ApplyEditMode(data)
+		self.suspendEditSync = true
+		local info = self.info
+		if data.width then
+			info.width = round2(data.width)
+			self.frame:SetWidth(info.width)
+		end
+		if data.height then
+			info.height = round2(data.height)
+			self.frame:SetHeight(info.height)
+		end
+		if data.hideBorder ~= nil then
+			info.noBorder = data.hideBorder and true or false
+			self:ApplyBorder()
+		end
+		if data.streams then
+			self.applyingFromEditMode = true
+			self:ApplyStreams(data.streams)
+			self.applyingFromEditMode = nil
+		end
+		self.suspendEditSync = nil
+	end
+
+	function panel:Refresh()
+		local visible = {}
+		for _, name in ipairs(self.order) do
+			local data = self.streams[name]
+			if data then
+				if data.hidden then
+					data.button:Hide()
+				else
+					visible[#visible + 1] = name
+				end
+			end
+		end
+
+		local changed = false
+		if not self.lastOrder or #self.lastOrder ~= #visible then
+			changed = true
+		else
+			for i, name in ipairs(visible) do
+				local data = self.streams[name]
+				if self.lastOrder[i] ~= name or (self.lastWidths and self.lastWidths[name] ~= (data.lastWidth or 0)) then
+					changed = true
+					break
+				end
+			end
+		end
+		if not changed then return end
+
+		local prev
+		for _, name in ipairs(visible) do
+			local data = self.streams[name]
+			local btn = data.button
+			btn:Show()
+			btn:ClearAllPoints()
+			btn:SetWidth(data.lastWidth or 0)
+			if prev then
+				btn:SetPoint("LEFT", prev, "RIGHT", 5, 0)
+			else
+				btn:SetPoint("LEFT", self.frame, "LEFT", 5, 0)
+			end
+			prev = btn
+		end
+
+		self.lastOrder = {}
+		self.lastWidths = {}
+		for i, name in ipairs(visible) do
+			self.lastOrder[i] = name
+			self.lastWidths[name] = self.streams[name].lastWidth or 0
+		end
+	end
 
 	function panel:AddStream(name)
 		if self.streams[name] then return end
-        local button = CreateFrame("Button", nil, self.frame)
-        button:SetHeight(self.frame:GetHeight())
-        local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        text:SetAllPoints()
-        text:SetJustifyH("LEFT")
-        local data = { button = button, text = text, lastWidth = text:GetStringWidth(), lastText = "" }
-        button.slot = data
-        -- allow dragging even when hovering stream buttons
+		local button = CreateFrame("Button", nil, self.frame)
+		button:SetHeight(self.frame:GetHeight())
+		local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		text:SetAllPoints()
+		text:SetJustifyH("LEFT")
+		local data = { button = button, text = text, lastWidth = text:GetStringWidth(), lastText = "" }
+		button.slot = data
+		-- allow dragging even when hovering stream buttons
 		button:RegisterForDrag("LeftButton")
-        button:SetScript("OnDragStart", function(b)
-            if requireShiftToMove() and not IsShiftKeyDown() then return end
-            local p = panels[id]
-            if p and p.frame then
-                p.isDragging = true
-                GameTooltip:Hide()
-                p.frame:StartMoving()
-            end
-        end)
+		button:SetScript("OnDragStart", function(b)
+			if requireShiftToMove() and not IsShiftKeyDown() then return end
+			local p = panels[id]
+			if p and p.frame then
+				p.isDragging = true
+				GameTooltip:Hide()
+				p.frame:StartMoving()
+			end
+		end)
 		button:SetScript("OnDragStop", function(b)
 			local p = panels[id]
 			if p and p.frame then
@@ -323,7 +521,9 @@ function DataPanel.Create(id, name, existingOnly)
 					data.lastWidth = 0
 					data.lastText = ""
 					if data.parts then
-						for _, child in ipairs(data.parts) do child:Hide() end
+						for _, child in ipairs(data.parts) do
+							child:Hide()
+						end
 					end
 					data.text:SetText("")
 					self:Refresh()
@@ -488,6 +688,7 @@ function DataPanel.Create(id, name, existingOnly)
 			streamSet[name] = true
 			streams[#streams + 1] = name
 		end
+		self:SyncEditModeStreams()
 	end
 
 	function panel:RemoveStream(name)
@@ -516,6 +717,7 @@ function DataPanel.Create(id, name, existingOnly)
 				end
 			end
 		end
+		self:SyncEditModeStreams()
 	end
 
 	panels[id] = panel
@@ -525,6 +727,9 @@ function DataPanel.Create(id, name, existingOnly)
 			panel:AddStream(name)
 		end
 	end
+
+	registerEditModePanel(panel)
+	panel:SyncEditModeStreams()
 
 	return panel
 end

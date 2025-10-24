@@ -32,6 +32,7 @@ local IsShiftKeyDown = IsShiftKeyDown
 local After = C_Timer and C_Timer.After
 local EnumPowerType = Enum and Enum.PowerType
 local format = string.format
+local CopyTable = CopyTable
 local tostring = tostring
 local floor, max, min, ceil, abs = math.floor, math.max, math.min, math.ceil, math.abs
 local tinsert, tsort = table.insert, table.sort
@@ -49,6 +50,7 @@ local updateHealthBar
 local updatePowerBar
 local forceColorUpdate
 local lastBarSelectionPerSpec = {}
+local lastSpecCopySelection = {}
 local DEFAULT_STACK_SPACING = 0
 local SEPARATOR_THICKNESS = 1
 local SEP_DEFAULT = { 1, 1, 1, 0.5 }
@@ -1394,6 +1396,64 @@ function addon.Aura.functions.addResourceFrame(container)
 					cb:SetRelativeWidth(0.33)
 					groupToggles:AddChild(cb)
 				end
+			end
+
+			-- Copy configuration from another specialization
+			local copyGroup = addon.functions.createContainer("InlineGroup", "Flow")
+			copyGroup:SetTitle(L["Copy settings"] or "Copy settings")
+			copyGroup:SetFullWidth(true)
+			container:AddChild(copyGroup)
+
+			local classKey = addon.variables.unitClass
+			local classConfig = classKey and addon.db.personalResourceBarSettings[classKey]
+			local copyList, copyOrder = {}, {}
+			for _, tab in ipairs(specTabs) do
+				local otherIndex = tab.value
+				if otherIndex ~= specIndex and classConfig and classConfig[otherIndex] then
+					copyList[tostring(otherIndex)] = tab.text
+					copyOrder[#copyOrder + 1] = tostring(otherIndex)
+				end
+			end
+
+			if #copyOrder == 0 then
+				local noSpecs = addon.functions.createLabelAce(L["Copy settings unavailable"] or "Configure another specialization first to copy its settings.")
+				noSpecs:SetFullWidth(true)
+				copyGroup:AddChild(noSpecs)
+			else
+				local copyKey = tostring(specIndex)
+				if not lastSpecCopySelection[copyKey] or not copyList[lastSpecCopySelection[copyKey]] then
+					lastSpecCopySelection[copyKey] = copyOrder[1]
+				end
+
+				local copyRow = addon.functions.createContainer("SimpleGroup", "Flow")
+				copyRow:SetFullWidth(true)
+				copyGroup:AddChild(copyRow)
+
+				local dropCopy = addon.functions.createDropdownAce(L["Copy from spec"] or "Copy from specialization", copyList, copyOrder, function(_, _, key)
+					lastSpecCopySelection[copyKey] = key
+				end)
+				dropCopy:SetFullWidth(false)
+				dropCopy:SetRelativeWidth(0.7)
+				dropCopy:SetValue(lastSpecCopySelection[copyKey])
+				copyRow:AddChild(dropCopy)
+
+				local copyButton = addon.functions.createButtonAce(L["Copy"] or "Copy", 120, function()
+					local selected = lastSpecCopySelection[copyKey]
+					local fromSpec = selected and tonumber(selected)
+					if not classConfig or not fromSpec or fromSpec == specIndex then return end
+					local sourceSettings = classConfig[fromSpec]
+					if not sourceSettings then return end
+					classConfig[specIndex] = CopyTable(sourceSettings)
+					requestActiveRefresh(specIndex)
+					buildSpec(container, specIndex)
+				end)
+				copyButton:SetFullWidth(false)
+				copyButton:SetRelativeWidth(0.3)
+				copyRow:AddChild(copyButton)
+
+				local info = addon.functions.createLabelAce(L["Copy settings info"] or "Copies all bar settings from the selected specialization.")
+				info:SetFullWidth(true)
+				copyGroup:AddChild(info)
 			end
 
 			-- Selection dropdown for configuring a single bar
