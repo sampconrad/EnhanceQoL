@@ -268,6 +268,7 @@ local DEFAULTS = {
 	classOnly = false,
 	enhancedTracking = true,
 	overlayScale = 1,
+	overlayStrata = "MEDIUM",
 	itemNameCache = {},
 	categoryFilters = {},
 	hideCompleteCategories = false,
@@ -288,6 +289,17 @@ local EVENT_LIST = {
 	"PLAYER_SPECIALIZATION_CHANGED",
 	"CURRENCY_DISPLAY_UPDATE",
 	"ACHIEVEMENT_EARNED",
+}
+
+local VALID_FRAME_STRATA = {
+	BACKGROUND = true,
+	LOW = true,
+	MEDIUM = true,
+	HIGH = true,
+	DIALOG = true,
+	FULLSCREEN = true,
+	FULLSCREEN_DIALOG = true,
+	TOOLTIP = true,
 }
 
 local CLASS_MASKS = {
@@ -1039,6 +1051,7 @@ function LegionRemix:GetDB()
 	self:EnsurePhaseFilterDefaults(db)
 	self:EnsureCategoryFilterDefaults(db)
 	self:EnsureZoneFilterDefaults(db)
+	self:EnsureOverlayStrataDefaults(db)
 	return db
 end
 
@@ -1086,6 +1099,12 @@ function LegionRemix:EnsureZoneFilterDefaults(db)
 		if not SUPPORTED_ZONE_LOOKUP[key] or value ~= true then filters[key] = nil end
 	end
 	self:InitializeZoneTypes()
+end
+
+function LegionRemix:EnsureOverlayStrataDefaults(db)
+	if not db then return end
+	local strata = db.overlayStrata
+	if not VALID_FRAME_STRATA[strata] then db.overlayStrata = DEFAULTS.overlayStrata end
 end
 
 function LegionRemix:GetCategoryOptions()
@@ -2388,7 +2407,7 @@ function LegionRemix:CreateOverlay()
 	local scale = tonumber(self:GetOverlayScale()) or DEFAULTS.overlayScale or 1
 	if scale <= 0 then scale = DEFAULTS.overlayScale or 1 end
 	frame:SetScale(scale)
-	frame:SetFrameStrata("HIGH")
+	frame:SetFrameStrata(self:GetOverlayStrata())
 
 	local header = CreateFrame("Frame", nil, frame, "BackdropTemplate")
 	header:SetPoint("TOPLEFT", 10, -10)
@@ -2474,8 +2493,23 @@ function LegionRemix:CreateOverlay()
 		LegionRemix:RefreshLockButton()
 	end)
 
+	local optionsTooltip = SETTINGS
+	local optionsButton = createHeaderButton(24, 26)
+	optionsButton:SetPoint("RIGHT", lockButton, "LEFT", -6, 0)
+	optionsButton.tooltipText = optionsTooltip
+	optionsButton.icon:SetTexture("Interface\\Buttons\\UI-OptionsButton")
+	optionsButton.icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+	optionsButton:SetScript("OnEnter", function(btn)
+		GameTooltip:SetOwner(btn, "ANCHOR_LEFT")
+		GameTooltip:SetText(btn.tooltipText or optionsTooltip)
+	end)
+	optionsButton:SetScript("OnLeave", GameTooltip_Hide)
+	optionsButton:SetScript("OnClick", function()
+		LegionRemix:OpenOptions()
+	end)
+
 	local collapse = createHeaderButton(26, 26)
-	collapse:SetPoint("RIGHT", lockButton, "LEFT", -6, 0)
+	collapse:SetPoint("RIGHT", optionsButton, "LEFT", -6, 0)
 	collapse.tooltipText = HERO_TALENTS_COLLAPSE
 	collapse:SetScript("OnEnter", function(btn)
 		GameTooltip:SetOwner(btn, "ANCHOR_LEFT")
@@ -2524,6 +2558,7 @@ function LegionRemix:CreateOverlay()
 	frame.collapseButton = collapse
 	frame.closeButton = closeButton
 	frame.lockButton = lockButton
+	frame.optionsButton = optionsButton
 	frame.filterBar = filterBar
 	-- frame.scrollFrame = scrollFrame
 	frame.content = content
@@ -2678,6 +2713,33 @@ function LegionRemix:SetOverlayScale(value)
 		if not ok then self.overlay:SetScale(DEFAULTS.overlayScale or 1) end
 		self:UpdateContentWidth()
 		self:LayoutFilterButtons()
+	end
+end
+
+function LegionRemix:GetOverlayStrata()
+	local db = self:GetDB()
+	local strata = DEFAULTS.overlayStrata
+	if db and db.overlayStrata then strata = db.overlayStrata end
+	if not VALID_FRAME_STRATA[strata] then strata = DEFAULTS.overlayStrata end
+	return strata
+end
+
+function LegionRemix:SetOverlayStrata(value)
+	if not VALID_FRAME_STRATA[value] then return end
+	local db = self:GetDB()
+	if not db then return end
+	if db.overlayStrata == value then return end
+	db.overlayStrata = value
+	if self.overlay then
+		self.overlay:SetFrameStrata(value)
+	end
+end
+
+function LegionRemix:OpenOptions()
+	if not addon then return end
+	if addon.aceFrame and addon.aceFrame.Show then addon.aceFrame:Show() end
+	if addon.treeGroup and addon.treeGroup.SelectByPath then
+		addon.treeGroup:SelectByPath("events")
 	end
 end
 
@@ -2899,12 +2961,40 @@ function LegionRemix:BuildOptionsUI(container)
 		end)
 		scroll:AddChild(scaleSlider)
 
-		addSpacer(scroll)
+		local layoutRow = AceGUI:Create("SimpleGroup")
+		layoutRow:SetLayout("Flow")
+		layoutRow:SetFullWidth(true)
+
+		local function halfWidth(widget)
+			widget:SetRelativeWidth(0.5)
+		end
+
+		local strataDropdown = AceGUI:Create("Dropdown")
+		strataDropdown:SetLabel("Frame Strata")
+		halfWidth(strataDropdown)
+		local strataOptions = {
+			BACKGROUND = "Background",
+			LOW = "Low",
+			MEDIUM = "Medium",
+			HIGH = "High",
+			DIALOG = "Dialog",
+			FULLSCREEN = "Fullscreen",
+			FULLSCREEN_DIALOG = "Fullscreen Dialog",
+			TOOLTIP = "Tooltip",
+		}
+		local strataOrder = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
+		strataDropdown:SetList(strataOptions, strataOrder)
+		strataDropdown:SetValue(LegionRemix:GetOverlayStrata())
+		strataDropdown:SetCallback("OnValueChanged", function(_, _, key)
+			if type(key) ~= "string" then return end
+			LegionRemix:SetOverlayStrata(key)
+		end)
+		layoutRow:AddChild(strataDropdown)
 
 		local zoneDropdown = AceGUI:Create("Dropdown")
 		zoneDropdown:SetLabel(L["Show overlay in"])
 		zoneDropdown:SetMultiselect(true)
-		zoneDropdown:SetFullWidth(true)
+		halfWidth(zoneDropdown)
 		local zoneOptions = LegionRemix:GetZoneFilterOptions()
 		zoneDropdown:SetList(zoneOptions, LegionRemix:GetZoneFilterOrder())
 		local function refreshZoneDropdown()
@@ -2915,7 +3005,10 @@ function LegionRemix:BuildOptionsUI(container)
 			end
 		end
 		zoneDropdown:SetCallback("OnValueChanged", function(_, _, key, state) LegionRemix:SetZoneFilter(key, state) end)
-		scroll:AddChild(zoneDropdown)
+		layoutRow:AddChild(zoneDropdown)
+		scroll:AddChild(layoutRow)
+
+		addSpacer(scroll)
 		refreshZoneDropdown()
 
 		addSpacer(scroll)

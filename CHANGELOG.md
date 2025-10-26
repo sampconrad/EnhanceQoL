@@ -9,6 +9,7 @@
   - Categories are now sorted alphabetically so mounts, pets, etc. are easier to scan.
   - Bronze + Infinity Knowledge achievements can define World Quest requirements; "Current" only lists bosses whose quests are active and tooltips explain the missing requirements.
   - Header now shows a `Collected: X / Y` indicator that matches the active filter (All vs. Current), alongside the remaining bronze.
+  - Overlay frame strata can now be adjusted, and a gear button beside collapse opens the Legion Remix options directly.
 
 ### 🐛 Fixed
 
