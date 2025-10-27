@@ -21,6 +21,8 @@ local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_DrinkMacro")
 local LSM = LibStub("LibSharedMedia-3.0")
 local EditMode = addon.EditMode
 local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
+local DEFAULT_SOUND_SENTINEL = "__DEFAULT_SOUND__"
+local NONE_SOUND_SENTINEL = "__NONE_SOUND__"
 
 -- Enable or disable the food reminder frame
 addon.functions.InitDBValue("mageFoodReminder", false)
@@ -29,19 +31,19 @@ addon.functions.InitDBValue("mageFoodReminderPos", { point = defaultPos.point, x
 addon.functions.InitDBValue("mageFoodReminderScale", 1)
 addon.functions.InitDBValue("mageFoodReminderSound", true)
 addon.functions.InitDBValue("mageFoodReminderUseCustomSound", false)
-addon.functions.InitDBValue("mageFoodReminderJoinSoundFile", "")
-addon.functions.InitDBValue("mageFoodReminderLeaveSoundFile", "")
+addon.functions.InitDBValue("mageFoodReminderJoinSoundFile", nil)
+addon.functions.InitDBValue("mageFoodReminderLeaveSoundFile", nil)
 
 local oldSoundDisabled = addon.db.mageFoodReminderSound == false
 if oldSoundDisabled then
-	addon.db.mageFoodReminderJoinSoundFile = addon.db.mageFoodReminderJoinSoundFile or ""
-	addon.db.mageFoodReminderLeaveSoundFile = addon.db.mageFoodReminderLeaveSoundFile or ""
-else
-	if addon.db.mageFoodReminderJoinSoundFile == "" then addon.db.mageFoodReminderJoinSoundFile = nil end
-	if addon.db.mageFoodReminderLeaveSoundFile == "" then addon.db.mageFoodReminderLeaveSoundFile = nil end
+	if addon.db.mageFoodReminderJoinSoundFile == nil or addon.db.mageFoodReminderJoinSoundFile == "" then addon.db.mageFoodReminderJoinSoundFile = NONE_SOUND_SENTINEL end
+	if addon.db.mageFoodReminderLeaveSoundFile == nil or addon.db.mageFoodReminderLeaveSoundFile == "" then addon.db.mageFoodReminderLeaveSoundFile = NONE_SOUND_SENTINEL end
 end
 addon.db.mageFoodReminderSound = nil
 addon.db.mageFoodReminderUseCustomSound = nil
+
+if addon.db.mageFoodReminderJoinSoundFile == "" then addon.db.mageFoodReminderJoinSoundFile = NONE_SOUND_SENTINEL end
+if addon.db.mageFoodReminderLeaveSoundFile == "" then addon.db.mageFoodReminderLeaveSoundFile = NONE_SOUND_SENTINEL end
 
 local brButton
 local defaultButtonSize = 60
@@ -53,7 +55,6 @@ local editModeRegistered = false
 local editModeId = "EnhanceQoL:FoodReminder"
 local editModeActive = false
 local registerEditModeFrame -- forward declaration
-local DEFAULT_SOUND_SENTINEL = "__DEFAULT_SOUND__"
 
 local function updateButtonMouseState()
 	if not brButton then return end
@@ -139,6 +140,7 @@ local function playReminderSound(kind)
 	end
 
 	if key == "" then return end -- no sound
+	if key == NONE_SOUND_SENTINEL then return end -- explicit opt-out
 
 	if key and key ~= "" then
 		local soundTable = LSM and LSM:HashTable("sound")
@@ -149,7 +151,7 @@ local function playReminderSound(kind)
 		end
 	end
 
-	PlaySound(SOUNDKIT.RAID_WARNING)
+	C_Timer.After(1, function() PlaySound(SOUNDKIT.RAID_WARNING, "Master") end)
 end
 
 local function removeBRFrame()
@@ -205,7 +207,7 @@ end
 local function createLeaveFrame()
 	removeBRFrame()
 	local anchor = ensureAnchor()
-	brButton = CreateFrame("Button", nil, anchor)
+	brButton = CreateFrame("Button", nil, UIParent)
 	brButton:SetAllPoints(anchor)
 	brButton:SetFrameStrata("HIGH")
 	brButton:SetScript("OnClick", function()
@@ -411,14 +413,15 @@ local function createSoundDropdownSetting(labelKey, dbKey)
 		height = 260,
 		get = function()
 			local value = addon.db[dbKey]
+			if value == "" then value = NONE_SOUND_SENTINEL end
 			if value == nil then return DEFAULT_SOUND_SENTINEL end
 			return value
 		end,
 		set = function(_, value)
 			if value == DEFAULT_SOUND_SENTINEL then
 				addon.db[dbKey] = nil
-			elseif value == "" then
-				addon.db[dbKey] = ""
+			elseif value == "" or value == NONE_SOUND_SENTINEL then
+				addon.db[dbKey] = NONE_SOUND_SENTINEL
 			else
 				addon.db[dbKey] = value
 				local soundTable = LSM and LSM:HashTable("sound")
@@ -429,7 +432,7 @@ local function createSoundDropdownSetting(labelKey, dbKey)
 		generator = function(_, rootDescription)
 			if rootDescription.SetScrollMode then rootDescription:SetScrollMode(260) end
 			local noneLabel = NONE or L["None"] or "None"
-			rootDescription:CreateRadio(noneLabel, function() return addon.db[dbKey] == "" end, function() addon.db[dbKey] = "" end)
+			rootDescription:CreateRadio(noneLabel, function() return addon.db[dbKey] == NONE_SOUND_SENTINEL end, function() addon.db[dbKey] = NONE_SOUND_SENTINEL end)
 			local defaultLabel = L["mageFoodReminderDefaultSound"] or DEFAULT
 			rootDescription:CreateRadio(defaultLabel, function() return addon.db[dbKey] == nil end, function()
 				addon.db[dbKey] = nil
@@ -577,6 +580,14 @@ frameLoad:RegisterEvent("GROUP_ROSTER_UPDATE")
 frameLoad:SetScript("OnEvent", function(self, event)
 	if event == "PLAYER_LOGIN" then
 		healerRole = GetSpecializationRole(C_SpecializationInfo.GetSpecialization()) == "HEALER" or false
+		C_Timer.After(3, function()
+			if IsResting() or IsInLFGDungeon() then
+				checkShow()
+			else
+				removeBRFrame()
+			end
+		end)
+		return
 	elseif event == "ACTIVE_TALENT_GROUP_CHANGED" then
 		healerRole = GetSpecializationRole(C_SpecializationInfo.GetSpecialization()) == "HEALER" or false
 	elseif event == "PLAYER_UPDATE_RESTING" and IsResting() then
