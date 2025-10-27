@@ -457,12 +457,12 @@ registerEditModeFrame = function()
 
 	local function performRegistration()
 		local anchor = ensureAnchor()
-		local pos = addon.db["mageFoodReminderPos"] or defaultPos
 		local defaults = {
-			point = pos.point or defaultPos.point,
-			x = pos.x or defaultPos.x,
-			y = pos.y or defaultPos.y,
-			scale = addon.db.mageFoodReminderScale or 1,
+			point = defaultPos.point,
+			relativePoint = defaultPos.point,
+			x = defaultPos.x,
+			y = defaultPos.y,
+			scale = 1,
 		}
 
 		local settings
@@ -550,6 +550,8 @@ registerEditModeFrame = function()
 			managePosition = true,
 			settings = settings,
 		})
+
+		if EditMode.lib and EditMode.lib.frameDefaults then EditMode.lib.frameDefaults[anchor] = CopyTable(defaultPos) end
 		editModeRegistered = true
 		syncEditModePosition()
 	end
