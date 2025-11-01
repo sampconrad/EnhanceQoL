@@ -2809,9 +2809,7 @@ function LegionRemix:CreateOverlay()
 		GameTooltip:SetText(btn.tooltipText or optionsTooltip)
 	end)
 	optionsButton:SetScript("OnLeave", GameTooltip_Hide)
-	optionsButton:SetScript("OnClick", function()
-		LegionRemix:OpenOptions()
-	end)
+	optionsButton:SetScript("OnClick", function() LegionRemix:OpenOptions() end)
 
 	local collapse = createHeaderButton(26, 26)
 	collapse:SetPoint("RIGHT", optionsButton, "LEFT", -6, 0)
@@ -3039,18 +3037,14 @@ function LegionRemix:SetOverlayStrata(value)
 	if not db then return end
 	if db.overlayStrata == value then return end
 	db.overlayStrata = value
-	if self.overlay then
-		self.overlay:SetFrameStrata(value)
-	end
+	if self.overlay then self.overlay:SetFrameStrata(value) end
 	self:SyncEditModeValue("strata", value)
 end
 
 function LegionRemix:OpenOptions()
 	if not addon then return end
 	if addon.aceFrame and addon.aceFrame.Show then addon.aceFrame:Show() end
-	if addon.treeGroup and addon.treeGroup.SelectByPath then
-		addon.treeGroup:SelectByPath("events")
-	end
+	if addon.treeGroup and addon.treeGroup.SelectByPath then addon.treeGroup:SelectByPath("events") end
 end
 
 function LegionRemix:SetClassOnly(value)
@@ -3214,6 +3208,53 @@ function LegionRemix:Init()
 	self:InvalidateAllCaches()
 	self.initialized = true
 	self:UpdateActivationState()
+end
+
+local function addSpacer(container)
+	local spacer = AceGUI:Create("Label")
+	spacer:SetFullWidth(true)
+	spacer:SetText(" ")
+	container:AddChild(spacer)
+end
+
+local function addCheckbox(container, text, getter, setter)
+	local checkbox = AceGUI:Create("CheckBox")
+	checkbox:SetLabel(text)
+	checkbox:SetValue(getter())
+	checkbox:SetFullWidth(true)
+	checkbox:SetCallback("OnValueChanged", function(_, _, val) setter(val and true or false) end)
+	container:AddChild(checkbox)
+	return checkbox
+end
+
+function LegionRemix:BuildOptionsUI(container)
+	container:ReleaseChildren()
+	local scroll = AceGUI:Create("ScrollFrame")
+	scroll:SetLayout("List")
+	container:AddChild(scroll)
+
+	local intro = AceGUI:Create("Label")
+	intro:SetFullWidth(true)
+	intro:SetText(L["Track your Legion Remix Bronze collection"])
+	scroll:AddChild(intro)
+
+	addSpacer(scroll)
+
+	addCheckbox(scroll, L["Enable overlay"], function()
+		local db = LegionRemix:GetDB()
+		return db and db.overlayEnabled
+	end, function(value)
+		LegionRemix:SetOverlayEnabled(value)
+		container:ReleaseChildren()
+		LegionRemix:BuildOptionsUI(container)
+	end)
+end
+
+LegionRemix.functions = LegionRemix.functions or {}
+
+function LegionRemix.functions.treeCallback(container, group)
+	LegionRemix:Init()
+	LegionRemix:BuildOptionsUI(container)
 end
 
 local activationEvents = {
