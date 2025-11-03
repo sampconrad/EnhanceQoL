@@ -50,6 +50,11 @@ end
 
 local LFGListFrame = _G.LFGListFrame
 local GetContainerItemInfo = C_Container.GetContainerItemInfo
+local StaticPopup_Visible = StaticPopup_Visible
+local IsShiftKeyDown = IsShiftKeyDown
+local IsControlKeyDown = IsControlKeyDown
+local IsAltKeyDown = IsAltKeyDown
+local math = math
 
 local EQOL = select(2, ...)
 EQOL.C = {}
@@ -1743,7 +1748,11 @@ local function addChatFrame(container)
 
 		for _, entry in ipairs(options) do
 			local cb = addon.functions.createCheckboxAce(entry.text, addon.db[entry.var], function(_, _, value)
-				if entry.onToggle then entry.onToggle(value) else addon.db[entry.var] = value end
+				if entry.onToggle then
+					entry.onToggle(value)
+				else
+					addon.db[entry.var] = value
+				end
 			end, entry.desc)
 			g:AddChild(cb)
 		end
@@ -1754,15 +1763,11 @@ local function addChatFrame(container)
 	local function buildFade()
 		local g, known = ensureGroup("fade")
 
-		local fadeCheckbox = addon.functions.createCheckboxAce(
-			L["chatFrameFadeEnabled"],
-			addon.db["chatFrameFadeEnabled"],
-			function(_, _, value)
-				addon.db["chatFrameFadeEnabled"] = value
-				if ChatFrame1 then ChatFrame1:SetFading(value) end
-				buildFade()
-			end
-		)
+		local fadeCheckbox = addon.functions.createCheckboxAce(L["chatFrameFadeEnabled"], addon.db["chatFrameFadeEnabled"], function(_, _, value)
+			addon.db["chatFrameFadeEnabled"] = value
+			if ChatFrame1 then ChatFrame1:SetFading(value) end
+			buildFade()
+		end)
 		g:AddChild(fadeCheckbox)
 
 		if addon.db["chatFrameFadeEnabled"] then
@@ -1802,34 +1807,22 @@ local function addChatFrame(container)
 
 	local function buildBubbleFont()
 		local g, known = ensureGroup("bubbleFont")
-		local overrideCheckbox = addon.functions.createCheckboxAce(
-			L["chatBubbleFontOverride"],
-			addon.db["chatBubbleFontOverride"],
-			function(_, _, value)
-				addon.db["chatBubbleFontOverride"] = value
-				addon.functions.ApplyChatBubbleFontSize(addon.db["chatBubbleFontSize"])
-				buildBubbleFont()
-			end,
-			L["chatBubbleFontOverrideDesc"]
-		)
+		local overrideCheckbox = addon.functions.createCheckboxAce(L["chatBubbleFontOverride"], addon.db["chatBubbleFontOverride"], function(_, _, value)
+			addon.db["chatBubbleFontOverride"] = value
+			addon.functions.ApplyChatBubbleFontSize(addon.db["chatBubbleFontSize"])
+			buildBubbleFont()
+		end, L["chatBubbleFontOverrideDesc"])
 		g:AddChild(overrideCheckbox)
 
 		if addon.db["chatBubbleFontOverride"] then
 			local function labelText(size) return L["chatBubbleFontSize"] .. ": " .. size end
 			local currentSize = tonumber(addon.db and addon.db["chatBubbleFontSize"]) or DEFAULT_CHAT_BUBBLE_FONT_SIZE
-			local slider = addon.functions.createSliderAce(
-				labelText(currentSize),
-				currentSize,
-				CHAT_BUBBLE_FONT_MIN,
-				CHAT_BUBBLE_FONT_MAX,
-				1,
-				function(self, _, value)
-					local applied = addon.functions.ApplyChatBubbleFontSize(value)
-					addon.db["chatBubbleFontSize"] = applied
-					self:SetValue(applied)
-					self:SetLabel(labelText(applied))
-				end
-			)
+			local slider = addon.functions.createSliderAce(labelText(currentSize), currentSize, CHAT_BUBBLE_FONT_MIN, CHAT_BUBBLE_FONT_MAX, 1, function(self, _, value)
+				local applied = addon.functions.ApplyChatBubbleFontSize(value)
+				addon.db["chatBubbleFontSize"] = applied
+				self:SetValue(applied)
+				self:SetLabel(labelText(applied))
+			end)
 			g:AddChild(slider)
 		end
 
@@ -1857,7 +1850,11 @@ local function addChatFrame(container)
 
 		for _, entry in ipairs(entries) do
 			local cb = addon.functions.createCheckboxAce(entry.text, addon.db[entry.var], function(_, _, value)
-				if entry.onToggle then entry.onToggle(value) else addon.db[entry.var] = value end
+				if entry.onToggle then
+					entry.onToggle(value)
+				else
+					addon.db[entry.var] = value
+				end
 				if entry.rebuild then buildChatIM() end
 			end, entry.desc)
 			g:AddChild(cb)
@@ -1938,18 +1935,11 @@ local function addChatFrame(container)
 				sub:AddChild(addon.functions.createSpacerAce())
 			end
 
-			local sliderHistory = addon.functions.createSliderAce(
-				L["ChatIMHistoryLimit"] .. ": " .. addon.db["chatIMMaxHistory"],
-				addon.db["chatIMMaxHistory"],
-				0,
-				1000,
-				1,
-				function(self, _, value)
-					addon.db["chatIMMaxHistory"] = value
-					if addon.ChatIM and addon.ChatIM.SetMaxHistoryLines then addon.ChatIM:SetMaxHistoryLines(value) end
-					self:SetLabel(L["ChatIMHistoryLimit"] .. ": " .. value)
-				end
-			)
+			local sliderHistory = addon.functions.createSliderAce(L["ChatIMHistoryLimit"] .. ": " .. addon.db["chatIMMaxHistory"], addon.db["chatIMMaxHistory"], 0, 1000, 1, function(self, _, value)
+				addon.db["chatIMMaxHistory"] = value
+				if addon.ChatIM and addon.ChatIM.SetMaxHistoryLines then addon.ChatIM:SetMaxHistoryLines(value) end
+				self:SetLabel(L["ChatIMHistoryLimit"] .. ": " .. value)
+			end)
 			sub:AddChild(sliderHistory)
 
 			local historyList = {}
@@ -2907,9 +2897,7 @@ local function addActionBarFrame(container, d)
 	wrapper:AddChild(groupCore)
 
 	local labelHeadline = addon.functions.createLabelAce(
-		"|cffffd700"
-			.. L["ActionbarVisibilityExplain"]:format(_G["HUD_EDIT_MODE_SETTING_ACTION_BAR_VISIBLE_SETTING_ALWAYS"], _G["HUD_EDIT_MODE_MENU"])
-			.. "|r",
+		"|cffffd700" .. L["ActionbarVisibilityExplain"]:format(_G["HUD_EDIT_MODE_SETTING_ACTION_BAR_VISIBLE_SETTING_ALWAYS"], _G["HUD_EDIT_MODE_MENU"]) .. "|r",
 		nil,
 		nil,
 		14
@@ -3066,6 +3054,229 @@ local function addActionBarFrame(container, d)
 	if scroll and scroll.DoLayout then scroll:DoLayout() end
 end
 
+local function getGlobalStringValue(key)
+	if not key then return nil end
+	local value = _G and _G[key]
+	if type(value) == "string" and value ~= "" then return value end
+	return nil
+end
+
+local function buildTimeoutReleaseGroupLabel(group)
+	if group.labelTemplate then
+		local template = group.labelTemplate
+		local prefix = getGlobalStringValue(template.prefixKey) or template.prefixFallback
+		local names = {}
+		if template.difficultyKeys then
+			for _, diffKey in ipairs(template.difficultyKeys) do
+				local diffLabel = getGlobalStringValue(diffKey)
+				if not diffLabel and template.difficultyFallbacks and template.difficultyFallbacks[diffKey] then diffLabel = template.difficultyFallbacks[diffKey] end
+				if diffLabel then table.insert(names, diffLabel) end
+			end
+		end
+		if #names > 0 then
+			local suffix = table.concat(names, " / ")
+			if prefix then return string.format("%s - %s", prefix, suffix) end
+			return suffix
+		end
+		if prefix then return prefix end
+	end
+	return group.fallbackLabel or group.key
+end
+
+local timeoutReleaseGroups = {
+	{
+		key = "raidNormal",
+		fallbackLabel = L["timeoutReleaseGroupRaidNormal"] or "Raid - Normal / Raid Finder / Timewalking",
+		labelTemplate = {
+			prefixKey = "RAID",
+			prefixFallback = L["timeoutReleasePrefixRaid"] or "Raid",
+			difficultyKeys = { "PLAYER_DIFFICULTY1", "PLAYER_DIFFICULTY3", "PLAYER_DIFFICULTY_TIMEWALKER" },
+		},
+		difficulties = { 3, 4, 7, 9, 14, 17, 18, 33, 151, 220 },
+	},
+	{
+		key = "raidHeroic",
+		fallbackLabel = L["timeoutReleaseGroupRaidHeroic"] or "Raid - Heroic",
+		labelTemplate = {
+			prefixKey = "RAID",
+			prefixFallback = L["timeoutReleasePrefixRaid"] or "Raid",
+			difficultyKeys = { "PLAYER_DIFFICULTY2" },
+		},
+		difficulties = { 5, 6, 15 },
+	},
+	{
+		key = "raidMythic",
+		fallbackLabel = L["timeoutReleaseGroupRaidMythic"] or "Raid - Mythic",
+		labelTemplate = {
+			prefixKey = "RAID",
+			prefixFallback = L["timeoutReleasePrefixRaid"] or "Raid",
+			difficultyKeys = { "PLAYER_DIFFICULTY6" },
+		},
+		difficulties = { 16 },
+	},
+	{
+		key = "dungeonNormal",
+		fallbackLabel = L["timeoutReleaseGroupDungeonNormal"] or "Dungeon - Normal / Timewalking",
+		labelTemplate = {
+			prefixKey = "DUNGEONS",
+			prefixFallback = L["timeoutReleasePrefixDungeon"] or "Dungeon",
+			difficultyKeys = { "PLAYER_DIFFICULTY1", "PLAYER_DIFFICULTY_TIMEWALKER" },
+		},
+		difficulties = { 1, 24, 150, 216 },
+	},
+	{
+		key = "dungeonHeroic",
+		fallbackLabel = L["timeoutReleaseGroupDungeonHeroic"] or "Dungeon - Heroic",
+		labelTemplate = {
+			prefixKey = "DUNGEONS",
+			prefixFallback = L["timeoutReleasePrefixDungeon"] or "Dungeon",
+			difficultyKeys = { "PLAYER_DIFFICULTY2" },
+		},
+		difficulties = { 2 },
+	},
+	{
+		key = "dungeonMythic",
+		fallbackLabel = L["timeoutReleaseGroupDungeonMythic"] or "Dungeon - Mythic",
+		labelTemplate = {
+			prefixKey = "DUNGEONS",
+			prefixFallback = L["timeoutReleasePrefixDungeon"] or "Dungeon",
+			difficultyKeys = { "PLAYER_DIFFICULTY6" },
+		},
+		difficulties = { 23 },
+	},
+	{
+		key = "dungeonMythicPlus",
+		fallbackLabel = L["timeoutReleaseGroupDungeonMythicPlus"] or "Dungeon - Mythic+",
+		labelTemplate = {
+			prefixKey = "DUNGEONS",
+			prefixFallback = L["timeoutReleasePrefixDungeon"] or "Dungeon",
+			difficultyKeys = { "PLAYER_DIFFICULTY_MYTHIC_PLUS" },
+		},
+		difficulties = { 8 },
+	},
+	{
+		key = "dungeonFollower",
+		fallbackLabel = L["timeoutReleaseGroupDungeonFollower"] or "Dungeon - Follower",
+		difficulties = { 205 },
+	},
+	{
+		key = "scenario",
+		fallbackLabel = L["timeoutReleaseGroupScenario"] or "Scenario",
+		labelTemplate = {
+			prefixKey = "SCENARIO",
+			prefixFallback = L["timeoutReleasePrefixScenario"] or "Scenario",
+		},
+		difficulties = { 11, 12, 20, 30, 38, 39, 40, 147, 149, 152, 153, 167, 168, 169, 170, 171, 208 },
+	},
+	{
+		key = "pvp",
+		fallbackLabel = L["timeoutReleaseGroupPvP"] or "PvP",
+		labelTemplate = {
+			prefixKey = "PVP",
+			prefixFallback = L["timeoutReleasePrefixPvP"] or "PvP",
+		},
+		difficulties = { 29, 34, 45 },
+	},
+	{
+		key = "world",
+		fallbackLabel = L["timeoutReleaseGroupWorld"] or "World",
+		labelTemplate = {
+			prefixKey = "WORLD",
+			prefixFallback = L["timeoutReleasePrefixWorld"] or "World",
+		},
+		difficulties = { 0, 172, 192 },
+	},
+}
+
+local timeoutReleaseDifficultyLookup = {}
+
+for _, group in ipairs(timeoutReleaseGroups) do
+	if group.difficulties then
+		group.difficultySet = {}
+		for _, difficultyID in ipairs(group.difficulties) do
+			group.difficultySet[difficultyID] = true
+			local bucket = timeoutReleaseDifficultyLookup[difficultyID]
+			if not bucket then
+				timeoutReleaseDifficultyLookup[difficultyID] = { group.key }
+			else
+				table.insert(bucket, group.key)
+			end
+		end
+	end
+end
+
+local function getTimeoutReleaseDropdownData()
+	local list = {}
+	local order = {}
+	for _, group in ipairs(timeoutReleaseGroups) do
+		list[group.key] = buildTimeoutReleaseGroupLabel(group)
+		table.insert(order, group.key)
+	end
+	return list, order
+end
+
+local function setTimeoutReleaseSelected(key, value)
+	if not addon.db then return end
+	addon.db["timeoutReleaseDifficulties"] = addon.db["timeoutReleaseDifficulties"] or {}
+	if value then
+		addon.db["timeoutReleaseDifficulties"][key] = true
+	else
+		addon.db["timeoutReleaseDifficulties"][key] = nil
+	end
+end
+
+local function shouldUseTimeoutReleaseForCurrentContext()
+	if not addon.db or not addon.db["timeoutRelease"] then return false end
+
+	local selection = addon.db["timeoutReleaseDifficulties"]
+	if selection == nil then return true end
+
+	local hasSelection = false
+	for key, enabled in pairs(selection) do
+		if enabled then
+			hasSelection = true
+			break
+		end
+	end
+	if not hasSelection then return false end
+
+	local inInstance, instanceType = IsInInstance()
+	if not inInstance or instanceType == "none" then return selection["world"] and true or false end
+
+	local difficultyID = select(3, GetInstanceInfo())
+	if difficultyID then
+		local keys = timeoutReleaseDifficultyLookup[difficultyID]
+		if keys then
+			for _, key in ipairs(keys) do
+				if selection[key] then return true end
+			end
+		end
+	end
+
+	if instanceType == "scenario" then return selection["scenario"] and true or false end
+	if instanceType == "pvp" or instanceType == "arena" then return selection["pvp"] and true or false end
+	if instanceType == "raid" then return selection["raidNormal"] or selection["raidHeroic"] or selection["raidMythic"] end
+	if instanceType == "party" then return selection["dungeonNormal"] or selection["dungeonHeroic"] or selection["dungeonMythic"] or selection["dungeonMythicPlus"] or selection["dungeonFollower"] end
+
+	return false
+end
+
+addon.functions.shouldUseTimeoutReleaseForCurrentContext = shouldUseTimeoutReleaseForCurrentContext
+
+local TIMEOUT_RELEASE_UPDATE_INTERVAL = 0.1
+
+local modifierCheckers = {
+	SHIFT = function() return IsShiftKeyDown() end,
+	CTRL = function() return IsControlKeyDown() end,
+	ALT = function() return IsAltKeyDown() end,
+}
+
+local modifierDisplayNames = {
+	SHIFT = getGlobalStringValue("SHIFT_KEY_TEXT") or "SHIFT",
+	CTRL = getGlobalStringValue("CTRL_KEY_TEXT") or "CTRL",
+	ALT = getGlobalStringValue("ALT_KEY_TEXT") or "ALT",
+}
+
 local function addDungeonFrame(container, d)
 	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
 	scroll:SetFullWidth(true)
@@ -3150,6 +3361,51 @@ local function addDungeonFrame(container, d)
 		if cbData.desc then desc = cbData.desc end
 		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], cbData.func, desc)
 		groupCore:AddChild(cbElement)
+	end
+
+	local cbTimeoutRelease = addon.functions.createCheckboxAce(L["timeoutRelease"], addon.db["timeoutRelease"], function(_, _, value)
+		addon.db["timeoutRelease"] = value and true or false
+		if value and addon.db["timeoutReleaseDifficulties"] == nil then
+			addon.db["timeoutReleaseDifficulties"] = {}
+			for _, groupInfo in ipairs(timeoutReleaseGroups) do
+				addon.db["timeoutReleaseDifficulties"][groupInfo.key] = true
+			end
+		end
+		container:ReleaseChildren()
+		addDungeonFrame(container)
+	end, L["timeoutReleaseDesc"])
+	groupCore:AddChild(cbTimeoutRelease)
+
+	if addon.db["timeoutRelease"] then
+		local list, order = getTimeoutReleaseDropdownData()
+		local dropdown = AceGUI:Create("Dropdown")
+		dropdown:SetLabel(L["timeoutReleaseOnlyIn"] or "Only apply in")
+		dropdown:SetList(list, order)
+		dropdown:SetMultiselect(true)
+		dropdown:SetFullWidth(true)
+		dropdown:SetCallback("OnValueChanged", function(_, _, key, checked) setTimeoutReleaseSelected(key, checked and true or false) end)
+
+		local selection = addon.db["timeoutReleaseDifficulties"]
+		if type(selection) == "table" then
+			for _, key in ipairs(order) do
+				if selection[key] then dropdown:SetItemValue(key, true) end
+			end
+		end
+
+		groupCore:AddChild(dropdown)
+
+		local modifierOptions = {
+			SHIFT = modifierDisplayNames.SHIFT or "SHIFT",
+			CTRL = modifierDisplayNames.CTRL or "CTRL",
+			ALT = modifierDisplayNames.ALT or "ALT",
+		}
+		local modifierOrder = { "SHIFT", "CTRL", "ALT" }
+		local modifierDropdown = addon.functions.createDropdownAce(L["timeoutReleaseModifierLabel"] or "Modifier key", modifierOptions, modifierOrder, function(_, _, key)
+			if modifierCheckers[key] then addon.db["timeoutReleaseModifier"] = key end
+		end)
+		modifierDropdown:SetValue(addon.db["timeoutReleaseModifier"] or "SHIFT")
+		groupCore:AddChild(modifierDropdown)
+
 	end
 
 	if addon.db["groupfinderSkipRoleSelect"] then
@@ -6176,6 +6432,9 @@ local function initMisc()
 	addon.functions.InitDBValue("deleteItemFillDialog", false)
 	addon.functions.InitDBValue("confirmReplaceEnchant", false)
 	addon.functions.InitDBValue("confirmSocketReplace", false)
+	addon.functions.InitDBValue("timeoutRelease", false)
+	addon.functions.InitDBValue("timeoutReleaseHoldDuration", 3)
+	addon.functions.InitDBValue("timeoutReleaseModifier", "SHIFT")
 	addon.functions.InitDBValue("hideRaidTools", false)
 	addon.functions.InitDBValue("autoRepair", false)
 	addon.functions.InitDBValue("autoRepairGuildBank", false)
@@ -6202,6 +6461,17 @@ local function initMisc()
 		if popup then
 			hooksecurefunc(popup, "Show", function(self)
 				if self then
+					local isDeathPopup = (self.which == "DEATH") and (self.numButtons or 0) > 0 and self.GetButton
+					if isDeathPopup then
+						local releaseButton = self:GetButton(1)
+
+						if addon.db["timeoutRelease"] and shouldUseTimeoutReleaseForCurrentContext() then
+							if releaseButton then releaseButton:SetAlpha(0) end
+						else
+							if releaseButton then releaseButton:SetAlpha(1) end
+						end
+					end
+
 					if addon.db["sellAllJunk"] and self.data and type(self.data) == "table" and self.data.text == SELL_ALL_JUNK_ITEMS_POPUP and self.button1 then
 						self.button1:Click()
 					elseif
@@ -8635,6 +8905,17 @@ local eventHandlers = {
 			if (requireShift and IsShiftKeyDown()) or (not requireShift and not IsShiftKeyDown()) then
 				for i = 1, GetNumLootItems() do
 					C_Timer.After(0.1, function() LootSlot(i) end)
+				end
+			end
+		end
+	end,
+	["MODIFIER_STATE_CHANGED"] = function(arg1, arg2)
+		if addon.db["timeoutRelease"] then
+			local _, stp = StaticPopup_Visible("DEATH")
+			if stp and stp.GetButton and shouldUseTimeoutReleaseForCurrentContext() then
+				if arg1 and arg1:match(addon.db["timeoutReleaseModifier"]) then
+					local btn = stp:GetButton(1)
+					if btn then btn:SetAlpha(arg2) end
 				end
 			end
 		end
