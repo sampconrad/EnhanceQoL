@@ -1638,6 +1638,45 @@ local function setCharFrame()
 	end
 end
 
+local DEFAULT_CHAT_BUBBLE_FONT_SIZE = 13
+local CHAT_BUBBLE_FONT_MIN = 1
+local CHAT_BUBBLE_FONT_MAX = 36
+
+function addon.functions.ApplyChatBubbleFontSize(size)
+	local desired = tonumber(size) or (addon.db and addon.db["chatBubbleFontSize"]) or DEFAULT_CHAT_BUBBLE_FONT_SIZE
+	if desired < CHAT_BUBBLE_FONT_MIN then desired = CHAT_BUBBLE_FONT_MIN end
+	if desired > CHAT_BUBBLE_FONT_MAX then desired = CHAT_BUBBLE_FONT_MAX end
+
+	if ChatBubbleFont then
+		addon.variables = addon.variables or {}
+		if not addon.variables.defaultChatBubbleFont then
+			local defaultFont, defaultSize, defaultFlags = ChatBubbleFont:GetFont()
+			addon.variables.defaultChatBubbleFont = {
+				font = defaultFont or STANDARD_TEXT_FONT,
+				size = defaultSize or DEFAULT_CHAT_BUBBLE_FONT_SIZE,
+				flags = defaultFlags or "",
+			}
+		end
+
+		local override = addon.db and addon.db["chatBubbleFontOverride"]
+		if override then
+			local fontInfo = addon.variables.defaultChatBubbleFont or {}
+			local font = STANDARD_TEXT_FONT or fontInfo.font
+			local flags = fontInfo.flags or ""
+			ChatBubbleFont:SetFont(font, desired, flags)
+		else
+			local defaults = addon.variables.defaultChatBubbleFont
+			if defaults and defaults.font then
+				ChatBubbleFont:SetFont(defaults.font, defaults.size, defaults.flags)
+			elseif STANDARD_TEXT_FONT then
+				ChatBubbleFont:SetFont(STANDARD_TEXT_FONT, DEFAULT_CHAT_BUBBLE_FONT_SIZE, "")
+			end
+		end
+	end
+
+	return desired
+end
+
 local function addChatFrame(container)
 	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
 	scroll:SetFullWidth(true)
@@ -1648,280 +1687,341 @@ local function addChatFrame(container)
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
 	scroll:AddChild(wrapper)
 
-	local groupCore = addon.functions.createContainer("InlineGroup", "List")
-	wrapper:AddChild(groupCore)
-
-	local data = {
-		{
-			var = "chatShowLootCurrencyIcons",
-			text = L["chatLootCurrencyIcons"],
-			type = "CheckBox",
-			desc = L["chatLootCurrencyIconsDesc"],
-			func = function(self, _, value)
-				addon.db["chatShowLootCurrencyIcons"] = value
-				if addon.ChatIcons and addon.ChatIcons.SetEnabled then addon.ChatIcons:SetEnabled(value) end
-				container:ReleaseChildren()
-				addChatFrame(container)
-			end,
-		},
-		{
-			var = "chatHideLearnUnlearn",
-			text = L["chatHideLearnUnlearn"],
-			type = "CheckBox",
-			desc = L["chatHideLearnUnlearnDesc"],
-			func = function(self, _, value)
-				addon.db["chatHideLearnUnlearn"] = value
-				if addon.functions.ApplyChatLearnFilter then addon.functions.ApplyChatLearnFilter(value) end
-				container:ReleaseChildren()
-				addChatFrame(container)
-			end,
-		},
-	}
-
-	table.sort(data, function(a, b) return a.text < b.text end)
-
-	for _, cbData in ipairs(data) do
-		local desc
-		if cbData.desc then desc = cbData.desc end
-		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], cbData.func, desc)
-		groupCore:AddChild(cbElement)
+	local function doLayout()
+		if scroll and scroll.DoLayout then scroll:DoLayout() end
 	end
 
-	local groupFade = addon.functions.createContainer("InlineGroup", "List")
-	wrapper:AddChild(groupFade)
+	wrapper:PauseLayout()
+	local groups = {}
 
-	local fadeData = {
-		{
-			var = "chatFrameFadeEnabled",
-			text = L["chatFrameFadeEnabled"],
-			type = "CheckBox",
-			func = function(self, _, value)
+	local function ensureGroup(key)
+		local g, known
+		if groups[key] then
+			g = groups[key]
+			g:PauseLayout()
+			g:ReleaseChildren()
+			known = true
+		else
+			g = addon.functions.createContainer("InlineGroup", "List")
+			wrapper:AddChild(g)
+			groups[key] = g
+		end
+		return g, known
+	end
+
+	local function finishGroup(g, known)
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
+
+	local function buildGeneral()
+		local g, known = ensureGroup("general")
+		local options = {
+			{
+				var = "chatShowLootCurrencyIcons",
+				text = L["chatLootCurrencyIcons"],
+				desc = L["chatLootCurrencyIconsDesc"],
+				onToggle = function(value)
+					addon.db["chatShowLootCurrencyIcons"] = value
+					if addon.ChatIcons and addon.ChatIcons.SetEnabled then addon.ChatIcons:SetEnabled(value) end
+				end,
+			},
+			{
+				var = "chatHideLearnUnlearn",
+				text = L["chatHideLearnUnlearn"],
+				desc = L["chatHideLearnUnlearnDesc"],
+				onToggle = function(value)
+					addon.db["chatHideLearnUnlearn"] = value
+					if addon.functions.ApplyChatLearnFilter then addon.functions.ApplyChatLearnFilter(value) end
+				end,
+			},
+		}
+
+		table.sort(options, function(a, b) return a.text < b.text end)
+
+		for _, entry in ipairs(options) do
+			local cb = addon.functions.createCheckboxAce(entry.text, addon.db[entry.var], function(_, _, value)
+				if entry.onToggle then entry.onToggle(value) else addon.db[entry.var] = value end
+			end, entry.desc)
+			g:AddChild(cb)
+		end
+
+		finishGroup(g, known)
+	end
+
+	local function buildFade()
+		local g, known = ensureGroup("fade")
+
+		local fadeCheckbox = addon.functions.createCheckboxAce(
+			L["chatFrameFadeEnabled"],
+			addon.db["chatFrameFadeEnabled"],
+			function(_, _, value)
 				addon.db["chatFrameFadeEnabled"] = value
 				if ChatFrame1 then ChatFrame1:SetFading(value) end
-				container:ReleaseChildren()
-				addChatFrame(container)
-			end,
-		},
-	}
-
-	table.sort(fadeData, function(a, b) return a.text < b.text end)
-
-	for _, cbData in ipairs(fadeData) do
-		local desc
-		if cbData.desc then desc = cbData.desc end
-		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], cbData.func, desc)
-		groupFade:AddChild(cbElement)
-	end
-
-	if addon.db["chatFrameFadeEnabled"] then
-		local sliderTimeVisible = addon.functions.createSliderAce(
-			L["chatFrameFadeTimeVisibleText"] .. ": " .. addon.db["chatFrameFadeTimeVisible"] .. "s",
-			addon.db["chatFrameFadeTimeVisible"],
-			1,
-			300,
-			1,
-			function(self, _, value2)
-				addon.db["chatFrameFadeTimeVisible"] = value2
-				if ChatFrame1 then ChatFrame1:SetTimeVisible(value2) end
-				self:SetLabel(L["chatFrameFadeTimeVisibleText"] .. ": " .. value2 .. "s")
+				buildFade()
 			end
 		)
-		groupFade:AddChild(sliderTimeVisible)
+		g:AddChild(fadeCheckbox)
 
-		groupFade:AddChild(addon.functions.createSpacerAce())
+		if addon.db["chatFrameFadeEnabled"] then
+			local sliderTimeVisible = addon.functions.createSliderAce(
+				L["chatFrameFadeTimeVisibleText"] .. ": " .. addon.db["chatFrameFadeTimeVisible"] .. "s",
+				addon.db["chatFrameFadeTimeVisible"],
+				1,
+				300,
+				1,
+				function(self, _, value)
+					addon.db["chatFrameFadeTimeVisible"] = value
+					if ChatFrame1 then ChatFrame1:SetTimeVisible(value) end
+					self:SetLabel(L["chatFrameFadeTimeVisibleText"] .. ": " .. value .. "s")
+				end
+			)
+			g:AddChild(sliderTimeVisible)
 
-		local sliderFadeDuration = addon.functions.createSliderAce(
-			L["chatFrameFadeDurationText"] .. ": " .. addon.db["chatFrameFadeDuration"] .. "s",
-			addon.db["chatFrameFadeDuration"],
-			1,
-			60,
-			1,
-			function(self, _, value2)
-				addon.db["chatFrameFadeDuration"] = value2
-				if ChatFrame1 then ChatFrame1:SetFadeDuration(value2) end
-				self:SetLabel(L["chatFrameFadeDurationText"] .. ": " .. value2 .. "s")
-			end
-		)
-		groupFade:AddChild(sliderFadeDuration)
-	end
+			g:AddChild(addon.functions.createSpacerAce())
 
-	local groupCoreSetting = addon.functions.createContainer("InlineGroup", "List")
-	wrapper:AddChild(groupCoreSetting)
-
-	data = {
-		{
-			var = "enableChatIM",
-			text = L["enableChatIM"],
-			type = "CheckBox",
-			desc = L["enableChatIMDesc"],
-			func = function(self, _, value)
-				addon.db["enableChatIM"] = value
-				if addon.ChatIM and addon.ChatIM.SetEnabled then addon.ChatIM:SetEnabled(value) end
-				if not value then addon.variables.requireReload = true end
-				container:ReleaseChildren()
-				addChatFrame(container)
-			end,
-		},
-	}
-
-	for _, cbData in ipairs(data) do
-		local desc
-		if cbData.desc then desc = cbData.desc end
-		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], cbData.func, desc)
-		groupCoreSetting:AddChild(cbElement)
-	end
-
-	if addon.db["enableChatIM"] then
-		local groupCoreSettingSub = addon.functions.createContainer("InlineGroup", "List")
-		groupCoreSetting:AddChild(groupCoreSettingSub)
-
-		data = {}
-		table.insert(data, {
-			var = "enableChatIMFade",
-			text = L["enableChatIMFade"],
-			type = "CheckBox",
-			desc = L["enableChatIMFadeDesc"],
-			func = function(self, _, value)
-				addon.db["enableChatIMFade"] = value
-				if addon.ChatIM and addon.ChatIM.SetEnabled then addon.ChatIM:UpdateAlpha() end
-				container:ReleaseChildren()
-				addChatFrame(container)
-			end,
-		})
-		table.insert(data, {
-			var = "enableChatIMRaiderIO",
-			text = L["enableChatIMRaiderIO"],
-			type = "CheckBox",
-			func = function(self, _, value) addon.db["enableChatIMRaiderIO"] = value end,
-		})
-		table.insert(data, {
-			var = "enableChatIMWCL",
-			text = L["enableChatIMWCL"],
-			type = "CheckBox",
-			func = function(self, _, value) addon.db["enableChatIMWCL"] = value end,
-		})
-		table.insert(data, {
-			var = "chatIMUseCustomSound",
-			text = L["enableChatIMCustomSound"],
-			type = "CheckBox",
-			func = function(self, _, value)
-				addon.db["chatIMUseCustomSound"] = value
-				container:ReleaseChildren()
-				addChatFrame(container)
-			end,
-		})
-		table.insert(data, {
-			var = "chatIMHideInCombat",
-			text = L["chatIMHideInCombat"],
-			type = "CheckBox",
-			desc = L["chatIMHideInCombatDesc"],
-			func = function(self, _, value)
-				addon.db["chatIMHideInCombat"] = value
-				if addon.ChatIM and addon.ChatIM.SetEnabled then addon.ChatIM:SetEnabled(true) end
-			end,
-		})
-		table.insert(data, {
-			var = "chatIMUseAnimation",
-			text = L["chatIMUseAnimation"],
-			type = "CheckBox",
-			desc = L["chatIMUseAnimationDesc"],
-			func = function(self, _, value) addon.db["chatIMUseAnimation"] = value end,
-		})
-		table.sort(data, function(a, b) return a.text < b.text end)
-
-		for _, cbData in ipairs(data) do
-			local desc
-			if cbData.desc then desc = cbData.desc end
-			local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], cbData.func, desc)
-			groupCoreSettingSub:AddChild(cbElement)
+			local sliderFadeDuration = addon.functions.createSliderAce(
+				L["chatFrameFadeDurationText"] .. ": " .. addon.db["chatFrameFadeDuration"] .. "s",
+				addon.db["chatFrameFadeDuration"],
+				1,
+				60,
+				1,
+				function(self, _, value)
+					addon.db["chatFrameFadeDuration"] = value
+					if ChatFrame1 then ChatFrame1:SetFadeDuration(value) end
+					self:SetLabel(L["chatFrameFadeDurationText"] .. ": " .. value .. "s")
+				end
+			)
+			g:AddChild(sliderFadeDuration)
 		end
 
-		groupCoreSettingSub:AddChild(addon.functions.createSpacerAce())
+		finishGroup(g, known)
+	end
 
-		if addon.db["chatIMUseCustomSound"] then
-			local soundList = {}
-			for name in pairs(addon.ChatIM.availableSounds or {}) do
-				soundList[name] = name
+	local function buildBubbleFont()
+		local g, known = ensureGroup("bubbleFont")
+		local overrideCheckbox = addon.functions.createCheckboxAce(
+			L["chatBubbleFontOverride"],
+			addon.db["chatBubbleFontOverride"],
+			function(_, _, value)
+				addon.db["chatBubbleFontOverride"] = value
+				addon.functions.ApplyChatBubbleFontSize(addon.db["chatBubbleFontSize"])
+				buildBubbleFont()
+			end,
+			L["chatBubbleFontOverrideDesc"]
+		)
+		g:AddChild(overrideCheckbox)
+
+		if addon.db["chatBubbleFontOverride"] then
+			local function labelText(size) return L["chatBubbleFontSize"] .. ": " .. size end
+			local currentSize = tonumber(addon.db and addon.db["chatBubbleFontSize"]) or DEFAULT_CHAT_BUBBLE_FONT_SIZE
+			local slider = addon.functions.createSliderAce(
+				labelText(currentSize),
+				currentSize,
+				CHAT_BUBBLE_FONT_MIN,
+				CHAT_BUBBLE_FONT_MAX,
+				1,
+				function(self, _, value)
+					local applied = addon.functions.ApplyChatBubbleFontSize(value)
+					addon.db["chatBubbleFontSize"] = applied
+					self:SetValue(applied)
+					self:SetLabel(labelText(applied))
+				end
+			)
+			g:AddChild(slider)
+		end
+
+		finishGroup(g, known)
+	end
+
+	local function buildChatIM()
+		local g, known = ensureGroup("chatIM")
+
+		local entries = {
+			{
+				var = "enableChatIM",
+				text = L["enableChatIM"],
+				desc = L["enableChatIMDesc"],
+				onToggle = function(value)
+					addon.db["enableChatIM"] = value
+					if addon.ChatIM and addon.ChatIM.SetEnabled then addon.ChatIM:SetEnabled(value) end
+					if not value then addon.variables.requireReload = true end
+				end,
+				rebuild = true,
+			},
+		}
+
+		table.sort(entries, function(a, b) return a.text < b.text end)
+
+		for _, entry in ipairs(entries) do
+			local cb = addon.functions.createCheckboxAce(entry.text, addon.db[entry.var], function(_, _, value)
+				if entry.onToggle then entry.onToggle(value) else addon.db[entry.var] = value end
+				if entry.rebuild then buildChatIM() end
+			end, entry.desc)
+			g:AddChild(cb)
+		end
+
+		if addon.db["enableChatIM"] then
+			local sub = addon.functions.createContainer("InlineGroup", "List")
+			g:AddChild(sub)
+
+			local subEntries = {
+				{
+					var = "enableChatIMFade",
+					text = L["enableChatIMFade"],
+					desc = L["enableChatIMFadeDesc"],
+					onToggle = function(value)
+						addon.db["enableChatIMFade"] = value
+						if addon.ChatIM and addon.ChatIM.SetEnabled then addon.ChatIM:UpdateAlpha() end
+					end,
+				},
+				{
+					var = "enableChatIMRaiderIO",
+					text = L["enableChatIMRaiderIO"],
+				},
+				{
+					var = "enableChatIMWCL",
+					text = L["enableChatIMWCL"],
+				},
+				{
+					var = "chatIMUseCustomSound",
+					text = L["enableChatIMCustomSound"],
+					onToggle = function(value) addon.db["chatIMUseCustomSound"] = value end,
+					rebuild = true,
+				},
+				{
+					var = "chatIMHideInCombat",
+					text = L["chatIMHideInCombat"],
+					desc = L["chatIMHideInCombatDesc"],
+				},
+				{
+					var = "chatIMUseAnimation",
+					text = L["chatIMUseAnimation"],
+					desc = L["chatIMUseAnimationDesc"],
+				},
+			}
+
+			table.sort(subEntries, function(a, b) return a.text < b.text end)
+
+			for _, entry in ipairs(subEntries) do
+				local cb = addon.functions.createCheckboxAce(entry.text, addon.db[entry.var], function(_, _, value)
+					if entry.onToggle then
+						entry.onToggle(value)
+					else
+						addon.db[entry.var] = value
+					end
+					if entry.var == "chatIMHideInCombat" and addon.ChatIM and addon.ChatIM.SetEnabled then addon.ChatIM:SetEnabled(true) end
+					if entry.rebuild then buildChatIM() end
+				end, entry.desc)
+				sub:AddChild(cb)
 			end
-			local list, order = addon.functions.prepareListForDropdown(soundList)
-			local dropSound = addon.functions.createDropdownAce(L["ChatIMCustomSound"], list, order, function(self, _, val)
-				addon.db["chatIMCustomSoundFile"] = val
-				self:SetValue(val)
-				local file = addon.ChatIM.availableSounds and addon.ChatIM.availableSounds[val]
-				if file then PlaySoundFile(file, "Master") end
+
+			sub:AddChild(addon.functions.createSpacerAce())
+
+			if addon.db["chatIMUseCustomSound"] then
+				if addon.ChatIM and addon.ChatIM.BuildSoundTable and not addon.ChatIM.availableSounds then addon.ChatIM:BuildSoundTable() end
+				local soundList = {}
+				for name in pairs(addon.ChatIM and addon.ChatIM.availableSounds or {}) do
+					soundList[name] = name
+				end
+				local list, order = addon.functions.prepareListForDropdown(soundList)
+				local dropSound = addon.functions.createDropdownAce(L["ChatIMCustomSound"], list, order, function(self, _, val)
+					addon.db["chatIMCustomSoundFile"] = val
+					self:SetValue(val)
+					local file = addon.ChatIM and addon.ChatIM.availableSounds and addon.ChatIM.availableSounds[val]
+					if file then PlaySoundFile(file, "Master") end
+				end)
+				dropSound:SetValue(addon.db["chatIMCustomSoundFile"])
+				sub:AddChild(dropSound)
+				sub:AddChild(addon.functions.createSpacerAce())
+			end
+
+			local sliderHistory = addon.functions.createSliderAce(
+				L["ChatIMHistoryLimit"] .. ": " .. addon.db["chatIMMaxHistory"],
+				addon.db["chatIMMaxHistory"],
+				0,
+				1000,
+				1,
+				function(self, _, value)
+					addon.db["chatIMMaxHistory"] = value
+					if addon.ChatIM and addon.ChatIM.SetMaxHistoryLines then addon.ChatIM:SetMaxHistoryLines(value) end
+					self:SetLabel(L["ChatIMHistoryLimit"] .. ": " .. value)
+				end
+			)
+			sub:AddChild(sliderHistory)
+
+			local historyList = {}
+			for name in pairs(EnhanceQoL_IMHistory or {}) do
+				historyList[name] = name
+			end
+			local list, order = addon.functions.prepareListForDropdown(historyList)
+			local dropHistory = addon.functions.createDropdownAce(L["ChatIMHistoryPlayer"], list, order, function(self, _, val) self:SetValue(val) end)
+
+			local btnDelete = addon.functions.createButtonAce(L["ChatIMHistoryDelete"], 140, function()
+				local target = dropHistory:GetValue()
+				if not target then return end
+				StaticPopupDialogs["EQOL_DELETE_IM_HISTORY"] = StaticPopupDialogs["EQOL_DELETE_IM_HISTORY"]
+					or {
+						text = L["ChatIMHistoryDeleteConfirm"],
+						button1 = YES,
+						button2 = CANCEL,
+						timeout = 0,
+						whileDead = true,
+						hideOnEscape = true,
+						preferredIndex = 3,
+					}
+				StaticPopupDialogs["EQOL_DELETE_IM_HISTORY"].OnAccept = function()
+					EnhanceQoL_IMHistory[target] = nil
+					if addon.ChatIM and addon.ChatIM.history then addon.ChatIM.history[target] = nil end
+					buildChatIM()
+				end
+				StaticPopup_Show("EQOL_DELETE_IM_HISTORY", target)
 			end)
-			dropSound:SetValue(addon.db["chatIMCustomSoundFile"])
-			groupCoreSettingSub:AddChild(dropSound)
-			groupCoreSettingSub:AddChild(addon.functions.createSpacerAce())
+
+			local btnClear = addon.functions.createButtonAce(L["ChatIMHistoryClearAll"], 140, function()
+				StaticPopupDialogs["EQOL_CLEAR_IM_HISTORY"] = StaticPopupDialogs["EQOL_CLEAR_IM_HISTORY"]
+					or {
+						text = L["ChatIMHistoryClearConfirm"],
+						button1 = YES,
+						button2 = CANCEL,
+						timeout = 0,
+						whileDead = true,
+						hideOnEscape = true,
+						preferredIndex = 3,
+					}
+				StaticPopupDialogs["EQOL_CLEAR_IM_HISTORY"].OnAccept = function()
+					wipe(EnhanceQoL_IMHistory)
+					if addon.ChatIM then addon.ChatIM.history = EnhanceQoL_IMHistory end
+					buildChatIM()
+				end
+				StaticPopup_Show("EQOL_CLEAR_IM_HISTORY")
+			end)
+
+			sub:AddChild(dropHistory)
+			sub:AddChild(btnDelete)
+			sub:AddChild(btnClear)
+
+			sub:AddChild(addon.functions.createSpacerAce())
+
+			local hint = AceGUI:Create("Label")
+			hint:SetFullWidth(true)
+			hint:SetFont(addon.variables.defaultFont, 14, "OUTLINE")
+			hint:SetText("|cffffd700" .. L["RightClickCloseTab"] .. "|r ")
+			sub:AddChild(hint)
 		end
 
-		local sliderHistory = addon.functions.createSliderAce(L["ChatIMHistoryLimit"] .. ": " .. addon.db["chatIMMaxHistory"], addon.db["chatIMMaxHistory"], 0, 1000, 1, function(self, _, value)
-			addon.db["chatIMMaxHistory"] = value
-			if addon.ChatIM and addon.ChatIM.SetMaxHistoryLines then addon.ChatIM:SetMaxHistoryLines(value) end
-			self:SetLabel(L["ChatIMHistoryLimit"] .. ": " .. value)
-		end)
-		groupCoreSettingSub:AddChild(sliderHistory)
-
-		local historyList = {}
-		for name in pairs(EnhanceQoL_IMHistory or {}) do
-			historyList[name] = name
-		end
-		local list, order = addon.functions.prepareListForDropdown(historyList)
-		local dropHistory = addon.functions.createDropdownAce(L["ChatIMHistoryPlayer"], list, order, function(self, _, val) self:SetValue(val) end)
-		local btnDelete = addon.functions.createButtonAce(L["ChatIMHistoryDelete"], 140, function()
-			local target = dropHistory:GetValue()
-			if not target then return end
-			StaticPopupDialogs["EQOL_DELETE_IM_HISTORY"] = StaticPopupDialogs["EQOL_DELETE_IM_HISTORY"]
-				or {
-					text = L["ChatIMHistoryDeleteConfirm"],
-					button1 = YES,
-					button2 = CANCEL,
-					timeout = 0,
-					whileDead = true,
-					hideOnEscape = true,
-					preferredIndex = 3,
-				}
-			StaticPopupDialogs["EQOL_DELETE_IM_HISTORY"].OnAccept = function()
-				EnhanceQoL_IMHistory[target] = nil
-				if addon.ChatIM and addon.ChatIM.history then addon.ChatIM.history[target] = nil end
-				container:ReleaseChildren()
-				addChatFrame(container)
-			end
-			StaticPopup_Show("EQOL_DELETE_IM_HISTORY", target)
-		end)
-
-		local btnClear = addon.functions.createButtonAce(L["ChatIMHistoryClearAll"], 140, function()
-			StaticPopupDialogs["EQOL_CLEAR_IM_HISTORY"] = StaticPopupDialogs["EQOL_CLEAR_IM_HISTORY"]
-				or {
-					text = L["ChatIMHistoryClearConfirm"],
-					button1 = YES,
-					button2 = CANCEL,
-					timeout = 0,
-					whileDead = true,
-					hideOnEscape = true,
-					preferredIndex = 3,
-				}
-			StaticPopupDialogs["EQOL_CLEAR_IM_HISTORY"].OnAccept = function()
-				wipe(EnhanceQoL_IMHistory)
-				if addon.ChatIM then addon.ChatIM.history = EnhanceQoL_IMHistory end
-				container:ReleaseChildren()
-				addChatFrame(container)
-			end
-			StaticPopup_Show("EQOL_CLEAR_IM_HISTORY")
-		end)
-
-		groupCoreSettingSub:AddChild(dropHistory)
-		groupCoreSettingSub:AddChild(btnDelete)
-		groupCoreSettingSub:AddChild(btnClear)
-
-		groupCoreSettingSub:AddChild(addon.functions.createSpacerAce())
-
-		local hint = AceGUI:Create("Label")
-		hint:SetFullWidth(true)
-		hint:SetFont(addon.variables.defaultFont, 14, "OUTLINE")
-		hint:SetText("|cffffd700" .. L["RightClickCloseTab"] .. "|r ")
-		groupCoreSettingSub:AddChild(hint)
+		finishGroup(g, known)
 	end
+
+	buildGeneral()
+	buildFade()
+	buildBubbleFont()
+	buildChatIM()
+
+	wrapper:ResumeLayout()
+	doLayout()
 	scroll:ResumeLayout()
 	scroll:DoLayout()
 end
@@ -6590,6 +6690,9 @@ local function initChatFrame()
 	addon.functions.InitDBValue("chatIMUseAnimation", true)
 	addon.functions.InitDBValue("chatShowLootCurrencyIcons", false)
 	addon.functions.InitDBValue("chatHideLearnUnlearn", false)
+	addon.functions.InitDBValue("chatBubbleFontOverride", false)
+	addon.functions.InitDBValue("chatBubbleFontSize", DEFAULT_CHAT_BUBBLE_FONT_SIZE)
+	addon.functions.ApplyChatBubbleFontSize(addon.db["chatBubbleFontSize"])
 	-- Apply learn/unlearn message filter based on saved setting
 	addon.functions.ApplyChatLearnFilter(addon.db["chatHideLearnUnlearn"])
 	if addon.ChatIcons and addon.ChatIcons.SetEnabled then addon.ChatIcons:SetEnabled(addon.db["chatShowLootCurrencyIcons"]) end

@@ -393,6 +393,9 @@ L["UnitFrameHideExplain"] = "Adjust the visibility behavior for these frames"
 L["chatFrameFadeEnabled"] = "Enable chat fading"
 L["chatFrameFadeTimeVisibleText"] = "Text remains visible for"
 L["chatFrameFadeDurationText"] = "Fade animation duration"
+L["chatBubbleFontOverride"] = "Override chat bubble font"
+L["chatBubbleFontOverrideDesc"] = "Enable to change the font size used for chat bubbles."
+L["chatBubbleFontSize"] = "Chat bubble font size"
 
 -- Merchant
 L["enableExtendedMerchant"] = "Expand merchant frame (20 items per page)"
