@@ -2942,10 +2942,10 @@ local function addActionBarFrame(container, d)
 	end
 
 	local outlineMap = {
-		NONE = L["None"] or NONE,
-		OUTLINE = L["Outline"] or "Outline",
-		THICKOUTLINE = L["Thick Outline"] or "Thick Outline",
-		MONOCHROMEOUTLINE = L["Monochrome Outline"] or "Monochrome Outline",
+		NONE = L["fontOutlineNone"] or NONE,
+		OUTLINE = L["fontOutlineThin"] or "Outline",
+		THICKOUTLINE = L["fontOutlineThick"] or "Thick Outline",
+		MONOCHROMEOUTLINE = L["fontOutlineMono"] or "Monochrome Outline",
 	}
 	local outlineOrder = { "NONE", "OUTLINE", "THICKOUTLINE", "MONOCHROMEOUTLINE" }
 
