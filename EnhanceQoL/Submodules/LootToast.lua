@@ -328,9 +328,7 @@ function LootToast:RestoreDefaultAnchors(force)
 		if FrameIsAccessible(bonusFrame) then
 			local saved = self.defaultBonusRollAnchor
 			bonusFrame:ClearAllPoints()
-			if saved and saved.point then
-				bonusFrame:SetPoint(saved.point, saved.relativeTo, saved.relativePoint, saved.x, saved.y)
-			end
+			if saved and saved.point then bonusFrame:SetPoint(saved.point, saved.relativeTo, saved.relativePoint, saved.x, saved.y) end
 			bonusFrame:SetScale(1)
 			bonusFrame.ignoreFramePositionManager = nil
 		end
@@ -406,9 +404,7 @@ local function UpdateAnchorLabel(anchor, layout, labelKey)
 	end
 end
 
-function LootToast:GetGroupLootLayout()
-	return GetGroupLootLayoutConfig()
-end
+function LootToast:GetGroupLootLayout() return GetGroupLootLayoutConfig() end
 
 function LootToast:ApplyGroupLootLayout()
 	if not addon.db.enableGroupLootAnchor then

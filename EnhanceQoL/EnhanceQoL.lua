@@ -704,7 +704,7 @@ UpdateUnitFrameMouseover = function(barName, cbData)
 			end
 			return
 		end
-	if not driverExpression and frame.Show then frame:Show() end
+		if not driverExpression and frame.Show then frame:Show() end
 	end
 end
 addon.functions.UpdateUnitFrameMouseover = UpdateUnitFrameMouseover
@@ -3614,6 +3614,10 @@ local function initMisc()
 							if acceptbtn:GetAlpha() ~= 1 then acceptbtn:SetAlpha(1) end
 						end
 						return
+					end
+					if self.GetButton then
+						local btn = self:GetButton(1)
+						if btn:GetAlpha() ~= 1 then btn:SetAlpha(1) end
 					end
 					local isDeathPopup = (self.which == "DEATH") and (self.numButtons or 0) > 0 and self.GetButton
 					if isDeathPopup then

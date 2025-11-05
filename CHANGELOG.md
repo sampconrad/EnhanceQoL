@@ -11,6 +11,7 @@
 ### 🐛 Fixed
 
 - Action Bar growth direction wasn't applied on first login
+- Fixed some wrong remix achievement phases
 
 ---
 
