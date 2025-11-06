@@ -43,6 +43,7 @@ addon.general.variables.autoOpen = {
 	[152108] = true, -- Legionsfall Chest (Paragon)
 	[246937] = true, -- Perfected Epoch Memento
 	[246936] = true, -- Resonant Epoch Memento
+	[249784] = true, -- Legionfall Champions Insignia (2k Rep)
 
 	[253224] = {
 		minStack = 10,

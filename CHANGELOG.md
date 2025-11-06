@@ -1,6 +1,6 @@
 # Changelog
 
-## [5.14.0] – 2025-11-04
+## [5.14.0] – 2025-11-07
 
 ### ✨ Added
 
@@ -11,6 +11,7 @@
 ### 🐛 Fixed
 
 - Action Bar growth direction wasn't applied on first login
+- Fixed some wrong remix achievement phases
 
 ---
 
