@@ -797,7 +797,7 @@ do
 end
 
 addon.variables.unitFrameNames = {
-	{ name = "PlayerFrame", var = "unitframeSettingPlayerFrame", text = HUD_EDIT_MODE_PLAYER_FRAME_LABEL },
+	{ name = "PlayerFrame", var = "unitframeSettingPlayerFrame", text = HUD_EDIT_MODE_PLAYER_FRAME_LABEL, unitToken = "player" },
 	{
 		name = "BossTargetFrameContainer",
 		var = "unitframeSettingBossTargetFrame",

@@ -24,12 +24,10 @@ local noop = function() end
 local NormalizeActionBarVisibilityConfig = (addon.functions and addon.functions.NormalizeActionBarVisibilityConfig) or noop
 local UpdateActionBarMouseover = (addon.functions and addon.functions.UpdateActionBarMouseover) or noop
 local RefreshAllActionBarAnchors = (addon.functions and addon.functions.RefreshAllActionBarAnchors) or noop
-local GetUnitFrameDropdownData = (addon.functions and addon.functions.GetUnitFrameDropdownData) or function() return {}, {} end
-local GetUnitFrameDropdownKey = (addon.functions and addon.functions.GetUnitFrameDropdownKey) or function() return "NONE" end
-local GetUnitFrameValueFromKey = (addon.functions and addon.functions.GetUnitFrameValueFromKey) or function() return nil end
-local IsVisibilityKeyAllowed = (addon.functions and addon.functions.IsVisibilityKeyAllowed) or function() return true end
+local NormalizeUnitFrameVisibilityConfig = (addon.functions and addon.functions.NormalizeUnitFrameVisibilityConfig) or noop
 local UpdateUnitFrameMouseover = (addon.functions and addon.functions.UpdateUnitFrameMouseover) or noop
 local ApplyUnitFrameSettingByVar = (addon.functions and addon.functions.ApplyUnitFrameSettingByVar) or noop
+local GetVisibilityRuleMetadata = (addon.functions and addon.functions.GetVisibilityRuleMetadata) or function() return {} end
 local setLeaderIcon = (addon.functions and addon.functions.setLeaderIcon) or noop
 local removeLeaderIcon = (addon.functions and addon.functions.removeLeaderIcon) or noop
 
@@ -171,75 +169,8 @@ local function addUIFrame(container)
 	addon.functions.createWrapperData(data, container, L)
 end
 
-
-local function addActionBarFrame(container, d)
-	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-	scroll:SetFullWidth(true)
-	scroll:SetFullHeight(true)
-	container:AddChild(scroll)
-
-	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	scroll:AddChild(wrapper)
-
-	local groupCore = addon.functions.createContainer("InlineGroup", "List")
-	wrapper:AddChild(groupCore)
-
-	local labelHeadline = addon.functions.createLabelAce(
-		"|cffffd700" .. L["ActionbarVisibilityExplain"]:format(_G["HUD_EDIT_MODE_SETTING_ACTION_BAR_VISIBLE_SETTING_ALWAYS"], _G["HUD_EDIT_MODE_MENU"]) .. "|r",
-		nil,
-		nil,
-		14
-	)
-	labelHeadline:SetFullWidth(true)
-	groupCore:AddChild(labelHeadline)
-
-	groupCore:AddChild(addon.functions.createSpacerAce())
-
-	local visibilityOptions = {
-		MOUSEOVER = L["ActionBarVisibilityMouseover"] or "Mouseover",
-		ALWAYS_IN_COMBAT = L["ActionBarVisibilityInCombat"] or "Always in combat",
-		ALWAYS_OUT_OF_COMBAT = L["ActionBarVisibilityOutOfCombat"] or "Always out of combat",
-	}
-	local visibilityOrder = { "MOUSEOVER", "ALWAYS_IN_COMBAT", "ALWAYS_OUT_OF_COMBAT" }
-
-	local function updateVisibilitySelection(var, key, checked)
-		if not var or not key then return nil end
-		local store = addon.db[var]
-		if type(store) ~= "table" then store = {} end
-		if checked then
-			store[key] = true
-		else
-			store[key] = nil
-		end
-		return NormalizeActionBarVisibilityConfig(var, store)
-	end
-
-	local visibilityGroup = addon.functions.createContainer("InlineGroup", "Flow")
-	visibilityGroup:SetTitle(L["ActionBarVisibilityLabel"] or "Visibility")
-	groupCore:AddChild(visibilityGroup)
-
-	for _, cbData in ipairs(addon.variables.actionBarNames) do
-		local dropdown = AceGUI:Create("Dropdown")
-		dropdown:SetLabel(cbData.text)
-		dropdown:SetList(visibilityOptions, visibilityOrder)
-		dropdown:SetMultiselect(true)
-		dropdown:SetFullWidth(false)
-		dropdown:SetRelativeWidth(0.5)
-		dropdown:SetCallback("OnValueChanged", function(_, _, key, checked)
-			if not cbData.var or not cbData.name then return end
-			local normalized = updateVisibilitySelection(cbData.var, key, checked)
-			UpdateActionBarMouseover(cbData.name, normalized, cbData.var)
-		end)
-
-		local stored = NormalizeActionBarVisibilityConfig(cbData.var)
-		if stored then
-			if stored.MOUSEOVER then dropdown:SetItemValue("MOUSEOVER", true) end
-			if stored.ALWAYS_IN_COMBAT then dropdown:SetItemValue("ALWAYS_IN_COMBAT", true) end
-			if stored.ALWAYS_OUT_OF_COMBAT then dropdown:SetItemValue("ALWAYS_OUT_OF_COMBAT", true) end
-		end
-
-		visibilityGroup:AddChild(dropdown)
-	end
+local function buildActionBarExtras(parent)
+	if not parent then return end
 
 	local anchorSection
 	local anchorDropdownContainer
@@ -255,7 +186,8 @@ local function addActionBarFrame(container, d)
 		anchorDropdownContainer:ReleaseChildren()
 		anchorDropdownContainer:SetLayout("Flow")
 		for index = 1, #ACTION_BAR_FRAME_NAMES do
-			local label = L["actionBarAnchorDropdown"] and string.format(L["actionBarAnchorDropdown"], index) or string.format("Action Bar %d button anchor", index)
+			local label =
+				L["actionBarAnchorDropdown"] and string.format(L["actionBarAnchorDropdown"], index) or string.format("Action Bar %d button anchor", index)
 			local dropdown = addon.functions.createDropdownAce(label, anchorOptions, ACTION_BAR_ANCHOR_ORDER, function(_, _, key)
 				if not ACTION_BAR_ANCHOR_CONFIG[key] then return end
 				addon.db["actionBarAnchor" .. index] = key
@@ -271,14 +203,12 @@ local function addActionBarFrame(container, d)
 		end
 		if anchorDropdownContainer.DoLayout then anchorDropdownContainer:DoLayout() end
 		if anchorSection and anchorSection.DoLayout then anchorSection:DoLayout() end
-		if wrapper and wrapper.DoLayout then wrapper:DoLayout() end
-		if scroll and scroll.DoLayout then scroll:DoLayout() end
 	end
 
 	anchorSection = addon.functions.createContainer("InlineGroup", "List")
 	anchorSection:SetTitle(L["actionBarAnchorSectionTitle"] or "Button growth")
 	anchorSection:SetFullWidth(true)
-	groupCore:AddChild(anchorSection)
+	parent:AddChild(anchorSection)
 
 	local anchorToggle = addon.functions.createCheckboxAce(L["actionBarAnchorEnable"] or "Modify Action Bar anchor", addon.db["actionBarAnchorEnabled"] == true, function(_, _, value)
 		addon.db["actionBarAnchorEnabled"] = value and true or false
@@ -290,10 +220,9 @@ local function addActionBarFrame(container, d)
 	anchorDropdownContainer = addon.functions.createContainer("SimpleGroup", "Flow")
 	anchorDropdownContainer:SetFullWidth(true)
 	anchorSection:AddChild(anchorDropdownContainer)
-
 	rebuildAnchorDropdowns()
 
-	groupCore:AddChild(addon.functions.createSpacerAce())
+	parent:AddChild(addon.functions.createSpacerAce())
 
 	local LSM = LibStub("LibSharedMedia-3.0", true)
 	local function buildFontDropdownData()
@@ -319,7 +248,7 @@ local function addActionBarFrame(container, d)
 	local labelGroup = addon.functions.createContainer("InlineGroup", "List")
 	labelGroup:SetTitle(L["actionBarLabelGroupTitle"] or "Button text")
 	labelGroup:SetFullWidth(true)
-	groupCore:AddChild(labelGroup)
+	parent:AddChild(labelGroup)
 
 	local fontList, fontOrder = buildFontDropdownData()
 	local macroControls, hotkeyControls = {}, {}
@@ -392,15 +321,15 @@ local function addActionBarFrame(container, d)
 	hotkeyOverrideCheckbox = addon.functions.createCheckboxAce(L["actionBarHotkeyFontOverride"] or "Change keybind font", addon.db.actionBarHotkeyFontOverride == true, function(_, _, value)
 		addon.db.actionBarHotkeyFontOverride = value and true or false
 		updateLabelControlStates()
-		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyVisibility then ActionBarLabels.RefreshAllHotkeyVisibility() end
 	end)
 	labelGroup:AddChild(hotkeyOverrideCheckbox)
 
 	local hotkeyFontRow = addon.functions.createContainer("SimpleGroup", "Flow")
 	hotkeyFontRow:SetFullWidth(true)
-	local hotkeyFont = addon.functions.createDropdownAce(L["actionBarHotkeyFontLabel"] or "Keybind font", fontList, fontOrder, function(_, _, key)
+	local hotkeyFont = addon.functions.createDropdownAce(L["actionBarHotkeyFontLabel"] or "Hotkey font", fontList, fontOrder, function(_, _, key)
 		addon.db.actionBarHotkeyFontFace = key
-		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyVisibility then ActionBarLabels.RefreshAllHotkeyVisibility() end
 	end)
 	local hotkeyFaceValue = addon.db.actionBarHotkeyFontFace or addon.variables.defaultFont
 	if not fontList[hotkeyFaceValue] then hotkeyFaceValue = addon.variables.defaultFont end
@@ -412,7 +341,7 @@ local function addActionBarFrame(container, d)
 
 	local hotkeyOutline = addon.functions.createDropdownAce(L["actionBarFontOutlineLabel"] or "Font outline", outlineMap, outlineOrder, function(_, _, key)
 		addon.db.actionBarHotkeyFontOutline = key
-		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyVisibility then ActionBarLabels.RefreshAllHotkeyVisibility() end
 	end)
 	hotkeyOutline:SetValue(addon.db.actionBarHotkeyFontOutline or "OUTLINE")
 	hotkeyOutline:SetFullWidth(false)
@@ -422,89 +351,274 @@ local function addActionBarFrame(container, d)
 	labelGroup:AddChild(hotkeyFontRow)
 
 	local hotkeySizeValue = math.floor((addon.db.actionBarHotkeyFontSize or 12) + 0.5)
-	local hotkeySizeLabel = (L["actionBarHotkeyFontSize"] or "Keybind font size") .. ": " .. hotkeySizeValue
+	local hotkeySizeLabel = (L["actionBarHotkeyFontSize"] or "Hotkey font size") .. ": " .. hotkeySizeValue
 	local hotkeySizeSlider = addon.functions.createSliderAce(hotkeySizeLabel, hotkeySizeValue, 8, 24, 1, function(self, _, val)
 		local value = math.floor(val + 0.5)
 		addon.db.actionBarHotkeyFontSize = value
-		self:SetLabel((L["actionBarHotkeyFontSize"] or "Keybind font size") .. ": " .. value)
-		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
+		self:SetLabel((L["actionBarHotkeyFontSize"] or "Hotkey font size") .. ": " .. value)
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyVisibility then ActionBarLabels.RefreshAllHotkeyVisibility() end
 	end)
 	table.insert(hotkeyControls, hotkeySizeSlider)
 	labelGroup:AddChild(hotkeySizeSlider)
 
+	local keybindVisibilityHeader = addon.functions.createLabelAce(L["actionBarKeybindVisibilityHeader"] or "Keybind label visibility", nil, nil, 12)
+	keybindVisibilityHeader:SetFullWidth(true)
+	labelGroup:AddChild(keybindVisibilityHeader)
+
+	local keybindVisibilityContainer = addon.functions.createContainer("SimpleGroup", "Flow")
+	keybindVisibilityContainer:SetFullWidth(true)
+	labelGroup:AddChild(keybindVisibilityContainer)
+
+	for _, cbData in ipairs(addon.variables.actionBarNames) do
+		local cb = addon.functions.createCheckboxAce(cbData.text, addon.db["hideKeybindLabel_" .. cbData.name], function(_, _, value)
+			addon.db["hideKeybindLabel_" .. cbData.name] = value and true or false
+			if ActionBarLabels and ActionBarLabels.ApplySingleHotkeyVisibility then ActionBarLabels.ApplySingleHotkeyVisibility(cbData.name) end
+		end)
+		cb:SetRelativeWidth(0.33)
+		keybindVisibilityContainer:AddChild(cb)
+		table.insert(hotkeyControls, cb)
+	end
+
 	updateLabelControlStates()
+end
 
-	local shortHotkeys = addon.functions.createCheckboxAce(L["actionBarShortHotkeys"] or "Shorten keybind text", addon.db.actionBarShortHotkeys == true, function(_, _, value)
-		addon.db.actionBarShortHotkeys = value and true or false
-		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
-	end, L["actionBarShortHotkeysDesc"])
-	labelGroup:AddChild(shortHotkeys)
+local function addVisibilityHub(container)
+	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
 
-	local perBarGroup = addon.functions.createContainer("InlineGroup", "Flow")
-	perBarGroup:SetTitle(L["actionBarHideHotkeysGroup"] or "Hide keybinds per bar")
-	perBarGroup:SetFullWidth(true)
-	labelGroup:AddChild(perBarGroup)
+	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+	scroll:AddChild(wrapper)
 
-	for _, cbData in ipairs(addon.variables.actionBarNames or {}) do
-		if cbData.name then
-				local checkbox = addon.functions.createCheckboxAce(cbData.text or cbData.name, addon.db.actionBarHiddenHotkeys[cbData.name] == true, function(_, _, value)
-					if value then
-						addon.db.actionBarHiddenHotkeys[cbData.name] = true
-					else
-						addon.db.actionBarHiddenHotkeys[cbData.name] = nil
-					end
-					if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
-				end, L["actionBarHideHotkeysDesc"])
-			checkbox:SetFullWidth(false)
-			if checkbox.SetRelativeWidth then checkbox:SetRelativeWidth(0.5) end
-			perBarGroup:AddChild(checkbox)
+	local function requestLayout()
+		if wrapper and wrapper.DoLayout then wrapper:DoLayout() end
+		if scroll and scroll.DoLayout then scroll:DoLayout() end
+	end
+
+	local introTemplate = L["visibilityHubIntro"]
+	if not introTemplate and L["ActionbarVisibilityExplain"] then
+		introTemplate = L["ActionbarVisibilityExplain"]:format(_G["HUD_EDIT_MODE_SETTING_ACTION_BAR_VISIBLE_SETTING_ALWAYS"], _G["HUD_EDIT_MODE_MENU"])
+	end
+	introTemplate = introTemplate or ""
+	local intro = addon.functions.createLabelAce("|cffffd700" .. introTemplate .. "|r", nil, nil, 12)
+	intro:SetFullWidth(true)
+	wrapper:AddChild(intro)
+	wrapper:AddChild(addon.functions.createSpacerAce())
+
+	local selectorsGroup = addon.functions.createContainer("InlineGroup", "Flow")
+	selectorsGroup:SetTitle(L["visibilitySelectorsTitle"] or L["visibilityKindLabel"] or "Selection")
+	selectorsGroup:SetFullWidth(true)
+	wrapper:AddChild(selectorsGroup)
+
+	local kindOptions = {
+		actionbar = L["visibilityKindActionBars"] or ACTIONBARS_LABEL,
+		frame = L["visibilityKindFrames"] or UNITFRAME_LABEL,
+	}
+	local kindOrder = { "actionbar", "frame" }
+
+	addon.db.visibilityHubSelection = addon.db.visibilityHubSelection or {}
+	local selectionStore = addon.db.visibilityHubSelection
+	local state = { kind = addon.db.visibilityHubKind or "actionbar" }
+	if kindOptions[state.kind] == nil then state.kind = "actionbar" end
+	addon.db.visibilityHubKind = state.kind
+
+	local elementDropdown
+	local currentElementKey
+	local currentElement
+	local elementLookup = {}
+	local visibilityRules = GetVisibilityRuleMetadata() or {}
+	local rebuildScenarioGroup
+	local rebuildExtrasGroup
+	local updateRuleSelection
+
+	local function getElementsForKind(kind)
+		local source = kind == "actionbar" and addon.variables.actionBarNames or addon.variables.unitFrameNames
+		local list, order, lookup = {}, {}, {}
+		for _, entry in ipairs(source) do
+			local key = entry.var or entry.name
+			if key then
+				local label = entry.text or entry.name or key
+				list[key] = label
+				table.insert(order, key)
+				lookup[key] = entry
+			end
+		end
+		table.sort(order, function(a, b)
+			local la = list[a] or a
+			local lb = list[b] or b
+			return la < lb
+		end)
+		return list, order, lookup
+	end
+
+	local function getRulesForCurrentElement()
+		local active = {}
+		for key, data in pairs(visibilityRules) do
+			local allowed = data.appliesTo and data.appliesTo[state.kind]
+			if allowed and data.unitRequirement and currentElement then
+				if currentElement.unitToken ~= data.unitRequirement then allowed = false end
+			end
+			if allowed then table.insert(active, data) end
+		end
+		table.sort(active, function(a, b)
+			local oa = a.order or 999
+			local ob = b.order or 999
+			if oa == ob then return (a.label or a.key) < (b.label or b.key) end
+			return oa < ob
+		end)
+		return active
+	end
+
+	local scenarioGroup = addon.functions.createContainer("InlineGroup", "List")
+	scenarioGroup:SetTitle(L["visibilityScenarioGroupTitle"] or L["ActionBarVisibilityLabel"] or "Visibility")
+	scenarioGroup:SetFullWidth(true)
+	wrapper:AddChild(scenarioGroup)
+
+	local extrasGroup = addon.functions.createContainer("InlineGroup", "List")
+	extrasGroup:SetFullWidth(true)
+	wrapper:AddChild(extrasGroup)
+
+	local function getCurrentConfig()
+		if not currentElement or not currentElement.var then return nil end
+		if state.kind == "actionbar" then
+			return NormalizeActionBarVisibilityConfig(currentElement.var)
+		else
+			return NormalizeUnitFrameVisibilityConfig(currentElement.var)
 		end
 	end
 
-	groupCore:AddChild(addon.functions.createSpacerAce())
-
-	local rangeOptionsGroup
-	local function rebuildRangeOptions()
-		if not rangeOptionsGroup then return end
-		rangeOptionsGroup:ReleaseChildren()
-		if addon.db["actionBarFullRangeColoring"] then
-			local colorPicker = AceGUI:Create("ColorPicker")
-			colorPicker:SetLabel(L["rangeOverlayColor"])
-			local c = addon.db["actionBarFullRangeColor"]
-			colorPicker:SetColor(c.r, c.g, c.b)
-			colorPicker:SetCallback("OnValueChanged", function(_, _, r, g, b)
-				addon.db["actionBarFullRangeColor"] = { r = r, g = g, b = b }
-				if ActionBarLabels and ActionBarLabels.RefreshAllRangeOverlays then ActionBarLabels.RefreshAllRangeOverlays() end
-			end)
-			rangeOptionsGroup:AddChild(colorPicker)
-
-			local alphaPercent = math.floor((addon.db["actionBarFullRangeAlpha"] or 0.35) * 100)
-			local sliderAlpha = addon.functions.createSliderAce(L["rangeOverlayAlpha"] .. ": " .. alphaPercent .. "%", alphaPercent, 1, 100, 1, function(self, _, val)
-				addon.db["actionBarFullRangeAlpha"] = val / 100
-				self:SetLabel(L["rangeOverlayAlpha"] .. ": " .. val .. "%")
-				if ActionBarLabels and ActionBarLabels.RefreshAllRangeOverlays then ActionBarLabels.RefreshAllRangeOverlays() end
-			end)
-			rangeOptionsGroup:AddChild(sliderAlpha)
+	rebuildExtrasGroup = function()
+		extrasGroup:ReleaseChildren()
+		if state.kind == "actionbar" then
+			buildActionBarExtras(extrasGroup)
+		else
+			local note = addon.functions.createLabelAce(L["visibilityFrameExtrasNote"] or "", nil, nil, 12)
+			note:SetFullWidth(true)
+			extrasGroup:AddChild(note)
 		end
-		if rangeOptionsGroup.DoLayout then rangeOptionsGroup:DoLayout() end
+		requestLayout()
 	end
 
-	local cbRange = addon.functions.createCheckboxAce(L["fullButtonRangeColoring"], addon.db["actionBarFullRangeColoring"], function(_, _, value)
-		addon.db["actionBarFullRangeColoring"] = value
-		if ActionBarLabels and ActionBarLabels.RefreshAllRangeOverlays then ActionBarLabels.RefreshAllRangeOverlays() end
-		rebuildRangeOptions()
-	end, L["fullButtonRangeColoringDesc"])
-	groupCore:AddChild(cbRange)
+	updateRuleSelection = function(ruleKey, checked)
+		if not currentElement or not currentElement.var then return end
+		local working = addon.db[currentElement.var]
+		if type(working) ~= "table" then working = {} end
+		if checked then
+			working[ruleKey] = true
+		else
+			working[ruleKey] = nil
+		end
+		if state.kind == "actionbar" then
+			local normalized = NormalizeActionBarVisibilityConfig(currentElement.var, working)
+			UpdateActionBarMouseover(currentElement.name, normalized, currentElement.var)
+		else
+			NormalizeUnitFrameVisibilityConfig(currentElement.var, working)
+			UpdateUnitFrameMouseover(currentElement.name, currentElement)
+		end
+		rebuildScenarioGroup()
+		rebuildExtrasGroup()
+		requestLayout()
+		return true
+	end
 
-	rangeOptionsGroup = addon.functions.createContainer("SimpleGroup", "List")
-	rangeOptionsGroup:SetFullWidth(true)
-	groupCore:AddChild(rangeOptionsGroup)
+	rebuildScenarioGroup = function()
+		scenarioGroup:ReleaseChildren()
+		scenarioGroup:SetTitle(L["visibilityScenarioGroupTitle"] or L["ActionBarVisibilityLabel"] or "Visibility")
+		if not currentElement then
+			local emptyLabel = addon.functions.createLabelAce(L["visibilityNoElement"] or "", nil, nil, 12)
+			emptyLabel:SetFullWidth(true)
+			scenarioGroup:AddChild(emptyLabel)
+			requestLayout()
+			return
+		end
+		local explain
+		if state.kind == "actionbar" and L["ActionbarVisibilityExplain"] then
+			explain = L["ActionbarVisibilityExplain"]:format(_G["HUD_EDIT_MODE_SETTING_ACTION_BAR_VISIBLE_SETTING_ALWAYS"], _G["HUD_EDIT_MODE_MENU"])
+		elseif state.kind == "frame" then
+			explain = L["visibilityFrameExplain"] or L["UnitFrameHideExplain"]
+		end
+		if explain then
+			local lbl = addon.functions.createLabelAce("|cffffd700" .. explain .. "|r", nil, nil, 12)
+			lbl:SetFullWidth(true)
+			scenarioGroup:AddChild(lbl)
+			scenarioGroup:AddChild(addon.functions.createSpacerAce())
+		end
+		local config = getCurrentConfig() or {}
+		local rules = getRulesForCurrentElement()
+		if #rules == 0 then
+			local none = addon.functions.createLabelAce(L["visibilityNoRules"] or "", nil, nil, 12)
+			none:SetFullWidth(true)
+			scenarioGroup:AddChild(none)
+			requestLayout()
+			return
+		end
+		local disableOthers = config.ALWAYS_HIDDEN == true
+		for _, rule in ipairs(rules) do
+			local value = config and config[rule.key] == true
+			local cb = addon.functions.createCheckboxAce(rule.label or rule.key, value, function(_, _, checked)
+				updateRuleSelection(rule.key, checked)
+			end, rule.description)
+			cb:SetRelativeWidth(0.5)
+			if disableOthers and rule.key ~= "ALWAYS_HIDDEN" then cb:SetDisabled(true) end
+			scenarioGroup:AddChild(cb)
+		end
+		if disableOthers then
+			local warn = addon.functions.createLabelAce(L["visibilityAlwaysHiddenActive"] or "", nil, nil, 10)
+			warn:SetFullWidth(true)
+			scenarioGroup:AddChild(addon.functions.createSpacerAce())
+			scenarioGroup:AddChild(warn)
+		end
+		requestLayout()
+	end
 
-	rebuildRangeOptions()
+	local function rebuildElementDropdown()
+		local list, order, lookup = getElementsForKind(state.kind)
+		elementLookup = lookup
+		local desired = selectionStore[state.kind]
+		if not desired or not elementLookup[desired] then desired = order[1] end
+		selectionStore[state.kind] = desired
+		currentElementKey = desired
+		currentElement = desired and elementLookup[desired] or nil
+		elementDropdown:SetList(list, order)
+		elementDropdown:SetDisabled(#order == 0)
+		if desired then
+			elementDropdown:SetValue(desired)
+		else
+			elementDropdown:SetValue(nil)
+		end
+		rebuildScenarioGroup()
+		rebuildExtrasGroup()
+		requestLayout()
+	end
 
-	if groupCore and groupCore.DoLayout then groupCore:DoLayout() end
-	if wrapper and wrapper.DoLayout then wrapper:DoLayout() end
-	if scroll and scroll.DoLayout then scroll:DoLayout() end
+	local kindDropdown = AceGUI:Create("Dropdown")
+	kindDropdown:SetLabel(L["visibilityKindLabel"] or L["visibilitySelectorsTitle"] or "Category")
+	kindDropdown:SetList(kindOptions, kindOrder)
+	kindDropdown:SetValue(state.kind)
+	kindDropdown:SetRelativeWidth(0.5)
+	kindDropdown:SetCallback("OnValueChanged", function(_, _, key)
+		if not kindOptions[key] or state.kind == key then return end
+		state.kind = key
+		addon.db.visibilityHubKind = key
+		rebuildElementDropdown()
+	end)
+	selectorsGroup:AddChild(kindDropdown)
+
+	elementDropdown = AceGUI:Create("Dropdown")
+	elementDropdown:SetLabel(L["visibilityElementLabel"] or UNITFRAME_LABEL)
+	elementDropdown:SetRelativeWidth(0.5)
+	elementDropdown:SetCallback("OnValueChanged", function(_, _, key)
+		if key == currentElementKey then return end
+		selectionStore[state.kind] = key
+		currentElementKey = key
+		currentElement = key and elementLookup[key] or nil
+		rebuildScenarioGroup()
+		rebuildExtrasGroup()
+	end)
+	selectorsGroup:AddChild(elementDropdown)
+
+	rebuildElementDropdown()
 end
 
 
@@ -578,30 +692,10 @@ local function addUnitFrame2(container)
 	local function buildCore()
 		local g, known = ensureGroup("core", "")
 		g:SetLayout("Flow")
-		local labelHeadline = addon.functions.createLabelAce("|cffffd700" .. L["UnitFrameHideExplain"] .. "|r", nil, nil, 14)
+		local labelHeadline = addon.functions.createLabelAce("|cffffd700" .. (L["visibilityUnitFrameRedirect"] or L["UnitFrameHideExplain"]) .. "|r", nil, nil, 14)
 		labelHeadline:SetFullWidth(true)
 		g:AddChild(labelHeadline)
 		g:AddChild(addon.functions.createSpacerAce())
-
-		for _, cbData in ipairs(addon.variables.unitFrameNames) do
-			local dd = AceGUI:Create("Dropdown")
-			dd:SetLabel(cbData.text)
-			local list, order = GetUnitFrameDropdownData(cbData)
-			dd:SetList(list, order)
-			local currentKey = GetUnitFrameDropdownKey(addon.db and addon.db[cbData.var])
-			if not IsVisibilityKeyAllowed(cbData, currentKey) then
-				currentKey = "NONE"
-				if addon.db then addon.db[cbData.var] = nil end
-			end
-			dd:SetValue(currentKey)
-			dd:SetRelativeWidth(0.33)
-			dd:SetCallback("OnValueChanged", function(_, _, key)
-				if not IsVisibilityKeyAllowed(cbData, key) then return end
-				addon.db[cbData.var] = GetUnitFrameValueFromKey(key)
-				UpdateUnitFrameMouseover(cbData.name, cbData)
-			end)
-			g:AddChild(dd)
-		end
 		if known then
 			g:ResumeLayout()
 			doLayout()
@@ -1558,7 +1652,7 @@ end
 
 if addon.functions and addon.functions.RegisterOptionsPage then
 	addon.functions.RegisterOptionsPage("ui", addUIFrame)
-	addon.functions.RegisterOptionsPage("ui\001actionbar", addActionBarFrame)
+	addon.functions.RegisterOptionsPage("ui\001actionbar", addVisibilityHub)
 	addon.functions.RegisterOptionsPage("ui\001chatframe", addChatFrame)
 	addon.functions.RegisterOptionsPage("ui\001unitframe", addUnitFrame2)
 	addon.functions.RegisterOptionsPage("ui\001datapanel", buildDatapanelFrame)

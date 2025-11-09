@@ -364,80 +364,99 @@ local function GameTooltipActionButton(button)
 	button:HookScript("OnLeave", function(self) GameTooltip:Hide() end)
 end
 
-local unitFrameVisibilityOptions = {
-	NONE = { label = L["unitframeVisibility_none"] or NONE or "None", value = false },
-	MOUSEOVER = { label = L["unitframeVisibility_mouseover"] or "Mouseover", value = "MOUSEOVER" },
-	HIDE = { label = L["unitframeVisibility_hide"] or HIDE or "Hide", value = "hide" },
-	SHOW_COMBAT = { label = L["unitframeVisibility_showCombat"] or "Show in combat", value = "[combat] show; hide" },
-	HIDE_COMBAT = { label = L["unitframeVisibility_hideCombat"] or "Hide in combat", value = "[combat] hide; show" },
+local visibilityRuleMetadata = {
+	MOUSEOVER = {
+		key = "MOUSEOVER",
+		label = L["visibilityRule_mouseover"] or (L["ActionBarVisibilityMouseover"] or "Mouseover"),
+		description = L["visibilityRule_mouseover_desc"],
+		appliesTo = { actionbar = true, frame = true },
+		order = 10,
+	},
+	ALWAYS_IN_COMBAT = {
+		key = "ALWAYS_IN_COMBAT",
+		label = L["visibilityRule_inCombat"] or (L["ActionBarVisibilityInCombat"] or "Always in combat"),
+		description = L["visibilityRule_inCombat_desc"],
+		appliesTo = { actionbar = true, frame = true },
+		contextKey = "inCombat",
+		order = 20,
+	},
+	ALWAYS_OUT_OF_COMBAT = {
+		key = "ALWAYS_OUT_OF_COMBAT",
+		label = L["visibilityRule_outCombat"] or (L["ActionBarVisibilityOutOfCombat"] or "Always out of combat"),
+		description = L["visibilityRule_outCombat_desc"],
+		appliesTo = { actionbar = true, frame = true },
+		contextKey = "outOfCombat",
+		order = 30,
+	},
+	PLAYER_HEALTH_NOT_FULL = {
+		key = "PLAYER_HEALTH_NOT_FULL",
+		label = L["visibilityRule_playerHealth"] or "Player health below 100%",
+		description = L["visibilityRule_playerHealth_desc"],
+		appliesTo = { frame = true },
+		unitRequirement = "player",
+		order = 40,
+	},
+	ALWAYS_HIDDEN = {
+		key = "ALWAYS_HIDDEN",
+		label = L["visibilityRule_alwaysHidden"] or "Always hidden",
+		description = L["visibilityRule_alwaysHidden_desc"],
+		appliesTo = { frame = true },
+		advanced = true,
+		order = 100,
+	},
 }
-local unitFrameVisibilityOrder = { "NONE", "MOUSEOVER", "HIDE", "SHOW_COMBAT", "HIDE_COMBAT" }
-local unitFrameVisibilityList = {}
-local unitFrameVisibilityKeyByValue = {}
+addon.constants = addon.constants or {}
+addon.constants.VISIBILITY_RULES = visibilityRuleMetadata
+function addon.functions.GetVisibilityRuleMetadata() return visibilityRuleMetadata end
 
-for key, option in pairs(unitFrameVisibilityOptions) do
-	unitFrameVisibilityList[key] = option.label
-	if option.value then unitFrameVisibilityKeyByValue[option.value] = key end
-end
-unitFrameVisibilityKeyByValue[false] = "NONE"
-
-local function NormalizeUnitFrameSettingValue(value)
-	if value == true then return "MOUSEOVER" end
-	if value == false or value == "" then return nil end
-	return value
-end
-
-local function GetUnitFrameDropdownKey(value)
-	local normalized = NormalizeUnitFrameSettingValue(value)
-	if not normalized then return "NONE" end
-	return unitFrameVisibilityKeyByValue[normalized] or "NONE"
-end
-addon.functions.GetUnitFrameDropdownKey = GetUnitFrameDropdownKey
-
-local function GetUnitFrameValueFromKey(key)
-	local option = unitFrameVisibilityOptions[key]
-	if not option then return nil end
-	if option.value == false then return nil end
-	return option.value
-end
-addon.functions.GetUnitFrameValueFromKey = GetUnitFrameValueFromKey
-
-local function IsVisibilityKeyAllowed(cbData, key)
-	if not key or key == "" then key = "NONE" end
-	if not cbData or not cbData.allowedVisibility then return true end
-	for _, allowedKey in ipairs(cbData.allowedVisibility) do
-		if allowedKey == key then return true end
+local FRAME_VISIBILITY_KEYS = {}
+local ACTIONBAR_VISIBILITY_KEYS = {}
+for key, meta in pairs(visibilityRuleMetadata) do
+	if meta.appliesTo then
+		if meta.appliesTo.frame then FRAME_VISIBILITY_KEYS[key] = true end
+		if meta.appliesTo.actionbar then ACTIONBAR_VISIBILITY_KEYS[key] = true end
 	end
-	return false
 end
-addon.functions.IsVisibilityKeyAllowed = IsVisibilityKeyAllowed
+addon.constants.FRAME_VISIBILITY_KEYS = FRAME_VISIBILITY_KEYS
+addon.constants.ACTIONBAR_VISIBILITY_KEYS = ACTIONBAR_VISIBILITY_KEYS
 
-local function GetUnitFrameDropdownData(cbData)
-	local list = {}
-	local order = {}
-	local sourceOrder = (cbData and cbData.allowedVisibility) or unitFrameVisibilityOrder
-	for _, key in ipairs(sourceOrder) do
-		local label = unitFrameVisibilityList[key]
-		if label then
-			list[key] = label
-			table.insert(order, key)
+local function copyVisibilityFlags(source, allowedKeys)
+	if type(source) ~= "table" then return nil end
+	local result
+	for key in pairs(allowedKeys) do
+		if source[key] then
+			result = result or {}
+			result[key] = true
 		end
 	end
-	return list, order
-end
-addon.functions.GetUnitFrameDropdownData = GetUnitFrameDropdownData
-
-local function GetUnitFrameSettingKey(varName)
-	if not addon.db or not varName then return "NONE" end
-	return GetUnitFrameDropdownKey(addon.db[varName])
+	return result
 end
 
-local function IsUnitFrameSetting(varName, key) return GetUnitFrameSettingKey(varName) == key end
+local function NormalizeUnitFrameVisibilityConfig(varName, incoming)
+	local source = incoming
+	if source == nil and addon.db then source = addon.db[varName] end
+	local config
 
-local function ShouldUseMouseoverSetting(cbData)
-	if not cbData or not cbData.var then return false end
-	return IsUnitFrameSetting(cbData.var, "MOUSEOVER")
+	if type(source) == "table" then
+		config = copyVisibilityFlags(source, FRAME_VISIBILITY_KEYS)
+	elseif source == true or source == "MOUSEOVER" then
+		config = { MOUSEOVER = true }
+	elseif source == "hide" then
+		config = { ALWAYS_HIDDEN = true }
+	elseif source == "[combat] show; hide" then
+		config = { ALWAYS_IN_COMBAT = true }
+	elseif source == "[combat] hide; show" then
+		config = { ALWAYS_OUT_OF_COMBAT = true }
+	elseif source == false or source == "" then
+		config = nil
+	end
+
+	if config and not next(config) then config = nil end
+
+	if addon.db and varName then addon.db[varName] = config end
+	return config
 end
+addon.functions.NormalizeUnitFrameVisibilityConfig = NormalizeUnitFrameVisibilityConfig
 
 local function MigrateLegacyVisibilityFlag(oldKey, targetVar)
 	if not addon.db or addon.db[oldKey] == nil then return end
@@ -469,243 +488,238 @@ end
 
 local UpdateUnitFrameMouseover -- forward declaration
 
-local function ApplyUnitFrameStateDriverImmediate(frame, expression)
-	if not frame then return true end
-	if UnregisterStateDriver then pcall(UnregisterStateDriver, frame, "visibility") end
-	if expression and RegisterStateDriver then
-		local ok, err = pcall(RegisterStateDriver, frame, "visibility", expression)
-		if not ok then
-			frame.EQOL_VisibilityStateDriver = nil
-			return false, err
-		end
-		frame.EQOL_VisibilityStateDriver = expression
-	else
-		frame.EQOL_VisibilityStateDriver = nil
+local frameVisibilityContext = { inCombat = false, playerHealthMissing = false }
+local frameVisibilityStates = {}
+local hookedUnitFrames = {}
+local ApplyFrameVisibilityState -- forward declaration
+
+local function UpdateFrameVisibilityContext()
+	local inCombat = false
+	if InCombatLockdown and InCombatLockdown() then
+		inCombat = true
+	elseif UnitAffectingCombat then
+		inCombat = UnitAffectingCombat('player') and true or false
 	end
-	return true
+	frameVisibilityContext.inCombat = inCombat
+
+	local maxHP = UnitHealthMax and UnitHealthMax('player') or 0
+	local currentHP = UnitHealth and UnitHealth('player') or 0
+	frameVisibilityContext.playerHealthMissing = maxHP > 0 and currentHP < maxHP
 end
 
-local function EnsureUnitFrameDriverWatcher()
+local function SafeRegisterUnitEvent(frame, event, ...)
+	if not frame or not frame.RegisterUnitEvent or type(event) ~= "string" then return false end
+	local ok = pcall(frame.RegisterUnitEvent, frame, event, ...)
+	return ok
+end
+
+local function RefreshAllFrameVisibilities()
+	for _, state in pairs(frameVisibilityStates) do
+		ApplyFrameVisibilityState(state)
+	end
+end
+
+local function EnsureFrameVisibilityWatcher()
 	addon.variables = addon.variables or {}
-	if addon.variables.unitFrameDriverWatcher then return end
+	if addon.variables.frameVisibilityWatcher then return end
 
-	local watcher = CreateFrame("Frame")
-	watcher:SetScript("OnEvent", function(self, event)
-		if event ~= "PLAYER_REGEN_ENABLED" then return end
-		local pending = addon.variables.pendingUnitFrameDriverUpdates
-		if not pending then return end
+	local watcher = CreateFrame('Frame')
+	watcher:SetScript('OnEvent', function(_, event, unit)
+		if
+			event == 'UNIT_HEALTH'
+			or event == 'UNIT_HEALTH_FREQUENT'
+			or event == 'UNIT_MAXHEALTH'
+		then
+			if unit ~= 'player' then return end
+		end
+		UpdateFrameVisibilityContext()
+		RefreshAllFrameVisibilities()
+	end)
+	watcher:RegisterEvent('PLAYER_ENTERING_WORLD')
+	watcher:RegisterEvent('PLAYER_REGEN_DISABLED')
+	watcher:RegisterEvent('PLAYER_REGEN_ENABLED')
+	SafeRegisterUnitEvent(watcher, 'UNIT_HEALTH', 'player')
+	SafeRegisterUnitEvent(watcher, 'UNIT_HEALTH_FREQUENT', 'player')
+	SafeRegisterUnitEvent(watcher, 'UNIT_MAXHEALTH', 'player')
+	addon.variables.frameVisibilityWatcher = watcher
+	UpdateFrameVisibilityContext()
+end
 
-		addon.variables.pendingUnitFrameDriverUpdates = nil
-		for frameRef, data in pairs(pending) do
-			if frameRef then
-				ApplyUnitFrameStateDriverImmediate(frameRef, data.expression)
-				if data.cbData and data.cbData.name then UpdateUnitFrameMouseover(data.cbData.name, data.cbData) end
+local function EvaluateFrameVisibility(state)
+	local cfg = state.config
+	if not cfg or not next(cfg) then return nil end
+
+	if cfg.ALWAYS_HIDDEN then return false end
+	local context = frameVisibilityContext
+
+	if cfg.ALWAYS_IN_COMBAT and context.inCombat then return true end
+	if cfg.ALWAYS_OUT_OF_COMBAT and not context.inCombat then return true end
+	if cfg.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule and context.playerHealthMissing then return true end
+	if cfg.MOUSEOVER and state.isMouseOver then return true end
+
+	return false
+end
+
+local function ApplyToFrameAndChildren(state, alpha)
+	local frame = state.frame
+	if frame then
+		if frame.Show then frame:Show() end
+		if frame.SetAlpha then frame:SetAlpha(alpha) end
+	end
+
+	if state.cbData and state.cbData.children then
+		for _, child in pairs(state.cbData.children) do
+			if child and child.SetAlpha then child:SetAlpha(alpha) end
+		end
+	end
+
+	if state.cbData and state.cbData.hideChildren then
+		for _, child in pairs(state.cbData.hideChildren) do
+			if child then
+				if alpha > 0 then
+					if child.Show then child:Show() end
+				else
+					if child.Hide then child:Hide() end
+				end
 			end
+		end
+	end
+end
+
+local function genericHoverOutCheck(state)
+	if not state or not state.frame then return end
+	if not state.config or not state.config.MOUSEOVER then return end
+
+	C_Timer.After(0.05, function()
+		if not state.frame or frameVisibilityStates[state.frame] ~= state then return end
+		if not state.frame:IsVisible() then return end
+
+		local hovered = MouseIsOver(state.frame)
+		if not hovered and state.cbData and state.cbData.revealAllChilds and state.cbData.children then
+			for _, child in pairs(state.cbData.children) do
+				if child and child:IsVisible() and MouseIsOver(child) then
+					hovered = true
+					break
+				end
+			end
+		end
+
+		state.isMouseOver = hovered
+		if hovered then
+			C_Timer.After(0.3, function()
+				if frameVisibilityStates[state.frame] == state then genericHoverOutCheck(state) end
+			end)
+		else
+			ApplyFrameVisibilityState(state)
 		end
 	end)
-	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
-	addon.variables.unitFrameDriverWatcher = watcher
 end
 
-local function QueueUnitFrameDriverUpdate(frame, expression, cbData)
-	EnsureUnitFrameDriverWatcher()
-	addon.variables.pendingUnitFrameDriverUpdates = addon.variables.pendingUnitFrameDriverUpdates or {}
-	addon.variables.pendingUnitFrameDriverUpdates[frame] = { expression = expression, cbData = cbData }
-end
-
-local function ApplyUnitFrameStateDriver(frame, expression, cbData)
-	if not frame then return true end
-	if InCombatLockdown and InCombatLockdown() then
-		QueueUnitFrameDriverUpdate(frame, expression, cbData)
-		return nil, "DEFERRED"
+ApplyFrameVisibilityState = function(state)
+	local cfg = state.config
+	if not cfg or not next(cfg) then
+		if state.visible ~= nil then RestoreUnitFrameVisibility(state.frame, state.cbData) end
+		frameVisibilityStates[state.frame] = nil
+		return
 	end
-	return ApplyUnitFrameStateDriverImmediate(frame, expression)
+
+	EnsureFrameVisibilityWatcher()
+	local shouldShow = EvaluateFrameVisibility(state)
+	if shouldShow then
+		if state.visible == true then return end
+		ApplyToFrameAndChildren(state, 1)
+		state.visible = true
+	else
+		if state.visible == false then return end
+		ApplyToFrameAndChildren(state, 0)
+		state.visible = false
+	end
 end
 
-local function genericHoverOutCheck(frame, cbData)
-	if not ShouldUseMouseoverSetting(cbData) then return end
+local function HookFrameForMouseover(frame, cbData)
+	if hookedUnitFrames[frame] then return end
 
-	if frame and frame:IsVisible() then
-		if not MouseIsOver(frame) then
-			if frame.SetAlpha then frame:SetAlpha(0) end
-			if cbData and cbData.children then
-				for _, v in pairs(cbData.children) do
-					if v and v.SetAlpha then v:SetAlpha(0) end
-				end
+	local function handleEnter()
+		local state = frameVisibilityStates[frame]
+		if not state or not state.config or not state.config.MOUSEOVER then return end
+		state.isMouseOver = true
+		ApplyFrameVisibilityState(state)
+	end
+
+	local function handleLeave()
+		local state = frameVisibilityStates[frame]
+		if not state then return end
+		genericHoverOutCheck(state)
+	end
+
+	if frame.OnEnter or frame:GetScript('OnEnter') then
+		frame:HookScript('OnEnter', handleEnter)
+	else
+		frame:SetScript('OnEnter', handleEnter)
+	end
+
+	if frame.OnLeave or frame:GetScript('OnLeave') then
+		frame:HookScript('OnLeave', handleLeave)
+	else
+		frame:SetScript('OnLeave', handleLeave)
+	end
+
+	if cbData and cbData.children and cbData.revealAllChilds then
+		for _, child in pairs(cbData.children) do
+			if child and not child.EQOL_MouseoverHooked then
+				child:HookScript('OnEnter', function()
+					local state = frameVisibilityStates[frame]
+					if not state or not state.config or not state.config.MOUSEOVER then return end
+					state.isMouseOver = true
+					ApplyFrameVisibilityState(state)
+				end)
+				child:HookScript('OnLeave', function()
+					local state = frameVisibilityStates[frame]
+					if not state then return end
+					genericHoverOutCheck(state)
+				end)
+				child.EQOL_MouseoverHooked = true
 			end
-			if cbData and cbData.hideChildren then
-				for _, v in pairs(cbData.hideChildren) do
-					if v and v.Hide then v:Hide() end
-				end
-			end
-		else
-			C_Timer.After(0.3, function() genericHoverOutCheck(frame, cbData) end)
 		end
 	end
+
+	hookedUnitFrames[frame] = true
 end
 
-local hookedUnitFrames = {}
+local function EnsureFrameState(frame, cbData)
+	local state = frameVisibilityStates[frame]
+	if not state then
+		state = { frame = frame, cbData = cbData, isMouseOver = false }
+		frameVisibilityStates[frame] = state
+		HookFrameForMouseover(frame, cbData)
+	else
+		state.cbData = cbData
+	end
+	return state
+end
+
 UpdateUnitFrameMouseover = function(barName, cbData)
 	if not cbData or not cbData.var then return end
 
 	local frame = _G[barName]
 	if not frame then return end
 
-	local stored = addon.db and addon.db[cbData.var]
-	if stored == true then
-		stored = "MOUSEOVER"
-	elseif stored == false or stored == "" then
-		stored = nil
-	end
-
-	local currentKey = GetUnitFrameDropdownKey(stored)
-	if not IsVisibilityKeyAllowed(cbData, currentKey) then
-		currentKey = "NONE"
-		stored = nil
-	end
-
-	if currentKey ~= "NONE" and cbData.disableSetting then
-		for _, v in pairs(cbData.disableSetting) do
-			addon.db[v] = false
-		end
-	end
-	local isMouseover = currentKey == "MOUSEOVER"
-	local driverExpression
-	if currentKey ~= "NONE" and currentKey ~= "MOUSEOVER" then
-		local option = unitFrameVisibilityOptions[currentKey]
-		driverExpression = option and option.value or nil
-		stored = driverExpression
-	elseif isMouseover then
-		stored = "MOUSEOVER"
-	else
-		stored = nil
-	end
-
-	if addon.db then addon.db[cbData.var] = stored end
-
-	if not hookedUnitFrames[frame] then
-		local function handleEnter(self)
-			if not ShouldUseMouseoverSetting(cbData) then return end
-			if self and self.SetAlpha then self:SetAlpha(1) end
-			if cbData.children then
-				for _, child in pairs(cbData.children) do
-					if child and child.SetAlpha then child:SetAlpha(1) end
-				end
-			end
-			if cbData.hideChildren then
-				for _, child in pairs(cbData.hideChildren) do
-					if child and child.Show then child:Show() end
-				end
-			end
-		end
-
-		local function handleLeave(self)
-			if not ShouldUseMouseoverSetting(cbData) then return end
-			genericHoverOutCheck(self, cbData)
-		end
-
-		if frame.OnEnter or frame:GetScript("OnEnter") then
-			frame:HookScript("OnEnter", handleEnter)
-		else
-			frame:SetScript("OnEnter", handleEnter)
-		end
-
-		if frame.OnLeave or frame:GetScript("OnLeave") then
-			frame:HookScript("OnLeave", handleLeave)
-		else
-			frame:SetScript("OnLeave", handleLeave)
-		end
-
-		if cbData.children then
-			for _, child in ipairs(cbData.children) do
-				if child and cbData.revealAllChilds then
-					child:HookScript("OnEnter", function()
-						if not ShouldUseMouseoverSetting(cbData) then return end
-						if frame.SetAlpha then frame:SetAlpha(1) end
-						for _, sibling in ipairs(cbData.children) do
-							if sibling and sibling.SetAlpha then sibling:SetAlpha(1) end
-						end
-					end)
-					child:HookScript("OnLeave", function() genericHoverOutCheck(frame, cbData) end)
-				end
-				if child then child.EQOL_MouseoverHooked = true end
-			end
-		end
-
-		hookedUnitFrames[frame] = true
-	end
-
-	if InCombatLockdown and InCombatLockdown() then
-		QueueUnitFrameDriverUpdate(frame, isMouseover and nil or driverExpression, cbData)
+	local config = NormalizeUnitFrameVisibilityConfig(cbData.var)
+	if not config then
+		RestoreUnitFrameVisibility(frame, cbData)
+		frameVisibilityStates[frame] = nil
 		return
 	end
 
-	if isMouseover then
-		ApplyUnitFrameStateDriver(frame, nil, cbData)
-		RestoreUnitFrameVisibility(frame, cbData)
-		if frame.Show then frame:Show() end
-		if frame.SetAlpha then frame:SetAlpha(0) end
-		if cbData.children then
-			for _, child in ipairs(cbData.children) do
-				if child and child.SetAlpha then child:SetAlpha(0) end
-			end
-		end
-		if cbData.hideChildren then
-			for _, child in ipairs(cbData.hideChildren) do
-				if child and child.Hide then child:Hide() end
-			end
-		end
-
-		C_Timer.After(0, function()
-			if not ShouldUseMouseoverSetting(cbData) then return end
-			if not frame then return end
-			local hovered = MouseIsOver(frame)
-			if not hovered and cbData and cbData.revealAllChilds and cbData.children then
-				for _, child in pairs(cbData.children) do
-					if child and child:IsVisible() and MouseIsOver(child) then
-						hovered = true
-						break
-					end
-				end
-			end
-			if hovered then
-				if frame.SetAlpha then frame:SetAlpha(1) end
-				if cbData.children then
-					for _, child in pairs(cbData.children) do
-						if child and child.SetAlpha then child:SetAlpha(1) end
-					end
-				end
-				if cbData.hideChildren then
-					for _, child in pairs(cbData.hideChildren) do
-						if child and child.Show then child:Show() end
-					end
-				end
-			else
-				if frame.SetAlpha then frame:SetAlpha(0) end
-				if cbData.children then
-					for _, child in pairs(cbData.children) do
-						if child and child.SetAlpha then child:SetAlpha(0) end
-					end
-				end
-				if cbData.hideChildren then
-					for _, child in pairs(cbData.hideChildren) do
-						if child and child.Hide then child:Hide() end
-					end
-				end
-			end
-		end)
+	local state = EnsureFrameState(frame, cbData)
+	state.config = config
+	state.supportsPlayerHealthRule = (cbData.unitToken == 'player')
+	if config.MOUSEOVER then
+		state.isMouseOver = MouseIsOver(frame)
 	else
-		RestoreUnitFrameVisibility(frame, cbData)
-		local ok, err = ApplyUnitFrameStateDriver(frame, driverExpression, cbData)
-		if not ok then
-			if err ~= "DEFERRED" then
-				addon.variables.requireReload = true
-				if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
-			end
-			return
-		end
-		if not driverExpression and frame.Show then frame:Show() end
+		state.isMouseOver = false
 	end
+	ApplyFrameVisibilityState(state)
 end
 addon.functions.UpdateUnitFrameMouseover = UpdateUnitFrameMouseover
 
@@ -5286,7 +5300,7 @@ local function CreateUI()
 		value = "ui",
 		text = L["UIInput"],
 		children = {
-			{ value = "actionbar", text = ACTIONBARS_LABEL },
+			{ value = "actionbar", text = L["VisibilityHubName"] or ACTIONBARS_LABEL },
 			{ value = "chatframe", text = HUD_EDIT_MODE_CHAT_FRAME_LABEL },
 			{ value = "unitframe", text = UNITFRAME_LABEL },
 			{ value = "datapanel", text = "Datapanel" },
