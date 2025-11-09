@@ -397,6 +397,13 @@ local visibilityRuleMetadata = {
 		unitRequirement = "player",
 		order = 40,
 	},
+	SKYRIDING_ACTIVE = {
+		key = "SKYRIDING_ACTIVE",
+		label = L["visibilityRule_skyriding"] or "While skyriding",
+		description = L["visibilityRule_skyriding_desc"],
+		appliesTo = { actionbar = true },
+		order = 25,
+	},
 	ALWAYS_HIDDEN = {
 		key = "ALWAYS_HIDDEN",
 		label = L["visibilityRule_alwaysHidden"] or "Always hidden",
@@ -482,7 +489,7 @@ local function RestoreUnitFrameVisibility(frame, cbData)
 	end
 	if cbData and cbData.hideChildren then
 		for _, child in pairs(cbData.hideChildren) do
-			if child and child.Show then child:Show() end
+			if child and child.SetAlpha then child:SetAlpha(1) end
 		end
 	end
 end
@@ -525,6 +532,62 @@ local function FrameVisibilityNeedsHealthRule()
 		if state.config and state.config.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule then return true end
 	end
 	return false
+end
+
+local function BuildUnitFrameDriverExpression(config)
+	if not config then return nil end
+	if config.ALWAYS_HIDDEN then return "hide" end
+	local inCombat = config.ALWAYS_IN_COMBAT == true
+	local outCombat = config.ALWAYS_OUT_OF_COMBAT == true
+	if inCombat and outCombat then return "show" end
+	if inCombat then return "[combat] show; hide" end
+	if outCombat then return "[combat] hide; show" end
+	return nil
+end
+
+local function EnsureUnitFrameDriverWatcher()
+	addon.variables = addon.variables or {}
+	if addon.variables.unitFrameDriverWatcher then return end
+	local watcher = CreateFrame("Frame")
+	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+	watcher:SetScript("OnEvent", function()
+		local pending = addon.variables.pendingUnitFrameDriverUpdates
+		if not pending then return end
+		addon.variables.pendingUnitFrameDriverUpdates = nil
+		for frame, data in pairs(pending) do
+			if frame then
+				if not data or not data.expression then
+					if UnregisterStateDriver then pcall(UnregisterStateDriver, frame, "visibility") end
+					frame.EQOL_VisibilityStateDriver = nil
+				elseif RegisterStateDriver then
+					local ok = pcall(RegisterStateDriver, frame, "visibility", data.expression)
+					if ok then frame.EQOL_VisibilityStateDriver = data.expression end
+				end
+			end
+		end
+	end)
+	addon.variables.unitFrameDriverWatcher = watcher
+end
+
+local function ApplyUnitFrameStateDriver(frame, expression)
+	if not frame then return end
+	if frame.EQOL_VisibilityStateDriver == expression then return end
+	if InCombatLockdown and InCombatLockdown() then
+		addon.variables = addon.variables or {}
+		addon.variables.pendingUnitFrameDriverUpdates = addon.variables.pendingUnitFrameDriverUpdates or {}
+		addon.variables.pendingUnitFrameDriverUpdates[frame] = { expression = expression }
+		EnsureUnitFrameDriverWatcher()
+		return
+	end
+	if not expression then
+		if UnregisterStateDriver then pcall(UnregisterStateDriver, frame, "visibility") end
+		frame.EQOL_VisibilityStateDriver = nil
+		return
+	end
+	if RegisterStateDriver then
+		local ok = pcall(RegisterStateDriver, frame, "visibility", expression)
+		if ok then frame.EQOL_VisibilityStateDriver = expression end
+	end
 end
 
 local function UpdateFrameVisibilityHealthRegistration()
@@ -598,7 +661,6 @@ end
 local function ApplyToFrameAndChildren(state, alpha)
 	local frame = state.frame
 	if frame then
-		if frame.Show then frame:Show() end
 		if frame.SetAlpha then frame:SetAlpha(alpha) end
 	end
 
@@ -610,13 +672,7 @@ local function ApplyToFrameAndChildren(state, alpha)
 
 	if state.cbData and state.cbData.hideChildren then
 		for _, child in pairs(state.cbData.hideChildren) do
-			if child then
-				if alpha > 0 then
-					if child.Show then child:Show() end
-				else
-					if child.Hide then child:Hide() end
-				end
-			end
+			if child and child.SetAlpha then child:SetAlpha(alpha) end
 		end
 	end
 end
@@ -658,6 +714,8 @@ ApplyFrameVisibilityState = function(state)
 		UpdateFrameVisibilityHealthRegistration()
 		return
 	end
+
+	if state.driverActive then return end
 
 	EnsureFrameVisibilityWatcher()
 	local shouldShow = EvaluateFrameVisibility(state)
@@ -743,6 +801,7 @@ UpdateUnitFrameMouseover = function(barName, cbData)
 
 	local config = NormalizeUnitFrameVisibilityConfig(cbData.var)
 	if not config then
+		ApplyUnitFrameStateDriver(frame, nil)
 		RestoreUnitFrameVisibility(frame, cbData)
 		frameVisibilityStates[frame] = nil
 		UpdateFrameVisibilityHealthRegistration()
@@ -752,12 +811,39 @@ UpdateUnitFrameMouseover = function(barName, cbData)
 	local state = EnsureFrameState(frame, cbData)
 	state.config = config
 	state.supportsPlayerHealthRule = (cbData.unitToken == 'player')
+
+	local driverExpression = BuildUnitFrameDriverExpression(config)
+	local needsHealth = config and config.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule
+	local useDriver = driverExpression and not config.MOUSEOVER and not needsHealth
+
+	if useDriver then
+		state.driverActive = true
+		ApplyUnitFrameStateDriver(frame, driverExpression)
+		if frame.SetAlpha then frame:SetAlpha(1) end
+		if cbData.children then
+			for _, child in ipairs(cbData.children) do
+				if child and child.SetAlpha then child:SetAlpha(1) end
+			end
+		end
+		if cbData.hideChildren then
+			for _, child in pairs(cbData.hideChildren) do
+				if child and child.SetAlpha then child:SetAlpha(1) end
+			end
+		end
+		UpdateFrameVisibilityHealthRegistration()
+		return
+	end
+
+	state.driverActive = false
+	ApplyUnitFrameStateDriver(frame, nil)
+
 	if config.MOUSEOVER then
 		state.isMouseOver = MouseIsOver(frame)
 	else
 		state.isMouseOver = false
 	end
 	ApplyFrameVisibilityState(state)
+	UpdateFrameVisibilityHealthRegistration()
 end
 addon.functions.UpdateUnitFrameMouseover = UpdateUnitFrameMouseover
 
@@ -790,18 +876,20 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			MOUSEOVER = source.MOUSEOVER == true,
 			ALWAYS_IN_COMBAT = source.ALWAYS_IN_COMBAT == true,
 			ALWAYS_OUT_OF_COMBAT = source.ALWAYS_OUT_OF_COMBAT == true,
+			SKYRIDING_ACTIVE = source.SKYRIDING_ACTIVE == true,
 		}
 	elseif source == true then
 		config = {
 			MOUSEOVER = true,
 			ALWAYS_IN_COMBAT = false,
 			ALWAYS_OUT_OF_COMBAT = false,
+			SKYRIDING_ACTIVE = false,
 		}
 	else
 		config = nil
 	end
 
-	if config and not (config.MOUSEOVER or config.ALWAYS_IN_COMBAT or config.ALWAYS_OUT_OF_COMBAT) then config = nil end
+	if config and not (config.MOUSEOVER or config.ALWAYS_IN_COMBAT or config.ALWAYS_OUT_OF_COMBAT or config.SKYRIDING_ACTIVE) then config = nil end
 
 	if persistLegacy and addon.db then
 		if not config then
@@ -811,6 +899,7 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			if config.MOUSEOVER then stored.MOUSEOVER = true end
 			if config.ALWAYS_IN_COMBAT then stored.ALWAYS_IN_COMBAT = true end
 			if config.ALWAYS_OUT_OF_COMBAT then stored.ALWAYS_OUT_OF_COMBAT = true end
+			if config.SKYRIDING_ACTIVE then stored.SKYRIDING_ACTIVE = true end
 			addon.db[variable] = stored
 		end
 	end
@@ -823,6 +912,7 @@ addon.functions.NormalizeActionBarVisibilityConfig = NormalizeActionBarVisibilit
 
 local function ActionBarShouldForceShowByConfig(config, combatOverride)
 	if not config then return false end
+	if config.SKYRIDING_ACTIVE and addon.variables and addon.variables.isPlayerSkyriding then return true end
 	local inCombat = combatOverride
 	if inCombat == nil then inCombat = InCombatLockdown and InCombatLockdown() end
 	if inCombat then return config.ALWAYS_IN_COMBAT == true end
@@ -1004,14 +1094,36 @@ local function RefreshAllActionBarVisibilityAlpha(_, event)
 	end
 end
 
+local function EnsureSkyridingStateDriver()
+	addon.variables = addon.variables or {}
+	if addon.variables.skyridingDriver then return end
+	local driver = CreateFrame("Frame")
+	driver:Hide()
+	driver:SetScript("OnShow", function()
+		addon.variables.isPlayerSkyriding = true
+		RefreshAllActionBarVisibilityAlpha()
+	end)
+	driver:SetScript("OnHide", function()
+		addon.variables.isPlayerSkyriding = false
+		RefreshAllActionBarVisibilityAlpha()
+	end)
+	local expr = "[advancedflyable, mounted] show; [advancedflyable, stance:3] show; hide"
+	RegisterStateDriver(driver, "visibility", expr)
+	addon.variables.skyridingDriver = driver
+	addon.variables.isPlayerSkyriding = driver:IsShown()
+end
+
 local function EnsureActionBarVisibilityWatcher()
 	addon.variables = addon.variables or {}
 	if addon.variables.actionBarVisibilityWatcher then return end
+	EnsureSkyridingStateDriver()
 	local watcher = CreateFrame("Frame")
 	watcher:RegisterEvent("PLAYER_REGEN_DISABLED")
 	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
 	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
-	watcher:SetScript("OnEvent", RefreshAllActionBarVisibilityAlpha)
+	watcher:SetScript("OnEvent", function(_, event)
+		RefreshAllActionBarVisibilityAlpha(nil, event)
+	end)
 	addon.variables.actionBarVisibilityWatcher = watcher
 end
 

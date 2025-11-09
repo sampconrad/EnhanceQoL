@@ -348,7 +348,7 @@ EnhanceQoLLegionRemixPhaseData = {
 	},
 	rare_appearance = {
 		[242368] = 1, -- The First Satyr's Spaulders
-		[151524] = 3, -- Hammer of Vigilance
+		[89458] = 3, -- Hammer of Vigilance
 		[255006] = 4, -- Taeshalach (Set)
 		[253273] = 4, -- Scythe of the Unmaker (Set)
 	},

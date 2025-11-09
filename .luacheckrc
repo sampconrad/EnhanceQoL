@@ -1985,6 +1985,7 @@ globals = {
 	"FRIENDS_TEXTURE_OFFLINE",
 	"GroupLootFrame1",
 	"NUM_GROUP_LOOT_FRAMES",
+	"REWARD",
 	"ActionBarActionButtonMixin",
 	"ActionButton_UpdateRangeIndicator",
 	"FriendsFrame_UpdateFriendButton",

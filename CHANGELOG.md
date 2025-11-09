@@ -5,12 +5,20 @@
 ### ✨ Added
 
 - **Visibility Hub** (UI → Action Bar) lets you pick any Blizzard action bar or frame, then mix-and-match mouseover, combat, and the new “Player health below 100%” triggers with a single dropdown workflow. Action bars still expose their anchor/keybind extras when selected.
+- Action bars gained a dedicated “While skyriding” visibility rule so you can force a bar (e.g., Action Bar 1) to appear when using Skyriding/Dragonriding abilities.
 - Legion Remix achievements can now list their reward items directly in the missing-items tooltip, complete with item-quality coloring.
 
 ### 🔄 Changed
 
 - Unit frame visibility now uses the same scenario model as action bars, enabling multiple states per frame while keeping legacy “always hide” support.
 - Health-triggered frame fades only register the relevant unit events when a frame actually uses that rule, and updates are throttled to avoid `UNIT_HEALTH_FREQUENT` spam.
+
+### 🐛 Fixed
+
+- Creating checkboxes for frames without localized labels no longer throws `string.format` errors in `createCheckboxAce`.
+- Missing locale strings for the new rules and keybind header have been filled so AceLocale stops complaining at load.
+- The Visibility Hub scroll frame now refreshes its layout after every dropdown or rule change, preventing compressed/overlapping controls.
+- Frame visibility changes now rely on secure state drivers (or out-of-combat alpha fades), preventing `PlayerFrame:Show()` taint during combat.
 
 ---
 

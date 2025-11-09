@@ -812,7 +812,9 @@ local CATEGORY_DATA = {
 		key = "rare_appearance",
 		label = L["Rare Appearance"],
 		groups = {
-			{ type = "transmog", cost = 30000, items = { 242368, 151524, 255006, 253273 } },
+
+			{ type = "set_transmog_source", cost = 30000, items = { 89458 } },
+			{ type = "transmog", cost = 30000, items = { 242368, 255006, 253273 } },
 		},
 	},
 	{
@@ -1854,9 +1856,7 @@ local function addItemResult(result, owned, cost, entry)
 end
 
 local function normalizeRewardItemId(value)
-	if type(value) == "table" then
-		value = value.itemId or value.itemID or value.id or value.reward or value.item
-	end
+	if type(value) == "table" then value = value.itemId or value.itemID or value.id or value.reward or value.item end
 	if value == nil or value == "" then return nil end
 	return tonumber(value) or value
 end
@@ -1885,9 +1885,7 @@ end
 
 local function resolveRewardItems(group, entryOptions, achievementId)
 	local rewards = nil
-	if entryOptions then
-		rewards = normalizeRewardItemsList(entryOptions.rewardItems or entryOptions.rewards or entryOptions.rewardItem)
-	end
+	if entryOptions then rewards = normalizeRewardItemsList(entryOptions.rewardItems or entryOptions.rewards or entryOptions.rewardItem) end
 	if rewards then return rewards end
 	if not (group and achievementId) then return nil end
 	local groupLookup = group.rewardItems or group.rewards or group.rewardItem
@@ -2030,6 +2028,17 @@ function LegionRemix:ProcessGroup(categoryResult, group)
 			end
 			applyCategoryPhaseKind(entry, categoryResult, group)
 			local owned = self:PlayerHasTransmog(itemId, itemAppearanceModID)
+			addItemResult(categoryResult, owned, cost, entry)
+		end
+		return
+	end
+
+	if group.type == "set_transmog_source" then
+		local cost = group.cost or 0
+		local requirements = group.requirements
+		for _, appearanceId in ipairs(group.items) do
+			local entry = { kind = "transmog", id = appearanceId }
+			local owned = C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance(appearanceId)
 			addItemResult(categoryResult, owned, cost, entry)
 		end
 		return
