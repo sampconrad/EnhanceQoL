@@ -1115,8 +1115,9 @@ if not Ignore.tooltipHookInstalled then
 	GameTooltip:HookScript("OnShow", function(tooltip)
 		if tooltip:IsForbidden() or tooltip:IsProtected() then return end
 		if not addon.db or not addon.db.ignoreTooltipNote then return end
-		local _, unit = tooltip:GetUnit()
-		if not unit or not UnitIsPlayer(unit) then return end
+		-- local _, unit = tooltip:GetUnit()
+		local unit = "mouseover"
+		if not UnitExists(unit) or not UnitIsPlayer(unit) then return end
 		local name, realm = UnitName(unit)
 		if not name then return end
 		realm = realm and realm ~= "" and realm or (GetRealmName()):gsub("%s", "")

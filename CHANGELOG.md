@@ -10,6 +10,7 @@
 ### 🐛 Fixed
 
 - Nameplate health percent/absolute fixed for midnight beta
+- Tooltip error while hovering and enabled ignore list
 
 ---
 
