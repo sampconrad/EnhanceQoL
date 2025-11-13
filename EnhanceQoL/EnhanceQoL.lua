@@ -898,10 +898,12 @@ UpdateUnitFrameMouseover = function(barName, cbData)
 	if not cbData or not cbData.var then return end
 
 	local config = NormalizeUnitFrameVisibilityConfig(cbData.var)
-	local handled = false
+	-- local handled = false
 
 	local function processTarget(name)
-		if ApplyVisibilityToUnitFrame(name, cbData, config) then handled = true end
+		if ApplyVisibilityToUnitFrame(name, cbData, config) then 
+			-- handled = true 
+		end
 	end
 
 	local onlyChildren = cbData.onlyChildren
