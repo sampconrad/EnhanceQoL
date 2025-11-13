@@ -901,8 +901,8 @@ UpdateUnitFrameMouseover = function(barName, cbData)
 	-- local handled = false
 
 	local function processTarget(name)
-		if ApplyVisibilityToUnitFrame(name, cbData, config) then 
-			-- handled = true 
+		if ApplyVisibilityToUnitFrame(name, cbData, config) then
+			-- handled = true
 		end
 	end
 
