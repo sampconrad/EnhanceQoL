@@ -11,18 +11,20 @@ end
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 -- (no direct LSM/AceGUI usage here; UI rendering handled in submodules)
 
+local children = {
+	{ value = "bufftracker", text = L["BuffTracker"] }, -- Aura Tracker
+}
+if not addon.variables.isMidnight then
+	table.insert(children, { value = "casttracker", text = L["CastTracker"] or "Cast Tracker" })
+	table.insert(children, { value = "cooldownnotify", text = L["CooldownNotify"] or "Cooldown Notify" })
+end
 -- Group Aura subfeatures under Combat Assist within Combat & Dungeons
 addon.functions.addToTree("combat", {
 	value = "combatassist",
 	text = L["CombatAssist"] or "Combat Assist",
-	children = {
-		{ value = "bufftracker", text = L["BuffTracker"] }, -- Aura Tracker
-		{ value = "casttracker", text = L["CastTracker"] or "Cast Tracker" },
-		{ value = "cooldownnotify", text = L["CooldownNotify"] or "Cooldown Notify" },
-	},
+	children = children,
 })
 
--- TODO add an information dialog to the root node with informations and a discord link for "minimal Auras in M+ etc."
 function addon.Aura.functions.treeCallback(container, group)
 	container:ReleaseChildren()
 	-- Normalize group to last segment (supports legacy "aura\001..." and new "combat\001..." paths)

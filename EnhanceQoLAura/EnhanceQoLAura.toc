@@ -1,4 +1,4 @@
-## Interface: 110000, 110002, 110005, 110007, 110100, 110105, 110107, 110200, 110205, 110207
+## Interface: 110000, 110002, 110005, 110007, 110100, 110105, 110107, 110200, 110205, 110207, 120000
 ## Title: Aura
 ## Author: R41Z0R
 ## Version: @project-version@
@@ -27,5 +27,5 @@ Init.lua
 ResourceBars.lua
 EnhanceQoLAura.lua
 BuffTracker.lua
-#CastTracker.lua
-#CooldownNotify.lua
+CastTracker.lua
+CooldownNotify.lua

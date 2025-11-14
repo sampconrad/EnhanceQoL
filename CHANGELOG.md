@@ -4,6 +4,18 @@
 
 ## Midnight beta changes
 
+### Side-note
+
+- Cooldowntracker of trinkets is still working in _Aura Tracker_
+
+### 🔄 Changed
+
+- _Aura Tracker_
+  - Tracking of auras infight is completely guarded, currently close to zero auras are iteratable in combat - everything is checked after combat/when restrictions are lifted
+  - After combat everything new will be checked and displayed
+  - Resource bars are 100% midnight compatible
+    - Smooth-bars option is disabled, but blizzard will bring a new feature for that
+
 ### ⏰ temporary disabled
 
 - Tooltip features
@@ -28,6 +40,7 @@
   - Potiontracker
 - Aura features
   - Casttracker
+  - Cooldown notify
 
 ### 🐛 Fixed
 

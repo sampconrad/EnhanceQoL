@@ -7,6 +7,7 @@ if _G[parentAddonName] then
 else
 	error(parentAddonName .. " is not loaded")
 end
+if addon.variables.isMidnight then return end
 
 addon.Aura = addon.Aura or {}
 addon.Aura.CooldownNotify = addon.Aura.CooldownNotify or {}
