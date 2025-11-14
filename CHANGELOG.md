@@ -11,6 +11,10 @@ Here’s what currently works, what’s limited, and what’s turned off in the 
 
 - The **trinket cooldown tracking** inside **_Aura Tracker_** still works.
 
+### ✨ Added
+
+- Dungeon teleports and talent reminder for midnight dungeon
+
 ### 🔄 Changed
 
 - **Aura Tracker**

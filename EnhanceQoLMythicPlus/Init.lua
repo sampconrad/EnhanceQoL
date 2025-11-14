@@ -465,6 +465,16 @@ addon.MythicPlus.variables.portalCompendium = {
 		headline = HOME,
 		spells = {},
 	},
+	[130] = {
+		headline = EXPANSION_NAME11 or "Midnight",
+		spells = {
+			[1254559] = { text = "MC", cId = { [560] = true }, mapID = 2501, locID = 2437, x = 0.4368, y = 0.3963, zoneID = 2501 },
+			[1254563] = { text = "NPX", cId = { [559] = true }, mapID = 2556, locID = nil, x = nil, y = nil, zoneID = 2556 }, -- locID, x and y is still wrong - no location available for now
+			[1254572] = { text = "MT", cId = { [558] = true }, mapID = 2511, locID = 2424, x = 0.6329, y = 0.1549, zoneID = 2511 },
+			-- [2222] = { text = "DON", mapID = 2514, locID = 2537, x = 0.3794, y = 0.8938, zoneID = 2537 }, -- no info available just a placeholder
+			[1254400] = { text = "WRS", cId = { [557] = true }, mapID = 2494, locID = 2395, x = 0.3543, y = 0.7908, zoneID = 2494 },
+		},
+	},
 	[120] = {
 		headline = EXPANSION_NAME10,
 		spells = {
@@ -611,7 +621,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			-- Dalaran (Broken Isles, Legion)
 			[224869] = { text = "DalB", isClassTP = "MAGE", locID = 627, x = 0.6042, y = 0.4440, zoneID = 627 },
 			[224871] = { text = "DalB", isMagePortal = true, locID = 627, x = 0.6042, y = 0.4440, zoneID = 627 },
-
+			[1254551] = { text = "SotT", cId = { [239] = true }, mapID = 903, locID = 882, x = 0.2503, y = 0.528, zoneID = 903 },
 			[227334] = { text = "FMW", isToy = true, toyID = 141605, isHearthstone = true, icon = 132161 },
 			[82674] = { text = addon.MythicPlus.variables.hearthstoneName or "HS", isItem = true, itemID = 64457, isHearthstone = true, icon = 458240 },
 			[223444] = {
@@ -651,7 +661,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			[159900] = { text = "GD", cId = { [166] = true }, locID = 543, x = 0.5504, y = 0.3174, zoneID = 606 },
 			[159896] = { text = "ID", cId = { [169] = true }, locID = 543, x = 0.4536, y = 0.1345, zoneID = 595 },
 			[159899] = { text = "SBG", cId = { [165] = true }, locID = 539, x = 0.3185, y = 0.4257, zoneID = 574 },
-			[159898] = { text = "SR", cId = { [161] = true }, locID = 542, x = 0.3555, y = 0.3360, zoneID = 601 },
+			[159898] = { text = "SR", cId = { [161] = true }, mapID = 601, locID = 542, x = 0.3555, y = 0.3360, zoneID = 601 },
 			[159902] = { text = "UBRS", cId = { [167] = true }, locID = 36, x = 0.2013, y = 0.2600, zoneID = 617 },
 			[163830] = { text = "ENGI", isToy = true, toyID = 112059, isEngineering = true, zoneID = 572 },
 			[171253] = { text = GARRISON_LOCATION_TOOLTIP, isToy = true, toyID = 110560, isHearthstone = true },
@@ -783,6 +793,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			[53142] = { text = "DalN", isMagePortal = true, x = 0.2372, y = 0.4670, zoneID = 125, locID = 125 },
 
 			[66238] = { text = "ATG", isItem = true, itemID = 46874, isHearthstone = true, icon = 135026, equipSlot = 19, x = 0.7166, y = 0.2152, zoneID = 118, locID = 118 },
+			[1254555] = { text = "POS", cId = { [556] = true }, mapID = 184, x = 0.5467, y = 0.9162, zoneID = 184, locID = 118 },
 		},
 	},
 	[30] = {
@@ -1046,6 +1057,12 @@ addon.MythicPlus.variables.collapseFrames = {
 }
 
 addon.MythicPlus.variables.challengeMapID = {
+	[560] = "MC",
+	[559] = "NPX",
+	[558] = "MT",
+	[557] = "WRS",
+	[239] = "SOTT",
+	[556] = "POS",
 	[542] = "ED",
 	[501] = "SV",
 	[502] = "COT",

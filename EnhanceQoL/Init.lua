@@ -278,6 +278,17 @@ addon.itemBagFilterTypes = {
 				[2] = true, -- Leather
 			},
 		},
+		[3] = { --Devourer
+			[2] = { -- Weapon
+				[9] = true, -- Warglaive
+				[7] = true, -- Sword 1h
+				[0] = true, -- Axe 1h
+			},
+			[4] = { -- Armor
+				[0] = true, -- Generic
+				[2] = true, -- Leather
+			},
+		},
 	},
 	ROGUE = {
 		[1] = { --Assassination

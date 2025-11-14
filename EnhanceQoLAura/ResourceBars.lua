@@ -2671,6 +2671,7 @@ local powertypeClasses = {
 	DEMONHUNTER = {
 		[1] = { MAIN = "FURY" },
 		[2] = { MAIN = "FURY" },
+		[3] = { MAIN = "FURY" },
 	},
 	DEATHKNIGHT = {
 		[1] = { MAIN = "RUNIC_POWER", RUNES = true },
