@@ -252,10 +252,16 @@ end
 
 local function ShortenHotkeyText(text)
 	if type(text) ~= "string" or text == "" then return text end
+	local isMinusKeybind
+	if string.sub(text, -1) == "-" then isMinusKeybind = true end
 	if _G.RANGE_INDICATOR and text == _G.RANGE_INDICATOR then return text end
 	local short = text:upper()
-	for _, data in ipairs(EnsureMouseButtonShortcuts()) do short = short:gsub(data.pattern, data.replacement) end
-	for _, data in ipairs(EnsureModifierShortcutPatterns()) do short = short:gsub(data.pattern, data.replacement) end
+	for _, data in ipairs(EnsureMouseButtonShortcuts()) do
+		short = short:gsub(data.pattern, data.replacement)
+	end
+	for _, data in ipairs(EnsureModifierShortcutPatterns()) do
+		short = short:gsub(data.pattern, data.replacement)
+	end
 	for _, repl in ipairs(HOTKEY_SHORT_REPLACEMENTS) do
 		short = short:gsub(repl[1], repl[2])
 	end
@@ -270,6 +276,7 @@ local function ShortenHotkeyText(text)
 	short = short:gsub("MULTIPLY", "*")
 	short = short:gsub("DIVIDE", "/")
 	short = short:gsub("[%s%-]", "")
+	if isMinusKeybind then short = short .. "-" end
 	return short
 end
 
@@ -316,9 +323,7 @@ local function ApplyHotkeyStyling(button)
 			hotkey.EQOL_ShortValue = shortText
 		end
 	else
-		if hotkey.EQOL_ShortApplied and hotkey.EQOL_OriginalHotkeyText then
-			hotkey:SetText(hotkey.EQOL_OriginalHotkeyText)
-		end
+		if hotkey.EQOL_ShortApplied and hotkey.EQOL_OriginalHotkeyText then hotkey:SetText(hotkey.EQOL_OriginalHotkeyText) end
 		hotkey.EQOL_ShortApplied = nil
 		hotkey.EQOL_ShortValue = nil
 	end

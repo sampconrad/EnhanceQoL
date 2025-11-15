@@ -116,6 +116,8 @@ local ACTION_BAR_ANCHOR_CONFIG = {
 }
 addon.constants.ACTION_BAR_ANCHOR_CONFIG = ACTION_BAR_ANCHOR_CONFIG
 
+local DEFAULT_BUTTON_SINK_COLUMNS = 4
+
 local function GetActionBarFrame(index)
 	local name = ACTION_BAR_FRAME_NAMES[index]
 	if not name then return nil, nil end
@@ -2072,6 +2074,26 @@ local function addMinimapFrame(container)
 				end)
 				g:AddChild(cbLock)
 			end
+
+			local currentColumns = tonumber(addon.db["minimapButtonBinColumns"]) or DEFAULT_BUTTON_SINK_COLUMNS
+			currentColumns = math.floor(currentColumns + 0.5)
+			if currentColumns < 1 then
+				currentColumns = 1
+			elseif currentColumns > 10 then
+				currentColumns = 10
+			end
+			local columnSlider = addon.functions.createSliderAce(L["minimapButtonBinColumns"] .. ": " .. currentColumns, currentColumns, 1, 10, 1, function(self, _, val)
+				val = math.floor(val + 0.5)
+				if val < 1 then
+					val = 1
+				elseif val > 10 then
+					val = 10
+				end
+				addon.db["minimapButtonBinColumns"] = val
+				self:SetLabel(L["minimapButtonBinColumns"] .. ": " .. tostring(val))
+				addon.functions.LayoutButtons()
+			end)
+			g:AddChild(columnSlider)
 
 			local lbl = AceGUI:Create("Label")
 			lbl:SetText(MINIMAP_LABEL .. ": " .. L["ignoreMinimapSinkHole"])
@@ -4445,6 +4467,7 @@ local function initUI()
 	MigrateLegacyVisibilityFlags()
 	addon.functions.InitDBValue("enableMinimapButtonBin", false)
 	addon.functions.InitDBValue("buttonsink", {})
+	addon.functions.InitDBValue("minimapButtonBinColumns", DEFAULT_BUTTON_SINK_COLUMNS)
 	addon.functions.InitDBValue("enableLootspecQuickswitch", false)
 	addon.functions.InitDBValue("lootspec_quickswitch", {})
 	addon.functions.InitDBValue("minimapSinkHoleData", {})
@@ -4699,7 +4722,6 @@ local function initUI()
 		self:SetScript("OnUpdate", nil)
 	end)
 
-	local COLUMNS = 4
 	local ICON_SIZE = 32
 	local PADDING = 4
 	addon.variables.bagButtons = {}
@@ -4899,6 +4921,13 @@ local function initUI()
 
 	function addon.functions.LayoutButtons()
 		if addon.db["enableMinimapButtonBin"] then
+			local columns = tonumber(addon.db["minimapButtonBinColumns"]) or DEFAULT_BUTTON_SINK_COLUMNS
+			columns = math.floor(columns + 0.5)
+			if columns < 1 then
+				columns = 1
+			elseif columns > 10 then
+				columns = 10
+			end
 			if addon.variables.buttonSink then
 				local index = 0
 				for name, button in pairs(addon.variables.bagButtons) do
@@ -4915,8 +4944,8 @@ local function initUI()
 					elseif addon.variables.bagButtonState[name] then
 						index = index + 1
 						button:ClearAllPoints()
-						local col = (index - 1) % COLUMNS
-						local row = math.floor((index - 1) / COLUMNS)
+						local col = (index - 1) % columns
+						local row = math.floor((index - 1) / columns)
 
 						button:SetParent(addon.variables.buttonSink)
 						button:SetSize(ICON_SIZE, ICON_SIZE)
@@ -4927,10 +4956,15 @@ local function initUI()
 					end
 				end
 
-				local totalRows = math.ceil(index / COLUMNS)
-				local width = (ICON_SIZE + PADDING) * COLUMNS + PADDING
+				local totalRows = math.ceil(index / columns)
+				local tmpColumns = min(index, columns)
+				local width = (ICON_SIZE + PADDING) * tmpColumns + PADDING
 				local height = (ICON_SIZE + PADDING) * totalRows + PADDING
-				addon.variables.buttonSink:SetSize(width, height)
+				if index == 0 then
+					addon.variables.buttonSink:SetSize(0, 0)
+				else
+					addon.variables.buttonSink:SetSize(width, height)
+				end
 			end
 		else
 			for name, button in pairs(addon.variables.bagButtons) do

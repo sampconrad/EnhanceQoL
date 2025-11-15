@@ -16,6 +16,7 @@ Here’s what currently works, what’s limited, and what’s turned off in the 
 - Resource Bars can now anchor to the Essential/Utility cooldown viewers, both buff trackers, and all default Blizzard action bars (Main + MultiBars) for tighter layouts without custom macros.
 - Health bars gained a “Use class color” toggle alongside the existing custom-color controls so you can instantly match your class tint without extra configuration.
 - Resource Bars now have an optional “Hide out of combat” toggle that drives the frame visibility via a secure state driver, so the bars stay hidden without tripping combat lockdown.
+- Adjust the columns per row in **Button Sink**
 
 ### 🔄 Changed
 
@@ -70,6 +71,7 @@ These features are currently removed in the Midnight beta because of API changes
 - Context menu checks for **NPC ID** hardened to avoid errors
 - Health macro combat checks moved into **protected** logic
 - **Healthbar colors** no longer sometimes display the wrong color
+- Keybind shortening leads to invisible text
 
 ---
 

@@ -276,6 +276,7 @@ local function buildActionBarExtras(parent)
 		addon.db.actionBarMacroFontOverride = value and true or false
 		updateLabelControlStates()
 		if ActionBarLabels and ActionBarLabels.RefreshAllMacroNameVisibility then ActionBarLabels.RefreshAllMacroNameVisibility() end
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 	end)
 	labelGroup:AddChild(macroOverrideCheckbox)
 
@@ -284,6 +285,7 @@ local function buildActionBarExtras(parent)
 	local macroFont = addon.functions.createDropdownAce(L["actionBarMacroFontLabel"] or "Macro name font", fontList, fontOrder, function(_, _, key)
 		addon.db.actionBarMacroFontFace = key
 		if ActionBarLabels and ActionBarLabels.RefreshAllMacroNameVisibility then ActionBarLabels.RefreshAllMacroNameVisibility() end
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 	end)
 	local macroFaceValue = addon.db.actionBarMacroFontFace or addon.variables.defaultFont
 	if not fontList[macroFaceValue] then macroFaceValue = addon.variables.defaultFont end
@@ -296,6 +298,7 @@ local function buildActionBarExtras(parent)
 	local macroOutline = addon.functions.createDropdownAce(L["actionBarFontOutlineLabel"] or "Font outline", outlineMap, outlineOrder, function(_, _, key)
 		addon.db.actionBarMacroFontOutline = key
 		if ActionBarLabels and ActionBarLabels.RefreshAllMacroNameVisibility then ActionBarLabels.RefreshAllMacroNameVisibility() end
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 	end)
 	macroOutline:SetValue(addon.db.actionBarMacroFontOutline or "OUTLINE")
 	macroOutline:SetFullWidth(false)
@@ -311,6 +314,7 @@ local function buildActionBarExtras(parent)
 		addon.db.actionBarMacroFontSize = value
 		self:SetLabel((L["actionBarMacroFontSize"] or "Macro font size") .. ": " .. value)
 		if ActionBarLabels and ActionBarLabels.RefreshAllMacroNameVisibility then ActionBarLabels.RefreshAllMacroNameVisibility() end
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 	end)
 	table.insert(macroControls, macroSizeSlider)
 	labelGroup:AddChild(macroSizeSlider)
@@ -319,6 +323,7 @@ local function buildActionBarExtras(parent)
 		addon.db.actionBarHotkeyFontOverride = value and true or false
 		updateLabelControlStates()
 		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyVisibility then ActionBarLabels.RefreshAllHotkeyVisibility() end
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 	end)
 	labelGroup:AddChild(hotkeyOverrideCheckbox)
 
@@ -327,6 +332,7 @@ local function buildActionBarExtras(parent)
 	local hotkeyFont = addon.functions.createDropdownAce(L["actionBarHotkeyFontLabel"] or "Hotkey font", fontList, fontOrder, function(_, _, key)
 		addon.db.actionBarHotkeyFontFace = key
 		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyVisibility then ActionBarLabels.RefreshAllHotkeyVisibility() end
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 	end)
 	local hotkeyFaceValue = addon.db.actionBarHotkeyFontFace or addon.variables.defaultFont
 	if not fontList[hotkeyFaceValue] then hotkeyFaceValue = addon.variables.defaultFont end
@@ -339,6 +345,7 @@ local function buildActionBarExtras(parent)
 	local hotkeyOutline = addon.functions.createDropdownAce(L["actionBarFontOutlineLabel"] or "Font outline", outlineMap, outlineOrder, function(_, _, key)
 		addon.db.actionBarHotkeyFontOutline = key
 		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyVisibility then ActionBarLabels.RefreshAllHotkeyVisibility() end
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 	end)
 	hotkeyOutline:SetValue(addon.db.actionBarHotkeyFontOutline or "OUTLINE")
 	hotkeyOutline:SetFullWidth(false)
@@ -354,6 +361,7 @@ local function buildActionBarExtras(parent)
 		addon.db.actionBarHotkeyFontSize = value
 		self:SetLabel((L["actionBarHotkeyFontSize"] or "Hotkey font size") .. ": " .. value)
 		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyVisibility then ActionBarLabels.RefreshAllHotkeyVisibility() end
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 	end)
 	table.insert(hotkeyControls, hotkeySizeSlider)
 	labelGroup:AddChild(hotkeySizeSlider)
@@ -375,6 +383,35 @@ local function buildActionBarExtras(parent)
 		keybindVisibilityContainer:AddChild(cb)
 		table.insert(hotkeyControls, cb)
 	end
+
+	local shortHotkeys = addon.functions.createCheckboxAce(L["actionBarShortHotkeys"] or "Shorten keybind text", addon.db.actionBarShortHotkeys == true, function(_, _, value)
+		addon.db.actionBarShortHotkeys = value and true or false
+		if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
+	end, L["actionBarShortHotkeysDesc"])
+	labelGroup:AddChild(shortHotkeys)
+
+	local perBarGroup = addon.functions.createContainer("InlineGroup", "Flow")
+	perBarGroup:SetTitle(L["actionBarHideHotkeysGroup"] or "Hide keybinds per bar")
+	perBarGroup:SetFullWidth(true)
+	labelGroup:AddChild(perBarGroup)
+
+	for _, cbData in ipairs(addon.variables.actionBarNames or {}) do
+		if cbData.name then
+			local checkbox = addon.functions.createCheckboxAce(cbData.text or cbData.name, addon.db.actionBarHiddenHotkeys[cbData.name] == true, function(_, _, value)
+				if value then
+					addon.db.actionBarHiddenHotkeys[cbData.name] = true
+				else
+					addon.db.actionBarHiddenHotkeys[cbData.name] = nil
+				end
+				if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
+			end, L["actionBarHideHotkeysDesc"])
+			checkbox:SetFullWidth(false)
+			if checkbox.SetRelativeWidth then checkbox:SetRelativeWidth(0.5) end
+			perBarGroup:AddChild(checkbox)
+		end
+	end
+
+	labelGroup:AddChild(addon.functions.createSpacerAce())
 
 	updateLabelControlStates()
 end
