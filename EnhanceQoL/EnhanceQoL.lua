@@ -399,6 +399,14 @@ local visibilityRuleMetadata = {
 		unitRequirement = "player",
 		order = 40,
 	},
+	PLAYER_HAS_TARGET = {
+		key = "PLAYER_HAS_TARGET",
+		label = L["visibilityRule_playerHasTarget"] or "When I have a target",
+		description = L["visibilityRule_playerHasTarget_desc"],
+		appliesTo = { frame = true },
+		unitRequirement = "player",
+		order = 45,
+	},
 	SKYRIDING_ACTIVE = {
 		key = "SKYRIDING_ACTIVE",
 		label = L["visibilityRule_skyriding"] or "While skyriding",
@@ -498,7 +506,7 @@ end
 
 local UpdateUnitFrameMouseover -- forward declaration
 
-local frameVisibilityContext = { inCombat = false, playerHealthMissing = false, playerHealthAlpha = 0 }
+local frameVisibilityContext = { inCombat = false, playerHealthMissing = false, playerHealthAlpha = 0, hasTarget = false }
 local frameVisibilityStates = {}
 local hookedUnitFrames = {}
 local frameVisibilityHealthEnabled = false
@@ -535,6 +543,9 @@ local function UpdateFrameVisibilityContext()
 		inCombat = UnitAffectingCombat("player") and true or false
 	end
 	frameVisibilityContext.inCombat = inCombat
+
+	local hasTarget = UnitExists and UnitExists("target") and true or false
+	frameVisibilityContext.hasTarget = hasTarget
 
 	if frameVisibilityHealthEnabled then
 		local isMidnight = addon and addon.variables and addon.variables.isMidnight
@@ -670,6 +681,7 @@ local function EnsureFrameVisibilityWatcher()
 	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
 	watcher:RegisterEvent("PLAYER_REGEN_DISABLED")
 	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+	watcher:RegisterEvent("PLAYER_TARGET_CHANGED")
 	addon.variables.frameVisibilityWatcher = watcher
 	UpdateFrameVisibilityContext()
 	UpdateFrameVisibilityHealthRegistration()
@@ -685,6 +697,7 @@ local function EvaluateFrameVisibility(state)
 	if cfg.ALWAYS_IN_COMBAT and context.inCombat then return true end
 	if cfg.ALWAYS_OUT_OF_COMBAT and not context.inCombat then return true end
 	if cfg.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule and context.playerHealthMissing then return true end
+	if cfg.PLAYER_HAS_TARGET and state.supportsPlayerTargetRule and context.hasTarget then return true end
 	if cfg.MOUSEOVER and state.isMouseOver then return true end
 
 	return false
@@ -861,7 +874,9 @@ local function ApplyVisibilityToUnitFrame(frameName, cbData, config)
 
 	local state = EnsureFrameState(frame, cbData)
 	state.config = config
-	state.supportsPlayerHealthRule = (cbData.unitToken == "player")
+	local isPlayerUnit = (cbData.unitToken == "player")
+	state.supportsPlayerHealthRule = isPlayerUnit
+	state.supportsPlayerTargetRule = isPlayerUnit
 
 	local driverExpression = BuildUnitFrameDriverExpression(config)
 	local needsHealth = config and config.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule
