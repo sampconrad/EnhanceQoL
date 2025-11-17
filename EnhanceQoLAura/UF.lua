@@ -549,8 +549,8 @@ end
 
 local function hideBlizzardPlayerFrame()
 	if not _G.PlayerFrame then return end
-	-- _G.PlayerFrame:Hide()
-	-- _G.PlayerFrame:HookScript("OnShow", _G.PlayerFrame.Hide)
+	_G.PlayerFrame:Hide()
+	_G.PlayerFrame:HookScript("OnShow", _G.PlayerFrame.Hide)
 end
 
 local unitEvents = {
@@ -1037,6 +1037,8 @@ local function addOptions(container, skipClear)
 	end)
 	lvlY:SetRelativeWidth(0.25)
 	statusOffsets:AddChild(lvlY)
+
+	parent:DoLayout()
 end
 
 if addon.functions and addon.functions.RegisterOptionsPage then
