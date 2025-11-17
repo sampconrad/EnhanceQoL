@@ -5586,7 +5586,12 @@ end
 
 function addon.functions.checkReloadFrame()
 	if addon.variables.requireReload == false then return end
-	if ReloadUIPopup and ReloadUIPopup:IsShown() then return end
+	if _G["ReloadUIPopup"] and _G["ReloadUIPopup"]:IsShown() then return end
+
+	if _G["ReloadUIPopup"] and _G["ReloadUIPopup"] then
+		_G["ReloadUIPopup"]:Show()
+		return
+	end
 	local reloadFrame = CreateFrame("Frame", "ReloadUIPopup", UIParent, "BasicFrameTemplateWithInset")
 	reloadFrame:SetFrameStrata("TOOLTIP")
 	reloadFrame:SetSize(500, 120) -- Breite und Höhe
