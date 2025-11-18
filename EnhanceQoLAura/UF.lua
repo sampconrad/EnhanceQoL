@@ -244,12 +244,14 @@ local function updateTargetAuraIcons()
 	for _, aura in pairs(targetAuras) do
 		list[#list + 1] = aura
 	end
-	table.sort(list, function(a, b)
-		local ea = a.expirationTime or math.huge
-		local eb = b.expirationTime or math.huge
-		if ea == eb then return (a.auraInstanceID or 0) < (b.auraInstanceID or 0) end
-		return ea < eb
-	end)
+	if not addon.variables.isMidnight then
+		table.sort(list, function(a, b)
+			local ea = a.expirationTime or math.huge
+			local eb = b.expirationTime or math.huge
+			if ea == eb then return (a.auraInstanceID or 0) < (b.auraInstanceID or 0) end
+			return ea < eb
+		end)
+	end
 
 	local width = st.frame:GetWidth() or 0
 	local perRow = math.max(1, math.floor((width + ac.padding) / (ac.size + ac.padding)))
@@ -266,19 +268,32 @@ local function updateTargetAuraIcons()
 			btn.icon:SetAllPoints(btn)
 			btn.cd = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
 			btn.cd:SetAllPoints(btn)
-			btn.count = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-			btn.count:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
+			local overlay = CreateFrame("Frame", nil, btn.cd)
+			overlay:SetAllPoints(btn.cd)
+			overlay:SetFrameLevel(btn.cd:GetFrameLevel() + 5)
+
+			btn.count = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+			btn.count:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -2, 2)
+			btn.cd:SetReverse(true)
+			btn.cd:SetDrawEdge(true)
+			btn.cd:SetDrawSwipe(true)
 			icons[i] = btn
 		else
 			btn:SetSize(ac.size, ac.size)
 		end
+		btn.cd:Clear()
 		btn.icon:SetTexture(aura.icon or "")
-		if ac.showCooldown ~= false and aura.duration and aura.duration > 0 and aura.expirationTime then
-			btn.cd:SetCooldown(aura.expirationTime - aura.duration, aura.duration)
-		else
-			btn.cd:Clear()
+		if issecretvalue and issecretvalue(aura.duration) then
+			btn.cd:SetCooldown(GetTime(), C_UnitAuras.GetAuraDurationRemainingByAuraInstanceID("target", aura.auraInstanceID), aura.timeMod)
+		elseif aura.duration and aura.duration > 0 and aura.expirationTime then
+			btn.cd:SetCooldown(aura.expirationTime - aura.duration, aura.duration, aura.timeMod)
 		end
-		if aura.applications and aura.applications > 1 then
+		if ac.showCooldown ~= false then
+			btn.cd:SetHideCountdownNumbers(false)
+		else
+			btn.cd:SetHideCountdownNumbers(true)
+		end
+		if issecretvalue and issecretvalue(aura.applications) or aura.applications and aura.applications > 1 then
 			btn.count:SetText(aura.applications)
 			btn.count:Show()
 		else
@@ -304,7 +319,16 @@ end
 local function fullScanTargetAuras()
 	resetTargetAuras()
 	if not UnitExists or not UnitExists("target") then return end
-	if C_UnitAuras and C_UnitAuras.GetAuraSlots then
+	if C_UnitAuras and C_UnitAuras.GetUnitAuras then
+		local helpful = C_UnitAuras.GetUnitAuras("target", "HELPFUL|CANCELABLE")
+		for i=1, #helpful do
+			cacheTargetAura(helpful[i])
+		end
+		local harmful = C_UnitAuras.GetUnitAuras("target", "HARMFUL|PLAYER|INCLUDE_NAME_PLATE_ONLY")
+		for i=1, #harmful do
+			cacheTargetAura(harmful[i])
+		end
+	elseif C_UnitAuras and C_UnitAuras.GetAuraSlots then
 		local helpful = { C_UnitAuras.GetAuraSlots("target", "HELPFUL|CANCELABLE") }
 		for i = 2, #helpful do
 			cacheTargetAura(C_UnitAuras.GetAuraDataBySlot("target", helpful[i]))
@@ -635,13 +659,13 @@ local function updatePower(cfg, unit)
 	end
 	bar:SetStatusBarColor(cr or 0.1, cg or 0.45, cb or 1, ca or 1)
 	if st.powerTextLeft then
-		if (issecretvalue and not issecretvalue(maxv)) or maxv == 0 then
+		if (issecretvalue and not issecretvalue(maxv)) or (not addon.variables.isMidnight and maxv == 0) then
 			st.powerTextLeft:SetText("")
 		else
 			st.powerTextLeft:SetText(formatText(pcfg.textLeft or "PERCENT", cur, maxv, pcfg.useShortNumbers ~= false, percentVal))
 		end
 	end
-	if (issecretvalue and not issecretvalue(maxv)) or maxv == 0 then
+	if (issecretvalue and not issecretvalue(maxv)) or (not addon.variables.isMidnight and maxv == 0) then
 		st.powerTextRight:SetText("")
 	else
 		if st.powerTextRight then st.powerTextRight:SetText(formatText(pcfg.textRight or "CURMAX", cur, maxv, pcfg.useShortNumbers ~= false, percentVal)) end
