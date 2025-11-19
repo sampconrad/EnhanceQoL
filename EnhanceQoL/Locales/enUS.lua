@@ -396,7 +396,7 @@ L["visibilityFrameExplain"] = "Combine the same triggers for Blizzard unit frame
 L["visibilityFrameExtrasNote"] = "Looking for raid frames, name truncation, or health text tweaks? Those options remain under UI >> Unit Frames."
 L["visibilityNoElement"] = "No elements are available for this category."
 L["visibilityNoRules"] = "This element does not expose any visibility rules."
-L["visibilityAlwaysHiddenActive"] = "Disable \"Always hidden\" to use additional rules."
+L["visibilityAlwaysHiddenActive"] = 'Disable "Always hidden" to use additional rules.'
 L["visibilityUnitFrameRedirect"] = "Visibility overrides moved: configure Player, Target, Boss, Micro Menu, and more inside the Visibility Hub."
 L["visibilityRule_mouseover"] = "Mouseover"
 L["visibilityRule_mouseover_desc"] = "Fade the element out until your mouse is hovering over it."
@@ -415,8 +415,7 @@ L["visibilityRule_groupedHide_desc"] =
 	"Hide the player frame whenever you are in a party or raid. While grouped, only this rule (and Mouseover, if enabled) is evaluated; other visibility rules are ignored."
 L["visibilityRule_alwaysHidden"] = "Always hidden"
 L["visibilityRule_alwaysHidden_desc"] = "Hide the element entirely. This overrides every other rule."
-L["visibilityHideInGroupActive"] =
-	'When you are in a party or raid, only "Always hide in party/raid" (and Mouseover, if enabled) is evaluated; other visibility rules are ignored while grouped.'
+L["visibilityHideInGroupActive"] = 'When you are in a party or raid, only "Always hide in party/raid" (and Mouseover, if enabled) is evaluated; other visibility rules are ignored while grouped.'
 L["ActionBarVisibilityLabel"] = "Visibility"
 L["ActionBarVisibilityMouseover"] = "Mouseover"
 L["ActionBarVisibilityInCombat"] = "Always in combat"
@@ -457,6 +456,8 @@ L["ignoreMinimapSinkHole"] = "Ignore the following minimap button from the sinkh
 L["useMinimapButtonBinIcon"] = "Use a Minimap button for the sink"
 L["useMinimapButtonBinMouseover"] = "Show a movable frame for the button sink with mouseover"
 L["lockMinimapButtonBin"] = "Lock the button sink frame"
+L["autoCancelDruidFlightForm"] = "Auto-cancel travel Form"
+L["autoCancelDruidFlightFormDesc"] = "Automatically cancels Travel Form to switch to Flight form when you enter a flyable area while shapeshifted."
 L["minimapButtonBinHideBackground"] = "Hide button sink background"
 L["minimapButtonBinHideBorder"] = "Hide button sink border"
 L["minimapButtonBinColumns"] = "Button sink columns"

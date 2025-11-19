@@ -11,6 +11,10 @@
 
 - _Show leader icon on raid style party frames_ now also shows leader and assist in raids
 
+### 🐛 Fixed
+
+- *Enhance Ignore List* Strata was to high
+
 ---
 
 ## [6.1.0] – 2025-11-20

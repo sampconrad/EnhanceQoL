@@ -164,6 +164,23 @@ local function addUIFrame(container)
 		})
 	end
 
+	--@debug@
+	local playerClassTag = (addon.variables and addon.variables.unitClass) or select(2, UnitClass("player"))
+	if playerClassTag == "DRUID" then
+		table.insert(data, {
+			parent = "",
+			var = "autoCancelDruidFlightForm",
+			text = L["autoCancelDruidFlightForm"],
+			type = "CheckBox",
+			desc = L["autoCancelDruidFlightFormDesc"],
+			callback = function(_, _, value)
+				addon.db["autoCancelDruidFlightForm"] = value and true or false
+				if addon.functions.updateDruidFlightFormWatcher then addon.functions.updateDruidFlightFormWatcher() end
+			end,
+		})
+	end
+	--@end-debug@
+
 	addon.functions.createWrapperData(data, container, L)
 end
 
@@ -647,7 +664,7 @@ local function addVisibilityHub(container)
 		elseif groupedRuleActive then
 			local warn = addon.functions.createLabelAce(
 				L["visibilityHideInGroupActive"]
-					or "When you are in a party or raid, only \"Always hide in party/raid\" (and Mouseover, if enabled) is evaluated; other visibility rules are ignored while grouped.",
+					or 'When you are in a party or raid, only "Always hide in party/raid" (and Mouseover, if enabled) is evaluated; other visibility rules are ignored while grouped.',
 				nil,
 				nil,
 				10

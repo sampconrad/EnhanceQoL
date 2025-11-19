@@ -384,7 +384,8 @@ end
 -- Frame created from XML
 function EQOLIgnoreFrame_OnLoad(frame)
 	Ignore.frame = frame
-	frame:SetFrameStrata("DIALOG")
+	frame:SetFrameStrata("MEDIUM")
+	frame:SetFrameLevel(100)
 	frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	frame.title:SetPoint("TOP", frame, "TOP", 0, -6)
 	frame.title:SetText(L["IgnoreWindowTitle"])

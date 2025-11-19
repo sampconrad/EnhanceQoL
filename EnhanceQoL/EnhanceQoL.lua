@@ -4800,6 +4800,7 @@ local function initUI()
 	addon.functions.InitDBValue("lootspec_quickswitch", {})
 	addon.functions.InitDBValue("minimapSinkHoleData", {})
 	addon.functions.InitDBValue("hideQuickJoinToast", false)
+	addon.functions.InitDBValue("autoCancelDruidFlightForm", false)
 	addon.functions.InitDBValue("enableSquareMinimap", false)
 	addon.functions.InitDBValue("enableSquareMinimapBorder", false)
 	addon.functions.InitDBValue("squareMinimapBorderSize", 1)
@@ -4960,6 +4961,64 @@ local function initUI()
 		end
 	end
 	addon.functions.toggleQuickJoinToastButton(addon.db["hideQuickJoinToast"])
+
+	--@debug@
+	local druidFlightWatcher
+	local druidFlightPending
+
+	local function isPlayerDruid()
+		local classTag = (addon.variables and addon.variables.unitClass) or select(2, UnitClass("player"))
+		return classTag == "DRUID"
+	end
+
+	local function evaluateDruidFlightForm()
+		if not addon.db or not addon.db["autoCancelDruidFlightForm"] then
+			druidFlightPending = nil
+			return
+		end
+		if not isPlayerDruid() then
+			druidFlightPending = nil
+			return
+		end
+		if not GetShapeshiftFormID or not IsFlyableArea or not CancelShapeshiftForm then return end
+		local formID = GetShapeshiftFormID()
+		if formID == 3 and IsFlyableArea() then
+			if InCombatLockdown and InCombatLockdown() then
+				druidFlightPending = true
+				return
+			end
+			druidFlightPending = nil
+			CancelShapeshiftForm()
+		else
+			druidFlightPending = nil
+		end
+	end
+
+	local function handleDruidFlightEvent(_, event)
+		if event == "PLAYER_REGEN_ENABLED" then
+			if druidFlightPending then evaluateDruidFlightForm() end
+		else
+			evaluateDruidFlightForm()
+		end
+	end
+
+	function addon.functions.updateDruidFlightFormWatcher()
+		if not druidFlightWatcher then
+			druidFlightWatcher = CreateFrame("Frame")
+			druidFlightWatcher:SetScript("OnEvent", handleDruidFlightEvent)
+		end
+		druidFlightWatcher:UnregisterEvent("MOUNT_JOURNAL_USABILITY_CHANGED")
+		druidFlightWatcher:UnregisterEvent("PLAYER_REGEN_ENABLED")
+		druidFlightPending = nil
+		if addon.db and addon.db["autoCancelDruidFlightForm"] and isPlayerDruid() then
+			druidFlightWatcher:RegisterEvent("MOUNT_JOURNAL_USABILITY_CHANGED")
+			druidFlightWatcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+			evaluateDruidFlightForm()
+		end
+	end
+
+	if addon.functions.updateDruidFlightFormWatcher then addon.functions.updateDruidFlightFormWatcher() end
+	--@end-debug@
 
 	-- Hide/show specific minimap elements based on multi-select
 	local function getMinimapElementFrames()
