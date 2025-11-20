@@ -48,6 +48,7 @@ Events\LegionRemixPhaseData.lua
 Events\LegionRemix.lua
 Modules\ActionBarLabels.lua
 EnhanceQoL.lua
+Settings\SettingsUI.xml
 Modules\ItemsOptions.lua
 Modules\UIOptions.lua
 Core\DataHub.lua

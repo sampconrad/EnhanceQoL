@@ -1,0 +1,425 @@
+local addonName, addon = ...
+
+local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
+
+---- REGION Functions
+local timeoutReleaseDifficultyLookup = {}
+
+local function shouldUseTimeoutReleaseForCurrentContext()
+	if not addon.db or not addon.db["timeoutRelease"] then return false end
+
+	local selection = addon.db["timeoutReleaseDifficulties"]
+	if selection == nil then return true end
+
+	local hasSelection = false
+	for key, enabled in pairs(selection) do
+		if enabled then
+			hasSelection = true
+			break
+		end
+	end
+	if not hasSelection then return false end
+
+	local inInstance, instanceType = IsInInstance()
+	if not inInstance or instanceType == "none" then return selection["world"] and true or false end
+
+	local difficultyID = select(3, GetInstanceInfo())
+	if difficultyID then
+		local keys = timeoutReleaseDifficultyLookup[difficultyID]
+		if keys then
+			for _, key in ipairs(keys) do
+				if selection[key] then return true end
+			end
+		end
+	end
+
+	if instanceType == "scenario" then return selection["scenario"] and true or false end
+	if instanceType == "pvp" or instanceType == "arena" then return selection["pvp"] and true or false end
+	if instanceType == "raid" then return selection["raidNormal"] or selection["raidHeroic"] or selection["raidMythic"] end
+	if instanceType == "party" then return selection["dungeonNormal"] or selection["dungeonHeroic"] or selection["dungeonMythic"] or selection["dungeonMythicPlus"] or selection["dungeonFollower"] end
+
+	return false
+end
+
+addon.functions.shouldUseTimeoutReleaseForCurrentContext = shouldUseTimeoutReleaseForCurrentContext
+
+local TIMEOUT_RELEASE_UPDATE_INTERVAL = 0.1
+
+local modifierCheckers = {
+	SHIFT = function() return IsShiftKeyDown() end,
+	CTRL = function() return IsControlKeyDown() end,
+	ALT = function() return IsAltKeyDown() end,
+}
+
+local modifierDisplayNames = {
+	SHIFT = SHIFT_KEY_TEXT,
+	CTRL = CTRL_KEY_TEXT,
+	ALT = ALT_KEY_TEXT,
+}
+
+local DEFAULT_TIMEOUT_RELEASE_HINT = "Hold %s to release"
+
+function addon.functions.getTimeoutReleaseModifierKey()
+	local modifierKey = addon.db and addon.db["timeoutReleaseModifier"] or "SHIFT"
+	if not modifierCheckers[modifierKey] then modifierKey = "SHIFT" end
+	return modifierKey
+end
+
+function addon.functions.isTimeoutReleaseModifierDown(modifierKey)
+	local checker = modifierCheckers[modifierKey]
+	return checker and checker() or false
+end
+
+function addon.functions.getTimeoutReleaseModifierDisplayName(modifierKey) return modifierDisplayNames[modifierKey] or modifierKey end
+
+function addon.functions.showTimeoutReleaseHint(popup, modifierDisplayName)
+	if not popup then return end
+	local label = popup.eqolTimeoutReleaseLabel
+	if not label then
+		label = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		label:SetJustifyH("CENTER")
+		label:SetPoint("BOTTOM", popup, "TOP", 0, 8)
+		label:SetTextColor(1, 0.82, 0)
+		label:SetWordWrap(true)
+		popup.eqolTimeoutReleaseLabel = label
+	end
+	local hintTemplate = rawget(L, "timeoutReleaseHoldHint") or DEFAULT_TIMEOUT_RELEASE_HINT
+	label:SetWidth(popup:GetWidth())
+	label:SetText(hintTemplate:format(modifierDisplayName))
+	label:Show()
+end
+
+function addon.functions.hideTimeoutReleaseHint(popup)
+	local label = popup and popup.eqolTimeoutReleaseLabel
+	if label then label:Hide() end
+end
+
+local function toggleGroupApplication(value)
+	if value then
+		-- Hide overlay and text label
+		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Label:Hide()
+		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Background:Hide()
+		-- Hide the 3 animated texture icons
+		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot1:Hide()
+		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot2:Hide()
+		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot3:Hide()
+	else
+		-- Hide overlay and text label
+		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Label:Show()
+		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Background:Show()
+		-- Hide the 3 animated texture icons
+		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot1:Show()
+		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot2:Show()
+		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot3:Show()
+	end
+end
+
+local lfgPoint, lfgRelativeTo, lfgRelativePoint, lfgXOfs, lfgYOfs
+
+local function toggleLFGFilterPosition()
+	if LFGListFrame and LFGListFrame.SearchPanel and LFGListFrame.SearchPanel.FilterButton and LFGListFrame.SearchPanel.FilterButton.ResetButton then
+		if addon.db["groupfinderMoveResetButton"] then
+			LFGListFrame.SearchPanel.FilterButton.ResetButton:ClearAllPoints()
+			LFGListFrame.SearchPanel.FilterButton.ResetButton:SetPoint("TOPLEFT", LFGListFrame.SearchPanel.FilterButton, "TOPLEFT", -7, 13)
+		else
+			LFGListFrame.SearchPanel.FilterButton.ResetButton:ClearAllPoints()
+			LFGListFrame.SearchPanel.FilterButton.ResetButton:SetPoint(lfgPoint, lfgRelativeTo, lfgRelativePoint, lfgXOfs, lfgYOfs)
+		end
+	end
+end
+
+function addon.functions.initDungeonFrame()
+	addon.functions.InitDBValue("autoChooseDelvePower", false)
+	addon.functions.InitDBValue("lfgSortByRio", false)
+	addon.functions.InitDBValue("groupfinderSkipRoleSelect", false)
+	addon.functions.InitDBValue("enableChatIMRaiderIO", false)
+
+	if LFGListFrame and LFGListFrame.SearchPanel and LFGListFrame.SearchPanel.FilterButton and LFGListFrame.SearchPanel.FilterButton.ResetButton then
+		lfgPoint, lfgRelativeTo, lfgRelativePoint, lfgXOfs, lfgYOfs = LFGListFrame.SearchPanel.FilterButton.ResetButton:GetPoint()
+	end
+	if addon.db["groupfinderMoveResetButton"] then toggleLFGFilterPosition() end
+
+	-- Add Raider.IO URL to LFG applicant member context menu
+	if Menu and Menu.ModifyMenu then
+		local regionTable = { "US", "KR", "EU", "TW", "CN" }
+		local function AddLFGApplicantRIO(owner, root, ctx)
+			if not addon.db["enableChatIMRaiderIO"] then return end
+
+			local appID = owner and owner._eqolApplicantID or (ctx and (ctx.applicantID or ctx.appID))
+			local memberIdx = owner and owner._eqolMemberIdx or (ctx and (ctx.memberIdx or ctx.memberIndex))
+			if not appID or not memberIdx then return end
+
+			local name = C_LFGList and C_LFGList.GetApplicantMemberInfo and C_LFGList.GetApplicantMemberInfo(appID, memberIdx)
+			if type(name) ~= "string" or name == "" then return end
+
+			local targetName = name
+			if not targetName:find("-", 1, true) then targetName = targetName .. "-" .. (GetRealmName() or ""):gsub("%s", "") end
+
+			local char, realm = targetName:match("^([^%-]+)%-(.+)$")
+			if not char or not realm then return end
+
+			local regionKey = regionTable[GetCurrentRegion()] or "EU"
+			local realmSlug = string.lower((realm or ""):gsub("%s+", "-"))
+			local riolink = "https://raider.io/characters/" .. string.lower(regionKey) .. "/" .. realmSlug .. "/" .. char
+
+			root:CreateDivider()
+			root:CreateButton(L["RaiderIOUrl"], function(link)
+				if StaticPopup_Show then StaticPopup_Show("EQOL_URL_COPY", nil, nil, link) end
+			end, riolink)
+		end
+
+		Menu.ModifyMenu("MENU_LFG_FRAME_MEMBER_APPLY", AddLFGApplicantRIO)
+	end
+end
+
+---- END REGION
+
+---- REGION SETTINGS
+local cChar = addon.functions.SettingsCreateCategory(nil, L["CombatDungeons"])
+addon.SettingsLayout.characterInspectCategory = cChar
+addon.functions.SettingsCreateHeadline(cChar, DUNGEONS)
+
+local data = {
+	{
+		text = L["groupfinderAppText"],
+		var = "groupfinderAppText",
+		func = function(value)
+			addon.db["groupfinderAppText"] = value
+			toggleGroupApplication(value)
+		end,
+	},
+	{
+		text = L["groupfinderMoveResetButton"],
+		var = "groupfinderMoveResetButton",
+		func = function(value)
+			addon.db["groupfinderMoveResetButton"] = value
+			toggleLFGFilterPosition()
+		end,
+	},
+	{
+		text = L["groupfinderSkipRoleSelect"],
+		var = "groupfinderSkipRoleSelect",
+		func = function(value) addon.db["groupfinderSkipRoleSelect"] = value end,
+		desc = L["interruptWithShift"],
+	},
+	{
+		var = "persistSignUpNote",
+		text = L["Persist LFG signup note"],
+		func = function(value) addon.db["persistSignUpNote"] = value end,
+	},
+	{
+		var = "skipSignUpDialog",
+		text = L["Quick signup"],
+		func = function(value) addon.db["skipSignUpDialog"] = value end,
+	},
+	{
+		var = "lfgSortByRio",
+		text = L["lfgSortByRio"],
+		func = function(value) addon.db["lfgSortByRio"] = value end,
+	},
+	{
+		var = "enableChatIMRaiderIO",
+		text = L["enableChatIMRaiderIO"],
+		func = function(value) addon.db["enableChatIMRaiderIO"] = value end,
+	},
+}
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cChar, data)
+
+--- DELVES
+
+addon.functions.SettingsCreateHeadline(cChar, DELVES_LABEL)
+
+data = {
+	{
+		var = "autoChooseDelvePower",
+		text = L["autoChooseDelvePower"],
+		func = function(self, _, value) addon.db["autoChooseDelvePower"] = value end,
+	},
+}
+table.sort(data, function(a, b) return a.text < b.text end)
+
+addon.functions.SettingsCreateCheckboxes(cChar, data)
+
+--- GENERAL
+addon.functions.SettingsCreateHeadline(cChar, GENERAL)
+
+data = {
+	var = "timeoutRelease",
+	text = L["timeoutRelease"],
+	func = function(value) addon.db["timeoutRelease"] = value end,
+}
+table.sort(data, function(a, b) return a.text < b.text end)
+
+local rData = addon.functions.SettingsCreateCheckbox(cChar, data)
+
+local timeoutReleaseGroups = {
+	{
+		var = "timeoutRelease_raidNormal",
+		text = RAID .. "- " .. PLAYER_DIFFICULTY1 .. " / " .. PLAYER_DIFFICULTY3 .. " / " .. PLAYER_DIFFICULTY_TIMEWALKER,
+		func = function(value) addon.db["timeoutReleaseDifficulties"]["raidNormal"] = value and true or false end,
+		get = function() return addon.db["timeoutReleaseDifficulties"]["raidNormal"] end,
+		parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
+		element = rData.element,
+		parent = true,
+		difficulties = { 3, 4, 7, 9, 14, 17, 18, 33, 151, 220 },
+	},
+	{
+		var = "timeoutRelease_raidHeroic",
+		text = RAID .. "- " .. PLAYER_DIFFICULTY2,
+		func = function(value) addon.db["timeoutReleaseDifficulties"]["raidHeroic"] = value and true or false end,
+		get = function() return addon.db["timeoutReleaseDifficulties"]["raidHeroic"] end,
+		parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
+		element = rData.element,
+		parent = true,
+		difficulties = { 5, 6, 15 },
+	},
+	{
+		var = "timeoutRelease_raidMythic",
+		text = RAID .. "- " .. PLAYER_DIFFICULTY6,
+		func = function(value) addon.db["timeoutReleaseDifficulties"]["raidMythic"] = value and true or false end,
+		get = function() return addon.db["timeoutReleaseDifficulties"]["raidMythic"] end,
+		parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
+		element = rData.element,
+		parent = true,
+		difficulties = { 16 },
+	},
+	{
+		var = "timeoutRelease_dungeonNormal",
+		text = DUNGEONS .. "- " .. PLAYER_DIFFICULTY1 .. " / " .. PLAYER_DIFFICULTY_TIMEWALKER,
+		func = function(value) addon.db["timeoutReleaseDifficulties"]["dungeonNormal"] = value and true or false end,
+		get = function() return addon.db["timeoutReleaseDifficulties"]["dungeonNormal"] end,
+		parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
+		element = rData.element,
+		parent = true,
+		difficulties = { 1, 24, 150, 216 },
+	},
+	{
+		var = "timeoutRelease_dungeonHeroic",
+		text = DUNGEONS .. "- " .. PLAYER_DIFFICULTY2,
+		func = function(value) addon.db["timeoutReleaseDifficulties"]["dungeonHeroic"] = value and true or false end,
+		get = function() return addon.db["timeoutReleaseDifficulties"]["dungeonHeroic"] end,
+		parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
+		element = rData.element,
+		parent = true,
+		difficulties = { 2 },
+	},
+	{
+		var = "timeoutRelease_dungeonMythic",
+		text = DUNGEONS .. "- " .. PLAYER_DIFFICULTY6,
+		func = function(value) addon.db["timeoutReleaseDifficulties"]["dungeonMythic"] = value and true or false end,
+		get = function() return addon.db["timeoutReleaseDifficulties"]["dungeonMythic"] end,
+		parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
+		element = rData.element,
+		parent = true,
+		difficulties = { 23 },
+	},
+	{
+		var = "timeoutRelease_dungeonMythicPlus",
+		text = DUNGEONS .. "- " .. PLAYER_DIFFICULTY_MYTHIC_PLUS,
+		func = function(value) addon.db["timeoutReleaseDifficulties"]["dungeonMythicPlus"] = value and true or false end,
+		get = function() return addon.db["timeoutReleaseDifficulties"]["dungeonMythicPlus"] end,
+		parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
+		element = rData.element,
+		parent = true,
+		difficulties = { 8 },
+	},
+	{
+		var = "timeoutRelease_dungeonFollower",
+		text = GUILD_CHALLENGE_TYPE4 .. "- " .. L["timeoutReleasePrefixScenario"],
+		func = function(value) addon.db["timeoutReleaseDifficulties"]["dungeonFollower"] = value and true or false end,
+		get = function() return addon.db["timeoutReleaseDifficulties"]["dungeonFollower"] end,
+		parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
+		element = rData.element,
+		parent = true,
+		difficulties = { 11, 12, 20, 30, 38, 39, 40, 147, 149, 152, 153, 167, 168, 169, 170, 171, 208 },
+	},
+	{
+		var = "timeoutRelease_pvp",
+		text = PVP,
+		func = function(value) addon.db["timeoutReleaseDifficulties"]["pvp"] = value and true or false end,
+		get = function() return addon.db["timeoutReleaseDifficulties"]["pvp"] end,
+		parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
+		element = rData.element,
+		parent = true,
+		difficulties = { 29, 34, 45 },
+	},
+	{
+		var = "timeoutRelease_world",
+		text = WORLD,
+		func = function(value) addon.db["timeoutReleaseDifficulties"]["world"] = value and true or false end,
+		get = function() return addon.db["timeoutReleaseDifficulties"]["world"] end,
+		parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
+		element = rData.element,
+		parent = true,
+		difficulties = { 0, 172, 192 },
+	},
+}
+
+for _, group in ipairs(timeoutReleaseGroups) do
+	if group.difficulties then
+		group.difficultySet = {}
+		for _, difficultyID in ipairs(group.difficulties) do
+			group.difficultySet[difficultyID] = true
+			local bucket = timeoutReleaseDifficultyLookup[difficultyID]
+			if not bucket then
+				timeoutReleaseDifficultyLookup[difficultyID] = { group.key }
+			else
+				table.insert(bucket, group.key)
+			end
+		end
+	end
+end
+
+addon.functions.SettingsCreateCheckboxes(cChar, timeoutReleaseGroups)
+
+-- 		local modifierOptions = {
+-- 			SHIFT = modifierDisplayNames.SHIFT or "SHIFT",
+-- 			CTRL = modifierDisplayNames.CTRL or "CTRL",
+-- 			ALT = modifierDisplayNames.ALT or "ALT",
+-- 		}
+-- 		local modifierOrder = { "SHIFT", "CTRL", "ALT" }
+-- 		local modifierDropdown = addon.functions.createDropdownAce(L["timeoutReleaseModifierLabel"] or "Modifier key", modifierOptions, modifierOrder, function(_, _, key)
+-- 			if modifierCheckers[key] then addon.db["timeoutReleaseModifier"] = key end
+-- 		end)
+-- 		modifierDropdown:SetValue(addon.db["timeoutReleaseModifier"] or "SHIFT")
+-- 		groupCore:AddChild(modifierDropdown)
+-- 	end
+
+-- 	if addon.db["groupfinderSkipRoleSelect"] then
+-- 		local list, order = addon.functions.prepareListForDropdown({ [1] = L["groupfinderSkipRolecheckUseSpec"], [2] = L["groupfinderSkipRolecheckUseLFD"] }, true)
+
+-- 		local dropRoleSelect = addon.functions.createDropdownAce("", list, order, function(self, _, value) addon.db["groupfinderSkipRoleSelectOption"] = value end)
+-- 		dropRoleSelect:SetValue(addon.db["groupfinderSkipRoleSelectOption"])
+
+-- 		local groupSkipRole = addon.functions.createContainer("InlineGroup", "List")
+-- 		wrapper:AddChild(groupSkipRole)
+-- 		groupSkipRole:SetTitle(L["groupfinderSkipRolecheckHeadline"])
+-- 		groupSkipRole:AddChild(dropRoleSelect)
+-- 	end
+
+---- REGION END
+
+local eventHandlers = {
+
+	["LFG_LIST_APPLICANT_UPDATED"] = function()
+		if PVEFrame:IsShown() and addon.db["lfgSortByRio"] then C_LFGList.RefreshApplicants() end
+		if InCombatLockdown() then return end
+		if addon.db["groupfinderAppText"] then toggleGroupApplication(true) end
+	end,
+}
+
+local function registerEvents(frame)
+	for event in pairs(eventHandlers) do
+		frame:RegisterEvent(event)
+	end
+end
+
+local function eventHandler(self, event, ...)
+	if eventHandlers[event] then eventHandlers[event](...) end
+end
+
+local frameLoad = CreateFrame("Frame")
+
+registerEvents(frameLoad)
+frameLoad:SetScript("OnEvent", eventHandler)

@@ -224,26 +224,6 @@ local function checkBagIgnoreJunk()
 end
 addon.functions.checkBagIgnoreJunk = checkBagIgnoreJunk
 
-local function toggleGroupApplication(value)
-	if value then
-		-- Hide overlay and text label
-		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Label:Hide()
-		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Background:Hide()
-		-- Hide the 3 animated texture icons
-		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot1:Hide()
-		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot2:Hide()
-		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot3:Hide()
-	else
-		-- Hide overlay and text label
-		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Label:Show()
-		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Background:Show()
-		-- Hide the 3 animated texture icons
-		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot1:Show()
-		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot2:Show()
-		_G.LFGListFrame.ApplicationViewer.UnempoweredCover.Waitdot3:Show()
-	end
-end
-
 local function skipRolecheck()
 	if addon.db["groupfinderSkipRoleSelectOption"] == 1 then
 		local tank, healer, dps = false, false, false
@@ -275,20 +255,6 @@ local function skipRolecheck()
 
 	LFDRoleCheckPopupAcceptButton:Enable()
 	LFDRoleCheckPopupAcceptButton:Click()
-end
-
-local lfgPoint, lfgRelativeTo, lfgRelativePoint, lfgXOfs, lfgYOfs
-
-local function toggleLFGFilterPosition()
-	if LFGListFrame and LFGListFrame.SearchPanel and LFGListFrame.SearchPanel.FilterButton and LFGListFrame.SearchPanel.FilterButton.ResetButton then
-		if addon.db["groupfinderMoveResetButton"] then
-			LFGListFrame.SearchPanel.FilterButton.ResetButton:ClearAllPoints()
-			LFGListFrame.SearchPanel.FilterButton.ResetButton:SetPoint("TOPLEFT", LFGListFrame.SearchPanel.FilterButton, "TOPLEFT", -7, 13)
-		else
-			LFGListFrame.SearchPanel.FilterButton.ResetButton:ClearAllPoints()
-			LFGListFrame.SearchPanel.FilterButton.ResetButton:SetPoint(lfgPoint, lfgRelativeTo, lfgRelativePoint, lfgXOfs, lfgYOfs)
-		end
-	end
 end
 
 LFGListApplicationDialog:HookScript("OnShow", function(self)
@@ -2438,265 +2404,6 @@ end
 
 -- New modular Unit Frames UI builder
 -- New modular Vendor & Economy UI builder
-local function getGlobalStringValue(key)
-	if not key then return nil end
-	local value = _G and _G[key]
-	if type(value) == "string" and value ~= "" then return value end
-	return nil
-end
-
-local function buildTimeoutReleaseGroupLabel(group)
-	if group.labelTemplate then
-		local template = group.labelTemplate
-		local prefix = getGlobalStringValue(template.prefixKey) or template.prefixFallback
-		local names = {}
-		if template.difficultyKeys then
-			for _, diffKey in ipairs(template.difficultyKeys) do
-				local diffLabel = getGlobalStringValue(diffKey)
-				if not diffLabel and template.difficultyFallbacks and template.difficultyFallbacks[diffKey] then diffLabel = template.difficultyFallbacks[diffKey] end
-				if diffLabel then table.insert(names, diffLabel) end
-			end
-		end
-		if #names > 0 then
-			local suffix = table.concat(names, " / ")
-			if prefix then return string.format("%s - %s", prefix, suffix) end
-			return suffix
-		end
-		if prefix then return prefix end
-	end
-	return group.fallbackLabel or group.key
-end
-
-local timeoutReleaseGroups = {
-	{
-		key = "raidNormal",
-		fallbackLabel = L["timeoutReleaseGroupRaidNormal"] or "Raid - Normal / Raid Finder / Timewalking",
-		labelTemplate = {
-			prefixKey = "RAID",
-			prefixFallback = L["timeoutReleasePrefixRaid"] or "Raid",
-			difficultyKeys = { "PLAYER_DIFFICULTY1", "PLAYER_DIFFICULTY3", "PLAYER_DIFFICULTY_TIMEWALKER" },
-		},
-		difficulties = { 3, 4, 7, 9, 14, 17, 18, 33, 151, 220 },
-	},
-	{
-		key = "raidHeroic",
-		fallbackLabel = L["timeoutReleaseGroupRaidHeroic"] or "Raid - Heroic",
-		labelTemplate = {
-			prefixKey = "RAID",
-			prefixFallback = L["timeoutReleasePrefixRaid"] or "Raid",
-			difficultyKeys = { "PLAYER_DIFFICULTY2" },
-		},
-		difficulties = { 5, 6, 15 },
-	},
-	{
-		key = "raidMythic",
-		fallbackLabel = L["timeoutReleaseGroupRaidMythic"] or "Raid - Mythic",
-		labelTemplate = {
-			prefixKey = "RAID",
-			prefixFallback = L["timeoutReleasePrefixRaid"] or "Raid",
-			difficultyKeys = { "PLAYER_DIFFICULTY6" },
-		},
-		difficulties = { 16 },
-	},
-	{
-		key = "dungeonNormal",
-		fallbackLabel = L["timeoutReleaseGroupDungeonNormal"] or "Dungeon - Normal / Timewalking",
-		labelTemplate = {
-			prefixKey = "DUNGEONS",
-			prefixFallback = L["timeoutReleasePrefixDungeon"] or "Dungeon",
-			difficultyKeys = { "PLAYER_DIFFICULTY1", "PLAYER_DIFFICULTY_TIMEWALKER" },
-		},
-		difficulties = { 1, 24, 150, 216 },
-	},
-	{
-		key = "dungeonHeroic",
-		fallbackLabel = L["timeoutReleaseGroupDungeonHeroic"] or "Dungeon - Heroic",
-		labelTemplate = {
-			prefixKey = "DUNGEONS",
-			prefixFallback = L["timeoutReleasePrefixDungeon"] or "Dungeon",
-			difficultyKeys = { "PLAYER_DIFFICULTY2" },
-		},
-		difficulties = { 2 },
-	},
-	{
-		key = "dungeonMythic",
-		fallbackLabel = L["timeoutReleaseGroupDungeonMythic"] or "Dungeon - Mythic",
-		labelTemplate = {
-			prefixKey = "DUNGEONS",
-			prefixFallback = L["timeoutReleasePrefixDungeon"] or "Dungeon",
-			difficultyKeys = { "PLAYER_DIFFICULTY6" },
-		},
-		difficulties = { 23 },
-	},
-	{
-		key = "dungeonMythicPlus",
-		fallbackLabel = L["timeoutReleaseGroupDungeonMythicPlus"] or "Dungeon - Mythic+",
-		labelTemplate = {
-			prefixKey = "DUNGEONS",
-			prefixFallback = L["timeoutReleasePrefixDungeon"] or "Dungeon",
-			difficultyKeys = { "PLAYER_DIFFICULTY_MYTHIC_PLUS" },
-		},
-		difficulties = { 8 },
-	},
-	{
-		key = "dungeonFollower",
-		fallbackLabel = L["timeoutReleaseGroupDungeonFollower"] or "Dungeon - Follower",
-		difficulties = { 205 },
-	},
-	{
-		key = "scenario",
-		fallbackLabel = L["timeoutReleaseGroupScenario"] or "Scenario",
-		labelTemplate = {
-			prefixKey = "SCENARIO",
-			prefixFallback = L["timeoutReleasePrefixScenario"] or "Scenario",
-		},
-		difficulties = { 11, 12, 20, 30, 38, 39, 40, 147, 149, 152, 153, 167, 168, 169, 170, 171, 208 },
-	},
-	{
-		key = "pvp",
-		fallbackLabel = L["timeoutReleaseGroupPvP"] or "PvP",
-		labelTemplate = {
-			prefixKey = "PVP",
-			prefixFallback = L["timeoutReleasePrefixPvP"] or "PvP",
-		},
-		difficulties = { 29, 34, 45 },
-	},
-	{
-		key = "world",
-		fallbackLabel = L["timeoutReleaseGroupWorld"] or "World",
-		labelTemplate = {
-			prefixKey = "WORLD",
-			prefixFallback = L["timeoutReleasePrefixWorld"] or "World",
-		},
-		difficulties = { 0, 172, 192 },
-	},
-}
-
-local timeoutReleaseDifficultyLookup = {}
-
-for _, group in ipairs(timeoutReleaseGroups) do
-	if group.difficulties then
-		group.difficultySet = {}
-		for _, difficultyID in ipairs(group.difficulties) do
-			group.difficultySet[difficultyID] = true
-			local bucket = timeoutReleaseDifficultyLookup[difficultyID]
-			if not bucket then
-				timeoutReleaseDifficultyLookup[difficultyID] = { group.key }
-			else
-				table.insert(bucket, group.key)
-			end
-		end
-	end
-end
-
-local function getTimeoutReleaseDropdownData()
-	local list = {}
-	local order = {}
-	for _, group in ipairs(timeoutReleaseGroups) do
-		list[group.key] = buildTimeoutReleaseGroupLabel(group)
-		table.insert(order, group.key)
-	end
-	return list, order
-end
-
-local function setTimeoutReleaseSelected(key, value)
-	if not addon.db then return end
-	addon.db["timeoutReleaseDifficulties"] = addon.db["timeoutReleaseDifficulties"] or {}
-	if value then
-		addon.db["timeoutReleaseDifficulties"][key] = true
-	else
-		addon.db["timeoutReleaseDifficulties"][key] = nil
-	end
-end
-
-local function shouldUseTimeoutReleaseForCurrentContext()
-	if not addon.db or not addon.db["timeoutRelease"] then return false end
-
-	local selection = addon.db["timeoutReleaseDifficulties"]
-	if selection == nil then return true end
-
-	local hasSelection = false
-	for key, enabled in pairs(selection) do
-		if enabled then
-			hasSelection = true
-			break
-		end
-	end
-	if not hasSelection then return false end
-
-	local inInstance, instanceType = IsInInstance()
-	if not inInstance or instanceType == "none" then return selection["world"] and true or false end
-
-	local difficultyID = select(3, GetInstanceInfo())
-	if difficultyID then
-		local keys = timeoutReleaseDifficultyLookup[difficultyID]
-		if keys then
-			for _, key in ipairs(keys) do
-				if selection[key] then return true end
-			end
-		end
-	end
-
-	if instanceType == "scenario" then return selection["scenario"] and true or false end
-	if instanceType == "pvp" or instanceType == "arena" then return selection["pvp"] and true or false end
-	if instanceType == "raid" then return selection["raidNormal"] or selection["raidHeroic"] or selection["raidMythic"] end
-	if instanceType == "party" then return selection["dungeonNormal"] or selection["dungeonHeroic"] or selection["dungeonMythic"] or selection["dungeonMythicPlus"] or selection["dungeonFollower"] end
-
-	return false
-end
-
-addon.functions.shouldUseTimeoutReleaseForCurrentContext = shouldUseTimeoutReleaseForCurrentContext
-
-local TIMEOUT_RELEASE_UPDATE_INTERVAL = 0.1
-
-local modifierCheckers = {
-	SHIFT = function() return IsShiftKeyDown() end,
-	CTRL = function() return IsControlKeyDown() end,
-	ALT = function() return IsAltKeyDown() end,
-}
-
-local modifierDisplayNames = {
-	SHIFT = getGlobalStringValue("SHIFT_KEY_TEXT") or "SHIFT",
-	CTRL = getGlobalStringValue("CTRL_KEY_TEXT") or "CTRL",
-	ALT = getGlobalStringValue("ALT_KEY_TEXT") or "ALT",
-}
-
-local DEFAULT_TIMEOUT_RELEASE_HINT = "Hold %s to release"
-
-local function getTimeoutReleaseModifierKey()
-	local modifierKey = addon.db and addon.db["timeoutReleaseModifier"] or "SHIFT"
-	if not modifierCheckers[modifierKey] then modifierKey = "SHIFT" end
-	return modifierKey
-end
-
-local function isTimeoutReleaseModifierDown(modifierKey)
-	local checker = modifierCheckers[modifierKey]
-	return checker and checker() or false
-end
-
-local function getTimeoutReleaseModifierDisplayName(modifierKey) return modifierDisplayNames[modifierKey] or modifierKey end
-
-local function showTimeoutReleaseHint(popup, modifierDisplayName)
-	if not popup then return end
-	local label = popup.eqolTimeoutReleaseLabel
-	if not label then
-		label = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-		label:SetJustifyH("CENTER")
-		label:SetPoint("BOTTOM", popup, "TOP", 0, 8)
-		label:SetTextColor(1, 0.82, 0)
-		label:SetWordWrap(true)
-		popup.eqolTimeoutReleaseLabel = label
-	end
-	local hintTemplate = rawget(L, "timeoutReleaseHoldHint") or DEFAULT_TIMEOUT_RELEASE_HINT
-	label:SetWidth(popup:GetWidth())
-	label:SetText(hintTemplate:format(modifierDisplayName))
-	label:Show()
-end
-
-local function hideTimeoutReleaseHint(popup)
-	local label = popup and popup.eqolTimeoutReleaseLabel
-	if label then label:Hide() end
-end
 
 local function addDungeonFrame(container, d)
 	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
@@ -2774,7 +2481,6 @@ local function addDungeonFrame(container, d)
 			func = function(self, _, value) addon.db["enableChatIMRaiderIO"] = value end,
 		},
 	}
-
 	table.sort(data, function(a, b) return a.text < b.text end)
 
 	for _, cbData in ipairs(data) do
@@ -2798,23 +2504,16 @@ local function addDungeonFrame(container, d)
 	groupCore:AddChild(cbTimeoutRelease)
 
 	if addon.db["timeoutRelease"] then
-		local list, order = getTimeoutReleaseDropdownData()
-		local dropdown = AceGUI:Create("Dropdown")
-		dropdown:SetLabel(L["timeoutReleaseOnlyIn"] or "Only apply in")
-		dropdown:SetList(list, order)
-		dropdown:SetMultiselect(true)
-		dropdown:SetFullWidth(true)
-		dropdown:SetCallback("OnValueChanged", function(_, _, key, checked) setTimeoutReleaseSelected(key, checked and true or false) end)
-
-		local selection = addon.db["timeoutReleaseDifficulties"]
-		if type(selection) == "table" then
-			for _, key in ipairs(order) do
-				if selection[key] then dropdown:SetItemValue(key, true) end
-			end
-		end
-
-		groupCore:AddChild(dropdown)
-
+		local modifierDisplayNames = {
+			SHIFT = "SHIFT",
+			CTRL = "CTRL",
+			ALT = "ALT",
+		}
+		local modifierCheckers = {
+			SHIFT = function() return IsShiftKeyDown() end,
+			CTRL = function() return IsControlKeyDown() end,
+			ALT = function() return IsAltKeyDown() end,
+		}
 		local modifierOptions = {
 			SHIFT = modifierDisplayNames.SHIFT or "SHIFT",
 			CTRL = modifierDisplayNames.CTRL or "CTRL",
@@ -3947,49 +3646,7 @@ local function updateFlyoutButtonInfo(button)
 	end
 end
 
-local function initDungeon()
-	addon.functions.InitDBValue("autoChooseDelvePower", false)
-	addon.functions.InitDBValue("lfgSortByRio", false)
-	addon.functions.InitDBValue("groupfinderSkipRoleSelect", false)
-	addon.functions.InitDBValue("enableChatIMRaiderIO", false)
-
-	if LFGListFrame and LFGListFrame.SearchPanel and LFGListFrame.SearchPanel.FilterButton and LFGListFrame.SearchPanel.FilterButton.ResetButton then
-		lfgPoint, lfgRelativeTo, lfgRelativePoint, lfgXOfs, lfgYOfs = LFGListFrame.SearchPanel.FilterButton.ResetButton:GetPoint()
-	end
-	if addon.db["groupfinderMoveResetButton"] then toggleLFGFilterPosition() end
-
-	-- Add Raider.IO URL to LFG applicant member context menu
-	if Menu and Menu.ModifyMenu then
-		local regionTable = { "US", "KR", "EU", "TW", "CN" }
-		local function AddLFGApplicantRIO(owner, root, ctx)
-			if not addon.db["enableChatIMRaiderIO"] then return end
-
-			local appID = owner and owner._eqolApplicantID or (ctx and (ctx.applicantID or ctx.appID))
-			local memberIdx = owner and owner._eqolMemberIdx or (ctx and (ctx.memberIdx or ctx.memberIndex))
-			if not appID or not memberIdx then return end
-
-			local name = C_LFGList and C_LFGList.GetApplicantMemberInfo and C_LFGList.GetApplicantMemberInfo(appID, memberIdx)
-			if type(name) ~= "string" or name == "" then return end
-
-			local targetName = name
-			if not targetName:find("-", 1, true) then targetName = targetName .. "-" .. (GetRealmName() or ""):gsub("%s", "") end
-
-			local char, realm = targetName:match("^([^%-]+)%-(.+)$")
-			if not char or not realm then return end
-
-			local regionKey = regionTable[GetCurrentRegion()] or "EU"
-			local realmSlug = string.lower((realm or ""):gsub("%s+", "-"))
-			local riolink = "https://raider.io/characters/" .. string.lower(regionKey) .. "/" .. realmSlug .. "/" .. char
-
-			root:CreateDivider()
-			root:CreateButton(L["RaiderIOUrl"], function(link)
-				if StaticPopup_Show then StaticPopup_Show("EQOL_URL_COPY", nil, nil, link) end
-			end, riolink)
-		end
-
-		Menu.ModifyMenu("MENU_LFG_FRAME_MEMBER_APPLY", AddLFGApplicantRIO)
-	end
-end
+local function initDungeon() end
 
 local function initActionBars()
 	addon.functions.InitDBValue("actionBarAnchorEnabled", false)
@@ -4249,20 +3906,20 @@ local function initMisc()
 					local isDeathPopup = (self.which == "DEATH") and (self.numButtons or 0) > 0 and self.GetButton
 					if isDeathPopup then
 						local releaseButton = self:GetButton(1)
-						local shouldGateRelease = addon.db["timeoutRelease"] and shouldUseTimeoutReleaseForCurrentContext()
+						local shouldGateRelease = addon.db["timeoutRelease"] and addon.functions.shouldUseTimeoutReleaseForCurrentContext()
 
 						if shouldGateRelease then
-							local modifierKey = getTimeoutReleaseModifierKey()
-							local modifierDisplayName = getTimeoutReleaseModifierDisplayName(modifierKey)
-							local isModifierDown = isTimeoutReleaseModifierDown(modifierKey)
+							local modifierKey = addon.functions.getTimeoutReleaseModifierKey()
+							local modifierDisplayName = addon.functions.getTimeoutReleaseModifierDisplayName(modifierKey)
+							local isModifierDown = addon.functions.isTimeoutReleaseModifierDown(modifierKey)
 							if releaseButton then releaseButton:SetAlpha(isModifierDown and 1 or 0) end
-							showTimeoutReleaseHint(self, modifierDisplayName)
+							addon.functions.showTimeoutReleaseHint(self, modifierDisplayName)
 						else
 							if releaseButton then releaseButton:SetAlpha(1) end
-							hideTimeoutReleaseHint(self)
+							addon.functions.hideTimeoutReleaseHint(self)
 						end
 					else
-						hideTimeoutReleaseHint(self)
+						addon.functions.hideTimeoutReleaseHint(self)
 					end
 
 					if addon.db["sellAllJunk"] and self.data and type(self.data) == "table" and self.data.text == SELL_ALL_JUNK_ITEMS_POPUP and self.button1 then
@@ -4287,7 +3944,7 @@ local function initMisc()
 				end
 			end)
 			if not popup._eqolTimeoutReleaseOnHideHooked then
-				popup:HookScript("OnHide", function(self) hideTimeoutReleaseHint(self) end)
+				popup:HookScript("OnHide", function(self) addon.functions.hideTimeoutReleaseHint(self) end)
 				popup._eqolTimeoutReleaseOnHideHooked = true
 			end
 		end
@@ -6368,7 +6025,8 @@ local function setAllHooks()
 	initMisc()
 	initLoot()
 	initQuest()
-	initDungeon()
+	addon.functions.initDungeonFrame()
+
 	initParty()
 	initActionBars()
 	initUI()
@@ -6492,9 +6150,9 @@ function loadMain()
 
 	-- Frame zu den Interface-Optionen hinzufügen
 	-- InterfaceOptions_AddCategory(configFrame)
-	local category, layout = Settings.RegisterCanvasLayoutCategory(configFrame, configFrame.name)
-	Settings.RegisterAddOnCategory(category)
-	addon.settingsCategory = category
+	-- local category, layout = Settings.RegisterCanvasLayoutCategory(configFrame, configFrame.name)
+	-- Settings.RegisterAddOnCategory(category)
+	-- addon.settingsCategory = category
 end
 
 -- Erstelle ein Frame f��r Events
@@ -6761,11 +6419,6 @@ local eventHandlers = {
 
 	["LFG_ROLE_CHECK_SHOW"] = function()
 		if addon.db["groupfinderSkipRoleSelect"] and UnitInParty("player") then skipRolecheck() end
-	end,
-	["LFG_LIST_APPLICANT_UPDATED"] = function()
-		if PVEFrame:IsShown() and addon.db["lfgSortByRio"] then C_LFGList.RefreshApplicants() end
-		if InCombatLockdown() then return end
-		if addon.db["groupfinderAppText"] then toggleGroupApplication(true) end
 	end,
 	["LOOT_READY"] = function()
 		if addon.db["autoQuickLoot"] then

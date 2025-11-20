@@ -1,0 +1,4 @@
+<Ui>
+	<Script file='SettingsUI.lua'/>
+	<Script file='DungeonFrame.lua'/>
+</Ui>
