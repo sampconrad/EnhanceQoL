@@ -1,6 +1,7 @@
 local addonName, addon = ...
 
 addon.SettingsLayout = {}
+addon.SettingsLayout.elements = {}
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 
@@ -23,8 +24,16 @@ function addon.functions.SettingsCreateCheckbox(cat, cbData)
 		cbData.func
 	)
 	local element = Settings.CreateCheckbox(cat, setting, cbData.desc)
+	addon.SettingsLayout.elements[cbData.var] = { setting = setting, element = element }
 	if cbData.parent then element:SetParentInitializer(cbData.element, cbData.parentCheck) end
-	return { setting = setting, element = element }
+
+	if cbData.children then
+		for _, v in pairs(cbData.children) do
+			v.element = element
+			if v.sType == "dropdown" then addon.functions.SettingsCreateDropdown(cat, v) end
+		end
+	end
+	return addon.SettingsLayout.elements[cbData.var]
 end
 
 function addon.functions.SettingsCreateCheckboxes(cat, data)

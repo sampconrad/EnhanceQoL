@@ -201,6 +201,24 @@ local data = {
 		var = "groupfinderSkipRoleSelect",
 		func = function(value) addon.db["groupfinderSkipRoleSelect"] = value end,
 		desc = L["interruptWithShift"],
+		children = {
+			{
+				list = { [1] = L["groupfinderSkipRolecheckUseSpec"], [2] = L["groupfinderSkipRolecheckUseLFD"] },
+				text = L["groupfinderSkipRolecheckHeadline"],
+				get = function() return addon.db["groupfinderSkipRoleSelectOption"] or 1 end,
+				set = function(key) addon.db["groupfinderSkipRoleSelectOption"] = key end,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["groupfinderSkipRoleSelect"]
+						and addon.SettingsLayout.elements["groupfinderSkipRoleSelect"].setting
+						and addon.SettingsLayout.elements["groupfinderSkipRoleSelect"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = 1,
+				var = "groupfinderSkipRoleSelectOption",
+				type = Settings.VarType.Number,
+				sType = "dropdown",
+			},
+		},
 	},
 	{
 		var = "persistSignUpNote",
@@ -224,22 +242,8 @@ local data = {
 	},
 }
 table.sort(data, function(a, b) return a.text < b.text end)
-local rData1 = addon.functions.SettingsCreateCheckboxes(cChar, data)
-
-data = {
-	list = { [1] = L["groupfinderSkipRolecheckUseSpec"], [2] = L["groupfinderSkipRolecheckUseLFD"] },
-	text = L["groupfinderSkipRolecheckHeadline"],
-	get = function() return addon.db["groupfinderSkipRoleSelectOption"] or 1 end,
-	set = function(key) addon.db["groupfinderSkipRoleSelectOption"] = key end,
-	parentCheck = function() return rData1["groupfinderSkipRoleSelect"] and rData1["groupfinderSkipRoleSelect"].setting and rData1["groupfinderSkipRoleSelect"].setting:GetValue() == true end,
-	element = rData1["groupfinderSkipRoleSelect"].element,
-	parent = true,
-	default = 1,
-	var = "groupfinderSkipRoleSelectOption",
-	type = Settings.VarType.Number,
-}
-addon.functions.SettingsCreateDropdown(cChar, data)
 --- DELVES
+addon.functions.SettingsCreateCheckboxes(cChar, data)
 
 addon.functions.SettingsCreateHeadline(cChar, DELVES_LABEL)
 
@@ -283,6 +287,8 @@ data = {
 }
 
 addon.functions.SettingsCreateDropdown(cChar, data)
+
+addon.functions.SettingsCreateHeadline(cChar, L["timeoutReleaseHeadline"])
 
 local timeoutReleaseGroups = {
 	{
@@ -412,6 +418,27 @@ local eventHandlers = {
 		if PVEFrame:IsShown() and addon.db["lfgSortByRio"] then C_LFGList.RefreshApplicants() end
 		if InCombatLockdown() then return end
 		if addon.db["groupfinderAppText"] then toggleGroupApplication(true) end
+	end,
+	["MODIFIER_STATE_CHANGED"] = function(arg1, arg2)
+		if not addon.db["timeoutRelease"] then return end
+		if not UnitIsDead("player") then return end
+		local modifierKey = addon.functions.getTimeoutReleaseModifierKey()
+		if not (arg1 and arg1:match(modifierKey)) then return end
+
+		local _, stp = StaticPopup_Visible("DEATH")
+		if stp and stp.GetButton and addon.functions.shouldUseTimeoutReleaseForCurrentContext() then
+			local btn = stp:GetButton(1)
+			if btn then btn:SetAlpha(arg2 or 0) end
+		end
+	end,
+	["PLAYER_CHOICE_UPDATE"] = function()
+		if select(3, GetInstanceInfo()) == 208 and addon.db["autoChooseDelvePower"] then
+			local choiceInfo = C_PlayerChoice.GetCurrentPlayerChoiceInfo()
+			if choiceInfo and choiceInfo.options and #choiceInfo.options == 1 then
+				C_PlayerChoice.SendPlayerChoiceResponse(choiceInfo.options[1].buttons[1].id)
+				if PlayerChoiceFrame:IsShown() then PlayerChoiceFrame:Hide() end
+			end
+		end
 	end,
 }
 

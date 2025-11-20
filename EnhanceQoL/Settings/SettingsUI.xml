@@ -1,4 +1,5 @@
 <Ui>
 	<Script file='SettingsUI.lua'/>
-	<Script file='DungeonFrame.lua'/>
+	<Script file='CombatDungeon.lua'/>
+	<Script file='ItemInventory.lua'/>
 </Ui>

@@ -1199,3 +1199,10 @@ function addon.functions.catalystChecks()
 	end
 	addon.functions.createCatalystFrame()
 end
+
+function addon.functions.fmtToPattern(fmt)
+	local pat = fmt:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+	pat = pat:gsub("%%%%d", "%%d+") -- "%d" -> "%d+"
+	pat = pat:gsub("%%%%s", ".+") -- "%s" -> ".+"
+	return "^" .. pat .. "$"
+end
