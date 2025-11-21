@@ -6,6 +6,11 @@
 
 Starting to change stuff to blizzard options, for now only a small part is there but more and more will follow
 
+- Options menus transformed
+  - Combat & Dungeons
+  - Container Action
+  - Items & Inventory
+  
 ### ✨ Added
 
 - Shortening per _Currency_ in _Currency Stream_ added

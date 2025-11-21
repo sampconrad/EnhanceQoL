@@ -99,8 +99,6 @@ data = {
 			local ok, reason = addon.ContainerActions:RemoveItemFromBlacklist(itemID)
 			if not ok then
 				addon.ContainerActions:HandleBlacklistError(reason, itemID)
-			elseif refreshBlacklistDropdown then
-				refreshBlacklistDropdown()
 			end
 		end
 

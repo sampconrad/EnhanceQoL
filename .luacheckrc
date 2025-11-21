@@ -577,6 +577,9 @@ globals = {
 	"C_ArtifactUI.GetNumObtainedArtifacts",
 	"C_ArtifactUI.GetNumRelicSlots",
 	"C_ArtifactUI.GetPointsRemaining",
+	"SettingsDropdownControlMixin",
+	"SettingsCategoryListButtonMixin",
+	
 	"C_ArtifactUI.GetPowerInfo",
 	"C_ArtifactUI.GetPowerLinks",
 	"C_ArtifactUI.GetPowers",

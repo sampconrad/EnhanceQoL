@@ -3883,7 +3883,7 @@ local function CreateUI()
 			{ value = "loot", text = L["Loot"] },
 			{ value = "gear", text = L["GearUpgrades"] },
 			{ value = "economy", text = L["VendorsEconomy"] },
-			{ value = "container", text = L["ContainerActions"] }
+			{ value = "container", text = L["ContainerActions"] },
 		},
 	})
 
@@ -4473,7 +4473,7 @@ local eventHandlers = {
 			loadSubAddon("EnhanceQoLDrinkMacro")
 			loadSubAddon("EnhanceQoLTooltip")
 			loadSubAddon("EnhanceQoLVendor")
-			
+
 			if addon.Events and addon.Events.LegionRemix and addon.Events.LegionRemix.Init then addon.Events.LegionRemix:Init() end
 
 			checkBagIgnoreJunk()
