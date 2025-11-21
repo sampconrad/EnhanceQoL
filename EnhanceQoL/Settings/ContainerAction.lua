@@ -77,14 +77,34 @@ data = {
 	element = addon.SettingsLayout.elements["automaticallyOpenContainer"].element,
 	get = function() return "" end,
 	set = function(value)
+		if not addon.ContainerActions then return end
+		local itemID = tonumber(value)
+		if not itemID then return end
 
-		if not selectedBlacklistID or not addon.ContainerActions then return end
-		local ok, reason = addon.ContainerActions:RemoveItemFromBlacklist(value)
-		if not ok then
-			addon.ContainerActions:HandleBlacklistError(reason, value)
-		else
-			refreshBlacklistDropdown()
+		local dialogKey = "EQOL_CONTAINER_BLACKLIST_REMOVE"
+		local itemName = addon.ContainerActions:GetItemDisplayName(itemID)
+
+		StaticPopupDialogs[dialogKey] = StaticPopupDialogs[dialogKey]
+			or {
+				text = L["containerActionsBlacklistRemoveConfirm"],
+				button1 = ACCEPT,
+				button2 = CANCEL,
+				timeout = 0,
+				whileDead = true,
+				hideOnEscape = true,
+				preferredIndex = 3,
+			}
+
+		StaticPopupDialogs[dialogKey].OnAccept = function()
+			local ok, reason = addon.ContainerActions:RemoveItemFromBlacklist(itemID)
+			if not ok then
+				addon.ContainerActions:HandleBlacklistError(reason, itemID)
+			elseif refreshBlacklistDropdown then
+				refreshBlacklistDropdown()
+			end
 		end
+
+		StaticPopup_Show(dialogKey, itemName or ("item:" .. itemID), itemID)
 	end,
 	parent = true,
 	default = "",
