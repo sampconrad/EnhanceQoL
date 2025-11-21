@@ -48,9 +48,10 @@ function addon.functions.SettingsCreateCheckbox(cat, cbData)
 	addon.SettingsLayout.elements[cbData.var] = { setting = setting, element = element }
 	if cbData.parent then element:SetParentInitializer(cbData.element, cbData.parentCheck) end
 
+	if cbData.notify then addon.functions.SettingsCreateNotify(setting, cbData.notify) end
 	if cbData.children then
 		for _, v in pairs(cbData.children) do
-			v.element = element
+			v.element = v.element or element
 			if v.sType == "dropdown" then
 				addon.functions.SettingsCreateDropdown(cat, v)
 			elseif v.sType == "checkbox" then
@@ -63,6 +64,10 @@ function addon.functions.SettingsCreateCheckbox(cat, cbData)
 		end
 	end
 	return addon.SettingsLayout.elements[cbData.var]
+end
+
+function addon.functions.SettingsCreateNotify(element, data)
+	element:SetValueChangedCallback(function(setting, value) Settings.NotifyUpdate("EQOL_" .. data) end)
 end
 
 function addon.functions.SettingsCreateCheckboxes(cat, data)

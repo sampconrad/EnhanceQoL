@@ -126,6 +126,86 @@ local data = {
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cLoot, data)
 
+addon.functions.SettingsCreateHeadline(cLoot, L["lootToastFilterSettings"])
+
+local data = {
+	{
+		var = "enableLootToastFilter",
+		text = L["enableLootToastFilter"],
+		desc = L["enableLootToastFilterDesc"],
+		func = function(value)
+			addon.db.enableLootToastFilter = value and true or false
+			addon.functions.initLootToast()
+		end,
+		children = {
+			{
+
+				var = "enableLootToastCustomSound",
+				text = L["enableLootToastCustomSound"],
+				get = function() return addon.db["lootToastUseCustomSound"] or false end,
+				func = function(v) addon.db["lootToastUseCustomSound"] = v end,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["enableLootToastFilter"]
+						and addon.SettingsLayout.elements["enableLootToastFilter"].setting
+						and addon.SettingsLayout.elements["enableLootToastFilter"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				type = Settings.VarType.Boolean,
+				sType = "checkbox",
+			},
+		},
+	},
+}
+
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cLoot, data)
+
+addon.functions.SettingsCreateText(cLoot, "|c" .. ITEM_QUALITY_COLORS[3].color:GenerateHexColor() .. ITEM_QUALITY3_DESC .. "|r")
+
+local data = {
+	{
+		var = "lootToastCheckIlvl_rare",
+		text = L["lootToastCheckIlvl"],
+		get = function() return addon.db.lootToastFilters[3].ilvl or false end,
+		func = function(value) addon.db.lootToastFilters[3].ilvl = value end,
+		children = {
+			{
+				var = "lootToastItemLevel_rare",
+				text = L["lootToastItemLevel"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["enableLootToastFilter"]
+						and addon.SettingsLayout.elements["enableLootToastFilter"].setting
+						and addon.SettingsLayout.elements["enableLootToastFilter"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["lootToastCheckIlvl_rare"]
+						and addon.SettingsLayout.elements["lootToastCheckIlvl_rare"].setting
+						and addon.SettingsLayout.elements["lootToastCheckIlvl_rare"].setting:GetValue() == true
+				end,
+				get = function() return addon.db and addon.db.lootToastItemLevels and addon.db.lootToastItemLevels[3] or 0 end,
+				set = function(value) addon.db.lootToastItemLevels[3] = value end,
+				min = 0,
+				max = 1000,
+				step = 1,
+				element = addon.SettingsLayout.elements["enableLootToastFilter"].element,
+				parent = true,
+				default = 0,
+				sType = "slider",
+			},
+		},
+		parent = true,
+		element = addon.SettingsLayout.elements["enableLootToastFilter"].element,
+		parentCheck = function()
+			return addon.SettingsLayout.elements["enableLootToastFilter"]
+				and addon.SettingsLayout.elements["enableLootToastFilter"].setting
+				and addon.SettingsLayout.elements["enableLootToastFilter"].setting:GetValue() == true
+		end,
+		notify = "enableLootToastFilter",
+	},
+}
+
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cLoot, data)
+
 addon.functions.SettingsCreateHeadline(cLoot, L["dungeonJournalLootSpecIcons"])
 
 local data = {
