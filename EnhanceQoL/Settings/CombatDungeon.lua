@@ -175,9 +175,9 @@ end
 ---- END REGION
 
 ---- REGION SETTINGS
-local cChar = addon.functions.SettingsCreateCategory(nil, L["CombatDungeons"])
+local cChar = addon.functions.SettingsCreateCategory(nil, L["CombatDungeons"], nil, "CombatDungeons")
 addon.SettingsLayout.characterInspectCategory = cChar
-addon.functions.SettingsCreateHeadline(cChar, DUNGEONS)
+addon.functions.SettingsCreateHeadline(cChar, DUNGEONS, "CombatDungeon_Dungeon")
 
 local data = {
 	{

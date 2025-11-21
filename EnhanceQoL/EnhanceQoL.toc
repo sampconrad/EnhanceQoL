@@ -27,6 +27,7 @@ libs\LibStub\LibStub.lua
 libs\AceLocale-3.0\AceLocale-3.0.xml
 locales\[TextLocale].lua
 Init.lua
+NewSettingsTable.lua
 
 libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
@@ -48,6 +49,7 @@ Events\LegionRemixPhaseData.lua
 Events\LegionRemix.lua
 Modules\ActionBarLabels.lua
 EnhanceQoL.lua
+Settings\Templates\XMLTemplates.xml
 Settings\SettingsUI.xml
 Modules\ItemsOptions.lua
 Modules\UIOptions.lua

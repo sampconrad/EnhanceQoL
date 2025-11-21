@@ -100,8 +100,9 @@ L["containerActionsAnchorLockedCombat"] = "Cannot unlock the container action bu
 L["containerActionsButtonTooltip"] = "Click to use this item."
 L["containerActionsBanTooltip"] = "Shift-Right-Click to ban the current item from this button."
 L["containerActionsNoItems"] = "No secure container items detected."
-L["containerActionsFeatureDesc"] =
-	"When enabled, items that require a secure click are queued on the container action button. Place the anchor where you want it and click the button to use the next queued item without causing taint."
+L["containerActionsFeatureDesc2"] =
+	"When enabled, items that require a secure click are queued on the container action button. \nPlace the anchor where you want it and click the button to use the next queued item."
+
 L["containerActionsManagedItems"] = "Blacklisted Items"
 L["containerActionsBlacklistDesc"] = "Manage the list of item IDs that should never appear on the container action button."
 L["containerActionsBlacklistHint"] = "Tip: Shift-Right-Click the container action button to add the currently shown item to the blacklist."
@@ -113,6 +114,7 @@ L["containerActionsBlacklistAddLabel"] = "Add Item to Blacklist"
 L["containerActionsBlacklistAddPlaceholder"] = "Paste an item link or enter an item ID"
 L["containerActionsBlacklistAdded"] = "Blocked %s (%d)."
 L["containerActionsBlacklistRemoved"] = "Unblocked %s (%d)."
+L["containerActionsBlacklistRemoveConfirm"] = "Remove %s (ID %d) from the blacklist? Press Accept to delete this entry."
 L["containerActionsBlacklistCombat"] = "Cannot modify the blacklist while in combat."
 L["containerActionsBlacklistExists"] = "%s (%d) is already on the blacklist."
 L["containerActionsBlacklistInvalid"] = "Enter a valid item link or numeric ID to add it to the blacklist."

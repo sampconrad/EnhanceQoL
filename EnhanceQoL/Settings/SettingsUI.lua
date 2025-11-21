@@ -2,13 +2,34 @@ local addonName, addon = ...
 
 addon.SettingsLayout = {}
 addon.SettingsLayout.elements = {}
+addon.SettingsLayout.knownCategoryID = {}
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 
-function addon.functions.SettingsCreateCategory(parent, treeName, sort)
+hooksecurefunc(SettingsCategoryListButtonMixin, "Init", function(self, initializer)
+	local category = initializer.data.category
+	if not category._EQOL_NewTagID or not addon.SettingsLayout.knownCategoryID[category:GetID()] or not addon.variables.NewVersionTableEQOL[category._EQOL_NewTagID] then return end
+
+	if self.NewFeature then self.NewFeature:SetShown(true) end
+end)
+
+hooksecurefunc(SettingsCheckboxControlMixin, "Init", function(self)
+	local setting = self.GetSetting and self:GetSetting()
+	if not setting or not setting.variable or not addon.variables.NewVersionTableEQOL[setting.variable] then return end
+	if self.NewFeature then self.NewFeature:SetShown(true) end
+end)
+hooksecurefunc(SettingsDropdownControlMixin, "Init", function(self)
+	local setting = self.GetSetting and self:GetSetting()
+	if not setting or not setting.variable or not addon.variables.NewVersionTableEQOL[setting.variable] then return end
+	if self.NewFeature then self.NewFeature:SetShown(true) end
+end)
+
+function addon.functions.SettingsCreateCategory(parent, treeName, sort, newTagID)
 	if nil == parent then parent = addon.SettingsLayout.rootCategory end
 	local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, treeName)
 	Settings.RegisterAddOnCategory(cat)
+	addon.SettingsLayout.knownCategoryID[cat:GetID()] = true
+	cat._EQOL_NewTagID = newTagID
 	cat:SetShouldSortAlphabetically(sort or true)
 	return cat, layout
 end
@@ -50,6 +71,12 @@ function addon.functions.SettingsCreateHeadline(cat, text)
 	charHeader:AddSearchTags(text)
 end
 
+function addon.functions.SettingsCreateText(cat, text)
+	local charHeader = Settings.CreateElementInitializer("EQOL_SettingsListSectionHintTemplate", { name = text })
+	Settings.RegisterInitializer(cat, charHeader)
+	charHeader:AddSearchTags(text)
+end
+
 function addon.functions.SettingsCreateButton(layout, text, func, searchtags)
 	searchtags = searchtags or false
 	local btn = CreateSettingsButtonInitializer("", text, func or function() end, nil, searchtags)
@@ -59,7 +86,9 @@ end
 function addon.functions.SettingsCreateDropdown(cat, cbData, searchtags)
 	local options = function()
 		local container = Settings.CreateControlTextContainer()
-		for key, value in pairs(cbData.list or {}) do
+		local list = cbData.list
+		if cbData.listFunc then list = cbData.listFunc() end
+		for key, value in pairs(list or {}) do
 			container:Add(key, value)
 		end
 		return container:GetData()
@@ -69,6 +98,12 @@ function addon.functions.SettingsCreateDropdown(cat, cbData, searchtags)
 
 	local dropdown = Settings.CreateDropdown(cat, setting, options, cbData.desc)
 	if cbData.parent then dropdown:SetParentInitializer(cbData.element, cbData.parentCheck) end
+end
+
+function addon.functions.SettingsCreateButton(layout, text, func, tooltip, searchtags)
+	local btn = CreateSettingsButtonInitializer("", text, func, tooltip, searchtags)
+	layout:AddInitializer(btn)
+	addon.SettingsLayout.elements[text] = { element = btn }
 end
 
 local cat, layout = Settings.RegisterVerticalLayoutCategory(addonName)

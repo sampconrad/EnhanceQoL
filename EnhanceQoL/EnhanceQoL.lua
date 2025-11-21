@@ -2108,7 +2108,6 @@ local function EnsureQuestTrackerQuestCountWatcher()
 	end)
 end
 
-
 local function initActionBars()
 	addon.functions.InitDBValue("actionBarAnchorEnabled", false)
 	addon.functions.InitDBValue("actionBarFullRangeColoring", false)
@@ -2342,10 +2341,6 @@ local function initMisc()
 	addon.functions.InitDBValue("hideMinimapButton", false)
 	addon.functions.InitDBValue("hideZoneText", false)
 	addon.functions.InitDBValue("instantCatalystEnabled", false)
-	addon.functions.InitDBValue("automaticallyOpenContainer", false)
-	addon.functions.InitDBValue("containerActionAnchor", { point = "CENTER", relativePoint = "CENTER", x = 0, y = -200 })
-	addon.functions.InitDBValue("containerAutoOpenDisabled", {})
-	addon.functions.InitDBValue("containerActionAreaBlocks", {})
 
 	-- Hook all static popups, because not the first one has to be the one for sell all junk if another popup is already shown
 	for i = 1, 4 do
@@ -3888,6 +3883,7 @@ local function CreateUI()
 			{ value = "loot", text = L["Loot"] },
 			{ value = "gear", text = L["GearUpgrades"] },
 			{ value = "economy", text = L["VendorsEconomy"] },
+			{ value = "container", text = L["ContainerActions"] }
 		},
 	})
 
@@ -3927,12 +3923,6 @@ local function CreateUI()
 
 	if addMediaRoot then addon.functions.addToTree(nil, { value = "media", text = L["Media & Sound"] or "Media & Sound" }) end
 
-	-- Conditionally add "Container Actions" under Items if a page is registered
-	if addon.functions.HasOptionsPage and addon.functions.HasOptionsPage("items\001container") then
-		addon.functions.addToTree("items", { value = "container", text = L["ContainerActions"] }, true)
-		addon.treeGroup:SetTree(addon.treeGroupData)
-	end
-
 	-- Top: Events
 	-- if addon.functions.IsTimerunner() then addon.functions.addToTree(nil, {
 	-- 	value = "events",
@@ -3962,6 +3952,8 @@ local function CreateUI()
 		-- Forward Combat subtree for modules (Mythic+, Aura, Drink, CombatMeter)
 		elseif group == "items" then
 			Settings.OpenToCategory(addon.SettingsLayout.inventoryCategory:GetID())
+		elseif group == "items\001container" then
+			Settings.OpenToCategory(addon.SettingsLayout.containerActionCategory:GetID())
 		-- Forward Combat subtree for modules (Mythic+, Aura, Drink, CombatMeter)
 		elseif string.sub(group, 1, string.len("combat\001")) == "combat\001" then
 			-- Normalize and dispatch for known combat modules
@@ -4065,6 +4057,8 @@ local function CreateUI()
 				else
 					frame:Show()
 				end
+			else
+				Settings.OpenToCategory(addon.SettingsLayout.rootCategory:GetID())
 			end
 		end,
 		OnTooltipShow = function(tt)
@@ -4408,50 +4402,6 @@ local frameLoad = CreateFrame("Frame")
 
 local gossipClicked = {}
 
-local wOpen = false -- Variable to ignore multiple checks for openItems
-local function openItems(items)
-	local function openNextItem()
-		if #items == 0 then
-			addon.functions.checkForContainer()
-			return
-		end
-
-		if not MerchantFrame:IsShown() then
-			local item = table.remove(items, 1)
-			local iLoc = ItemLocation:CreateFromBagAndSlot(item.bag, item.slot)
-			-- if iLoc then
-			-- 	if C_Item.IsLocked(iLoc) then C_Item.UnlockItem(iLoc) end
-			-- end
-			C_Timer.After(0.15, function()
-				C_Container.UseContainerItem(item.bag, item.slot)
-				C_Timer.After(0.4, openNextItem) -- 400ms Pause zwischen den boxen
-			end)
-		end
-	end
-	openNextItem()
-end
-
-function addon.functions.checkForContainer(bags)
-	if not addon.db["automaticallyOpenContainer"] then
-		if addon.ContainerActions and addon.ContainerActions.UpdateItems then addon.ContainerActions:UpdateItems({}) end
-		wOpen = false
-		return
-	end
-
-	local safeItems, secureItems = {}, {}
-	if addon.ContainerActions and addon.ContainerActions.ScanBags then
-		safeItems, secureItems = addon.ContainerActions:ScanBags(bags)
-	end
-
-	if addon.ContainerActions and addon.ContainerActions.UpdateItems then addon.ContainerActions:UpdateItems(secureItems, bags) end
-
-	if #safeItems > 0 then
-		openItems(safeItems)
-	else
-		wOpen = false
-	end
-end
-
 local function loadSubAddon(name)
 	local subAddonName = name
 
@@ -4523,52 +4473,12 @@ local eventHandlers = {
 			loadSubAddon("EnhanceQoLDrinkMacro")
 			loadSubAddon("EnhanceQoLTooltip")
 			loadSubAddon("EnhanceQoLVendor")
-
-			if addon.ContainerActions and addon.ContainerActions.Init then
-				addon.ContainerActions:Init()
-				if addon.ContainerActions.OnSettingChanged then addon.ContainerActions:OnSettingChanged(addon.db["automaticallyOpenContainer"]) end
-			end
-
+			
 			if addon.Events and addon.Events.LegionRemix and addon.Events.LegionRemix.Init then addon.Events.LegionRemix:Init() end
 
 			checkBagIgnoreJunk()
 		end
 		if arg1 == "Blizzard_ItemInteractionUI" then addon.functions.toggleInstantCatalystButton(addon.db["instantCatalystEnabled"]) end
-	end,
-	["BAG_UPDATE"] = function(bag)
-		addon._bagsDirty = addon._bagsDirty or {}
-		if type(bag) == "number" then addon._bagsDirty[bag] = true end
-	end,
-	["BAG_UPDATE_DELAYED"] = function()
-		if addon.functions.clearTooltipCache then
-			local now = GetTime()
-			if not addon._ttCacheLastClear or (now - addon._ttCacheLastClear) > 0.25 then
-				addon._ttCacheLastClear = now
-				addon.functions.clearTooltipCache()
-			end
-		end
-
-		if not addon.db["automaticallyOpenContainer"] then return end
-		if wOpen or addon._bagScanScheduled then return end
-
-		addon._bagScanScheduled = true
-		C_Timer.After(0, function()
-			addon._bagScanScheduled = nil
-			if wOpen or not addon.db["automaticallyOpenContainer"] then return end
-
-			wOpen = true
-
-			local bags
-			if addon._bagsDirty and next(addon._bagsDirty) then
-				bags = {}
-				for b in pairs(addon._bagsDirty) do
-					if type(b) == "number" then table.insert(bags, b) end
-				end
-				addon._bagsDirty = nil
-			end
-
-			addon.functions.checkForContainer(bags)
-		end)
 	end,
 	["CVAR_UPDATE"] = function(cvarName, value)
 		local persistentKeys = addon.variables.cvarPersistentKeys

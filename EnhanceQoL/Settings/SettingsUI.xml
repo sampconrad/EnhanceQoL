@@ -2,4 +2,5 @@
 	<Script file='SettingsUI.lua'/>
 	<Script file='CombatDungeon.lua'/>
 	<Script file='ItemInventory.lua'/>
+	<Script file='ContainerAction.lua'/>
 </Ui>

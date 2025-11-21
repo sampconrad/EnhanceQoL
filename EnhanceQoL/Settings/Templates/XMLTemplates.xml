@@ -1,0 +1,25 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Frame name="EQOL_SettingsListSectionHintTemplate" mixin="SettingsListSectionHeaderMixin" virtual="true">
+        <Size x="30" y="29"/>
+        <Layers>
+        <Layer level="OVERLAY">
+            <FontString parentKey="Title" inherits="GameFontHighlightSmall" justifyH="LEFT" justifyV="TOP">
+            <Anchors>
+                <Anchor point="TOPLEFT" x="35" y="0"/>
+            </Anchors>
+            </FontString>
+        </Layer>
+        </Layers>
+        <Frames>
+            <Frame parentKey="NewFeature" inherits="NewFeatureLabelTemplate" frameStrata="HIGH" scale=".8" frameLevel="100" hidden="true">
+                <Size x="1" y="1"/>
+                <Anchors>
+                <Anchor point="BOTTOMRIGHT" x="16" y="-10" relativeKey="$parent.Title" relativePoint="LEFT"/>
+                </Anchors>
+            </Frame>
+        </Frames>
+        <Scripts>
+        <OnLoad method="OnLoad"/>
+        </Scripts>
+    </Frame>
+</Ui>
