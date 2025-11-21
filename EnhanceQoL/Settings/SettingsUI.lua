@@ -18,14 +18,11 @@ hooksecurefunc(SettingsCheckboxControlMixin, "Init", function(self)
 	if not setting or not setting.variable or not addon.variables.NewVersionTableEQOL[setting.variable] then return end
 	if self.NewFeature then self.NewFeature:SetShown(true) end
 end)
-
-hooksecurefunc(SettingsListSectionHeaderMixin, "Init", function(self, initializer)
-	local data = initializer:GetData();
-
+hooksecurefunc(SettingsDropdownControlMixin, "Init", function(self)
+	local setting = self.GetSetting and self:GetSetting()
 	if not setting or not setting.variable or not addon.variables.NewVersionTableEQOL[setting.variable] then return end
 	if self.NewFeature then self.NewFeature:SetShown(true) end
 end)
-
 
 function addon.functions.SettingsCreateCategory(parent, treeName, sort, newTagID)
 	if nil == parent then parent = addon.SettingsLayout.rootCategory end
@@ -68,14 +65,14 @@ function addon.functions.SettingsCreateCheckboxes(cat, data)
 	return rData
 end
 
-function addon.functions.SettingsCreateHeadline(cat, text, newTagID)
-	local charHeader = Settings.CreateElementInitializer("SettingsListSectionHeaderTemplate", { name = text, eqolNewTagID = newTagID })
+function addon.functions.SettingsCreateHeadline(cat, text)
+	local charHeader = Settings.CreateElementInitializer("SettingsListSectionHeaderTemplate", { name = text })
 	Settings.RegisterInitializer(cat, charHeader)
 	charHeader:AddSearchTags(text)
 end
 
-function addon.functions.SettingsCreateText(cat, text, newTagID)
-	local charHeader = Settings.CreateElementInitializer("EQOL_SettingsListSectionHintTemplate", { name = text, eqolNewTagID = newTagID })
+function addon.functions.SettingsCreateText(cat, text)
+	local charHeader = Settings.CreateElementInitializer("EQOL_SettingsListSectionHintTemplate", { name = text })
 	Settings.RegisterInitializer(cat, charHeader)
 	charHeader:AddSearchTags(text)
 end
