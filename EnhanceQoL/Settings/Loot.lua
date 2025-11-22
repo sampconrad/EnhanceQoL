@@ -61,7 +61,7 @@ addon.functions.SettingsCreateCheckboxes(cLoot, data)
 
 addon.functions.SettingsCreateHeadline(cLoot, L["groupLootRollFrames"])
 
-local data = {
+data = {
 	{
 		var = "enableGroupLootAnchor",
 		text = L["enableGroupLootAnchorOption"],
@@ -104,7 +104,7 @@ addon.functions.SettingsCreateCheckboxes(cLoot, data)
 
 addon.functions.SettingsCreateHeadline(cLoot, L["lootToastSectionTitle"])
 
-local data = {
+data = {
 	{
 		var = "enableLootToastAnchor",
 		text = L["moveLootToast"],
@@ -128,7 +128,7 @@ addon.functions.SettingsCreateCheckboxes(cLoot, data)
 
 addon.functions.SettingsCreateHeadline(cLoot, L["lootToastFilterSettings"])
 
-local data = {
+data = {
 	{
 		var = "enableLootToastFilter",
 		text = L["enableLootToastFilter"],
@@ -196,7 +196,7 @@ addon.functions.SettingsCreateCheckboxes(cLoot, data)
 
 addon.functions.SettingsCreateText(cLoot, "|c" .. ITEM_QUALITY_COLORS[3].color:GenerateHexColor() .. ITEM_QUALITY3_DESC .. "|r")
 
-local data = {
+data = {
 	{
 		var = "lootToastCheckIlvl_rare",
 		text = L["lootToastCheckIlvl"],
@@ -241,7 +241,7 @@ addon.functions.SettingsCreateCheckboxes(cLoot, data)
 
 addon.functions.SettingsCreateHeadline(cLoot, L["dungeonJournalLootSpecIcons"])
 
-local data = {
+data = {
 	{
 		var = "dungeonJournalLootSpecIcons",
 		text = L["dungeonJournalLootSpecIcons"],
