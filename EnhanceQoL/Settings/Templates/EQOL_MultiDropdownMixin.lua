@@ -2,9 +2,19 @@ local addonName, addon = ...
 
 EQOL_MultiDropdownMixin = CreateFromMixins(SettingsDropdownControlMixin)
 
+local SUMMARY_CHAR_LIMIT = 80
+
 function EQOL_MultiDropdownMixin:OnLoad()
     -- erzeugt self.Control, self.Control.Dropdown, Tooltip-Verhalten etc.
     SettingsDropdownControlMixin.OnLoad(self)
+
+    if self.Summary then
+        self.Summary:SetText("")
+        self.Summary:Hide()
+        self.Summary = nil
+    end
+
+    self:EnsureSummaryAnchors()
 end
 
 function EQOL_MultiDropdownMixin:Init(initializer)
@@ -16,7 +26,7 @@ function EQOL_MultiDropdownMixin:Init(initializer)
 
     self.var     = data.var
     self.options = data.options or {}
-    self.db      = data.db or addon.db
+    self.db      = addon.db
 
     for _, option in ipairs(self.options) do
         option.value = option.value or option.text
@@ -86,6 +96,8 @@ end
 function EQOL_MultiDropdownMixin:RefreshSummary()
     if not self.Summary then return end
 
+    self:EnsureSummaryAnchors()
+
     local t = self:GetSelectionTable()
     local texts = {}
 
@@ -95,8 +107,116 @@ function EQOL_MultiDropdownMixin:RefreshSummary()
         end
     end
 
-    local summary = (#texts == 0) and "–" or table.concat(texts, ", ")
+    local summary = self:FormatSummaryText(texts)
     self.Summary:SetText(summary)
+end
+
+function EQOL_MultiDropdownMixin:EnsureSummaryAnchors()
+    if self.summaryAnchored then
+        return
+    end
+
+    if not (self.Summary and self.Control and self.Control.Dropdown) then
+        return
+    end
+
+    self.summaryAnchored = true
+    self.Summary:ClearAllPoints()
+    self.Summary:SetPoint("TOPLEFT", self.Control.Dropdown, "BOTTOMLEFT", 0, -2)
+    self.Summary:SetPoint("TOPRIGHT", self.Control.Dropdown, "BOTTOMRIGHT", 0, -2)
+    self.Summary:SetWidth(self.Control.Dropdown:GetWidth())
+end
+
+function EQOL_MultiDropdownMixin:GetSummaryWidthLimit()
+    if self.Control and self.Control.Dropdown then
+        return self.Control.Dropdown:GetWidth()
+    end
+
+    if self.Summary then
+        return self.Summary:GetWidth()
+    end
+end
+
+function EQOL_MultiDropdownMixin:GetSummaryMeasureFontString()
+    if self.summaryMeasure and self.summaryMeasure:IsObjectType("FontString") then
+        return self.summaryMeasure
+    end
+
+    if not self.Summary then
+        return nil
+    end
+
+    local fs = self.Summary:GetParent():CreateFontString(nil, "OVERLAY")
+    if not fs then
+        return nil
+    end
+
+    fs:SetFontObject(self.Summary:GetFontObject())
+    fs:Hide()
+    fs:SetWordWrap(false)
+    fs:SetNonSpaceWrap(false)
+    fs:SetSpacing(0)
+    self.summaryMeasure = fs
+    return fs
+end
+
+function EQOL_MultiDropdownMixin:WouldExceedSummaryWidth(text, widthLimit)
+    if not text or text == "" then
+        return false
+    end
+
+    if not widthLimit then
+        return #text > SUMMARY_CHAR_LIMIT
+    end
+
+    local measure = self:GetSummaryMeasureFontString()
+    if not measure then
+        return #text > SUMMARY_CHAR_LIMIT
+    end
+
+    measure:SetFontObject(self.Summary:GetFontObject())
+    measure:SetText(text)
+    local getWidth = measure.GetUnboundedStringWidth or measure.GetStringWidth
+    return getWidth(measure) > widthLimit
+end
+
+function EQOL_MultiDropdownMixin:FormatSummaryText(texts)
+    if #texts == 0 then
+        return "–"
+    end
+
+    local widthLimit = self:GetSummaryWidthLimit()
+    local summary = ""
+    local overflow = 0
+
+    for index, text in ipairs(texts) do
+        local candidate = (summary == "") and text or (summary .. ", " .. text)
+        if widthLimit and summary ~= "" and self:WouldExceedSummaryWidth(candidate, widthLimit) then
+            overflow = #texts - index + 1
+            break
+        elseif widthLimit and summary == "" and self:WouldExceedSummaryWidth(candidate, widthLimit) then
+            summary = text
+            overflow = #texts - index
+            break
+        else
+            summary = candidate
+        end
+    end
+
+    if overflow > 0 then
+        local overflowText = (" … (+%d)"):format(overflow)
+        local candidate = summary .. overflowText
+        if widthLimit and self:WouldExceedSummaryWidth(candidate, widthLimit) then
+            candidate = summary .. " …"
+        end
+        summary = candidate
+    end
+
+    if not widthLimit and #summary > SUMMARY_CHAR_LIMIT then
+        summary = summary:sub(1, SUMMARY_CHAR_LIMIT) .. " …"
+    end
+
+    return summary
 end
 
 -- Wir ersetzen komplett die Dropdown-Initialisierung des Basis-Mixins
