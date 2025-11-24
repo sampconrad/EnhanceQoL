@@ -361,7 +361,9 @@ local function normalizeHiddenLandingPages()
 			end
 		end
 	end
-	for _, key in ipairs(toClear) do addon.db.hiddenLandingPages[key] = nil end
+	for _, key in ipairs(toClear) do
+		addon.db.hiddenLandingPages[key] = nil
+	end
 end
 
 normalizeHiddenLandingPages()
@@ -403,6 +405,218 @@ addon.functions.SettingsCreateMultiDropdown(cMapNav, {
 	isSelectedFunc = getIgnoreStateLandingPage,
 	setSelectedFunc = setIgnoreStateLandingPage,
 })
+
+addon.functions.SettingsCreateHeadline(cMapNav, L["showInstanceDifficulty"])
+
+data = {
+	{
+		var = "showInstanceDifficulty",
+		text = L["showInstanceDifficulty"],
+		desc = L["showInstanceDifficultyDesc"],
+		func = function(key)
+			addon.db["showInstanceDifficulty"] = key
+			if addon.InstanceDifficulty and addon.InstanceDifficulty.SetEnabled then addon.InstanceDifficulty:SetEnabled(key) end
+		end,
+		default = false,
+		children = {
+			{
+				var = "instanceDifficultyFontSize",
+				text = L["instanceDifficultyFontSize"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				get = function() return addon.db and addon.db.instanceDifficultyFontSize or 1 end,
+				set = function(value)
+					addon.db["instanceDifficultyFontSize"] = value
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				min = 8,
+				max = 28,
+				step = 1,
+				parent = true,
+				default = 14,
+				sType = "slider",
+			},
+			{
+				var = "instanceDifficultyOffsetX",
+				text = L["instanceDifficultyOffsetX"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				get = function() return addon.db and addon.db.instanceDifficultyOffsetX or 0 end,
+				set = function(value)
+					addon.db["instanceDifficultyOffsetX"] = value
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				min = -400,
+				max = 400,
+				step = 1,
+				parent = true,
+				default = 0,
+				sType = "slider",
+			},
+			{
+				var = "instanceDifficultyOffsetY",
+				text = L["instanceDifficultyOffsetY"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				get = function() return addon.db and addon.db.instanceDifficultyOffsetY or 0 end,
+				set = function(value)
+					addon.db["instanceDifficultyOffsetY"] = value
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				min = -400,
+				max = 400,
+				step = 1,
+				parent = true,
+				default = 0,
+				sType = "slider",
+			},
+			{
+				var = "instanceDifficultyUseColors",
+				text = L["instanceDifficultyUseColors"],
+				func = function(key)
+					addon.db["instanceDifficultyUseColors"] = key
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				default = false,
+				sType = "checkbox",
+				parentCheck = function()
+					return addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				notify = "showInstanceDifficulty",
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "LFR",
+				text = _G["PLAYER_DIFFICULTY3"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "NM",
+				text = _G["PLAYER_DIFFICULTY1"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "HC",
+				text = _G["PLAYER_DIFFICULTY2"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "M",
+				text = _G["PLAYER_DIFFICULTY6"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "MPLUS",
+				text = _G["PLAYER_DIFFICULTY_MYTHIC_PLUS"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "TW",
+				text = _G["PLAYER_DIFFICULTY_TIMEWALKER"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+			},
+		},
+	},
+}
+
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cMapNav, data)
+
 ----- REGION END
 
 function addon.functions.initMapNav() end

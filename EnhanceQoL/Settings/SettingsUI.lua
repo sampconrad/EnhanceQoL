@@ -188,8 +188,7 @@ function addon.functions.SettingsCreateMultiDropdown(cat, cbData)
 		end
 		SortMixedKeys(keys)
 		return table.concat(keys, ",")
-	end, function(_, _, value)
-	end)
+	end, function(_, _, value) end)
 
 	local initializer = Settings.CreateElementInitializer("EQOL_MultiDropdownTemplate", {
 		var = cbData.var,
@@ -222,11 +221,17 @@ function addon.functions.SettingsCreateColorPicker(cat, cbData)
 			{ key = cbData.var, label = cbData.text, tooltip = cbData.tooltip },
 		},
 		getColor = function()
-			local col = addon.db[cbData.var] or { r = 0, g = 0, b = 0 }
+			local db = addon.db[cbData.var]
+			if cbData.subvar then db = addon.db[cbData.var][cbData.subvar] end
+			local col = db or { r = 0, g = 0, b = 0 }
 			return col.r or 0, col.g or 0, col.b or 0
 		end,
 		setColor = function(_, r, g, b)
-			addon.db[cbData.var] = { r = r, g = g, b = b }
+			if cbData.subvar then 
+				addon.db[cbData.var][cbData.subvar] = { r = r, g = g, b = b }
+			else
+				addon.db[cbData.var] = { r = r, g = g, b = b }
+			end
 			if cbData.callback then cbData.callback(r, g, b, 1) end
 		end,
 		getDefaultColor = function() return 1, 1, 1 end,
