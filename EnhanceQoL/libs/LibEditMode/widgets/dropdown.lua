@@ -5,11 +5,11 @@ if minor > MINOR then
 end
 
 local function get(data)
-	return data.get(lib:GetActiveLayoutName()) == data.value
+	return data.get(lib.activeLayoutName) == data.value
 end
 
 local function set(data)
-	data.set(lib:GetActiveLayoutName(), data.value)
+	data.set(lib.activeLayoutName, data.value)
 end
 
 local dropdownMixin = {}
@@ -33,13 +33,13 @@ function dropdownMixin:Setup(data)
 					rootDescription:CreateRadio(value.text, get, set, {
 						get = data.get,
 						set = data.set,
-						value = value.value or value.text,
+						value = value.text,
 					})
 				else
 					rootDescription:CreateCheckbox(value.text, get, set, {
 						get = data.get,
 						set = data.set,
-						value = value.value or value.text,
+						value = value.text
 					})
 				end
 			end

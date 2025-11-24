@@ -49,9 +49,10 @@ Events\LegionRemixPhaseData.lua
 Events\LegionRemix.lua
 Modules\ActionBarLabels.lua
 EnhanceQoL.lua
+Settings\Templates\EQOL_MultiDropdownMixin.lua
+Settings\Templates\ColorOverrides.lua
 Settings\Templates\XMLTemplates.xml
 Settings\SettingsUI.xml
-Modules\ItemsOptions.lua
 Modules\UIOptions.lua
 Core\DataHub.lua
 Core\DataPanel.lua

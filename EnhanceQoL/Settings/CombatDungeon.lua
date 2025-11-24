@@ -289,11 +289,10 @@ data = {
 
 addon.functions.SettingsCreateDropdown(cChar, data)
 
-addon.functions.SettingsCreateHeadline(cChar, L["timeoutReleaseHeadline"])
-
 local timeoutReleaseGroups = {
 	{
 		var = "timeoutRelease_raidNormal",
+		value = "raidNormal",
 		text = RAID .. " - " .. PLAYER_DIFFICULTY1 .. " / " .. PLAYER_DIFFICULTY3 .. " / " .. PLAYER_DIFFICULTY_TIMEWALKER,
 		func = function(value) addon.db["timeoutReleaseDifficulties"]["raidNormal"] = value and true or false end,
 		get = function() return addon.db["timeoutReleaseDifficulties"]["raidNormal"] end,
@@ -304,6 +303,7 @@ local timeoutReleaseGroups = {
 	},
 	{
 		var = "timeoutRelease_raidHeroic",
+		value = "raidHeroic",
 		text = RAID .. " - " .. PLAYER_DIFFICULTY2,
 		func = function(value) addon.db["timeoutReleaseDifficulties"]["raidHeroic"] = value and true or false end,
 		get = function() return addon.db["timeoutReleaseDifficulties"]["raidHeroic"] end,
@@ -314,6 +314,7 @@ local timeoutReleaseGroups = {
 	},
 	{
 		var = "timeoutRelease_raidMythic",
+		value = "raidMythic",
 		text = RAID .. " - " .. PLAYER_DIFFICULTY6,
 		func = function(value) addon.db["timeoutReleaseDifficulties"]["raidMythic"] = value and true or false end,
 		get = function() return addon.db["timeoutReleaseDifficulties"]["raidMythic"] end,
@@ -324,6 +325,7 @@ local timeoutReleaseGroups = {
 	},
 	{
 		var = "timeoutRelease_dungeonNormal",
+		value = "dungeonNormal",
 		text = DUNGEONS .. " - " .. PLAYER_DIFFICULTY1 .. " / " .. PLAYER_DIFFICULTY_TIMEWALKER,
 		func = function(value) addon.db["timeoutReleaseDifficulties"]["dungeonNormal"] = value and true or false end,
 		get = function() return addon.db["timeoutReleaseDifficulties"]["dungeonNormal"] end,
@@ -334,6 +336,7 @@ local timeoutReleaseGroups = {
 	},
 	{
 		var = "timeoutRelease_dungeonHeroic",
+		value = "dungeonHeroic",
 		text = DUNGEONS .. " - " .. PLAYER_DIFFICULTY2,
 		func = function(value) addon.db["timeoutReleaseDifficulties"]["dungeonHeroic"] = value and true or false end,
 		get = function() return addon.db["timeoutReleaseDifficulties"]["dungeonHeroic"] end,
@@ -344,6 +347,7 @@ local timeoutReleaseGroups = {
 	},
 	{
 		var = "timeoutRelease_dungeonMythic",
+		value = "dungeonMythic",
 		text = DUNGEONS .. " - " .. PLAYER_DIFFICULTY6,
 		func = function(value) addon.db["timeoutReleaseDifficulties"]["dungeonMythic"] = value and true or false end,
 		get = function() return addon.db["timeoutReleaseDifficulties"]["dungeonMythic"] end,
@@ -354,6 +358,7 @@ local timeoutReleaseGroups = {
 	},
 	{
 		var = "timeoutRelease_dungeonMythicPlus",
+		value = "dungeonMythicPlus",
 		text = DUNGEONS .. " - " .. PLAYER_DIFFICULTY_MYTHIC_PLUS,
 		func = function(value) addon.db["timeoutReleaseDifficulties"]["dungeonMythicPlus"] = value and true or false end,
 		get = function() return addon.db["timeoutReleaseDifficulties"]["dungeonMythicPlus"] end,
@@ -364,6 +369,7 @@ local timeoutReleaseGroups = {
 	},
 	{
 		var = "timeoutRelease_dungeonFollower",
+		value = "dungeonFollower",
 		text = GUILD_CHALLENGE_TYPE4 .. " - " .. L["timeoutReleasePrefixScenario"],
 		func = function(value) addon.db["timeoutReleaseDifficulties"]["dungeonFollower"] = value and true or false end,
 		get = function() return addon.db["timeoutReleaseDifficulties"]["dungeonFollower"] end,
@@ -374,6 +380,7 @@ local timeoutReleaseGroups = {
 	},
 	{
 		var = "timeoutRelease_pvp",
+		value = "pvp",
 		text = PVP,
 		func = function(value) addon.db["timeoutReleaseDifficulties"]["pvp"] = value and true or false end,
 		get = function() return addon.db["timeoutReleaseDifficulties"]["pvp"] end,
@@ -384,6 +391,7 @@ local timeoutReleaseGroups = {
 	},
 	{
 		var = "timeoutRelease_world",
+		value = "world",
 		text = WORLD,
 		func = function(value) addon.db["timeoutReleaseDifficulties"]["world"] = value and true or false end,
 		get = function() return addon.db["timeoutReleaseDifficulties"]["world"] end,
@@ -409,7 +417,14 @@ for _, group in ipairs(timeoutReleaseGroups) do
 	end
 end
 
-addon.functions.SettingsCreateCheckboxes(cChar, timeoutReleaseGroups)
+addon.functions.SettingsCreateMultiDropdown(cChar, {
+	var = "timeoutReleaseDifficulties",
+	text = L["timeoutReleaseHeadline"],
+	parent = true,
+	element = rData.element,
+	parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
+	options = timeoutReleaseGroups,
+})
 
 ---- REGION END
 

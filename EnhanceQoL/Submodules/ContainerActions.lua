@@ -263,6 +263,33 @@ function ContainerActions:EnsureAnchor()
 	return anchor
 end
 
+function ContainerActions:EnsureButtonVisibilityWatcher()
+	if self._buttonVisibilityWatcher then return end
+	local watcher = CreateFrame("Frame")
+	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+	watcher:SetScript("OnEvent", function(frame)
+		if InCombatLockdown and InCombatLockdown() then return end
+		frame:UnregisterAllEvents()
+		frame:SetScript("OnEvent", nil)
+		ContainerActions._buttonVisibilityWatcher = nil
+		if ContainerActions._pendingButtonVisibilityDriver then
+			ContainerActions:EnsureButtonVisibilityDriver()
+		end
+	end)
+	self._buttonVisibilityWatcher = watcher
+end
+
+function ContainerActions:EnsureButtonVisibilityDriver()
+	if not self.button or not RegisterStateDriver then return end
+	if InCombatLockdown and InCombatLockdown() then
+		self._pendingButtonVisibilityDriver = true
+		self:EnsureButtonVisibilityWatcher()
+		return
+	end
+	local ok = pcall(RegisterStateDriver, self.button, "visibility", "[combat] hide; show")
+	if ok then self._pendingButtonVisibilityDriver = nil end
+end
+
 function ContainerActions:EnsureButton()
 	if self.button then return self.button end
 
@@ -308,10 +335,10 @@ function ContainerActions:EnsureButton()
 		if mouseButton == "RightButton" and IsShiftKeyDown() then ContainerActions:TryBlacklistCurrentEntry() end
 	end)
 
-	RegisterStateDriver(button, "visibility", "[combat] hide; show")
-
 	self.button = button
 	self.buttonIcon = GetButtonIcon(button)
+	self:EnsureButtonVisibilityDriver()
+
 	self:ApplyAnchorLayout(BuildAnchorLayoutSnapshot())
 	return button
 end

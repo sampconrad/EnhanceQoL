@@ -4,12 +4,6 @@ if minor > MINOR then
 	return
 end
 
-local CENTER = {
-	point = 'CENTER',
-	x = 0,
-	y = 0,
-}
-
 local internal = lib.internal
 
 -- replica of EditModeSystemSettingsDialog
@@ -17,9 +11,15 @@ local dialogMixin = {}
 function dialogMixin:Update(selection)
 	self.selection = selection
 
-	self.Title:SetText(selection.system:GetSystemName())
+	self.Title:SetText(selection.parent.editModeName or selection.parent:GetName())
 	self:UpdateSettings()
 	self:UpdateButtons()
+
+	-- reset position
+	if not self:IsShown() then
+		self:ClearAllPoints()
+		self:SetPoint('BOTTOMRIGHT', UIParent, -250, 250)
+	end
 
 	-- show and update layout
 	self:Show()
@@ -47,29 +47,8 @@ function dialogMixin:UpdateSettings()
 	self.Settings.ResetButton:SetEnabled(num > 0)
 end
 
-function dialogMixin:Reset()
-	self.selection = nil
-	self:ClearAllPoints()
-	self:SetPoint('BOTTOMRIGHT', UIParent, -250, 250)
-end
-
-local function closeEnough(a, b)
-	return math.abs(a - b) < 0.01
-end
-
-local function isDefaultPosition(parent)
-	local point, _, _, x, y = parent:GetPoint()
-	local default = lib:GetFrameDefaultPosition(parent)
-	if not default then
-		default = CopyTable(CENTER)
-	end
-
-	return point == default.point and closeEnough(x, default.x) and closeEnough(y, default.y)
-end
-
 function dialogMixin:UpdateButtons()
-	local parent = self.selection.parent
-	local buttons, num = internal:GetFrameButtons(parent)
+	local buttons, num = internal:GetFrameButtons(self.selection.parent)
 	if num > 0 then
 		for index, data in next, buttons do
 			local button = internal:GetPool('button'):Acquire(self.Buttons)
@@ -77,7 +56,6 @@ function dialogMixin:UpdateButtons()
 			button:SetText(data.text)
 			button:SetOnClickHandler(data.click)
 			button:Show()
-			button:SetEnabled(true) -- reset from pool
 		end
 	end
 
@@ -86,17 +64,13 @@ function dialogMixin:UpdateButtons()
 	resetPosition:SetText(HUD_EDIT_MODE_RESET_POSITION)
 	resetPosition:SetOnClickHandler(GenerateClosure(self.ResetPosition, self))
 	resetPosition:Show()
-	resetPosition:SetEnabled(not isDefaultPosition(parent))
-	self.Buttons.ResetPositionButton = resetPosition
 end
 
 function dialogMixin:ResetSettings()
 	local settings, num = internal:GetFrameSettings(self.selection.parent)
 	if num > 0 then
 		for _, data in next, settings do
-			if data.set then
-				data.set(lib:GetActiveLayoutName(), data.default)
-			end
+			data.set(lib.activeLayoutName, data.default)
 		end
 
 		self:Update(self.selection)
@@ -104,49 +78,20 @@ function dialogMixin:ResetSettings()
 end
 
 function dialogMixin:ResetPosition()
-	if InCombatLockdown() then
-		-- TODO: maybe add a warning?
-		return
-	end
-
 	local parent = self.selection.parent
 	local pos = lib:GetFrameDefaultPosition(parent)
 	if not pos then
-		pos = CopyTable(CENTER)
+		pos = {
+			point = 'CENTER',
+			x = 0,
+			y = 0,
+		}
 	end
 
 	parent:ClearAllPoints()
 	parent:SetPoint(pos.point, pos.x, pos.y)
-	self.Buttons.ResetPositionButton:SetEnabled(false)
 
 	internal:TriggerCallback(parent, pos.point, pos.x, pos.y)
-end
-
-local BIG_STEP = 10
-local SMALL_STEP = 1
-
-function dialogMixin:OnKeyDown(key)
-	if InCombatLockdown() then
-		return
-	end
-
-	if self.selection then
-		self:SetPropagateKeyboardInput(false) -- protected
-
-		if key == 'LEFT' then
-			internal:MoveParent(self.selection, IsShiftKeyDown() and -BIG_STEP or -SMALL_STEP)
-		elseif key == 'RIGHT' then
-			internal:MoveParent(self.selection, IsShiftKeyDown() and BIG_STEP or SMALL_STEP)
-		elseif key == 'UP' then
-			internal:MoveParent(self.selection, 0, IsShiftKeyDown() and BIG_STEP or SMALL_STEP)
-		elseif key == 'DOWN' then
-			internal:MoveParent(self.selection, 0, IsShiftKeyDown() and -BIG_STEP or -SMALL_STEP)
-		else
-			self:SetPropagateKeyboardInput(true) -- protected
-		end
-	else
-		self:SetPropagateKeyboardInput(true) -- protected
-	end
 end
 
 function internal:CreateDialog()
@@ -158,17 +103,18 @@ function internal:CreateDialog()
 	dialog.widthPadding = 40
 	dialog.heightPadding = 40
 
-	dialog:Reset()
-
 	-- make draggable
 	dialog:EnableMouse(true)
 	dialog:SetMovable(true)
 	dialog:SetClampedToScreen(true)
 	dialog:SetDontSavePosition(true)
 	dialog:RegisterForDrag('LeftButton')
-	dialog:SetScript('OnDragStart', dialog.StartMoving)
-	dialog:SetScript('OnDragStop', dialog.StopMovingOrSizing)
-	dialog:SetScript('OnKeyDown', dialog.OnKeyDown)
+	dialog:SetScript('OnDragStart', function()
+		dialog:StartMoving()
+	end)
+	dialog:SetScript('OnDragStop', function()
+		dialog:StopMovingOrSizing()
+	end)
 
 	local dialogTitle = dialog:CreateFontString(nil, nil, 'GameFontHighlightLarge')
 	dialogTitle:SetPoint('TOP', 0, -15)

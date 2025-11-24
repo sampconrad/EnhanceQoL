@@ -3991,8 +3991,21 @@ local function ensureVisibilityDriverWatcher()
 	visibilityDriverWatcher._playerVehicle = UnitInVehicle and UnitInVehicle("player") or false
 	visibilityDriverWatcher:SetScript("OnEvent", function(self, event, unit)
 		if event == "PLAYER_REGEN_ENABLED" then
-			if not ResourceBars._pendingVisibilityDriver then return end
-			ResourceBars.ApplyVisibilityPreference("pending")
+			if ResourceBars._pendingVisibilityDriver then
+				ResourceBars._pendingVisibilityDriver = nil
+				ResourceBars.ApplyVisibilityPreference("pending")
+			end
+			local pendingUpdates = ResourceBars._pendingVisibilityDriverUpdates
+			if pendingUpdates then
+				ResourceBars._pendingVisibilityDriverUpdates = nil
+				for frame, expr in pairs(pendingUpdates) do
+					if frame then
+						local desired = expr
+						if desired == false then desired = nil end
+						applyVisibilityDriverToFrame(frame, desired)
+					end
+				end
+			end
 			return
 		end
 
@@ -4026,6 +4039,12 @@ end
 
 local function applyVisibilityDriverToFrame(frame, expression)
 	if not frame then return end
+	if InCombatLockdown and InCombatLockdown() then
+		ResourceBars._pendingVisibilityDriverUpdates = ResourceBars._pendingVisibilityDriverUpdates or {}
+		ResourceBars._pendingVisibilityDriverUpdates[frame] = expression == nil and false or expression
+		ensureVisibilityDriverWatcher()
+		return
+	end
 	if not expression then
 		if frame._rbVisibilityDriver then
 			if UnregisterStateDriver then pcall(UnregisterStateDriver, frame, "visibility") end

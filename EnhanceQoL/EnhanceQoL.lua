@@ -1353,9 +1353,34 @@ local function EnsureSkyridingStateDriver()
 		RefreshAllActionBarVisibilityAlpha()
 	end)
 	local expr = "[advflyable, mounted] show; [advflyable, stance:3] show; hide"
-	RegisterStateDriver(driver, "visibility", expr)
+	local function registerDriver()
+		if addon.variables.skyridingDriverRegistered then return end
+		if RegisterStateDriver then
+			RegisterStateDriver(driver, "visibility", expr)
+			addon.variables.skyridingDriverRegistered = true
+			addon.variables.isPlayerSkyriding = driver:IsShown()
+		end
+	end
+	if InCombatLockdown and InCombatLockdown() then
+		addon.variables.pendingSkyridingDriverRegister = registerDriver
+		local watcher = addon.variables.skyridingDriverWatcher
+		if not watcher then
+			watcher = CreateFrame("Frame")
+			watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+			watcher:SetScript("OnEvent", function(self)
+				if InCombatLockdown and InCombatLockdown() then return end
+				local cb = addon.variables and addon.variables.pendingSkyridingDriverRegister
+				addon.variables.pendingSkyridingDriverRegister = nil
+				if cb then cb() end
+				self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+				addon.variables.skyridingDriverWatcher = nil
+			end)
+			addon.variables.skyridingDriverWatcher = watcher
+		end
+	else
+		registerDriver()
+	end
 	addon.variables.skyridingDriver = driver
-	addon.variables.isPlayerSkyriding = driver:IsShown()
 end
 
 local function EnsureActionBarVisibilityWatcher()
@@ -1407,348 +1432,6 @@ function addon.functions.ApplyChatBubbleFontSize(size)
 	end
 
 	return desired
-end
-
-local function addMinimapFrame(container)
-	local ui = { groups = {} }
-
-	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-	scroll:SetFullWidth(true)
-	scroll:SetFullHeight(true)
-	container:AddChild(scroll)
-
-	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	scroll:AddChild(wrapper)
-
-	ui.scroll = scroll
-	ui.wrapper = wrapper
-
-	local function doLayout()
-		if ui.scroll and ui.scroll.DoLayout then ui.scroll:DoLayout() end
-	end
-
-	local function ensureGroup(key, title)
-		local g = ui.groups[key]
-		if not g then
-			g = addon.functions.createContainer("InlineGroup", "List")
-			g:SetTitle(title)
-			ui.groups[key] = g
-			wrapper:AddChild(g)
-		end
-		g:ReleaseChildren()
-		return g
-	end
-
-	local function buildGeneral()
-		local g = ensureGroup("general", MINIMAP_LABEL)
-		local cb = addon.functions.createCheckboxAce(L["enableWayCommand"], addon.db["enableWayCommand"], function(self, _, value)
-			addon.db["enableWayCommand"] = value
-			if value then
-				addon.functions.registerWayCommand()
-			else
-				addon.variables.requireReload = true
-			end
-		end, L["enableWayCommandDesc"])
-		g:AddChild(cb)
-		doLayout()
-	end
-
-	local function buildSpec()
-		local g = ensureGroup("spec", SPECIALIZATION)
-		local cb = addon.functions.createCheckboxAce(L["enableLootspecQuickswitch"], addon.db["enableLootspecQuickswitch"], function(self, _, value)
-			addon.db["enableLootspecQuickswitch"] = value
-			if value then
-				addon.functions.createLootspecFrame()
-			else
-				addon.functions.removeLootspecframe()
-			end
-		end, L["enableLootspecQuickswitchDesc"])
-		g:AddChild(cb)
-		doLayout()
-	end
-
-	local function buildHideElements()
-		local g = ensureGroup("hideElements", HUD_EDIT_MODE_MINIMAP_LABEL)
-		local dd = AceGUI:Create("Dropdown")
-		dd:SetLabel(L["minimapHideElements"])
-		local list = {
-			Tracking = L["minimapHideElements_Tracking"],
-			ZoneInfo = L["minimapHideElements_ZoneInfo"],
-			Clock = L["minimapHideElements_Clock"],
-			Calendar = L["minimapHideElements_Calendar"],
-			Mail = L["minimapHideElements_Mail"],
-			AddonCompartment = L["minimapHideElements_AddonCompartment"],
-		}
-		local order = { "Tracking", "ZoneInfo", "Clock", "Calendar", "Mail", "AddonCompartment" }
-		dd:SetList(list, order)
-		dd:SetMultiselect(true)
-		dd:SetFullWidth(true)
-		dd:SetCallback("OnValueChanged", function(widget, _, key, checked)
-			addon.db.hiddenMinimapElements = addon.db.hiddenMinimapElements or {}
-			addon.db.hiddenMinimapElements[key] = checked and true or false
-			if addon.functions.ApplyMinimapElementVisibility then addon.functions.ApplyMinimapElementVisibility() end
-		end)
-		if type(addon.db.hiddenMinimapElements) == "table" then
-			for k, v in pairs(addon.db.hiddenMinimapElements) do
-				if v then dd:SetItemValue(k, true) end
-			end
-		end
-		addon.elements["minimapHideElementsDD"] = dd
-		g:AddChild(dd)
-		doLayout()
-	end
-
-	local function buildSquare()
-		local g = ensureGroup("square", L["SquareMinimap"])
-		local cbSquare = addon.functions.createCheckboxAce(L["enableSquareMinimap"], addon.db["enableSquareMinimap"], function(self, _, value)
-			addon.db["enableSquareMinimap"] = value
-			addon.variables.requireReload = true
-			addon.functions.checkReloadFrame()
-		end, L["enableSquareMinimapDesc"])
-		g:AddChild(cbSquare)
-
-		if addon.db["enableSquareMinimap"] then
-			local cbBorder = addon.functions.createCheckboxAce(L["enableSquareMinimapBorder"], addon.db["enableSquareMinimapBorder"], function(self, _, value)
-				addon.db["enableSquareMinimapBorder"] = value
-				if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
-				buildSquare()
-			end, L["enableSquareMinimapBorderDesc"])
-			g:AddChild(cbBorder)
-
-			if addon.db["enableSquareMinimapBorder"] then
-				local size = addon.functions.createSliderAce(
-					L["squareMinimapBorderSize"] .. ": " .. (addon.db["squareMinimapBorderSize"] or 1),
-					addon.db["squareMinimapBorderSize"],
-					1,
-					8,
-					1,
-					function(self, _, val)
-						addon.db["squareMinimapBorderSize"] = val
-						self:SetLabel(L["squareMinimapBorderSize"] .. ": " .. tostring(val))
-						if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
-					end
-				)
-				g:AddChild(size)
-
-				local cp = AceGUI:Create("ColorPicker")
-				cp:SetLabel(L["squareMinimapBorderColor"])
-				local c = addon.db["squareMinimapBorderColor"] or { r = 0, g = 0, b = 0 }
-				cp:SetColor(c.r or 0, c.g or 0, c.b or 0)
-				cp:SetCallback("OnValueChanged", function(_, _, r, g, b)
-					addon.db["squareMinimapBorderColor"] = { r = r, g = g, b = b }
-					if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
-				end)
-				g:AddChild(cp)
-			end
-		end
-		doLayout()
-	end
-
-	local function buildButtonBin()
-		local g = ensureGroup("buttonBin", L["MinimapButtonSinkGroup"])
-		local cb = addon.functions.createCheckboxAce(L["enableMinimapButtonBin"], addon.db["enableMinimapButtonBin"], function(self, _, value)
-			addon.db["enableMinimapButtonBin"] = value
-			addon.functions.toggleButtonSink()
-			buildButtonBin()
-		end, L["enableMinimapButtonBinDesc"])
-		g:AddChild(cb)
-
-		if addon.db["enableMinimapButtonBin"] then
-			local cbIcon = addon.functions.createCheckboxAce(L["useMinimapButtonBinIcon"], addon.db["useMinimapButtonBinIcon"], function(self, _, value)
-				addon.db["useMinimapButtonBinIcon"] = value
-				if value then addon.db["useMinimapButtonBinMouseover"] = false end
-				addon.functions.toggleButtonSink()
-				buildButtonBin()
-			end)
-			g:AddChild(cbIcon)
-
-			local cbMouse = addon.functions.createCheckboxAce(L["useMinimapButtonBinMouseover"], addon.db["useMinimapButtonBinMouseover"], function(self, _, value)
-				addon.db["useMinimapButtonBinMouseover"] = value
-				if value then addon.db["useMinimapButtonBinIcon"] = false end
-				addon.functions.toggleButtonSink()
-				buildButtonBin()
-			end)
-			g:AddChild(cbMouse)
-
-			local cbHideBg = addon.functions.createCheckboxAce(L["minimapButtonBinHideBackground"], addon.db["minimapButtonBinHideBackground"], function(self, _, value)
-				addon.db["minimapButtonBinHideBackground"] = value and true or false
-				if addon.functions.applyButtonSinkAppearance then addon.functions.applyButtonSinkAppearance() end
-			end)
-			g:AddChild(cbHideBg)
-
-			local cbHideBorder = addon.functions.createCheckboxAce(L["minimapButtonBinHideBorder"], addon.db["minimapButtonBinHideBorder"], function(self, _, value)
-				addon.db["minimapButtonBinHideBorder"] = value and true or false
-				if addon.functions.applyButtonSinkAppearance then addon.functions.applyButtonSinkAppearance() end
-			end)
-			g:AddChild(cbHideBorder)
-
-			if not addon.db["useMinimapButtonBinIcon"] then
-				local cbLock = addon.functions.createCheckboxAce(L["lockMinimapButtonBin"], addon.db["lockMinimapButtonBin"], function(self, _, value)
-					addon.db["lockMinimapButtonBin"] = value
-					addon.functions.toggleButtonSink()
-				end)
-				g:AddChild(cbLock)
-			end
-
-			local currentColumns = tonumber(addon.db["minimapButtonBinColumns"]) or DEFAULT_BUTTON_SINK_COLUMNS
-			currentColumns = math.floor(currentColumns + 0.5)
-			if currentColumns < 1 then
-				currentColumns = 1
-			elseif currentColumns > 10 then
-				currentColumns = 10
-			end
-			local columnSlider = addon.functions.createSliderAce(L["minimapButtonBinColumns"] .. ": " .. currentColumns, currentColumns, 1, 10, 1, function(self, _, val)
-				val = math.floor(val + 0.5)
-				if val < 1 then
-					val = 1
-				elseif val > 10 then
-					val = 10
-				end
-				addon.db["minimapButtonBinColumns"] = val
-				self:SetLabel(L["minimapButtonBinColumns"] .. ": " .. tostring(val))
-				addon.functions.LayoutButtons()
-			end)
-			g:AddChild(columnSlider)
-
-			local lbl = AceGUI:Create("Label")
-			lbl:SetText(MINIMAP_LABEL .. ": " .. L["ignoreMinimapSinkHole"])
-			lbl:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
-			lbl:SetFullWidth(true)
-			g:AddChild(lbl)
-
-			for i, _ in pairs(addon.variables.bagButtonState) do
-				local cbIg = addon.functions.createCheckboxAce(i, addon.db["ignoreMinimapButtonBin_" .. i] or false, function(self, _, value)
-					addon.db["ignoreMinimapButtonBin_" .. i] = value
-					addon.functions.LayoutButtons()
-				end)
-				g:AddChild(cbIg)
-			end
-		end
-
-		doLayout()
-	end
-
-	local function buildLanding()
-		local g = ensureGroup("landing", L["LandingPage"])
-		local cb = addon.functions.createCheckboxAce(
-			L["enableLandingPageMenu"],
-			addon.db["enableLandingPageMenu"],
-			function(self, _, value) addon.db["enableLandingPageMenu"] = value end,
-			L["enableLandingPageMenuDesc"]
-		)
-		g:AddChild(cb)
-
-		local lbl = AceGUI:Create("Label")
-		lbl:SetText(L["landingPageHide"])
-		lbl:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
-		lbl:SetFullWidth(true)
-		g:AddChild(lbl)
-
-		for id in pairs(addon.variables.landingPageType) do
-			local page = addon.variables.landingPageType[id]
-			local actValue = addon.db["hiddenLandingPages"][id] or false
-			local cbLP = addon.functions.createCheckboxAce(page.checkbox, actValue, function(self, _, value)
-				addon.db["hiddenLandingPages"][id] = value
-				addon.functions.toggleLandingPageButton(page.title, value)
-			end)
-			g:AddChild(cbLP)
-		end
-		doLayout()
-	end
-
-	local function buildInstanceDifficulty()
-		local g = ensureGroup("instanceDiff", L["showInstanceDifficulty"])
-		local cb = addon.functions.createCheckboxAce(L["showInstanceDifficulty"], addon.db["showInstanceDifficulty"], function(self, _, value)
-			addon.db["showInstanceDifficulty"] = value
-			if addon.InstanceDifficulty and addon.InstanceDifficulty.SetEnabled then addon.InstanceDifficulty:SetEnabled(value) end
-			buildInstanceDifficulty()
-		end, L["showInstanceDifficultyDesc"])
-		g:AddChild(cb)
-
-		if addon.db["showInstanceDifficulty"] then
-			local sliderSize = addon.functions.createSliderAce(
-				L["instanceDifficultyFontSize"] .. ": " .. addon.db["instanceDifficultyFontSize"],
-				addon.db["instanceDifficultyFontSize"],
-				8,
-				28,
-				1,
-				function(self, _, val)
-					addon.db["instanceDifficultyFontSize"] = val
-					self:SetLabel(L["instanceDifficultyFontSize"] .. ": " .. tostring(val))
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end
-			)
-			g:AddChild(sliderSize)
-
-			local sliderX = addon.functions.createSliderAce(
-				L["instanceDifficultyOffsetX"] .. ": " .. addon.db["instanceDifficultyOffsetX"],
-				addon.db["instanceDifficultyOffsetX"],
-				-400,
-				400,
-				1,
-				function(self, _, val)
-					addon.db["instanceDifficultyOffsetX"] = val
-					self:SetLabel(L["instanceDifficultyOffsetX"] .. ": " .. tostring(val))
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end
-			)
-			g:AddChild(sliderX)
-
-			local sliderY = addon.functions.createSliderAce(
-				L["instanceDifficultyOffsetY"] .. ": " .. addon.db["instanceDifficultyOffsetY"],
-				addon.db["instanceDifficultyOffsetY"],
-				-400,
-				400,
-				1,
-				function(self, _, val)
-					addon.db["instanceDifficultyOffsetY"] = val
-					self:SetLabel(L["instanceDifficultyOffsetY"] .. ": " .. tostring(val))
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end
-			)
-			g:AddChild(sliderY)
-
-			local cbColors = addon.functions.createCheckboxAce(L["instanceDifficultyUseColors"], addon.db["instanceDifficultyUseColors"], function(self, _, v)
-				addon.db["instanceDifficultyUseColors"] = v
-				if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				buildInstanceDifficulty()
-			end)
-			g:AddChild(cbColors)
-
-			if addon.db["instanceDifficultyUseColors"] then
-				local colors = addon.db["instanceDifficultyColors"] or {}
-
-				local function addCP(label, key)
-					local cp = AceGUI:Create("ColorPicker")
-					cp:SetLabel(label)
-					local cc = colors[key] or { r = 1, g = 1, b = 1 }
-					cp:SetColor(cc.r or 1, cc.g or 1, cc.b or 1)
-					cp:SetCallback("OnValueChanged", function(_, _, r, g, b)
-						addon.db["instanceDifficultyColors"][key] = { r = r, g = g, b = b }
-						if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-					end)
-					g:AddChild(cp)
-				end
-
-				addCP(_G["PLAYER_DIFFICULTY3"] or "Raid Finder", "LFR")
-				addCP(_G["PLAYER_DIFFICULTY1"] or "Normal", "NM")
-				addCP(_G["PLAYER_DIFFICULTY2"] or "Heroic", "HC")
-				addCP(_G["PLAYER_DIFFICULTY6"] or "Mythic", "M")
-				addCP(_G["PLAYER_DIFFICULTY_MYTHIC_PLUS"] or "Mythic+", "MPLUS")
-				addCP(_G["PLAYER_DIFFICULTY_TIMEWALKER"] or "Timewalking", "TW")
-			end
-		end
-
-		doLayout()
-	end
-
-	buildGeneral()
-	buildSpec()
-	buildHideElements()
-	buildSquare()
-	buildButtonBin()
-	buildLanding()
-	buildInstanceDifficulty()
 end
 
 -- New modular Unit Frames UI builder
@@ -1826,287 +1509,6 @@ end
 addon.functions.initializePersistentCVars = initializePersistentCVars
 
 -- removed: addPartyFrame (party settings relocated to Social/UI sections)
-
-local function addQuestFrame(container, d)
-	local list, order = addon.functions.prepareListForDropdown(addon.db["ignoredQuestNPC"])
-
-	local scroll = addon.functions.createContainer("ScrollFrame", "List")
-	scroll:SetFullWidth(true)
-	scroll:SetFullHeight(true)
-	container:AddChild(scroll)
-	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	scroll:AddChild(wrapper)
-
-	local groupCore = addon.functions.createContainer("InlineGroup", "List")
-	wrapper:AddChild(groupCore)
-
-	local groupData = {
-		{
-			parent = "",
-			var = "autoChooseQuest",
-			text = L["autoChooseQuest"],
-			type = "CheckBox",
-			callback = function(self, _, value) addon.db[self.var] = value end,
-			desc = L["interruptWithShift"],
-		},
-		{
-			parent = "",
-			var = "ignoreDailyQuests",
-			text = L["ignoreDailyQuests"]:format(QUESTS_LABEL),
-			type = "CheckBox",
-			callback = function(self, _, value) addon.db[self.var] = value end,
-		},
-		{
-			parent = "",
-			var = "ignoreWarbandCompleted",
-			text = L["ignoreWarbandCompleted"]:format(ACCOUNT_COMPLETED_QUEST_LABEL, QUESTS_LABEL),
-			type = "CheckBox",
-			callback = function(self, _, value) addon.db[self.var] = value end,
-		},
-		{
-			parent = "",
-			var = "ignoreTrivialQuests",
-			text = L["ignoreTrivialQuests"]:format(QUESTS_LABEL),
-			type = "CheckBox",
-			callback = function(self, _, value) addon.db[self.var] = value end,
-		},
-		{
-			parent = "",
-			var = "questWowheadLink",
-			text = L["questWowheadLink"],
-			type = "CheckBox",
-			callback = function(self, _, value) addon.db[self.var] = value end,
-		},
-		{
-			parent = "",
-			var = "autoCancelCinematic",
-			text = L["autoCancelCinematic"],
-			type = "CheckBox",
-			desc = L["autoCancelCinematicDesc"] .. "\n" .. L["interruptWithShift"],
-			callback = function(self, _, value) addon.db["autoCancelCinematic"] = value end,
-		},
-	}
-	table.sort(groupData, function(a, b)
-		local textA = a.var
-		local textB = b.var
-		if a.text then
-			textA = a.text
-		else
-			textA = L[a.var]
-		end
-		if b.text then
-			textB = b.text
-		else
-			textB = L[b.var]
-		end
-		return textA < textB
-	end)
-	for _, checkboxData in ipairs(groupData) do
-		local desc
-		if checkboxData.desc then desc = checkboxData.desc end
-		local cbautoChooseQuest = addon.functions.createCheckboxAce(checkboxData.text, addon.db[checkboxData.var], function(self, _, value) addon.db[checkboxData.var] = value end, desc)
-		groupCore:AddChild(cbautoChooseQuest)
-	end
-
-	local trackerGroup = addon.functions.createContainer("InlineGroup", "List")
-	trackerGroup:SetTitle(L["questTrackerOptions"] or QUESTS_LABEL)
-	wrapper:AddChild(trackerGroup)
-
-	local function refreshTrackerControls()
-		local enabled = addon.db.questTrackerShowQuestCount == true
-		if trackerGroup._sliderX then trackerGroup._sliderX:SetDisabled(not enabled) end
-		if trackerGroup._sliderY then trackerGroup._sliderY:SetDisabled(not enabled) end
-	end
-
-	local questCountCheckbox = addon.functions.createCheckboxAce(L["questTrackerShowQuestCount"] or "Show quest count under tracker", addon.db.questTrackerShowQuestCount, function(self, _, value)
-		addon.db.questTrackerShowQuestCount = value and true or false
-		refreshTrackerControls()
-		addon.functions.UpdateQuestTrackerQuestCount()
-	end, L["questTrackerShowQuestCount_desc"])
-	trackerGroup:AddChild(questCountCheckbox)
-
-	local function sliderLabelX(val) return string.format("%s: %d", L["questTrackerQuestCountOffsetX"] or (L["instanceDifficultyOffsetX"] or "Horizontal offset"), val) end
-	local function sliderLabelY(val) return string.format("%s: %d", L["questTrackerQuestCountOffsetY"] or (L["instanceDifficultyOffsetY"] or "Vertical offset"), val) end
-
-	local sliderX = addon.functions.createSliderAce(sliderLabelX(addon.db.questTrackerQuestCountOffsetX or 0), addon.db.questTrackerQuestCountOffsetX or 0, -200, 200, 1, function(self, _, value)
-		local rounded = math.floor((value or 0) + 0.5)
-		addon.db.questTrackerQuestCountOffsetX = rounded
-		self:SetLabel(sliderLabelX(rounded))
-		addon.functions.UpdateQuestTrackerQuestCountPosition()
-	end)
-	trackerGroup._sliderX = sliderX
-	trackerGroup:AddChild(sliderX)
-
-	local sliderY = addon.functions.createSliderAce(sliderLabelY(addon.db.questTrackerQuestCountOffsetY or 0), addon.db.questTrackerQuestCountOffsetY or 0, -200, 200, 1, function(self, _, value)
-		local rounded = math.floor((value or 0) + 0.5)
-		addon.db.questTrackerQuestCountOffsetY = rounded
-		self:SetLabel(sliderLabelY(rounded))
-		addon.functions.UpdateQuestTrackerQuestCountPosition()
-	end)
-	trackerGroup._sliderY = sliderY
-	trackerGroup:AddChild(sliderY)
-	refreshTrackerControls()
-
-	local groupNPC = addon.functions.createContainer("InlineGroup", "List")
-	groupNPC:SetTitle(L["questAddNPCToExclude"])
-	wrapper:AddChild(groupNPC)
-
-	local dropIncludeList = addon.functions.createDropdownAce(L["Excluded NPCs"], list, order, nil)
-	local btnAddNPC = addon.functions.createButtonAce(ADD, 100, function(self, _, value)
-		local guid = nil
-		local name = nil
-		local type = nil
-		local unitType = nil
-
-		if nil ~= UnitGUID("npc") then
-			type = "npc"
-		elseif nil ~= UnitGUID("target") then
-			type = "target"
-		else
-			return
-		end
-
-		guid = UnitGUID(type)
-		name = UnitName(type)
-		unitType = strsplit("-", guid)
-
-		if UnitCanAttack(type, "player") or (UnitPlayerControlled(type) and not unitType == "Vehicle") then return end -- ignore attackable and player types
-
-		local mapID = C_Map.GetBestMapForUnit("player")
-		if mapID and not unitType == "Vehicle" then
-			local mapInfo = C_Map.GetMapInfo(mapID)
-			if mapInfo and mapInfo.name then name = name .. " (" .. mapInfo.name .. ")" end
-		end
-
-		guid = addon.functions.getIDFromGUID(guid)
-		if addon.db["ignoredQuestNPC"][guid] then return end -- no duplicates
-
-		print(ADD .. ":", guid, name)
-
-		addon.db["ignoredQuestNPC"][guid] = name
-		local list, order = addon.functions.prepareListForDropdown(addon.db["ignoredQuestNPC"])
-
-		dropIncludeList:SetList(list, order)
-	end)
-	local btnRemoveNPC = addon.functions.createButtonAce(REMOVE, 100, function(self, _, value)
-		local selectedValue = dropIncludeList:GetValue() -- Hole den aktuellen Wert des Dropdowns
-		if selectedValue then
-			if addon.db["ignoredQuestNPC"][selectedValue] then
-				addon.db["ignoredQuestNPC"][selectedValue] = nil -- Entferne aus der Datenbank
-				-- Aktualisiere die Dropdown-Liste
-				local list, order = addon.functions.prepareListForDropdown(addon.db["ignoredQuestNPC"])
-				dropIncludeList:SetList(list, order)
-				dropIncludeList:SetValue(nil) -- Setze die Auswahl zurück
-			end
-		end
-	end)
-	groupNPC:AddChild(btnAddNPC)
-	groupNPC:AddChild(dropIncludeList)
-	groupNPC:AddChild(btnRemoveNPC)
-	scroll:DoLayout()
-end
-
-local QUEST_TRACKER_QUEST_COUNT_COLOR = { r = 1, g = 210 / 255, b = 0 }
-local questTrackerQuestCountFrame
-local questTrackerQuestCountText
-local questTrackerQuestCountWatcher
-
-local function GetQuestTrackerQuestCountText()
-	if not C_QuestLog or not C_QuestLog.GetNumQuestLogEntries then return "" end
-	local _, numQuests = C_QuestLog.GetNumQuestLogEntries()
-	if not numQuests then numQuests = 0 end
-	local maxQuests = C_QuestLog.GetMaxNumQuestsCanAccept and C_QuestLog.GetMaxNumQuestsCanAccept()
-	if not maxQuests or maxQuests <= 0 then
-		if numQuests <= 0 then return "" end
-		return tostring(numQuests)
-	end
-	return string.format("%d/%d", numQuests, maxQuests)
-end
-
-local function PositionQuestTrackerQuestCount()
-	if not questTrackerQuestCountFrame or not addon or not addon.db then return end
-	local header = _G.QuestObjectiveTracker and _G.QuestObjectiveTracker.Header
-	if not header then return end
-	questTrackerQuestCountFrame:ClearAllPoints()
-	local x = addon.db.questTrackerQuestCountOffsetX or 0
-	local y = addon.db.questTrackerQuestCountOffsetY or 0
-	questTrackerQuestCountFrame:SetPoint("CENTER", header, "CENTER", x, y)
-end
-
-local function EnsureQuestTrackerQuestCountFrame()
-	local header = _G.QuestObjectiveTracker and _G.QuestObjectiveTracker.Header
-	if not header then return nil end
-	if not questTrackerQuestCountFrame then
-		questTrackerQuestCountFrame = CreateFrame("Frame", nil, header)
-		questTrackerQuestCountFrame:SetSize(1, 1)
-	end
-	questTrackerQuestCountFrame:SetParent(header)
-	if not questTrackerQuestCountText then
-		questTrackerQuestCountText = questTrackerQuestCountFrame:CreateFontString(nil, "OVERLAY")
-		questTrackerQuestCountText:SetPoint("TOPLEFT")
-		questTrackerQuestCountText:SetJustifyH("LEFT")
-		questTrackerQuestCountText:SetJustifyV("TOP")
-	end
-	local referenceFont = header.Text and header.Text:GetFontObject()
-	if referenceFont then
-		questTrackerQuestCountText:SetFontObject(referenceFont)
-	else
-		questTrackerQuestCountText:SetFont(addon.variables.defaultFont or "Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-	end
-	questTrackerQuestCountText:SetTextColor(QUEST_TRACKER_QUEST_COUNT_COLOR.r, QUEST_TRACKER_QUEST_COUNT_COLOR.g, QUEST_TRACKER_QUEST_COUNT_COLOR.b)
-	return questTrackerQuestCountFrame
-end
-
-local function UpdateQuestTrackerQuestCountPosition()
-	if not addon or not addon.db then return end
-	if not questTrackerQuestCountFrame or not questTrackerQuestCountFrame:IsShown() then
-		if addon.db.questTrackerShowQuestCount then addon.functions.UpdateQuestTrackerQuestCount() end
-		return
-	end
-	PositionQuestTrackerQuestCount()
-end
-addon.functions.UpdateQuestTrackerQuestCountPosition = UpdateQuestTrackerQuestCountPosition
-
-local function UpdateQuestTrackerQuestCount()
-	if not addon or not addon.db or not addon.db.questTrackerShowQuestCount then
-		if questTrackerQuestCountFrame then questTrackerQuestCountFrame:Hide() end
-		return
-	end
-	local header = _G.QuestObjectiveTracker and _G.QuestObjectiveTracker.Header
-	if not header then
-		if questTrackerQuestCountFrame then questTrackerQuestCountFrame:Hide() end
-		return
-	end
-	local container = EnsureQuestTrackerQuestCountFrame()
-	if not container or not questTrackerQuestCountText then return end
-	PositionQuestTrackerQuestCount()
-	local textValue = GetQuestTrackerQuestCountText()
-	if textValue == "" then
-		questTrackerQuestCountFrame:Hide()
-		return
-	end
-	questTrackerQuestCountText:SetText(textValue)
-	questTrackerQuestCountFrame:SetSize(math.max(1, questTrackerQuestCountText:GetStringWidth()), math.max(1, questTrackerQuestCountText:GetStringHeight()))
-	questTrackerQuestCountFrame:Show()
-	questTrackerQuestCountText:Show()
-end
-addon.functions.UpdateQuestTrackerQuestCount = UpdateQuestTrackerQuestCount
-
-local function EnsureQuestTrackerQuestCountWatcher()
-	if questTrackerQuestCountWatcher then return end
-	questTrackerQuestCountWatcher = CreateFrame("Frame")
-	local events = { "PLAYER_ENTERING_WORLD", "QUEST_ACCEPTED", "QUEST_REMOVED" }
-	for _, evt in ipairs(events) do
-		questTrackerQuestCountWatcher:RegisterEvent(evt)
-	end
-	questTrackerQuestCountWatcher:SetScript("OnEvent", function(_, event)
-		if event == "PLAYER_ENTERING_WORLD" then
-			C_Timer.After(0.5, UpdateQuestTrackerQuestCount)
-		else
-			UpdateQuestTrackerQuestCount()
-		end
-	end)
-end
 
 local function initActionBars()
 	addon.functions.InitDBValue("actionBarAnchorEnabled", false)
@@ -2225,97 +1627,6 @@ local function initParty()
 
 		hooksecurefunc(CompactPartyFrame, "UpdateVisibility", manage_raid_frame)
 	end
-end
-
-local function initQuest()
-	addon.functions.InitDBValue("autoChooseQuest", false)
-	addon.functions.InitDBValue("ignoreTrivialQuests", false)
-	addon.functions.InitDBValue("ignoreDailyQuests", false)
-	addon.functions.InitDBValue("questTrackerShowQuestCount", false)
-	addon.functions.InitDBValue("questTrackerQuestCountOffsetX", 0)
-	addon.functions.InitDBValue("questTrackerQuestCountOffsetY", 0)
-	addon.functions.InitDBValue("questWowheadLink", false)
-	addon.functions.InitDBValue("ignoredQuestNPC", {})
-	addon.functions.InitDBValue("autogossipID", {})
-
-	local function EQOL_GetQuestIDFromMenu(owner, ctx)
-		if ctx and (ctx.questID or ctx.questId) then return ctx.questID or ctx.questId end
-
-		addon.db.testOwner = owner
-
-		if owner then
-			if owner.questID then return owner.questID end
-			if owner.GetQuestID then
-				local ok, id = pcall(owner.GetQuestID, owner)
-				if ok and id then return id end
-			end
-			if owner.questLogIndex and C_QuestLog and C_QuestLog.GetInfo then
-				local info = C_QuestLog.GetInfo(owner.questLogIndex)
-				if info and info.questID then return info.questID end
-			end
-		end
-		return nil
-	end
-
-	local function EQOL_ShowCopyURL(url)
-		if not StaticPopupDialogs["ENHANCEQOL_COPY_URL"] then
-			StaticPopupDialogs["ENHANCEQOL_COPY_URL"] = {
-				text = "Copy URL:",
-				button1 = OKAY,
-				hasEditBox = true,
-				timeout = 0,
-				whileDead = true,
-				hideOnEscape = true,
-				preferredIndex = 3,
-				OnShow = function(self, data)
-					local eb = self.editBox or self.GetEditBox and self:GetEditBox()
-					eb:SetAutoFocus(true)
-					eb:SetText(data or "")
-					eb:HighlightText()
-					eb:SetCursorPosition(0)
-				end,
-				OnAccept = function(self) end,
-				EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
-			}
-		end
-		StaticPopup_Show("ENHANCEQOL_COPY_URL", nil, nil, url)
-	end
-
-	local function EQOL_AddQuestWowheadEntry(owner, root, ctx)
-		if not addon.db["questWowheadLink"] then return end
-		local qid
-		if owner.GetName and owner:GetName() == "ObjectiveTrackerFrame" then
-			local mFocus = GetMouseFoci()
-			if mFocus and mFocus[1] and mFocus[1].GetParent then
-				local pInfo = mFocus[1]:GetParent()
-				if pInfo.poiQuestID then
-					qid = pInfo.poiQuestID
-				else
-					return
-				end
-			end
-		else
-			qid = EQOL_GetQuestIDFromMenu(owner, ctx)
-		end
-		if not qid then return end
-		root:CreateDivider()
-		local btn = root:CreateButton("Copy Wowhead URL", function() EQOL_ShowCopyURL(("https://www.wowhead.com/quest=%d"):format(qid)) end)
-		btn:AddInitializer(function()
-			btn:SetTooltip(function(tt)
-				GameTooltip_SetTitle(tt, "Wowhead")
-				GameTooltip_AddNormalLine(tt, ("quest=%d"):format(qid))
-			end)
-		end)
-	end
-
-	-- Register for Blizzard's menu tags (provided by /etrace):
-	if Menu and Menu.ModifyMenu then
-		Menu.ModifyMenu("MENU_QUEST_MAP_LOG_TITLE", EQOL_AddQuestWowheadEntry)
-		Menu.ModifyMenu("MENU_QUEST_OBJECTIVE_TRACKER", EQOL_AddQuestWowheadEntry)
-	end
-
-	EnsureQuestTrackerQuestCountWatcher()
-	UpdateQuestTrackerQuestCount()
 end
 
 local function initMisc()
@@ -3958,6 +3269,8 @@ local function CreateUI()
 			Settings.OpenToCategory(addon.SettingsLayout.gearUpgradeCategory:GetID())
 		elseif group == "items\001economy" then
 			Settings.OpenToCategory(addon.SettingsLayout.vendorEconomyCategory:GetID())
+		elseif group == "items\001loot" then
+			Settings.OpenToCategory(addon.SettingsLayout.vendorEconomyCalootCategorytegory:GetID())
 		-- Forward Combat subtree for modules (Mythic+, Aura, Drink, CombatMeter)
 		elseif string.sub(group, 1, string.len("combat\001")) == "combat\001" then
 			-- Normalize and dispatch for known combat modules
@@ -3983,7 +3296,7 @@ local function CreateUI()
 			end
 		-- Map & Navigation
 		elseif group == "nav" then
-			addMinimapFrame(container)
+			Settings.OpenToCategory(addon.SettingsLayout.mapNavigationCategory:GetID())
 		elseif group == "nav\001teleports" then
 			addon.MythicPlus.functions.treeCallback(container, group)
 		-- UI & Input
@@ -3996,7 +3309,7 @@ local function CreateUI()
 			if addon.Aura and addon.Aura.UF and addon.Aura.UF.treeCallback then addon.Aura.UF.treeCallback(container, group) end
 		-- Quests under Map & Navigation
 		elseif group == "nav\001quest" then
-			addQuestFrame(container, true)
+			Settings.OpenToCategory(addon.SettingsLayout.questCategory:GetID())
 		-- Social under UI
 		-- Events
 		elseif group == "events" or group == "events\001legionremix" then
@@ -4049,6 +3362,30 @@ local function CreateUI()
 	-- Select a meaningful default page
 	addon.treeGroup:SelectByPath("profiles")
 
+	local function QuickMenuGenerator(_, root)
+		local first = true
+		local function DoDevider()
+			if not first then
+				root:CreateDivider()
+			else
+				first = false
+			end
+		end
+		if addon.db["enableLootToastFilter"] then
+			first = false
+			root:CreateTitle(L["SettingsLootHeaderToasts"])
+			root:CreateButton(L["SettingsLootAddInclude"], function() local dialog = StaticPopup_Show("EQOL_LOOT_INCLUDE_ADD") end)
+			root:CreateButton(OPTIONS, function() Settings.OpenToCategory(addon.SettingsLayout.vendorEconomyCalootCategorytegory:GetID(), L["enableLootToastFilter"]) end)
+		end
+
+		DoDevider()
+		root:CreateTitle(L["DataPanel"])
+		root:CreateButton(L["SettingsDataPanelCreate"], function() local dialog = StaticPopup_Show("EQOL_CREATE_DATAPANEL") end)
+
+		DoDevider()
+		root:CreateButton(SETTINGS, function() Settings.OpenToCategory(addon.SettingsLayout.rootCategory:GetID()) end)
+	end
+
 	-- Datenobjekt fr den Minimap-Button
 	local EnhanceQoLLDB = LDB:NewDataObject("EnhanceQoL", {
 		type = "launcher",
@@ -4062,7 +3399,7 @@ local function CreateUI()
 					frame:Show()
 				end
 			else
-				Settings.OpenToCategory(addon.SettingsLayout.rootCategory:GetID())
+				MenuUtil.CreateContextMenu(UIParent, QuickMenuGenerator)
 			end
 		end,
 		OnTooltipShow = function(tt)
@@ -4270,9 +3607,11 @@ local function setAllHooks()
 	initCharacter()
 	initMisc()
 	initLoot()
-	initQuest()
 	addon.functions.initDungeonFrame()
 	addon.functions.initGearUpgrade()
+	addon.functions.initUIInput()
+	addon.functions.initQuest()
+	addon.functions.initDataPanel()
 	initParty()
 	initActionBars()
 	initUI()

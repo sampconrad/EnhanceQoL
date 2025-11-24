@@ -259,7 +259,7 @@ data = {
 					tList._order = order
 					return tList
 				end,
-				text = L["moneyTrackerRemovePlayer"],
+				text = L["mailboxRemoveHeader"],
 				get = function() return "" end,
 				set = function(key)
 					if not key or key == "" then return end

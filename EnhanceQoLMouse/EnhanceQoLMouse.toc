@@ -24,3 +24,4 @@ Init.lua
 locales\[TextLocale].lua
 
 EnhanceQoLMouse.lua
+Settings_Mouse.lua

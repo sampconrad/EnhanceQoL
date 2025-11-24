@@ -1,11 +1,11 @@
 local addonName, addon = ...
 
 addon.variables.NewVersionTableEQOL = {
-	["ContainerAction"] = true,
-
 	-- Headlines
-	["CombatDungeons"] = true,
-	["CombatDungeon_Dungeon"] = true,
-	["EQOL_groupfinderAppText"] = true,
-	["EQOL_timeoutReleaseModifier"] = true,
+	["UIInput"] = true,
+	["EQOL_modifyXPRepBar"] = true,
+	["EQOL_modifyXPRepBarWidth"] = true,
+	["EQOL_modifyXPRepBarHeight"] = true,
+	["EQOL_modifyXPRepBarScale"] = true,
+	["EQOL_autoCancelDruidFlightForm"] = true,
 }

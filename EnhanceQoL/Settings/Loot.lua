@@ -137,6 +137,7 @@ data = {
 			addon.db.enableLootToastFilter = value and true or false
 			addon.functions.initLootToast()
 		end,
+		notify = "enableLootToastCustomSound",
 		children = {
 			{
 				var = "enableLootToastCustomSound",
@@ -182,8 +183,6 @@ data = {
 						var = "lootToastCustomSound",
 						type = Settings.VarType.String,
 						sType = "dropdown",
-						-- TODO notify geht nicht
-						notify = "enableLootToastFilter",
 					},
 				},
 			},
@@ -194,37 +193,64 @@ data = {
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cLoot, data)
 
-addon.functions.SettingsCreateText(cLoot, "|c" .. ITEM_QUALITY_COLORS[3].color:GenerateHexColor() .. ITEM_QUALITY3_DESC .. "|r")
+for i = 3, 5 do
+	addon.functions.SettingsCreateText(cLoot, "|c" .. ITEM_QUALITY_COLORS[i].color:GenerateHexColor() .. _G["ITEM_QUALITY" .. i .. "_DESC"] .. "|r")
 
-data = {
-	{
-		var = "lootToastCheckIlvl_rare",
-		text = L["lootToastCheckIlvl"],
-		get = function() return addon.db.lootToastFilters[3].ilvl or false end,
-		func = function(value) addon.db.lootToastFilters[3].ilvl = value end,
-		children = {
-			{
-				var = "lootToastItemLevel_rare",
-				text = L["lootToastItemLevel"],
-				parentCheck = function()
-					return addon.SettingsLayout.elements["enableLootToastFilter"]
-						and addon.SettingsLayout.elements["enableLootToastFilter"].setting
-						and addon.SettingsLayout.elements["enableLootToastFilter"].setting:GetValue() == true
-						and addon.SettingsLayout.elements["lootToastCheckIlvl_rare"]
-						and addon.SettingsLayout.elements["lootToastCheckIlvl_rare"].setting
-						and addon.SettingsLayout.elements["lootToastCheckIlvl_rare"].setting:GetValue() == true
-				end,
-				get = function() return addon.db and addon.db.lootToastItemLevels and addon.db.lootToastItemLevels[3] or 0 end,
-				set = function(value) addon.db.lootToastItemLevels[3] = value end,
-				min = 0,
-				max = 1000,
-				step = 1,
-				element = addon.SettingsLayout.elements["enableLootToastFilter"].element,
-				parent = true,
-				default = 0,
-				sType = "slider",
+	data = {
+		{
+			var = "lootToastCheckIlvl_" .. i,
+			text = L["lootToastCheckIlvl"],
+			get = function() return addon.db.lootToastFilters and addon.db.lootToastFilters[i] and addon.db.lootToastFilters[i].ilvl or false end,
+			func = function(value)
+				addon.db.lootToastFilters = addon.db.lootToastFilters or {}
+				addon.db.lootToastFilters[i] = addon.db.lootToastFilters[i] or {}
+				addon.db.lootToastFilters[i].ilvl = value
+			end,
+			children = {
+				{
+					var = "lootToastItemLevel_" .. i,
+					text = L["lootToastItemLevel"],
+					parentCheck = function()
+						return addon.SettingsLayout.elements["enableLootToastFilter"]
+							and addon.SettingsLayout.elements["enableLootToastFilter"].setting
+							and addon.SettingsLayout.elements["enableLootToastFilter"].setting:GetValue() == true
+							and addon.SettingsLayout.elements["lootToastCheckIlvl_" .. i]
+							and addon.SettingsLayout.elements["lootToastCheckIlvl_" .. i].setting
+							and addon.SettingsLayout.elements["lootToastCheckIlvl_" .. i].setting:GetValue() == true
+					end,
+					get = function() return addon.db and addon.db.lootToastItemLevels and addon.db.lootToastItemLevels[i] or 0 end,
+					set = function(value)
+						addon.db.lootToastItemLevels = addon.db.lootToastItemLevels or {}
+						addon.db.lootToastItemLevels[i] = addon.db.lootToastItemLevels[i] or {}
+						addon.db.lootToastItemLevels[i] = value
+					end,
+					min = 0,
+					max = 1000,
+					step = 1,
+					element = addon.SettingsLayout.elements["enableLootToastFilter"].element,
+					parent = true,
+					default = 0,
+					sType = "slider",
+				},
 			},
+			parent = true,
+			element = addon.SettingsLayout.elements["enableLootToastFilter"].element,
+			parentCheck = function()
+				return addon.SettingsLayout.elements["enableLootToastFilter"]
+					and addon.SettingsLayout.elements["enableLootToastFilter"].setting
+					and addon.SettingsLayout.elements["enableLootToastFilter"].setting:GetValue() == true
+			end,
+			notify = "enableLootToastFilter",
 		},
+	}
+
+	table.sort(data, function(a, b) return a.text < b.text end)
+	addon.functions.SettingsCreateCheckboxes(cLoot, data)
+
+	addon.functions.SettingsCreateMultiDropdown(cLoot, {
+		var = "lootToastFilters_" .. i,
+		subvar = i,
+		text = L["lootToastAlwaysShow"],
 		parent = true,
 		element = addon.SettingsLayout.elements["enableLootToastFilter"].element,
 		parentCheck = function()
@@ -232,12 +258,161 @@ data = {
 				and addon.SettingsLayout.elements["enableLootToastFilter"].setting
 				and addon.SettingsLayout.elements["enableLootToastFilter"].setting:GetValue() == true
 		end,
-		notify = "enableLootToastFilter",
-	},
-}
+		options = {
+			{ value = "mounts", text = L["lootToastAlwaysShowMounts"] },
+			{ value = "pets", text = L["lootToastAlwaysShowPets"] },
+			{ value = "upgrade", text = L["lootToastAlwaysShowUpgrades"] },
+		},
+	})
+end
 
-table.sort(data, function(a, b) return a.text < b.text end)
-addon.functions.SettingsCreateCheckboxes(cLoot, data)
+local function isLootToastFilterEnabled()
+	return addon.SettingsLayout.elements["enableLootToastFilter"]
+		and addon.SettingsLayout.elements["enableLootToastFilter"].setting
+		and addon.SettingsLayout.elements["enableLootToastFilter"].setting:GetValue() == true
+end
+
+addon.db.lootToastIncludeIDs = addon.db.lootToastIncludeIDs or {}
+
+local function addInclude(input, editBox)
+	local rawInput = strtrim(tostring(input or ""))
+	if rawInput == "" then
+		if editBox then editBox:SetText("") end
+		return
+	end
+
+	local id = tonumber(rawInput)
+	if not id then id = tonumber(string.match(rawInput, "item:(%d+)")) end
+	if not id then
+		print("|cffff0000Invalid input!|r")
+		if editBox then editBox:SetText("") end
+		return
+	end
+
+	local eItem
+	if type(rawInput) == "string" and rawInput:find("|Hitem:") then
+		eItem = Item:CreateFromItemLink(rawInput)
+	else
+		eItem = Item:CreateFromItemID(id)
+	end
+
+	if eItem and not eItem:IsItemEmpty() then
+		eItem:ContinueOnItemLoad(function()
+			local name = eItem:GetItemName()
+			local itemID = eItem:GetItemID()
+			if not name or not itemID then
+				print(L["Item id does not exist"])
+				if editBox then editBox:SetText("") end
+				return
+			end
+
+			if not addon.db.lootToastIncludeIDs[itemID] then
+				addon.db.lootToastIncludeIDs[itemID] = string.format("%s (%d)", name, itemID)
+				print(L["lootToastItemAdded"]:format(name, itemID))
+			end
+
+			if editBox then editBox:SetText("") end
+			Settings.NotifyUpdate("EQOL_lootToastIncludeRemove")
+		end)
+	else
+		print(L["Item id does not exist"])
+		if editBox then editBox:SetText("") end
+	end
+end
+
+local includeDialogKey = "EQOL_LOOT_INCLUDE_ADD"
+StaticPopupDialogs[includeDialogKey] = StaticPopupDialogs[includeDialogKey]
+	or {
+		text = L["Include"],
+		button1 = ACCEPT,
+		button2 = CANCEL,
+		hasEditBox = true,
+		editBoxWidth = 280,
+		enterClicksFirstButton = true,
+		timeout = 0,
+		whileDead = true,
+		hideOnEscape = true,
+		preferredIndex = 3,
+	}
+StaticPopupDialogs[includeDialogKey].OnShow = function(self)
+	local editBox = self.editBox or self:GetEditBox()
+	editBox:SetText("")
+	editBox:SetFocus()
+end
+StaticPopupDialogs[includeDialogKey].OnAccept = function(self)
+	local editBox = self.editBox or self:GetEditBox()
+	addInclude(editBox:GetText(), editBox)
+end
+StaticPopupDialogs[includeDialogKey].EditBoxOnEnterPressed = function(editBox)
+	local parent = editBox:GetParent()
+	if parent and parent.button1 then parent.button1:Click() end
+end
+
+addon.functions.SettingsCreateHeadline(cLoot, L["Include"])
+
+local lootLayout = SettingsPanel:GetLayout(cLoot)
+local includeButton = CreateSettingsButtonInitializer("", L["Include"], function() StaticPopup_Show(includeDialogKey) end, L["includeInfoLoot"], true)
+includeButton:SetParentInitializer(addon.SettingsLayout.elements["enableLootToastFilter"].element, isLootToastFilterEnabled)
+lootLayout:AddInitializer(includeButton)
+
+local function buildIncludeDropdownList()
+	addon.db.lootToastIncludeIDs = addon.db.lootToastIncludeIDs or {}
+	local list = {}
+	list[""] = ""
+	for i, v in pairs(addon.db.lootToastIncludeIDs) do
+		local key = tostring(i)
+		list[key] = v
+	end
+	return list
+end
+
+local function clearIncludeDropdownSelection()
+	local entry = addon.SettingsLayout.elements["lootToastIncludeRemove"]
+	if entry and entry.setting then entry.setting:SetValue("") end
+end
+
+local function removeIncludeEntry(key)
+	if not key or key == "" then return end
+	addon.db.lootToastIncludeIDs = addon.db.lootToastIncludeIDs or {}
+	local index = tonumber(key) or key
+	if not addon.db.lootToastIncludeIDs[index] then return end
+	addon.db.lootToastIncludeIDs[index] = nil
+	Settings.NotifyUpdate("EQOL_lootToastIncludeRemove")
+	clearIncludeDropdownSelection()
+end
+
+local includeRemoveDialogKey = "EQOL_LOOT_INCLUDE_REMOVE"
+StaticPopupDialogs[includeRemoveDialogKey] = StaticPopupDialogs[includeRemoveDialogKey]
+	or {
+		text = L["lootToastIncludeRemoveConfirm"],
+		button1 = ACCEPT,
+		button2 = CANCEL,
+		timeout = 0,
+		whileDead = true,
+		hideOnEscape = true,
+		preferredIndex = 3,
+	}
+StaticPopupDialogs[includeRemoveDialogKey].OnAccept = function(_, data) removeIncludeEntry(data) end
+
+addon.functions.SettingsCreateDropdown(cLoot, {
+	var = "lootToastIncludeRemove",
+	text = string.format("%s %s", REMOVE, L["Include"]),
+	listFunc = buildIncludeDropdownList,
+	get = function() return "" end,
+	set = function(key)
+		if not key or key == "" then return end
+		local index = tonumber(key) or key
+		addon.db.lootToastIncludeIDs = addon.db.lootToastIncludeIDs or {}
+		local label = addon.db.lootToastIncludeIDs[index] or tostring(index)
+		StaticPopup_Show(includeRemoveDialogKey, label, nil, index)
+		clearIncludeDropdownSelection()
+	end,
+	parent = true,
+	element = addon.SettingsLayout.elements["enableLootToastFilter"].element,
+	parentCheck = isLootToastFilterEnabled,
+	default = "",
+	type = Settings.VarType.String,
+})
 
 addon.functions.SettingsCreateHeadline(cLoot, L["dungeonJournalLootSpecIcons"])
 
