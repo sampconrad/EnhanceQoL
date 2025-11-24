@@ -17,6 +17,7 @@ Starting to change stuff to blizzard options, for now only a small part is there
   - UI & Input
     - Mouse
     - Chat Frame
+    - Data Panel
 
 ### ✨ Added
 

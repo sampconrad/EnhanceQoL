@@ -3362,6 +3362,30 @@ local function CreateUI()
 	-- Select a meaningful default page
 	addon.treeGroup:SelectByPath("profiles")
 
+	local function QuickMenuGenerator(_, root)
+		local first = true
+		local function DoDevider()
+			if not first then
+				root:CreateDivider()
+			else
+				first = false
+			end
+		end
+		if addon.db["enableLootToastFilter"] then
+			first = false
+			root:CreateTitle(L["SettingsLootHeaderToasts"])
+			root:CreateButton(L["SettingsLootAddInclude"], function() local dialog = StaticPopup_Show("EQOL_LOOT_INCLUDE_ADD") end)
+			root:CreateButton(OPTIONS, function() Settings.OpenToCategory(addon.SettingsLayout.vendorEconomyCalootCategorytegory:GetID(), L["enableLootToastFilter"]) end)
+		end
+
+		DoDevider()
+		root:CreateTitle(L["DataPanel"])
+		root:CreateButton(L["SettingsDataPanelCreate"], function() local dialog = StaticPopup_Show("EQOL_CREATE_DATAPANEL") end)
+
+		DoDevider()
+		root:CreateButton(SETTINGS, function() Settings.OpenToCategory(addon.SettingsLayout.rootCategory:GetID()) end)
+	end
+
 	-- Datenobjekt fr den Minimap-Button
 	local EnhanceQoLLDB = LDB:NewDataObject("EnhanceQoL", {
 		type = "launcher",
@@ -3375,7 +3399,7 @@ local function CreateUI()
 					frame:Show()
 				end
 			else
-				Settings.OpenToCategory(addon.SettingsLayout.rootCategory:GetID())
+				MenuUtil.CreateContextMenu(UIParent, QuickMenuGenerator)
 			end
 		end,
 		OnTooltipShow = function(tt)
@@ -3587,6 +3611,7 @@ local function setAllHooks()
 	addon.functions.initGearUpgrade()
 	addon.functions.initUIInput()
 	addon.functions.initQuest()
+	addon.functions.initDataPanel()
 	initParty()
 	initActionBars()
 	initUI()
