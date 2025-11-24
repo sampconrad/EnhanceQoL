@@ -309,7 +309,7 @@ function EQOL_MultiDropdownMixin:SetupDropdownMenu(button, setting, optionsFunc,
 
 				rootDescription:CreateCheckbox(label, function() return self:IsSelected(opt.value) end, function()
 					self:ToggleOption(opt.value)
-					if self.callback then self.callback() end
+					if self.callback then self.callback(opt) end
 				end, opt)
 			end
 		end

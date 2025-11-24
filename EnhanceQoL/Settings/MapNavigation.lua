@@ -308,8 +308,7 @@ addon.functions.SettingsCreateMultiDropdown(cMapNav, {
 	var = "ignoreMinimapSinkHole",
 	text = IGNORE,
 	parent = true,
-	element = addon.SettingsLayout.elements["enableMinimapButtonBin"]
-		and addon.SettingsLayout.elements["enableMinimapButtonBin"].element,
+	element = addon.SettingsLayout.elements["enableMinimapButtonBin"] and addon.SettingsLayout.elements["enableMinimapButtonBin"].element,
 	parentCheck = isMinimapButtonBinEnabled,
 	optionfunc = function()
 		local buttons = (addon.variables and addon.variables.bagButtonState) or {}
@@ -325,6 +324,35 @@ addon.functions.SettingsCreateMultiDropdown(cMapNav, {
 	setSelectedFunc = setIgnoreState,
 })
 
+addon.functions.SettingsCreateHeadline(cMapNav, L["LandingPage"])
+
+data = {
+	{
+		var = "enableLandingPageMenu",
+		text = L["enableLandingPageMenu"],
+		desc = L["enableLandingPageMenuDesc"],
+		func = function(key) addon.db["enableLandingPageMenu"] = key end,
+		default = false,
+	},
+}
+
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cMapNav, data)
+
+addon.functions.SettingsCreateText(cMapNav, "|cff99e599" .. L["landingPageHide"] .. "|r")
+addon.functions.SettingsCreateMultiDropdown(cMapNav, {
+	var = "hiddenLandingPages",
+	text = HIDE,
+	optionfunc = function()
+		local buttons = (addon.variables and addon.variables.landingPageType) or {}
+		local list = {}
+		for id in pairs(buttons) do
+			table.insert(list, { value = buttons[id].checkbox, text = buttons[id].text })
+		end
+		table.sort(list, function(a, b) return tostring(a.text) < tostring(b.text) end)
+		return list
+	end,
+})
 ----- REGION END
 
 function addon.functions.initMapNav() end
