@@ -17,6 +17,67 @@ function EQOL_MultiDropdownMixin:OnLoad()
 	self:EnsureSummaryAnchors()
 end
 
+function EQOL_MultiDropdownMixin:CloneOption(option)
+	local cloned = {}
+	if type(option) == "table" then
+		for key, value in pairs(option) do
+			cloned[key] = value
+		end
+	else
+		cloned.value = option
+	end
+
+	if cloned.value == nil then cloned.value = cloned.text end
+	if cloned.value == nil and cloned.label then cloned.value = cloned.label end
+
+	local fallback = cloned.text or cloned.label or tostring(cloned.value or "")
+	if cloned.value == nil then cloned.value = fallback end
+
+	cloned.label = cloned.label or fallback
+	cloned.text = cloned.text or fallback
+
+	return cloned
+end
+
+function EQOL_MultiDropdownMixin:SetOptions(list)
+	if type(list) ~= "table" then
+		self.options = {}
+		return
+	end
+
+	local usesIndexOrder = #list > 0
+	local normalized = {}
+
+	if usesIndexOrder then
+		for _, option in ipairs(list) do
+			table.insert(normalized, self:CloneOption(option))
+		end
+	else
+		for key, option in pairs(list) do
+			if type(option) == "table" then
+				table.insert(normalized, self:CloneOption(option))
+			else
+				table.insert(normalized, self:CloneOption({ value = key, text = option }))
+			end
+		end
+	end
+
+	self.options = normalized
+end
+
+function EQOL_MultiDropdownMixin:GetOptions()
+	if self.optionfunc then
+		local result = self.optionfunc()
+		if type(result) == "table" then
+			self:SetOptions(result)
+		else
+			self.options = {}
+		end
+	end
+
+	return self.options or {}
+end
+
 function EQOL_MultiDropdownMixin:Init(initializer)
 	-- Unsere eigenen Daten zuerst setzen
 	self.initializer = initializer
@@ -25,17 +86,13 @@ function EQOL_MultiDropdownMixin:Init(initializer)
 	-- data = { var = "abc", label = "...", options = {...}, db = addon.db }
 
 	self.var = data.var
-	self.options = data.options or {}
+	self.optionfunc = data.optionfunc
+	self.isSelectedFunc = data.isSelectedFunc
+	self.setSelectedFunc = data.setSelectedFunc
+	self:SetOptions(data.options or {})
 	self.db = addon.db
 	self.subvar = data.subvar
 	self.callback = data.callback
-
-	for _, option in ipairs(self.options) do
-		option.value = option.value or option.text
-		local fallback = option.text or tostring(option.value)
-		option.label = option.label or fallback
-		option.text = option.text or fallback
-	end
 
 	if not self.db then error("EQOL_MultiDropdownMixin: data.db fehlt") end
 
@@ -53,30 +110,62 @@ end
 
 function EQOL_MultiDropdownMixin:GetSelectionTable()
 	self.db = self.db or addon.db
-	local t = self.db[self.var]
-	if type(t) ~= "table" then
-		t = {}
-		self.db[self.var] = t
+	if type(self.db) ~= "table" then self.db = {} end
+
+	local container = self.db[self.var]
+	if type(container) ~= "table" then
+		container = {}
+		self.db[self.var] = container
 	end
-	if self.subvar then t = t[self.subvar] end
-	if type(t) ~= "table" then t[self.subvar] = {} end
-	return t
+
+	if self.subvar then
+		if type(container[self.subvar]) ~= "table" then container[self.subvar] = {} end
+		container = container[self.subvar]
+	end
+
+	return container
 end
 
-function EQOL_MultiDropdownMixin:IsSelected(key) return self:GetSelectionTable()[key] == true end
+function EQOL_MultiDropdownMixin:IsSelected(key)
+	if self.isSelectedFunc then return self.isSelectedFunc(key) and true or false end
+	return self:GetSelectionTable()[key] == true
+end
 
-function EQOL_MultiDropdownMixin:ToggleOption(key)
-	local t = self:GetSelectionTable()
-	if t[key] then
-		t[key] = nil
+function EQOL_MultiDropdownMixin:SetSelected(key, shouldSelect)
+	if self.setSelectedFunc then
+		self.setSelectedFunc(key, shouldSelect)
 	else
-		t[key] = true
+		local selection = self:GetSelectionTable()
+		if shouldSelect then
+			selection[key] = true
+		else
+			selection[key] = nil
+		end
 	end
 
-	-- optional Setting synchronisieren (z.B. als "key1,key3")
-	local setting = self:GetSetting()
-	if setting then setting:SetValue(self:SerializeSelection(t)) end
+	self:SyncSetting()
+end
 
+function EQOL_MultiDropdownMixin:GetSelectionMap()
+	if not self.setSelectedFunc then return self:GetSelectionTable() end
+
+	local snapshot = {}
+	for _, opt in ipairs(self:GetOptions()) do
+		if opt.value ~= nil and self:IsSelected(opt.value) then snapshot[opt.value] = true end
+	end
+	return snapshot
+end
+
+function EQOL_MultiDropdownMixin:SyncSetting()
+	local setting = self:GetSetting()
+	if not setting then return end
+
+	setting:SetValue(self:SerializeSelection(self:GetSelectionMap()))
+end
+
+function EQOL_MultiDropdownMixin:ToggleOption(key)
+	local newState = not self:IsSelected(key)
+	self:SetSelected(key, newState)
 	self:RefreshSummary()
 end
 
@@ -94,11 +183,9 @@ function EQOL_MultiDropdownMixin:RefreshSummary()
 
 	self:EnsureSummaryAnchors()
 
-	local t = self:GetSelectionTable()
 	local texts = {}
-
-	for _, opt in ipairs(self.options) do
-		if t[opt.value] then table.insert(texts, opt.text or tostring(opt.value)) end
+	for _, opt in ipairs(self:GetOptions()) do
+		if opt.value ~= nil and self:IsSelected(opt.value) then table.insert(texts, opt.text or tostring(opt.value)) end
 	end
 
 	local summary = self:FormatSummaryText(texts)
@@ -193,7 +280,7 @@ function EQOL_MultiDropdownMixin:InitDropdown()
 	local initializer = self:GetElementData()
 
 	-- Wir bauen unsere eigene optionsFunc auf Basis self.options
-	local function optionsFunc() return self.options end
+	local function optionsFunc() return self:GetOptions() end
 
 	-- Tooltip wie beim Original bauen
 	local initTooltip = Settings.CreateOptionsInitTooltip(setting, initializer:GetName(), initializer:GetTooltip(), optionsFunc)

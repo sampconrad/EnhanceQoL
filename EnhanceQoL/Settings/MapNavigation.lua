@@ -274,27 +274,56 @@ data = {
 				text = "|cff99e599" .. L["ignoreMinimapSinkHole"] .. "|r",
 				sType = "hint",
 			},
-			{
-				var = "hiddenMinimapElements",
-				text = L["minimapHideElements"],
-				options = {
-					{ value = "Tracking", text = L["minimapHideElements_Tracking"] },
-					{ value = "ZoneInfo", text = L["minimapHideElements_ZoneInfo"] },
-					{ value = "Clock", text = L["minimapHideElements_Clock"] },
-					{ value = "Calendar", text = L["minimapHideElements_Calendar"] },
-					{ value = "Mail", text = L["minimapHideElements_Mail"] },
-					{ value = "AddonCompartment", text = L["minimapHideElements_AddonCompartment"] },
-				},
-				callback = function()
-					if addon.functions.ApplyMinimapElementVisibility then addon.functions.ApplyMinimapElementVisibility() end
-				end,
-			},
 		},
 	},
 }
 
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cMapNav, data)
+
+local function isMinimapButtonBinEnabled()
+	return addon.SettingsLayout.elements["enableMinimapButtonBin"]
+		and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting
+		and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting:GetValue() == true
+end
+
+local function getIgnoreState(value)
+	if not value then return false end
+	return (addon.db["ignoreMinimapSinkHole_" .. value] or addon.db["ignoreMinimapButtonBin_" .. value]) and true or false
+end
+
+local function setIgnoreState(value, shouldSelect)
+	if not value then return end
+	if shouldSelect then
+		addon.db["ignoreMinimapSinkHole_" .. value] = true
+		addon.db["ignoreMinimapButtonBin_" .. value] = true
+	else
+		addon.db["ignoreMinimapSinkHole_" .. value] = nil
+		addon.db["ignoreMinimapButtonBin_" .. value] = nil
+	end
+	if addon.functions.LayoutButtons then addon.functions.LayoutButtons() end
+end
+
+addon.functions.SettingsCreateMultiDropdown(cMapNav, {
+	var = "ignoreMinimapSinkHole",
+	text = IGNORE,
+	parent = true,
+	element = addon.SettingsLayout.elements["enableMinimapButtonBin"]
+		and addon.SettingsLayout.elements["enableMinimapButtonBin"].element,
+	parentCheck = isMinimapButtonBinEnabled,
+	optionfunc = function()
+		local buttons = (addon.variables and addon.variables.bagButtonState) or {}
+		local list = {}
+		for name in pairs(buttons) do
+			local label = tostring(name)
+			table.insert(list, { value = name, text = label })
+		end
+		table.sort(list, function(a, b) return tostring(a.text) < tostring(b.text) end)
+		return list
+	end,
+	isSelectedFunc = getIgnoreState,
+	setSelectedFunc = setIgnoreState,
+})
 
 ----- REGION END
 

@@ -177,10 +177,14 @@ function addon.functions.SettingsCreateMultiDropdown(cat, cbData)
 
 	local initializer = Settings.CreateElementInitializer("EQOL_MultiDropdownTemplate", {
 		var = cbData.var,
+		subvar = cbData.subvar,
 		label = cbData.text,
 		options = cbData.options,
+		optionfunc = cbData.optionfunc,
+		isSelectedFunc = cbData.isSelectedFunc,
+		setSelectedFunc = cbData.setSelectedFunc,
 		db = addon.db,
-		callback = cbData.callback
+		callback = cbData.callback,
 	})
 	initializer:SetSetting(setting)
 	if cbData.parent then initializer:SetParentInitializer(cbData.element, cbData.parentCheck) end
