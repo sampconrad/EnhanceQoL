@@ -13,4 +13,5 @@
 	<Script file='DataPanel.lua'/>
 	<Script file='Social.lua'/>
 	<Script file='System.lua'/>
+	<Script file='UnitFrames.lua'/>
 </Ui>
