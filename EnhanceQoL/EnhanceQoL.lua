@@ -2832,6 +2832,7 @@ local function initUI()
 						or btnName == "MinimapMailFrame"
 						or btnName:match("^HandyNotesPin")
 						or btnName == addonName .. "_ButtonSinkMap"
+						or btnName == "ZygorGuidesViewerMapIcon"
 					)
 				then
 					if not addon.variables.bagButtonPoint[btnName] or not addon.variables.bagButtonPoint[btnName].point then

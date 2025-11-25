@@ -25,3 +25,4 @@ Init.lua
 locales\[TextLocale].lua
 
 EnhanceQoLTooltip.lua
+Settings_Tooltip.lua

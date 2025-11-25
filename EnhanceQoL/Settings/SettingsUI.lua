@@ -157,8 +157,9 @@ function addon.functions.SettingsCreateDropdown(cat, cbData, searchtags)
 	end
 
 	local setting = Settings.RegisterProxySetting(cat, "EQOL_" .. cbData.var, cbData.type or Settings.VarType.String, cbData.text, cbData.default, cbData.get, cbData.set)
-
 	local dropdown = Settings.CreateDropdown(cat, setting, options, cbData.desc)
+	
+	addon.SettingsLayout.elements[cbData.var] = { setting = setting, element = dropdown }
 	if cbData.parent then dropdown:SetParentInitializer(cbData.element, cbData.parentCheck) end
 	if cbData.notify then addon.functions.SettingsCreateNotify(setting, cbData.notify) end
 end

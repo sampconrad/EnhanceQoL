@@ -848,105 +848,13 @@ local function addTooltipFrame2(container, which)
 		return g, known
 	end
 
-	local function buildBuffDebuff()
-		local g, known = ensureGroup("buff_debuff", L["Buff_Debuff"])
-		local list, order = addon.functions.prepareListForDropdown({ [1] = L["TooltipOFF"], [2] = L["TooltipON"] })
-		local dropTooltipBuffHideType = addon.functions.createDropdownAce(L["TooltipBuffHideType"], list, order, function(self) addon.db["TooltipBuffHideType"] = self:GetValue() end)
-		dropTooltipBuffHideType:SetValue(addon.db["TooltipBuffHideType"])
-		dropTooltipBuffHideType:SetFullWidth(false)
-		dropTooltipBuffHideType:SetWidth(150)
-		g:AddChild(dropTooltipBuffHideType)
+	local function buildBuffDebuff() end
 
-		local data = {
-			{ text = L["TooltipBuffHideInCombat"], var = "TooltipBuffHideInCombat" },
-			{ text = L["TooltipBuffHideInDungeon"], var = "TooltipBuffHideInDungeon" },
-		}
-		table.sort(data, function(a, b) return a.text < b.text end)
-		for _, cbData in ipairs(data) do
-			local cb = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(_, _, v) addon.db[cbData.var] = v end)
-			g:AddChild(cb)
-		end
-		if known then
-			g:ResumeLayout()
-			doLayout()
-		end
-	end
+	local function buildItem() end
 
-	local function buildItem()
-		local g, known = ensureGroup("item", L["Item"])
-		local list, order = addon.functions.prepareListForDropdown({ [1] = L["TooltipOFF"], [2] = L["TooltipON"] })
-		local dropTooltipItemHideType = addon.functions.createDropdownAce(L["TooltipItemHideType"], list, order, function(self) addon.db["TooltipItemHideType"] = self:GetValue() end)
-		dropTooltipItemHideType:SetValue(addon.db["TooltipItemHideType"])
-		dropTooltipItemHideType:SetFullWidth(false)
-		dropTooltipItemHideType:SetWidth(150)
-		g:AddChild(dropTooltipItemHideType)
+	local function buildSpell() end
 
-		local items = {
-			{ text = L["TooltipItemHideInCombat"], var = "TooltipItemHideInCombat" },
-			{ text = L["TooltipItemHideInDungeon"], var = "TooltipItemHideInDungeon" },
-			{ text = L["TooltipShowItemID"], var = "TooltipShowItemID", noMidnight = true },
-			{ text = L["TooltipShowTempEnchant"], var = "TooltipShowTempEnchant", desc = L["TooltipShowTempEnchantDesc"], noMidnight = true },
-			{ text = L["TooltipShowItemCount"], var = "TooltipShowItemCount", noMidnight = true },
-			{ text = L["TooltipShowSeperateItemCount"], var = "TooltipShowSeperateItemCount", noMidnight = true },
-		}
-		table.sort(items, function(a, b) return a.text < b.text end)
-		for _, it in ipairs(items) do
-			if (addon.variables.isMidnight and not it.noMidnight) or not addon.variables.isMidnight then
-				local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v) addon.db[it.var] = v end, it.desc)
-				g:AddChild(cb)
-			end
-		end
-		if known then
-			g:ResumeLayout()
-			doLayout()
-		end
-	end
-
-	local function buildSpell()
-		local g, known = ensureGroup("spell", L["Spell"])
-		local list, order = addon.functions.prepareListForDropdown({ [1] = L["TooltipOFF"], [2] = L["TooltipON"] })
-		local dropTooltipSpellHideType = addon.functions.createDropdownAce(L["TooltipSpellHideType"], list, order, function(self) addon.db["TooltipSpellHideType"] = self:GetValue() end)
-		dropTooltipSpellHideType:SetValue(addon.db["TooltipSpellHideType"])
-		dropTooltipSpellHideType:SetFullWidth(false)
-		dropTooltipSpellHideType:SetWidth(150)
-		g:AddChild(dropTooltipSpellHideType)
-
-		local items = {
-			{ text = L["TooltipSpellHideInCombat"], var = "TooltipSpellHideInCombat" },
-			{ text = L["TooltipSpellHideInDungeon"], var = "TooltipSpellHideInDungeon" },
-			{ text = L["TooltipShowSpellID"], var = "TooltipShowSpellID", noMidnight = true },
-			{ text = L["TooltipShowSpellIcon"], var = "TooltipShowSpellIcon", noMidnight = true },
-		}
-		table.sort(items, function(a, b) return a.text < b.text end)
-		for _, it in ipairs(items) do
-			if (addon.variables.isMidnight and not it.noMidnight) or not addon.variables.isMidnight then
-				local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v) addon.db[it.var] = v end)
-				g:AddChild(cb)
-			end
-		end
-		if known then
-			g:ResumeLayout()
-			doLayout()
-		end
-	end
-
-	local function buildQuests()
-		-- TODO bugfix midnight beta
-		if addon.variables.isMidnight then return end
-		local g, known = ensureGroup("quests", QUESTLOG_BUTTON)
-		local data = {
-			{ text = L["TooltipShowQuestID"], var = "TooltipShowQuestID" },
-		}
-		table.sort(data, function(a, b) return a.text < b.text end)
-		for _, cbData in ipairs(data) do
-			local cb = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(_, _, v) addon.db[cbData.var] = v end)
-			g:AddChild(cb)
-		end
-		if known then
-			g:ResumeLayout()
-			doLayout()
-		end
-	end
+	local function buildQuests() end
 
 	local function buildUnit()
 		local g, known = ensureGroup("unit", L["Unit"])
