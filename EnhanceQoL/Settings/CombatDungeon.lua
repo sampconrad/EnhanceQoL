@@ -211,7 +211,7 @@ function addon.functions.initDungeonFrame()
 
 	SecureHandlerUnwrapScript(btn, "PreClick")
 	-- TODO check midnight later, /cwm 0 not working for now
-	
+
 	SecureHandlerWrapScript(
 		btn,
 		"PreClick",

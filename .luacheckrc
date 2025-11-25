@@ -4564,6 +4564,7 @@ globals = {
 	"SecureCmdItemParse",
 	"SecureCmdUseItem",
 	"SecureHandlerExecute",
+	"SettingsListSectionHeaderMixin",
 	"SecureHandlerSetFrameRef",
 	"SecureHandlerUnwrapScript",
 	"SecureHandlerWrapScript",
