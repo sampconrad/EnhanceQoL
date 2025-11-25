@@ -210,6 +210,8 @@ function addon.functions.initDungeonFrame()
 	SecureHandlerExecute(btn, body)
 
 	SecureHandlerUnwrapScript(btn, "PreClick")
+	-- TODO check midnight later, /cwm 0 not working for now
+	
 	SecureHandlerWrapScript(
 		btn,
 		"PreClick",
@@ -218,7 +220,7 @@ function addon.functions.initDungeonFrame()
 		if not down or not next(order) then return end
 		if button == "RightButton" then
 			i = 0
-			self:SetAttribute("macrotext", "/cwm 0")
+			self:SetAttribute("macrotext", "/cwm 1\n/cwm 2\n/cwm 3\n/cwm 4\n/cwm 5\n/cwm 6\n/cwm 7\n/cwm 8")
 		else
 			i = i%#order + 1
 			self:SetAttribute("macrotext", "/wm [@cursor]"..order[i])
