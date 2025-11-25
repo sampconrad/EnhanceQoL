@@ -166,7 +166,8 @@ function EQOL_SoundDropdownMixin:SetupLabel()
 	self.Text:SetFontObject(self.data.labelFontObject or "GameFontNormal")
 	self.Text:SetText(self.labelText)
 	self.Text:ClearAllPoints()
-	self.Text:SetPoint("LEFT", DEFAULT_LABEL_OFFSET_LEFT, 0)
+	local textLeft = (self:GetIndent() or 0) + DEFAULT_LABEL_OFFSET_LEFT
+	self.Text:SetPoint("LEFT", textLeft, 0)
 	self.Text:SetPoint("RIGHT", self, "CENTER", DEFAULT_LABEL_OFFSET_RIGHT, 0)
 end
 
@@ -266,16 +267,23 @@ function EQOL_SoundDropdownMixin:IsValueSelected(value)
 	return self:GetCurrentValue() == value
 end
 
+
+local function GetInitializerData(self)
+	return self.data or (self.initializer and self.initializer.data) or {}
+end
+
 function EQOL_SoundDropdownMixin:GetCurrentValue()
-	if self.data.getValue then return self.data.getValue() end
+	local data = GetInitializerData(self)
+	if data.getValue then return data.getValue() end
 	local setting = self:GetSetting()
 	if setting then return setting:GetValue() end
 	return nil
 end
 
 function EQOL_SoundDropdownMixin:SetCurrentValue(value)
-	if self.data.setValue then
-		self.data.setValue(value)
+	local data = GetInitializerData(self)
+	if data.setValue then
+		data.setValue(value)
 	else
 		local setting = self:GetSetting()
 		if setting then setting:SetValue(value or "") end

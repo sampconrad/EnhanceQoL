@@ -113,6 +113,7 @@
 		mixin="EQOL_SoundDropdownMixin"
 		virtual="true"
 	>
+	<Size x="200" y="25"/>
 		<Scripts>
 			<OnLoad method="OnLoad"/>
 		</Scripts>

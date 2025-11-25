@@ -20,6 +20,8 @@ Starting to change stuff to blizzard options, for now only a small part is there
     - Vendors & Economy
     - Map & Navigation
       - Quest
+  - Sound
+  - SharedMedia
   - UI & Input
     - Chat Frame
     - Data Panel

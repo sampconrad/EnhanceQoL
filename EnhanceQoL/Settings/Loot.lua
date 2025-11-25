@@ -155,7 +155,7 @@ data = {
 				sType = "checkbox",
 				children = {
 					{
-						listFunc = function()
+						optionfunc = function()
 							if addon.ChatIM and addon.ChatIM.BuildSoundTable and not addon.ChatIM.availableSounds then addon.ChatIM:BuildSoundTable() end
 							local tList = { [""] = "" }
 							for name in pairs(addon.ChatIM.availableSounds or {}) do
@@ -182,7 +182,7 @@ data = {
 						default = "",
 						var = "lootToastCustomSound",
 						type = Settings.VarType.String,
-						sType = "dropdown",
+						sType = "sounddropdown",
 					},
 				},
 			},
