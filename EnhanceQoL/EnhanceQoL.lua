@@ -3150,14 +3150,8 @@ local function CreateUI()
 		-- Forward Combat subtree for modules (Mythic+, Aura, Drink, CombatMeter)
 		elseif group == "items" then
 			Settings.OpenToCategory(addon.SettingsLayout.inventoryCategory:GetID())
-		elseif group == "items\001container" then
-			Settings.OpenToCategory(addon.SettingsLayout.containerActionCategory:GetID())
-		elseif group == "items\001gear" then
-			Settings.OpenToCategory(addon.SettingsLayout.gearUpgradeCategory:GetID())
 		elseif group == "items\001economy" then
 			Settings.OpenToCategory(addon.SettingsLayout.vendorEconomyCategory:GetID())
-		elseif group == "items\001loot" then
-			Settings.OpenToCategory(addon.SettingsLayout.vendorEconomyCalootCategorytegory:GetID())
 		-- Forward Combat subtree for modules (Mythic+, Aura, Drink, CombatMeter)
 		elseif string.sub(group, 1, string.len("combat\001")) == "combat\001" then
 			-- Normalize and dispatch for known combat modules
@@ -3181,40 +3175,14 @@ local function CreateUI()
 				-- Fallback to Mythic+ for other combat children
 				addon.MythicPlus.functions.treeCallback(container, group)
 			end
-		-- Map & Navigation
-		elseif group == "nav" then
-			Settings.OpenToCategory(addon.SettingsLayout.mapNavigationCategory:GetID())
-		elseif group == "nav\001teleports" then
-			addon.MythicPlus.functions.treeCallback(container, group)
-		-- UI & Input
-		elseif group == "ui\001mouse" then
-			addon.Mouse.functions.treeCallback(container, "mouse")
 		-- UF Plus
 		elseif string.match(group, "^ufplus") then
 			if addon.Aura and addon.Aura.UF and addon.Aura.UF.treeCallback then addon.Aura.UF.treeCallback(container, group) end
 		-- Quests under Map & Navigation
-		elseif group == "nav\001quest" then
-			Settings.OpenToCategory(addon.SettingsLayout.questCategory:GetID())
-		-- Social under UI
-		-- Events
 		elseif group == "events" or group == "events\001legionremix" then
 			if addon.Events and addon.Events.LegionRemix and addon.Events.LegionRemix.functions and addon.Events.LegionRemix.functions.treeCallback then
 				addon.Events.LegionRemix.functions.treeCallback(container, group)
 			end
-		elseif group == "profiles" then
-			local scroll = addon.functions.createContainer("ScrollFrame", "List")
-			scroll:SetFullWidth(true)
-			scroll:SetFullHeight(true)
-			container:AddChild(scroll)
-
-			local sub = addon.functions.createContainer("SimpleGroup", "Flow")
-			scroll:AddChild(sub)
-			-- AceConfigDlg:Open("EQOL_Profiles", sub)
-			scroll:DoLayout()
-		-- Media & Sound wrappers
-		elseif string.sub(group, 1, string.len("media\001")) == "media\001" then
-			-- Route any Media children to Sound module (flattened categories)
-			if addon.Sounds and addon.Sounds.functions and addon.Sounds.functions.treeCallback then addon.Sounds.functions.treeCallback(container, group) end
 		elseif string.match(group, "^vendor") then
 			addon.Vendor.functions.treeCallback(container, group)
 		elseif string.match(group, "^drink") then
@@ -3223,10 +3191,6 @@ local function CreateUI()
 			addon.MythicPlus.functions.treeCallback(container, group)
 		elseif string.match(group, "^aura") then
 			addon.Aura.functions.treeCallback(container, group)
-		elseif string.match(group, "^sound") then
-			addon.Sounds.functions.treeCallback(container, group)
-		elseif string.match(group, "^mouse") then
-			addon.Mouse.functions.treeCallback(container, group)
 		elseif string.match(group, "^combatmeter") then
 			addon.CombatMeter.functions.treeCallback(container, group)
 		elseif string.match(group, "^move") then
@@ -3236,11 +3200,7 @@ local function CreateUI()
 		end
 	end)
 	addon.treeGroup:SetStatusTable(addon.variables.statusTable)
-	addon.variables.statusTable.groups["items"] = true
 	frame:AddChild(addon.treeGroup)
-
-	-- Select a meaningful default page
-	addon.treeGroup:SelectByPath("profiles")
 
 	local function QuickMenuGenerator(_, root)
 		local first = true
