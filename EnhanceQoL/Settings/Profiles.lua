@@ -33,6 +33,44 @@ local data = {
 	listFunc = function()
 		local list = {}
 		for i in pairs(EnhanceQoLDB.profiles) do
+			if i ~= EnhanceQoLDB.profileKeys[UnitGUID("player")] then list[i] = i end
+		end
+		table.sort(list)
+		return list
+	end,
+	text = L["ProfileCopy"],
+	get = function() return "" end,
+	set = function(value)
+		if value ~= "" then
+			StaticPopupDialogs["EQOL_COPY_PROFILE"] = StaticPopupDialogs["EQOL_COPY_PROFILE"]
+				or {
+					text = L["ProfileCopyDesc"],
+					button1 = YES,
+					button2 = CANCEL,
+					timeout = 0,
+					whileDead = true,
+					hideOnEscape = true,
+					preferredIndex = 3,
+					OnAccept = function(self)
+						EnhanceQoLDB.profiles[EnhanceQoLDB.profileKeys[UnitGUID("player")]] = CopyTable(EnhanceQoLDB.profiles[value])
+						C_UI.Reload()
+					end,
+				}
+			StaticPopup_Show("EQOL_COPY_PROFILE")
+		end
+	end,
+	default = "",
+	var = "profilecopy",
+}
+
+addon.functions.SettingsCreateDropdown(cProfiles, data)
+
+addon.functions.SettingsCreateText(cProfiles, "")
+
+local data = {
+	listFunc = function()
+		local list = {}
+		for i in pairs(EnhanceQoLDB.profiles) do
 			list[i] = i
 		end
 		table.sort(list)

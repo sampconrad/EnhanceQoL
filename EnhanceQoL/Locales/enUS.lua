@@ -588,7 +588,9 @@ L["dungeonJournalLootSpecShowAllDesc"] = "Always show every specialization inste
 
 L["Profiles"] = "Profiles"
 L["ProfileActive"] = "Active profile"
+L["ProfileCopy"] = "Copy settings from profile"
 L["ProfileName"] = "Add a new Profile"
+L["ProfileCopyDesc"] = "Are you sure to copy the settings to your active profile?"
 L["ProfileUseGlobal"] = "Global profile"
 L["ProfileUseGlobalDesc"] = "Characters first load with this profile. You can always change your active profile"
 L["currentExpensionMythicPlusWarning"] = "For Mythic+ items from legacy dungeons, the results may be inaccurate."
