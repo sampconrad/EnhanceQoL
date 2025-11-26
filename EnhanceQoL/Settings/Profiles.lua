@@ -48,7 +48,7 @@ local data = {
 
 addon.functions.SettingsCreateDropdown(cProfiles, data)
 
-local data = {
+data = {
 	listFunc = function() return buildSortedProfileList() end,
 	text = L["ProfileUseGlobal"],
 	get = function() return EnhanceQoLDB.profileGlobal end,
@@ -60,7 +60,7 @@ local data = {
 addon.functions.SettingsCreateDropdown(cProfiles, data)
 addon.functions.SettingsCreateText(cProfiles, L["ProfileUseGlobalDesc"])
 
-local data = {
+data = {
 	listFunc = function()
 		local currentProfile = EnhanceQoLDB.profileKeys[UnitGUID("player")]
 		return buildSortedProfileList(function(name) return name == currentProfile end, true)
@@ -97,7 +97,7 @@ local data = {
 
 addon.functions.SettingsCreateDropdown(cProfiles, data)
 
-local data = {
+data = {
 	listFunc = function()
 		local currentProfile = EnhanceQoLDB.profileKeys[UnitGUID("player")]
 		local globalProfile = EnhanceQoLDB.profileGlobal

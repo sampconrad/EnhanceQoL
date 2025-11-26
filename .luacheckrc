@@ -758,6 +758,7 @@ globals = {
 	"C_CreatureInfo.GetRaceInfo",
 	"C_CurrencyInfo",
 	"C_CVar",
+	"C_UI",
 	"C_EncounterJournal",
 	"EQOL_SoundDropdownMixin",
 	"C_EquipmentSet",
