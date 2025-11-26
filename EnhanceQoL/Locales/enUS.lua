@@ -587,6 +587,10 @@ L["dungeonJournalLootSpecShowAll"] = "Show specs for every class"
 L["dungeonJournalLootSpecShowAllDesc"] = "Always show every specialization instead of limiting the list to your class."
 
 L["Profiles"] = "Profiles"
+L["ProfileActive"] = "Active profile"
+L["ProfileName"] = "Add a new Profile"
+L["ProfileUseGlobal"] = "Global profile"
+L["ProfileUseGlobalDesc"] = "Characters first load with this profile. You can always change your active profile"
 L["currentExpensionMythicPlusWarning"] = "For Mythic+ items from legacy dungeons, the results may be inaccurate."
 
 -- Map

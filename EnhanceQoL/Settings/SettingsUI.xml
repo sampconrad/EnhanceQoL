@@ -14,4 +14,5 @@
 	<Script file='Social.lua'/>
 	<Script file='System.lua'/>
 	<Script file='UnitFrames.lua'/>
+	<Script file='Profiles.lua'/>
 </Ui>

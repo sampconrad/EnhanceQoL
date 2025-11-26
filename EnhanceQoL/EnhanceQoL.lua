@@ -1792,9 +1792,9 @@ local function initLoot()
 	addon.functions.InitDBValue("enableLootToastAnchor", false)
 	addon.functions.InitDBValue("enableLootToastFilter", false)
 	addon.functions.InitDBValue("lootToastItemLevels", {
-		[Enum.ItemQuality.Rare] = 600,
-		[Enum.ItemQuality.Epic] = 600,
-		[Enum.ItemQuality.Legendary] = 600,
+		[Enum.ItemQuality.Rare] = 0,
+		[Enum.ItemQuality.Epic] = 0,
+		[Enum.ItemQuality.Legendary] = 0,
 	})
 	if addon.db.lootToastItemLevel then
 		local v = addon.db.lootToastItemLevel
@@ -3228,7 +3228,7 @@ local function CreateUI()
 
 			local sub = addon.functions.createContainer("SimpleGroup", "Flow")
 			scroll:AddChild(sub)
-			AceConfigDlg:Open("EQOL_Profiles", sub)
+			-- AceConfigDlg:Open("EQOL_Profiles", sub)
 			scroll:DoLayout()
 		-- Media & Sound wrappers
 		elseif string.sub(group, 1, string.len("media\001")) == "media\001" then
@@ -3513,6 +3513,7 @@ local function setAllHooks()
 	addon.functions.initUIInput()
 	addon.functions.initQuest()
 	addon.functions.initDataPanel()
+	addon.functions.initProfile()
 	initParty()
 	initActionBars()
 	initUI()
@@ -3680,15 +3681,40 @@ local eventHandlers = {
 				for k, v in pairs(EnhanceQoLDB) do
 					legacy[k] = v
 				end
+				EnhanceQoLDB.profiles = {
+					["Default"] = {},
+				}
 			end
 
-			local dbObj = AceDB:New("EnhanceQoLDB", defaults, "Default")
+			local defaultProfile = "Default"
 
-			addon.dbObject = dbObj
-			addon.db = dbObj.profile
-			dbObj:RegisterCallback("OnProfileChanged", function() addon.variables.requireReload = true end)
-			dbObj:RegisterCallback("OnProfileCopied", function() addon.variables.requireReload = true end)
-			dbObj:RegisterCallback("OnProfileReset", function() addon.variables.requireReload = true end)
+			if not EnhanceQoLDB.profileKeys then EnhanceQoLDB.profileKeys = {} end
+			local name, realm = UnitName("player"), GetRealmName()
+
+			-- check for global profile
+			if EnhanceQoLDB.profileGlobal then
+				defaultProfile = EnhanceQoLDB.profileGlobal
+				if not EnhanceQoLDB.profileDefaultFirstStart then EnhanceQoLDB.profileDefaultFirstStart = defaultProfile end
+			else
+				EnhanceQoLDB.profileGlobal = defaultProfile
+				EnhanceQoLDB.profileDefaultFirstStart = defaultProfile
+			end
+
+			if EnhanceQoLDB.profileKeys[UnitGUID("player")] then
+				defaultProfile = EnhanceQoLDB.profileKeys[UnitGUID("player")]
+			elseif EnhanceQoLDB.profileKeys[name .. " - " .. realm] then
+				-- Legacy AceDB transform to new model
+				EnhanceQoLDB.profileKeys[UnitGUID("player")] = EnhanceQoLDB.profileKeys[name .. " - " .. realm]
+				EnhanceQoLDB.profileKeys[name .. " - " .. realm] = nil
+				defaultProfile = EnhanceQoLDB.profileKeys[UnitGUID("player")]
+			else
+				defaultProfile = EnhanceQoLDB.profileDefaultFirstStart
+				EnhanceQoLDB.profileKeys[UnitGUID("player")] = defaultProfile
+			end
+
+			if not EnhanceQoLDB.profiles[defaultProfile] or type(EnhanceQoLDB.profiles[defaultProfile]) ~= "table" then EnhanceQoLDB.profiles[defaultProfile] = {} end
+
+			addon.db = EnhanceQoLDB.profiles[defaultProfile]
 
 			if next(legacy) then
 				for k, v in pairs(legacy) do
@@ -3696,8 +3722,6 @@ local eventHandlers = {
 					EnhanceQoLDB[k] = nil
 				end
 			end
-			local profilesPage = AceDBOptions:GetOptionsTable(addon.dbObject)
-			AceConfig:RegisterOptionsTable("EQOL_Profiles", profilesPage)
 
 			if addon.functions.initializePersistentCVars then addon.functions.initializePersistentCVars() end
 
