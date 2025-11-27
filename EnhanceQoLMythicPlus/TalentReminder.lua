@@ -9,6 +9,7 @@ end
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_MythicPlus")
 local LSM = LibStub("LibSharedMedia-3.0")
+local EditMode = addon.EditMode
 
 addon.MythicPlus.variables.knownLoadout = {}
 addon.MythicPlus.variables.specNames = {}
@@ -253,6 +254,12 @@ activeBuildFrame:RegisterForDrag("LeftButton")
 activeBuildFrame.text = activeBuildFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 activeBuildFrame.text:SetPoint("CENTER")
 
+local ACTIVE_BUILD_EDITMODE_ID = "talentReminderActiveBuild"
+local activeBuildEditModeRegistered = false
+local activeBuildRefreshInProgress = false
+local activeBuildApplyInProgress = false
+local activeBuildRegisterInProgress = false
+
 local function applyActiveBuildLock()
 	if addon.db["talentReminderActiveBuildLocked"] then
 		activeBuildFrame:SetScript("OnDragStart", nil)
@@ -270,21 +277,151 @@ local function applyActiveBuildLock()
 end
 applyActiveBuildLock()
 
-local function restoreActiveBuildPosition()
-	local point = addon.db["talentReminderActiveBuildPoint"]
-	local xOfs = addon.db["talentReminderActiveBuildX"]
-	local yOfs = addon.db["talentReminderActiveBuildY"]
-	if point then
-		activeBuildFrame:ClearAllPoints()
-		activeBuildFrame:SetPoint(point, UIParent, point, xOfs, yOfs)
+local function buildActiveBuildLayoutSnapshot(layoutName)
+	local layout = EditMode and EditMode:GetLayoutData(ACTIVE_BUILD_EDITMODE_ID, layoutName)
+	if layout then
+		layout.point = layout.point or "CENTER"
+		layout.relativePoint = layout.relativePoint or layout.point
+		layout.x = layout.x or 0
+		layout.y = layout.y or 0
+		layout.size = layout.size or addon.db["talentReminderActiveBuildSize"] or 14
+		return layout
 	end
+	return {
+		point = addon.db["talentReminderActiveBuildPoint"] or "CENTER",
+		relativePoint = addon.db["talentReminderActiveBuildPoint"] or "CENTER",
+		x = addon.db["talentReminderActiveBuildX"] or 0,
+		y = addon.db["talentReminderActiveBuildY"] or 0,
+		size = addon.db["talentReminderActiveBuildSize"] or 14,
+	}
+end
+
+local function applyActiveBuildLayoutData(data)
+	local cfg = data or buildActiveBuildLayoutSnapshot()
+
+	local point = cfg.point or "CENTER"
+	local relativePoint = cfg.relativePoint or point
+	local x = cfg.x or 0
+	local y = cfg.y or 0
+	local size = cfg.size or addon.db["talentReminderActiveBuildSize"] or 14
+
+	addon.db["talentReminderActiveBuildPoint"] = point
+	addon.db["talentReminderActiveBuildX"] = x
+	addon.db["talentReminderActiveBuildY"] = y
+	addon.db["talentReminderActiveBuildSize"] = size
+
+	activeBuildFrame:ClearAllPoints()
+	activeBuildFrame:SetPoint(point, UIParent, relativePoint, x, y)
+	activeBuildFrame.text:SetFont(addon.variables.defaultFont, size, "OUTLINE")
+end
+
+local function refreshActiveBuildEditMode()
+	if not EditMode or activeBuildRefreshInProgress or activeBuildApplyInProgress then return end
+	activeBuildRefreshInProgress = true
+	EditMode:RefreshFrame(ACTIVE_BUILD_EDITMODE_ID)
+	activeBuildRefreshInProgress = false
+end
+
+local function registerActiveBuildEditMode()
+	if activeBuildEditModeRegistered or activeBuildRegisterInProgress or not EditMode then return end
+	activeBuildRegisterInProgress = true
+
+	local settingType = EditMode.lib and EditMode.lib.SettingType
+	local settings
+	if settingType then
+		settings = {}
+
+		settings[#settings + 1] = {
+			name = L["talentReminderActiveBuildTextSize"],
+			kind = settingType.Slider,
+			default = addon.db["talentReminderActiveBuildSize"] or 14,
+			minValue = 6,
+			maxValue = 64,
+			valueStep = 1,
+			get = function() return addon.db["talentReminderActiveBuildSize"] or 14 end,
+			set = function(_, value)
+				addon.db["talentReminderActiveBuildSize"] = value
+				EditMode:SetValue(ACTIVE_BUILD_EDITMODE_ID, "size", value, nil, true)
+				addon.MythicPlus.functions.updateActiveTalentText()
+			end,
+			formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+		}
+
+		settings[#settings + 1] = {
+			name = L["talentReminderShowActiveBuildDropdown"],
+			kind = settingType.Dropdown,
+			height = 160,
+			get = function() return CopyTable(addon.db["talentReminderActiveBuildShowOnly"] or {}) end,
+			set = function(_, value)
+				if type(value) == "table" then addon.db["talentReminderActiveBuildShowOnly"] = value end
+				addon.MythicPlus.functions.updateActiveTalentText()
+			end,
+			generator = function(_, root)
+				local function toggle(key)
+					if type(addon.db["talentReminderActiveBuildShowOnly"]) ~= "table" then addon.db["talentReminderActiveBuildShowOnly"] = {} end
+					addon.db["talentReminderActiveBuildShowOnly"][key] = not addon.db["talentReminderActiveBuildShowOnly"][key] or nil
+					addon.MythicPlus.functions.updateActiveTalentText()
+					refreshActiveBuildEditMode()
+				end
+				root:CreateCheckbox(L["talentReminderShowActiveBuildOutside"], function()
+					return addon.db["talentReminderActiveBuildShowOnly"] and addon.db["talentReminderActiveBuildShowOnly"][1] == true
+				end, function() toggle(1) end)
+				root:CreateCheckbox(L["talentReminderShowActiveBuildInstance"], function()
+					return addon.db["talentReminderActiveBuildShowOnly"] and addon.db["talentReminderActiveBuildShowOnly"][2] == true
+				end, function() toggle(2) end)
+				root:CreateCheckbox(L["talentReminderShowActiveBuildRaid"], function()
+					return addon.db["talentReminderActiveBuildShowOnly"] and addon.db["talentReminderActiveBuildShowOnly"][3] == true
+				end, function() toggle(3) end)
+			end,
+		}
+
+		settings[#settings + 1] = {
+			name = L["talentReminderShowActiveBuild"],
+			kind = settingType.Checkbox,
+			get = function() return addon.db["talentReminderShowActiveBuild"] end,
+			set = function(_, value)
+				addon.db["talentReminderShowActiveBuild"] = value
+				addon.MythicPlus.functions.updateActiveTalentText()
+				refreshActiveBuildEditMode()
+			end,
+		}
+	end
+
+	activeBuildEditModeRegistered = true
+
+	EditMode:RegisterFrame(ACTIVE_BUILD_EDITMODE_ID, {
+		frame = activeBuildFrame,
+		title = L["talentReminderShowActiveBuild"],
+		layoutDefaults = buildActiveBuildLayoutSnapshot(),
+		legacyKeys = {
+			point = "talentReminderActiveBuildPoint",
+			relativePoint = "talentReminderActiveBuildPoint",
+			x = "talentReminderActiveBuildX",
+			y = "talentReminderActiveBuildY",
+			size = "talentReminderActiveBuildSize",
+			},
+			isEnabled = function() return addon.db["talentReminderEnabled"] and addon.db["talentReminderShowActiveBuild"] end,
+			onApply = function(_, layoutName, data)
+				activeBuildApplyInProgress = true
+				applyActiveBuildLayoutData(data)
+				addon.MythicPlus.functions.updateActiveTalentText()
+				activeBuildApplyInProgress = false
+			end,
+		settings = settings,
+		showOutsideEditMode = true,
+	})
+	activeBuildRegisterInProgress = false
 end
 
 local function updateActiveTalentText()
+	if EditMode and not activeBuildEditModeRegistered and not activeBuildRegisterInProgress then registerActiveBuildEditMode() end
 	if not (addon.db["talentReminderEnabled"] and addon.db["talentReminderShowActiveBuild"]) then
 		activeBuildFrame:Hide()
+		refreshActiveBuildEditMode()
 		return
 	end
+
+	applyActiveBuildLayoutData()
 	local allowedLocations = {}
 	local foundOptions = false
 	for c, val in pairs(addon.db["talentReminderActiveBuildShowOnly"] or {}) do
@@ -314,16 +451,16 @@ local function updateActiveTalentText()
 		if addon.MythicPlus.variables.currentSpecID then actTalent = C_ClassTalents.GetLastSelectedSavedConfigID(addon.MythicPlus.variables.currentSpecID) end
 		if actTalent then
 			local curName = GetConfigName(actTalent)
-
 			activeBuildFrame.text:SetText(string.format(L["TalentbuildLabel"], curName))
 		else
 			activeBuildFrame.text:SetText(string.format(L["TalentbuildLabel"], L["Unknown"]))
 		end
-		activeBuildFrame.text:SetFont(addon.variables.defaultFont, addon.db["talentReminderActiveBuildSize"], "OUTLINE")
-		restoreActiveBuildPosition()
 		applyActiveBuildLock()
 		activeBuildFrame:Show()
+	else
+		activeBuildFrame:Hide()
 	end
+	refreshActiveBuildEditMode()
 end
 
 addon.MythicPlus.functions.updateActiveTalentText = updateActiveTalentText
