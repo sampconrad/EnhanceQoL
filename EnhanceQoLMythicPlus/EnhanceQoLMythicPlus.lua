@@ -738,8 +738,6 @@ end
 local mpChildren = {
 	{ value = "talents", text = L["TalentReminder"] },
 }
-if not addon.variables.isMidnight then table.insert(mpChildren, { value = "automark", text = L["AutoMark"] }) end
-
 for _, child in ipairs(mpChildren) do
 	addon.functions.addToTree("combat", child, true)
 end
