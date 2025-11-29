@@ -347,20 +347,19 @@ internal:CreatePool(lib.SettingType.CheckboxColor, function()
 	Mixin(frame, checkboxColorMixin)
 
 	local check = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-	check:SetPoint("LEFT")
+	check:SetPoint("LEFT", -5, 0) -- slight left shift to align with other rows
 	check:SetScript("OnClick", function(btn) btn:GetParent():OnCheckboxClick() end)
 	frame.Check = check
 
 	local label = frame:CreateFontString(nil, nil, "GameFontHighlightMedium")
-	label:SetPoint("LEFT", check, "RIGHT", 4, 0)
-	label:SetWidth(180)
-	-- label:SetPoint("RIGHT", -60, 0) -- leave space for swatch; adjusted by layout
+	label:SetPoint("LEFT", check, "RIGHT", 2, 0)
+	label:SetWidth(175)
 	label:SetJustifyH("LEFT")
 	frame.Label = label
 
 	local button = CreateFrame("Button", nil, frame)
 	button:SetSize(36, 22)
-	button:SetPoint("LEFT", label, "RIGHT", 6, 0)
+	button:SetPoint("LEFT", label, "RIGHT", 4, 0)
 
 	local border = button:CreateTexture(nil, "BACKGROUND")
 	border:SetColorTexture(0, 0, 0, 1)
