@@ -54,6 +54,10 @@ local function setBarEnabled(specIndex, barType, enabled)
 	end
 	if ResourceBars.QueueRefresh then ResourceBars.QueueRefresh(specIndex) end
 	if ResourceBars.MaybeRefreshActive then ResourceBars.MaybeRefreshActive(specIndex) end
+	if EditMode and EditMode:IsInEditMode() then
+		if ResourceBars.Refresh then ResourceBars.Refresh() end
+		if ResourceBars.ReanchorAll then ResourceBars.ReanchorAll() end
+	end
 end
 
 local function registerEditModeBars()
@@ -65,6 +69,160 @@ local function registerEditModeBars()
 		if not frame then return end
 		local cfg = ResourceBars and ResourceBars.getBarSettings and ResourceBars.getBarSettings(barType) or ResourceBars and ResourceBars.GetBarSettings and ResourceBars.GetBarSettings(barType)
 		local anchor = ResourceBars and ResourceBars.getAnchor and ResourceBars.getAnchor(barType, addon.variables.unitSpec)
+		local function curSpecCfg()
+			local spec = addon.variables.unitSpec
+			local specCfg = ensureSpecCfg(spec)
+			if not specCfg then return nil end
+			specCfg[barType] = specCfg[barType] or {}
+			return specCfg[barType]
+		end
+		local function queueRefresh()
+			if ResourceBars.QueueRefresh then ResourceBars.QueueRefresh(addon.variables.unitSpec) end
+			if ResourceBars.MaybeRefreshActive then ResourceBars.MaybeRefreshActive(addon.variables.unitSpec) end
+			if EditMode and EditMode:IsInEditMode() and addon.variables.unitSpec then
+				if ResourceBars.Refresh then ResourceBars.Refresh() end
+				if ResourceBars.ReanchorAll then ResourceBars.ReanchorAll() end
+			end
+		end
+		local settingType = EditMode.lib and EditMode.lib.SettingType
+		local settingsList
+		if settingType then
+			settingsList = {
+				{
+					name = HUD_EDIT_MODE_SETTING_CHAT_FRAME_WIDTH,
+					kind = settingType.Slider,
+					field = "width",
+					minValue = 50,
+					maxValue = 600,
+					valueStep = 1,
+					default = cfg and cfg.width or widthDefault or 200,
+					get = function()
+						local c = curSpecCfg()
+						return c and c.width or widthDefault or 200
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.width = value
+						queueRefresh()
+					end,
+				},
+				{
+					name = HUD_EDIT_MODE_SETTING_CHAT_FRAME_HEIGHT,
+					kind = settingType.Slider,
+					field = "height",
+					minValue = 6,
+					maxValue = 80,
+					valueStep = 1,
+					default = cfg and cfg.height or heightDefault or 20,
+					get = function()
+						local c = curSpecCfg()
+						return c and c.height or heightDefault or 20
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.height = value
+						queueRefresh()
+					end,
+				},
+			}
+
+			if barType ~= "RUNES" then
+				local function defaultStyle()
+					if barType == "HEALTH" then return "PERCENT" end
+					if barType == "MANA" then return "PERCENT" end
+					return "CURMAX"
+				end
+				settingsList[#settingsList + 1] = {
+					name = L["Text"] or STATUS_TEXT,
+					kind = settingType.Dropdown,
+					field = "textStyle",
+					values = {
+						{ value = "PERCENT", label = STATUS_TEXT_PERCENT },
+						{ value = "CURMAX", label = L["Current/Max"] },
+						{ value = "CURRENT", label = L["Current"] },
+						{ value = "NONE", label = NONE },
+					},
+					get = function()
+						local c = curSpecCfg()
+						return (c and c.textStyle) or defaultStyle()
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.textStyle = value
+						queueRefresh()
+					end,
+					default = cfg and cfg.textStyle or defaultStyle(),
+				}
+
+				settingsList[#settingsList + 1] = {
+					name = HUD_EDIT_MODE_SETTING_OBJECTIVE_TRACKER_TEXT_SIZE,
+					kind = settingType.Slider,
+					field = "fontSize",
+					minValue = 6,
+					maxValue = 64,
+					valueStep = 1,
+					get = function()
+						local c = curSpecCfg()
+						return c and c.fontSize or 16
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.fontSize = value
+						queueRefresh()
+					end,
+					default = cfg and cfg.fontSize or 16,
+				}
+
+				settingsList[#settingsList + 1] = {
+					name = L["Text Offset X"] or "Text Offset X",
+					kind = settingType.Slider,
+					field = "textOffsetX",
+					minValue = -100,
+					maxValue = 100,
+					valueStep = 1,
+					get = function()
+						local c = curSpecCfg()
+						local off = c and c.textOffset
+						return off and off.x or 0
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.textOffset = c.textOffset or { x = 0, y = 0 }
+						c.textOffset.x = value or 0
+						queueRefresh()
+					end,
+					default = 0,
+				}
+
+				settingsList[#settingsList + 1] = {
+					name = L["Text Offset Y"] or "Text Offset Y",
+					kind = settingType.Slider,
+					field = "textOffsetY",
+					minValue = -100,
+					maxValue = 100,
+					valueStep = 1,
+					get = function()
+						local c = curSpecCfg()
+						local off = c and c.textOffset
+						return off and off.y or 0
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.textOffset = c.textOffset or { x = 0, y = 0 }
+						c.textOffset.y = value or 0
+						queueRefresh()
+					end,
+					default = 0,
+				}
+			end
+		end
+
 		EditMode:RegisterFrame("resourceBar_" .. idSuffix, {
 			frame = frame,
 			title = L["Resource Bars"],
@@ -98,28 +256,9 @@ local function registerEditModeBars()
 					ResourceBars.SetPowerBarSize(bcfg.width, bcfg.height, barType)
 				end
 				if ResourceBars.ReanchorAll then ResourceBars.ReanchorAll() end
-				if ResourceBars.Refresh then ResourceBars.Refresh() end
-			end,
-			settings = EditMode.lib and EditMode.lib.SettingType and {
-				{
-					name = HUD_EDIT_MODE_SETTING_CHAT_FRAME_WIDTH,
-					kind = EditMode.lib.SettingType.Slider,
-					field = "width",
-					minValue = 50,
-					maxValue = 600,
-					valueStep = 1,
-					default = cfg and cfg.width or widthDefault or 200,
-				},
-				{
-					name = HUD_EDIT_MODE_SETTING_CHAT_FRAME_HEIGHT,
-					kind = EditMode.lib.SettingType.Slider,
-					field = "height",
-					minValue = 6,
-					maxValue = 80,
-					valueStep = 1,
-					default = cfg and cfg.height or heightDefault or 20,
-				},
-				} or nil,
+					if ResourceBars.Refresh then ResourceBars.Refresh() end
+				end,
+				settings = settingsList,
 			showOutsideEditMode = true,
 		})
 		registered = registered + 1
