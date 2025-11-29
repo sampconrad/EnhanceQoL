@@ -123,8 +123,23 @@ local function buildSpecToggles(specIndex, specName, available)
 	if not specCfg then return nil end
 
 	local options = {}
+	local added = {}
+
+	-- Main resource from spec definition (e.g., LUNAR_POWER for Balance)
+	local mainType = available.MAIN
+	if mainType then
+		specCfg[mainType] = specCfg[mainType] or {}
+		local cfg = specCfg[mainType]
+		options[#options + 1] = {
+			value = mainType,
+			text = _G["POWER_TYPE_" .. mainType] or _G[mainType] or mainType,
+			enabled = cfg.enabled == true,
+		}
+		added[mainType] = true
+	end
+
 	for _, pType in ipairs(ResourceBars.classPowerTypes or {}) do
-		if available[pType] then
+		if available[pType] and not added[pType] then
 			specCfg[pType] = specCfg[pType] or {}
 			local cfg = specCfg[pType]
 			local label = _G["POWER_TYPE_" .. pType] or _G[pType] or pType
@@ -133,6 +148,7 @@ local function buildSpecToggles(specIndex, specName, available)
 				text = label,
 				enabled = cfg.enabled == true,
 			}
+			added[pType] = true
 		end
 	end
 
@@ -256,7 +272,7 @@ local function buildSettings()
 			end
 		end
 
-		addon.functions.SettingsCreateHeadline(cat, L["Profiles"] or PROFILES_LABEL or "Profiles")
+		addon.functions.SettingsCreateHeadline(cat, L["Profiles"])
 		addon.functions.SettingsCreateDropdown(cat, {
 			var = "resourceBarsProfileScope",
 			text = L["ProfileScope"] or (L["Apply to"] or "Apply to"),

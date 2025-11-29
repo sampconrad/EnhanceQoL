@@ -73,6 +73,7 @@ L["ImportCategoryPreview"] = "Category: %s (%d auras)"
 L["AnchorLoop"] = "Anchoring to UIParent because %s would create an anchor loop"
 L["PERCENT"] = "Percent"
 -- Resource Bars UI
+L["Profiles"] = "Profiles"
 L["Resource Bars"] = "Resource Bars"
 L["Enable Resource frame"] = "Enable Resource frame"
 L["Hide out of combat"] = "Hide resource bars out of combat"
