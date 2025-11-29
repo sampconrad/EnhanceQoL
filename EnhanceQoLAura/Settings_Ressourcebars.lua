@@ -145,6 +145,18 @@ local function registerEditModeBars()
 			bd.innerPadding = nil
 			return bd
 		end
+		local function ensureAnchorTable()
+			local c = curSpecCfg()
+			if not c then return nil end
+			c.anchor = c.anchor or {}
+			local a = c.anchor
+			if not a.point then a.point = "CENTER" end
+			if not a.relativePoint then a.relativePoint = a.point end
+			if a.x == nil then a.x = 0 end
+			if a.y == nil then a.y = 0 end
+			if not a.relativeFrame or a.relativeFrame == "" then a.relativeFrame = "UIParent" end
+			return a
+		end
 		local settingType = EditMode.lib and EditMode.lib.SettingType
 		local settingsList
 		if settingType then
@@ -221,6 +233,263 @@ local function registerEditModeBars()
 					end,
 				},
 			}
+
+				do -- Anchoring
+					local points = { "TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" }
+					local function displayNameForBarType(pType)
+						if pType == "HEALTH" then return HEALTH or "Health" end
+						local s = _G["POWER_TYPE_" .. pType] or _G[pType]
+						if type(s) == "string" and s ~= "" then return s end
+						return pType
+					end
+					local function frameNameToBarType(fname)
+						if fname == "EQOLHealthBar" then return "HEALTH" end
+						return type(fname) == "string" and fname:match("^EQOL(.+)Bar$") or nil
+					end
+					local function wouldCauseLoop(fromType, candidateName)
+						if candidateName == "UIParent" then return false end
+						local candType = frameNameToBarType(candidateName)
+						if not candType then return false end
+						if candType == fromType then return true end
+						local targetFrameName = (fromType == "HEALTH") and "EQOLHealthBar" or ("EQOL" .. fromType .. "Bar")
+						local seen = {}
+						local name = candidateName
+						local spec = addon.variables.unitSpec
+						local limit = 10
+						while name and name ~= "UIParent" and limit > 0 do
+							if seen[name] then break end
+							seen[name] = true
+							if name == targetFrameName then return true end
+							local bt = frameNameToBarType(name)
+							if not bt then break end
+							local specCfg = ensureSpecCfg(spec)
+							local anch = specCfg and specCfg[bt] and specCfg[bt].anchor
+							name = anch and anch.relativeFrame or "UIParent"
+							limit = limit - 1
+						end
+						return false
+					end
+					local function isBarEnabled(pType)
+						local spec = addon.variables.unitSpec
+						local specCfg = ensureSpecCfg(spec)
+						return specCfg and specCfg[pType] and specCfg[pType].enabled == true
+					end
+					local function relativeFrameEntries()
+						local entries = {}
+						local seen = {}
+						local function add(key, label)
+							if not key or key == "" or seen[key] then return end
+							if wouldCauseLoop(barType, key) then return end
+							seen[key] = true
+							entries[#entries + 1] = { key = key, label = label or key }
+						end
+
+						add("UIParent", "UIParent")
+						add("PlayerFrame", "PlayerFrame")
+						add("TargetFrame", "TargetFrame")
+						add("EssentialCooldownViewer", "EssentialCooldownViewer")
+						add("UtilityCooldownViewer", "UtilityCooldownViewer")
+						add("BuffBarCooldownViewer", "BuffBarCooldownViewer")
+						add("BuffIconCooldownViewer", "BuffIconCooldownViewer")
+
+						if addon.variables and addon.variables.actionBarNames then
+							for _, info in ipairs(addon.variables.actionBarNames) do
+								if info.name then add(info.name, info.text or info.name) end
+							end
+						end
+
+						if isBarEnabled("HEALTH") then add("EQOLHealthBar", displayNameForBarType("HEALTH")) end
+						for _, pType in ipairs(ResourceBars.classPowerTypes or {}) do
+							if isBarEnabled(pType) then
+								local fname = "EQOL" .. pType .. "Bar"
+								add(fname, displayNameForBarType(pType))
+							end
+						end
+
+						local a = ensureAnchorTable()
+						local cur = a and a.relativeFrame
+						if cur and not seen[cur] and not wouldCauseLoop(barType, cur) then
+							add(cur, cur)
+						end
+
+						return entries
+					end
+					local function validateRelativeFrame(a)
+						if not a then return "UIParent" end
+						local cur = a.relativeFrame or "UIParent"
+						local entries = relativeFrameEntries()
+						local ok = false
+						for _, e in ipairs(entries) do
+							if e.key == cur then
+								ok = true
+								break
+							end
+						end
+						if not ok then
+							cur = "UIParent"
+							a.relativeFrame = cur
+						end
+						return cur
+					end
+					local function applyAnchorDefaults(a, target)
+						if not a then return end
+						if target == "UIParent" then
+							a.point = "CENTER"
+							a.relativePoint = "CENTER"
+							a.x = 0
+							a.y = 0
+							a.autoSpacing = nil
+						else
+							a.point = "TOP"
+							a.relativePoint = "BOTTOM"
+							a.x = 0
+							a.y = 0
+							a.autoSpacing = nil
+						end
+					end
+
+					settingsList[#settingsList + 1] = {
+						name = "Relative frame",
+						kind = settingType.Dropdown,
+						field = "anchorRelativeFrame",
+						generator = function(_, root)
+							local entries = relativeFrameEntries()
+							for _, entry in ipairs(entries) do
+								root:CreateRadio(entry.label, function()
+									local a = ensureAnchorTable()
+									local cur = validateRelativeFrame(a)
+									return cur == entry.key
+								end, function()
+									local a = ensureAnchorTable()
+									if not a then return end
+									local target = entry.key
+									if wouldCauseLoop(barType, target) then
+										target = "UIParent"
+									end
+									a.relativeFrame = target
+									applyAnchorDefaults(a, target)
+									queueRefresh()
+								end)
+							end
+						end,
+						get = function()
+							local a = ensureAnchorTable()
+							return validateRelativeFrame(a)
+						end,
+						set = function(_, value)
+							local a = ensureAnchorTable()
+							if not a then return end
+							local target = value or "UIParent"
+							if wouldCauseLoop(barType, target) then target = "UIParent" end
+							a.relativeFrame = target
+							applyAnchorDefaults(a, target)
+							queueRefresh()
+						end,
+						default = "UIParent",
+					}
+
+				settingsList[#settingsList + 1] = {
+					name = "Anchor point",
+					kind = settingType.Dropdown,
+					field = "anchorPoint",
+					generator = function(_, root)
+						for _, p in ipairs(points) do
+							root:CreateRadio(p, function()
+								local a = ensureAnchorTable()
+								return a and (a.point or "CENTER") == p
+							end, function()
+								local a = ensureAnchorTable()
+								if not a then return end
+								a.point = p
+								if not a.relativePoint then a.relativePoint = p end
+								queueRefresh()
+							end)
+						end
+					end,
+					get = function()
+						local a = ensureAnchorTable()
+						return a and a.point or "CENTER"
+					end,
+					set = function(_, value)
+						local a = ensureAnchorTable()
+						if not a then return end
+						a.point = value
+						if not a.relativePoint then a.relativePoint = value end
+						queueRefresh()
+					end,
+					default = "CENTER",
+				}
+
+				settingsList[#settingsList + 1] = {
+					name = "Relative point",
+					kind = settingType.Dropdown,
+					field = "anchorRelativePoint",
+					generator = function(_, root)
+						for _, p in ipairs(points) do
+							root:CreateRadio(p, function()
+								local a = ensureAnchorTable()
+								return a and (a.relativePoint or "CENTER") == p
+							end, function()
+								local a = ensureAnchorTable()
+								if not a then return end
+								a.relativePoint = p
+								queueRefresh()
+							end)
+						end
+					end,
+					get = function()
+						local a = ensureAnchorTable()
+						return a and a.relativePoint or "CENTER"
+					end,
+					set = function(_, value)
+						local a = ensureAnchorTable()
+						if not a then return end
+						a.relativePoint = value
+						queueRefresh()
+					end,
+					default = "CENTER",
+				}
+
+				settingsList[#settingsList + 1] = {
+					name = "X Offset",
+					kind = settingType.Slider,
+					field = "anchorOffsetX",
+					minValue = -1000,
+					maxValue = 1000,
+					valueStep = 1,
+					get = function()
+						local a = ensureAnchorTable()
+						return a and a.x or 0
+					end,
+					set = function(_, value)
+						local a = ensureAnchorTable()
+						if not a then return end
+						a.x = value or 0
+						queueRefresh()
+					end,
+					default = 0,
+				}
+
+				settingsList[#settingsList + 1] = {
+					name = "Y Offset",
+					kind = settingType.Slider,
+					field = "anchorOffsetY",
+					minValue = -1000,
+					maxValue = 1000,
+					valueStep = 1,
+					get = function()
+						local a = ensureAnchorTable()
+						return a and a.y or 0
+					end,
+					set = function(_, value)
+						local a = ensureAnchorTable()
+						if not a then return end
+						a.y = value or 0
+						queueRefresh()
+					end,
+					default = 0,
+				}
+			end
 
 			if barType ~= "RUNES" then
 				local function defaultStyle()
@@ -700,6 +969,7 @@ local function registerEditModeBars()
 				settingsList[#settingsList + 1] = {
 					name = L["Border size"] or "Border size",
 					kind = settingType.Slider,
+					allowInput = true,
 					field = "backdropEdgeSize",
 					minValue = 0,
 					maxValue = 64,
