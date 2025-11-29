@@ -246,7 +246,7 @@ local function showWarning(info)
 end
 
 local frameLoad = CreateFrame("Frame")
-local activeBuildFrame = CreateFrame("Frame", nil, UIParent)
+local activeBuildFrame = CreateFrame("Frame", "EQOLATF", UIParent)
 activeBuildFrame:SetSize(200, 20)
 activeBuildFrame:SetMovable(false)
 activeBuildFrame:EnableMouse(false)
@@ -258,6 +258,26 @@ local activeBuildEditModeRegistered = false
 local activeBuildRefreshInProgress = false
 local activeBuildApplyInProgress = false
 local activeBuildRegisterInProgress = false
+
+local function shouldShowActiveBuildText()
+	if not (addon.db["talentReminderEnabled"] and addon.db["talentReminderShowActiveBuild"]) then return false end
+	if EditMode and EditMode:IsInEditMode() then return true end
+
+	local allowed = addon.db["talentReminderActiveBuildShowOnly"]
+	if type(allowed) == "table" then
+		local hasAny = next(allowed) ~= nil
+		if hasAny then
+			local inInstance, instanceType = IsInInstance()
+			local isRaid = instanceType == "raid"
+			if not inInstance and allowed[1] then return true end
+			if inInstance and not isRaid and allowed[2] then return true end
+			if isRaid and allowed[3] then return true end
+			return false
+		end
+	end
+
+	return true
+end
 
 local function buildActiveBuildLayoutSnapshot(layoutName)
 	local layout = EditMode and EditMode:GetLayoutData(ACTIVE_BUILD_EDITMODE_ID, layoutName)
@@ -348,15 +368,21 @@ local function registerActiveBuildEditMode()
 					addon.MythicPlus.functions.updateActiveTalentText()
 					refreshActiveBuildEditMode()
 				end
-				root:CreateCheckbox(L["talentReminderShowActiveBuildOutside"], function()
-					return addon.db["talentReminderActiveBuildShowOnly"] and addon.db["talentReminderActiveBuildShowOnly"][1] == true
-				end, function() toggle(1) end)
-				root:CreateCheckbox(L["talentReminderShowActiveBuildInstance"], function()
-					return addon.db["talentReminderActiveBuildShowOnly"] and addon.db["talentReminderActiveBuildShowOnly"][2] == true
-				end, function() toggle(2) end)
-				root:CreateCheckbox(L["talentReminderShowActiveBuildRaid"], function()
-					return addon.db["talentReminderActiveBuildShowOnly"] and addon.db["talentReminderActiveBuildShowOnly"][3] == true
-				end, function() toggle(3) end)
+				root:CreateCheckbox(
+					L["talentReminderShowActiveBuildOutside"],
+					function() return addon.db["talentReminderActiveBuildShowOnly"] and addon.db["talentReminderActiveBuildShowOnly"][1] == true end,
+					function() toggle(1) end
+				)
+				root:CreateCheckbox(
+					L["talentReminderShowActiveBuildInstance"],
+					function() return addon.db["talentReminderActiveBuildShowOnly"] and addon.db["talentReminderActiveBuildShowOnly"][2] == true end,
+					function() toggle(2) end
+				)
+				root:CreateCheckbox(
+					L["talentReminderShowActiveBuildRaid"],
+					function() return addon.db["talentReminderActiveBuildShowOnly"] and addon.db["talentReminderActiveBuildShowOnly"][3] == true end,
+					function() toggle(3) end
+				)
 			end,
 		}
 	end
@@ -373,15 +399,17 @@ local function registerActiveBuildEditMode()
 			x = "talentReminderActiveBuildX",
 			y = "talentReminderActiveBuildY",
 			size = "talentReminderActiveBuildSize",
-			},
-			isEnabled = function() return addon.db["talentReminderEnabled"] and addon.db["talentReminderShowActiveBuild"] end,
-			onApply = function(_, layoutName, data)
-				activeBuildApplyInProgress = true
-				applyActiveBuildLayoutData(data)
-				addon.MythicPlus.functions.updateActiveTalentText()
-				activeBuildApplyInProgress = false
-			end,
+		},
+		onApply = function(_, layoutName, data)
+			activeBuildApplyInProgress = true
+			applyActiveBuildLayoutData(data)
+			addon.MythicPlus.functions.updateActiveTalentText()
+			activeBuildApplyInProgress = false
+		end,
+		onEnter = function() addon.MythicPlus.functions.updateActiveTalentText() end,
+		onExit = function() addon.MythicPlus.functions.updateActiveTalentText() end,
 		settings = settings,
+		isEnabled = function() return shouldShowActiveBuildText() end,
 		showOutsideEditMode = true,
 	})
 	activeBuildRegisterInProgress = false
@@ -389,50 +417,22 @@ end
 
 local function updateActiveTalentText()
 	if EditMode and not activeBuildEditModeRegistered and not activeBuildRegisterInProgress then registerActiveBuildEditMode() end
-	if not (addon.db["talentReminderEnabled"] and addon.db["talentReminderShowActiveBuild"]) then
-		activeBuildFrame:Hide()
+	if not shouldShowActiveBuildText() then
 		refreshActiveBuildEditMode()
+		C_Timer.After(0, function() activeBuildFrame:Hide() end)
 		return
 	end
 
+	local actTalent
+	if addon.MythicPlus.variables.currentSpecID then actTalent = C_ClassTalents.GetLastSelectedSavedConfigID(addon.MythicPlus.variables.currentSpecID) end
+	if actTalent then
+		local curName = GetConfigName(actTalent)
+		activeBuildFrame.text:SetText(string.format(L["TalentbuildLabel"], curName))
+	else
+		activeBuildFrame.text:SetText(string.format(L["TalentbuildLabel"], L["Unknown"]))
+	end
 	applyActiveBuildLayoutData()
-	local allowedLocations = {}
-	local foundOptions = false
-	for c, val in pairs(addon.db["talentReminderActiveBuildShowOnly"] or {}) do
-		if val then
-			allowedLocations[c] = true
-			foundOptions = true
-		end
-	end
-
-	local doIt = false
-
-	if foundOptions then
-		activeBuildFrame:Hide()
-		if not IsInInstance() and allowedLocations[1] then
-			doIt = true
-		elseif IsInInstance() and allowedLocations[2] then
-			doIt = true
-		elseif select(2, GetInstanceInfo()) == "raid" and allowedLocations[3] then
-			doIt = true
-		end
-	else
-		doIt = true
-	end
-
-	if doIt then
-		local actTalent
-		if addon.MythicPlus.variables.currentSpecID then actTalent = C_ClassTalents.GetLastSelectedSavedConfigID(addon.MythicPlus.variables.currentSpecID) end
-		if actTalent then
-			local curName = GetConfigName(actTalent)
-			activeBuildFrame.text:SetText(string.format(L["TalentbuildLabel"], curName))
-		else
-			activeBuildFrame.text:SetText(string.format(L["TalentbuildLabel"], L["Unknown"]))
-		end
-		activeBuildFrame:Show()
-	else
-		activeBuildFrame:Hide()
-	end
+	activeBuildFrame:Show()
 	refreshActiveBuildEditMode()
 end
 
