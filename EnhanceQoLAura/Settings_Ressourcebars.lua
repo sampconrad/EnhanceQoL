@@ -809,7 +809,7 @@ local function registerEditModeBars()
 			settings = settingsList,
 			showOutsideEditMode = true,
 		})
-		-- if addon.EditModeLib and addon.EditModeLib.SetFrameResetVisible then addon.EditModeLib:SetFrameResetVisible(frame, false) end
+		if addon.EditModeLib and addon.EditModeLib.SetFrameResetVisible then addon.EditModeLib:SetFrameResetVisible(frame, false) end
 		registered = registered + 1
 	end
 

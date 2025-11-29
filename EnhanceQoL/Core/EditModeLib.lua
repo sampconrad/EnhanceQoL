@@ -638,30 +638,41 @@ function dialogMixin:UpdateSettings()
 end
 
 function dialogMixin:UpdateButtons()
+	local buttonPool = internal:GetPool("button")
+	if buttonPool then
+		buttonPool:ReleaseAll()
+	end
+
+	local anyVisible = false
 	local buttons, num = internal:GetFrameButtons(self.selection.parent)
 	if num > 0 then
 		for index, data in next, buttons do
-			local button = internal:GetPool("button"):Acquire(self.Buttons)
+			local button = buttonPool:Acquire(self.Buttons)
 			button.layoutIndex = index
 			button:SetText(data.text)
 			button:SetOnClickHandler(data.click)
 			button:Show()
+			anyVisible = true
 		end
 	end
 
-	local resetPosition = internal:GetPool("button"):Acquire(self.Buttons)
-	resetPosition.layoutIndex = num + 1
-	resetPosition:SetText(HUD_EDIT_MODE_RESET_POSITION)
-	resetPosition:SetOnClickHandler(GenerateClosure(self.ResetPosition, self))
-
 	local showReset = true
 	if lib.frameResetVisible and lib.frameResetVisible[self.selection.parent] == false then showReset = false end
-	if showReset then
-		resetPosition.ignoreInLayout = nil
+	if showReset and buttonPool then
+		local resetPosition = buttonPool:Acquire(self.Buttons)
+		resetPosition.layoutIndex = num + 1
+		resetPosition:SetText(HUD_EDIT_MODE_RESET_POSITION)
+		resetPosition:SetOnClickHandler(GenerateClosure(self.ResetPosition, self))
 		resetPosition:Show()
+		anyVisible = true
+	end
+
+	if anyVisible then
+		self.Buttons.ignoreInLayout = nil
+		self.Buttons:Show()
 	else
-		resetPosition.ignoreInLayout = true
-		resetPosition:Hide()
+		self.Buttons.ignoreInLayout = true
+		self.Buttons:Hide()
 	end
 end
 
