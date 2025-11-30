@@ -34,6 +34,7 @@ exclude_files = {
 	"EnhanceQoL/libs/AceGUI-3.0/widgets/AceGUIWidget-EditBox.lua",
 	"EnhanceQoL/libs/LibEditMode/**",
 	".git/**",
+	"EnhanceQoL/libs/LibEQOL/**",
 }
 ignore = {
 	"11./SLASH_.*", -- Setting an undefined (Slash handler) global variable
