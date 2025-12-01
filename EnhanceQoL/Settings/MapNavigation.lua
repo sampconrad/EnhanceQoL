@@ -167,7 +167,10 @@ data = {
 						and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting:GetValue() == true
 						and addon.SettingsLayout.elements["useMinimapButtonBinMouseover"]
 						and addon.SettingsLayout.elements["useMinimapButtonBinMouseover"].setting
-						and addon.SettingsLayout.elements["useMinimapButtonBinMouseover"].setting:GetValue() == false
+						and (
+							addon.SettingsLayout.elements["useMinimapButtonBinMouseover"].setting:GetValue() == false
+							or addon.SettingsLayout.elements["useMinimapButtonBinMouseover"].setting:GetValue() == nil
+						)
 				end,
 				parent = true,
 				notify = "enableMinimapButtonBin",
@@ -188,7 +191,7 @@ data = {
 						and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting:GetValue() == true
 						and addon.SettingsLayout.elements["useMinimapButtonBinIcon"]
 						and addon.SettingsLayout.elements["useMinimapButtonBinIcon"].setting
-						and addon.SettingsLayout.elements["useMinimapButtonBinIcon"].setting:GetValue() == false
+						and (addon.SettingsLayout.elements["useMinimapButtonBinIcon"].setting:GetValue() == false or addon.SettingsLayout.elements["useMinimapButtonBinIcon"].setting:GetValue() == nil)
 				end,
 				parent = true,
 				notify = "enableMinimapButtonBin",
