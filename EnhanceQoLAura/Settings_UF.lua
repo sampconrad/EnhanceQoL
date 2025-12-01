@@ -117,8 +117,12 @@ local function setColor(unit, path, r, g, b, a)
 	setValue(unit, path, { r or 1, g or 1, b or 1, a or curA or 1 })
 end
 
-local function refresh()
-	if UF.Refresh then UF.Refresh() end
+local function refresh(unit)
+	if UF.RefreshUnit and unit then
+		UF.RefreshUnit(unit)
+	elseif UF.Refresh then
+		UF.Refresh()
+	end
 end
 
 local function refreshSettingsUI()
@@ -234,34 +238,38 @@ end
 local function buildUnitSettings(unit)
 	local def = defaultsFor(unit)
 	local list = {}
+	local function refreshSelf()
+		refresh(unit)
+	end
+	local refresh = refreshSelf
 
 	list[#list + 1] = { name = L["Frame"] or "Frame", kind = settingType.Collapsible, id = "frame", defaultCollapsed = false }
 
 	list[#list + 1] = checkbox(L["UFPlayerEnable"] or "Enable", function() return getValue(unit, { "enabled" }, def.enabled or false) == true end, function(val)
 		setValue(unit, { "enabled" }, val and true or false)
-		refresh()
+		refreshSelf()
 		refreshSettingsUI()
 	end, def.enabled or false, "frame")
 
 	list[#list + 1] = slider(L["UFWidth"] or "Frame width", MIN_WIDTH, 800, 1, function() return getValue(unit, { "width" }, def.width or MIN_WIDTH) end, function(val)
 		setValue(unit, { "width" }, math.max(MIN_WIDTH, val or MIN_WIDTH))
-		refresh()
+		refreshSelf()
 	end, def.width or MIN_WIDTH, "frame", true)
 
 	list[#list + 1] = slider(L["UFBarGap"] or "Gap between bars", 0, 10, 1, function() return getValue(unit, { "barGap" }, def.barGap or 0) end, function(val)
 		setValue(unit, { "barGap" }, val or 0)
-		refresh()
+		refreshSelf()
 	end, def.barGap or 0, "frame", true)
 
 	list[#list + 1] = radioDropdown(L["UFStrata"] or "Frame strata", strataOptions, function() return getValue(unit, { "strata" }, def.strata or defaultStrata or "") end, function(val)
 		setValue(unit, { "strata" }, val ~= "" and val or nil)
-		refresh()
+		refreshSelf()
 	end, def.strata or defaultStrata or "", "frame")
 
 	list[#list + 1] = slider(L["UFFrameLevel"] or "Frame level", 0, 50, 1, function() return getValue(unit, { "frameLevel" }, def.frameLevel or defaultLevel) end, function(val)
 		debounced(unit .. "_frameLevel", function()
 			setValue(unit, { "frameLevel" }, val or defaultLevel)
-			refresh()
+			refreshSelf()
 		end)
 	end, def.frameLevel or defaultLevel, "frame", true)
 
@@ -679,15 +687,6 @@ local function buildUnitSettings(unit)
 		refresh()
 	end, statusDef.levelEnabled ~= false, "status")
 
-	list[#list + 1] = radioDropdown(L["UFNameColorMode"] or "Name color", {
-		{ value = "CLASS", label = L["ClassColor"] or "Class color" },
-		{ value = "CUSTOM", label = L["Custom"] or "Custom" },
-	}, function() return getValue(unit, { "status", "nameColorMode" }, statusDef.nameColorMode or "CLASS") end, function(val)
-		setValue(unit, { "status", "nameColorMode" }, val)
-		refresh()
-		refreshSettingsUI()
-	end, statusDef.nameColorMode or "CLASS", "status")
-
 	list[#list + 1] = checkboxColor({
 		name = L["UFNameColor"] or "Custom name color",
 		parentId = "status",
@@ -714,7 +713,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = checkboxColor({
 		name = L["UFLevelColor"] or "Custom level color",
 		parentId = "status",
-		defaultChecked = false,
+		defaultChecked = (statusDef.levelColorMode or "CLASS") ~= "CLASS",
 		isChecked = function() return getValue(unit, { "status", "levelColorMode" }, statusDef.levelColorMode or "CLASS") ~= "CLASS" end,
 		onChecked = function(val)
 			setValue(unit, { "status", "levelColorMode" }, val and "CUSTOM" or "CLASS")
