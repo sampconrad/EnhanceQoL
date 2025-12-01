@@ -134,10 +134,6 @@ local data = {
 		func = function(value) addon.db["autoAcceptGroupInvite"] = value end,
 		children = {
 			{
-				text = "|cffffd700" .. L["autoAcceptGroupInviteOptions"] .. "|r",
-				sType = "hint",
-			},
-			{
 
 				var = "autoAcceptGroupInviteGuildOnly",
 				text = L["autoAcceptGroupInviteGuildOnly"],

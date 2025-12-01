@@ -168,6 +168,10 @@ local defaults = {
 	},
 }
 
+local function hideSettingsReset(frame)
+	if frame and addon.EditModeLib and addon.EditModeLib.SetFrameResetVisible then addon.EditModeLib:SetFrameResetVisible(frame, false) end
+end
+
 local issecretvalue = _G.issecretvalue
 local mainPowerEnum
 local mainPowerToken
@@ -875,6 +879,7 @@ local function ensureFrames(unit)
 	st.frame:SetAttribute("type2", "togglemenu")
 	st.frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	st.frame:Hide()
+	hideSettingsReset(st.frame)
 
 	if info.dropdown then st.frame.menu = info.dropdown end
 	st.frame:SetClampedToScreen(true)

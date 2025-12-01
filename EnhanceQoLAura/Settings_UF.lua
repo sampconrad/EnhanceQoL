@@ -131,6 +131,11 @@ local function refreshSettingsUI()
 	if lib and lib.internal and lib.internal.RefreshSettingValues then lib.internal:RefreshSettingValues() end
 end
 
+local function hideFrameReset(frame)
+	local lib = addon.EditModeLib
+	if frame and lib and lib.SetFrameResetVisible then lib:SetFrameResetVisible(frame, false) end
+end
+
 local function fontOptions()
 	local list = {}
 	if not LSM then return list end
@@ -903,7 +908,7 @@ local function registerUnitFrame(unit, info)
 		showOutsideEditMode = true,
 		collapseExclusive = true,
 	})
-	if addon.EditModeLib and addon.EditModeLib.SetFrameResetVisible then addon.EditModeLib:SetFrameResetVisible(frame, false) end
+	hideFrameReset(frame)
 end
 
 if not UF.EditModeRegistered then

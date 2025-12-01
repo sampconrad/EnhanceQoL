@@ -248,13 +248,8 @@ function EditMode:_applyVisibility(entry, layoutName, enabled, forceImmediate)
 	if frame then
 		local shouldShow = false
 		if enabled then
-			if entry.showOutsideEditMode then
-				shouldShow = true
-			elseif inEditMode and not inCombat then
-				shouldShow = true
-			end
-		else
-			if entry.showOutsideEditMode and not inEditMode then shouldShow = true end
+			if entry.showOutsideEditMode then shouldShow = true end
+			if inEditMode and not inCombat then shouldShow = true end
 		end
 		self:_setFrameShown(entry, shouldShow, forceImmediate)
 	end
