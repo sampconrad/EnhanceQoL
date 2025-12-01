@@ -465,6 +465,7 @@ function EditMode:RegisterFrame(id, opts)
 			x = self:GetValue(id, "x") or defaults.x,
 			y = self:GetValue(id, "y") or defaults.y,
 			enableOverlayToggle = opts.enableOverlayToggle or false,
+			allowDrag = opts.allowDrag,
 		}
 
 		self.lib:AddFrame(frame, function(_, layoutName, point, x, y)

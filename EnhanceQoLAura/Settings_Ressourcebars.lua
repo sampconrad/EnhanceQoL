@@ -1288,6 +1288,9 @@ local function registerEditModeBars()
 			frame = frame,
 			title = titleLabel,
 			enableOverlayToggle = true,
+			allowDrag = function()
+				return anchorUsesUIParent()
+			end,
 			layoutDefaults = {
 				point = anchor and anchor.point or "CENTER",
 				relativePoint = anchor and anchor.relativePoint or "CENTER",
