@@ -722,13 +722,13 @@ local function updatePower(cfg, unit)
 	bar:SetStatusBarColor(cr or 0.1, cg or 0.45, cb or 1, ca or 1)
 	if bar.SetStatusBarDesaturated then bar:SetStatusBarDesaturated(pcfg.useCustomColor ~= true) end
 	if st.powerTextLeft then
-		if (issecretvalue and not issecretvalue(maxv)) or (not addon.variables.isMidnight and maxv == 0) then
+		if (issecretvalue and not issecretvalue(maxv) and maxv == 0) or (not addon.variables.isMidnight and maxv == 0) then
 			st.powerTextLeft:SetText("")
 		else
 			st.powerTextLeft:SetText(formatText(pcfg.textLeft or "PERCENT", cur, maxv, pcfg.useShortNumbers ~= false, percentVal))
 		end
 	end
-	if (issecretvalue and not issecretvalue(maxv)) or (not addon.variables.isMidnight and maxv == 0) then
+	if (issecretvalue and not issecretvalue(maxv) and maxv == 0) or (not addon.variables.isMidnight and maxv == 0) then
 		st.powerTextRight:SetText("")
 	else
 		if st.powerTextRight then st.powerTextRight:SetText(formatText(pcfg.textRight or "CURMAX", cur, maxv, pcfg.useShortNumbers ~= false, percentVal)) end
@@ -764,9 +764,9 @@ end
 
 local function syncTextFrameLevels(st)
 	if not st then return end
-	setFrameLevelAbove(st.healthTextLayer, st.health)
-	setFrameLevelAbove(st.powerTextLayer, st.power)
-	setFrameLevelAbove(st.statusTextLayer, st.status)
+	setFrameLevelAbove(st.healthTextLayer, st.health, 2)
+	setFrameLevelAbove(st.powerTextLayer, st.power, 2)
+	setFrameLevelAbove(st.statusTextLayer, st.status, 2)
 end
 
 local function hookTextFrameLevels(st)
