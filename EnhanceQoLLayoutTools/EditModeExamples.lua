@@ -302,24 +302,24 @@ for _, example in ipairs(examples) do
 	registerExample(example)
 end
 
-local Lib = EditMode and EditMode.lib or LibStub("LibEditModeImproved-1.0", true)
+local Lib = LibStub("LibEQOLEditMode-1.0", true)
 if Lib and Lib.RegisterCallback then
 	Lib:RegisterCallback("layoutrenamed", function(oldName, newName, layoutIndex) print("Layout renamed:", oldName, "->", newName, "Index", layoutIndex) end)
 	Lib:RegisterCallback("layout", function(layoutName, layoutIndex) print("Layout:", layoutName, "Index", layoutIndex) end)
 	Lib:RegisterCallback(
 		"layoutadded",
-		function(addedLayoutIndex, activateNewLayout, isLayoutImported, layoutType)
-			print("Layout added:", addedLayoutIndex, "IsActive:", activateNewLayout, "IsImported:", isLayoutImported, "Type:", layoutType)
+		function(addedLayoutIndex, activateNewLayout, isLayoutImported, layoutType, layoutName)
+			print("Layout added:", addedLayoutIndex, "IsActive:", activateNewLayout, "IsImported:", isLayoutImported, "Type:", layoutType, "Name:", layoutName)
 		end
 	)
-	Lib:RegisterCallback("layoutdeleted", function(deletedLayoutIndex) print("Layout deleted:", deletedLayoutIndex) end)
-	Lib:RegisterCallback("layoutduplicate", function(addedLayoutIndex, duplicateIndices, isLayoutImported)
+	Lib:RegisterCallback("layoutdeleted", function(deletedLayoutIndex, layoutname) print("Layout deleted:", deletedLayoutIndex, "Name:", layoutname) end)
+	Lib:RegisterCallback("layoutduplicate", function(addedLayoutIndex, duplicateIndices, isLayoutImported, layoutType, layoutName)
 		local dups = ""
 		for _, v in pairs(duplicateIndices) do
 			dups = dups .. v .. ","
 		end
 
-		print("Layout duplicated:", "Added:", addedLayoutIndex, "NrOfDuplicates:", dups, "Imported:", isLayoutImported)
+		print("Layout duplicated:", "Added:", addedLayoutIndex, "NrOfDuplicates:", dups, "Imported:", isLayoutImported, "Type:", layoutType, "Name:", layoutName)
 	end)
 	Lib.internal.debugEnabled = true
 end

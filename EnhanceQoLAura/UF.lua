@@ -171,7 +171,7 @@ local defaults = {
 	},
 	target = {
 		enabled = false,
-		auraIcons = { size = 24, padding = 2, max = 16, showCooldown = true },
+		auraIcons = { size = 24, padding = 2, max = 16, showCooldown = true, anchor = "BOTTOM", offset = { x = 0, y = -5 } },
 		cast = {
 			enabled = true,
 			width = 220,
@@ -347,7 +347,12 @@ local function anchorAuraButton(btn, index, ac, perRow, st)
 	local row = math.floor((index - 1) / perRow)
 	local col = (index - 1) % perRow
 	btn:ClearAllPoints()
-	btn:SetPoint("TOPLEFT", st.auraContainer, "TOPLEFT", col * (ac.size + ac.padding), -row * (ac.size + ac.padding))
+	local anchor = ac.anchor or "BOTTOM"
+	if anchor == "TOP" then
+		btn:SetPoint("BOTTOMLEFT", st.auraContainer, "BOTTOMLEFT", col * (ac.size + ac.padding), row * (ac.size + ac.padding))
+	else
+		btn:SetPoint("TOPLEFT", st.auraContainer, "TOPLEFT", col * (ac.size + ac.padding), -row * (ac.size + ac.padding))
+	end
 end
 
 local function updateAuraContainerSize(shown, ac, perRow, st)
@@ -1187,7 +1192,15 @@ local function layoutFrame(cfg, unit)
 
 	if unit == "target" and st.auraContainer then
 		st.auraContainer:ClearAllPoints()
-		st.auraContainer:SetPoint("TOPLEFT", st.barGroup, "BOTTOMLEFT", 0, -5)
+		local acfg = cfg.auraIcons or def.auraIcons or defaults.target.auraIcons or {}
+		local ax = (acfg.offset and acfg.offset.x) or 0
+		local ay = (acfg.offset and acfg.offset.y) or (acfg.anchor == "TOP" and 5 or -5)
+		local anchor = acfg.anchor or "BOTTOM"
+		if anchor == "TOP" then
+			st.auraContainer:SetPoint("BOTTOMLEFT", st.barGroup, "TOPLEFT", ax, ay)
+		else
+			st.auraContainer:SetPoint("TOPLEFT", st.barGroup, "BOTTOMLEFT", ax, ay)
+		end
 		st.auraContainer:SetWidth(width + borderInset * 2)
 	end
 	syncTextFrameLevels(st)
@@ -1405,6 +1418,7 @@ local function applyConfig(unit)
 			st.castBar:Hide()
 		end
 	end
+	if unit == TARGET_UNIT and states[unit] and states[unit].auraContainer then updateTargetAuraIcons(1) end
 end
 
 local unitEvents = {
@@ -1713,6 +1727,7 @@ local function addOptions(container, skipClear, unit)
 			elseif isTarget and UnitExists and UnitExists(TARGET_UNIT) and states[unit] and states[unit].frame then
 				states[unit].barGroup:Show()
 				states[unit].status:Show()
+				updateTargetAuraIcons(1)
 			end
 		end
 	end
@@ -1794,36 +1809,62 @@ local function addOptions(container, skipClear, unit)
 		cfg.auraIcons.max = cfg.auraIcons.max or def.auraIcons.max
 		if cfg.auraIcons.showCooldown == nil then cfg.auraIcons.showCooldown = def.auraIcons.showCooldown end
 
-		local sSize = addon.functions.createSliderAce(L["UFHealthHeight"] or "Aura size", cfg.auraIcons.size or 24, 12, 48, 1, function(_, _, val)
+		local sSize = addon.functions.createSliderAce(L["Aura size"] or "Aura size", cfg.auraIcons.size or 24, 12, 48, 1, function(_, _, val)
 			cfg.auraIcons.size = val
 			refresh()
 		end)
 		sSize:SetRelativeWidth(0.5)
 		auraRow:AddChild(sSize)
 
-		local sPad = addon.functions.createSliderAce(L["UFBarGap"] or "Aura spacing", cfg.auraIcons.padding or 2, 0, 10, 1, function(_, _, val)
+		local sPad = addon.functions.createSliderAce(L["Aura spacing"] or "Aura spacing", cfg.auraIcons.padding or 2, 0, 10, 1, function(_, _, val)
 			cfg.auraIcons.padding = val or 0
 			refresh()
 		end)
 		sPad:SetRelativeWidth(0.5)
 		auraRow:AddChild(sPad)
 
-		local sMax = addon.functions.createSliderAce(L["UFFrameLevel"] or "Max auras", cfg.auraIcons.max or 16, 4, 40, 1, function(_, _, val)
-			cfg.auraIcons.max = val or 16
-			refresh()
-		end)
-		sMax:SetFullWidth(true)
-		auraRow:AddChild(sMax)
+			local sMax = addon.functions.createSliderAce(L["UFFrameLevel"] or "Max auras", cfg.auraIcons.max or 16, 4, 40, 1, function(_, _, val)
+				cfg.auraIcons.max = val or 16
+				refresh()
+			end)
+			sMax:SetFullWidth(true)
+			auraRow:AddChild(sMax)
 
-		local cbCD = addon.functions.createCheckboxAce(L["Show cooldown text"] or "Show cooldown text", cfg.auraIcons.showCooldown ~= false, function(_, _, v)
-			cfg.auraIcons.showCooldown = v and true or false
-			refresh()
-		end)
-		cbCD:SetFullWidth(true)
-		auraRow:AddChild(cbCD)
+			local cbCD = addon.functions.createCheckboxAce(L["Show cooldown text"] or "Show cooldown text", cfg.auraIcons.showCooldown ~= false, function(_, _, v)
+				cfg.auraIcons.showCooldown = v and true or false
+				refresh()
+			end)
+			cbCD:SetFullWidth(true)
+			auraRow:AddChild(cbCD)
 
-		local castDef = def.cast or {}
-		cfg.cast = cfg.cast or {}
+			local anchorOptionsAura = { TOP = L["Top"] or "Top", BOTTOM = L["Bottom"] or "Bottom" }
+			local anchorOrderAura = { "TOP", "BOTTOM" }
+			local ddAuraAnchor = addon.functions.createDropdownAce(L["Aura anchor"] or "Aura anchor", anchorOptionsAura, anchorOrderAura, function(_, _, key)
+				cfg.auraIcons.anchor = key
+				refresh()
+			end)
+			ddAuraAnchor:SetValue(cfg.auraIcons.anchor or def.auraIcons.anchor or "BOTTOM")
+			ddAuraAnchor:SetRelativeWidth(0.5)
+			auraRow:AddChild(ddAuraAnchor)
+
+			local auraOffsetX = addon.functions.createSliderAce(L["Aura Offset X"] or "Aura Offset X", (cfg.auraIcons.offset and cfg.auraIcons.offset.x) or (def.auraIcons.offset and def.auraIcons.offset.x) or 0, -200, 200, 1, function(_, _, val)
+				cfg.auraIcons.offset = cfg.auraIcons.offset or {}
+				cfg.auraIcons.offset.x = val or 0
+				refresh()
+			end)
+			auraOffsetX:SetRelativeWidth(0.25)
+			auraRow:AddChild(auraOffsetX)
+
+			local auraOffsetY = addon.functions.createSliderAce(L["Aura Offset Y"] or "Aura Offset Y", (cfg.auraIcons.offset and cfg.auraIcons.offset.y) or (def.auraIcons.offset and def.auraIcons.offset.y) or (cfg.auraIcons.anchor == "TOP" and 5 or -5), -200, 200, 1, function(_, _, val)
+				cfg.auraIcons.offset = cfg.auraIcons.offset or {}
+				cfg.auraIcons.offset.y = val or 0
+				refresh()
+			end)
+			auraOffsetY:SetRelativeWidth(0.25)
+			auraRow:AddChild(auraOffsetY)
+
+			local castDef = def.cast or {}
+			cfg.cast = cfg.cast or {}
 		local castGroup = addon.functions.createContainer("InlineGroup", "Flow")
 		castGroup:SetTitle(L["CastBar"] or "Cast Bar")
 		castGroup:SetFullWidth(true)
