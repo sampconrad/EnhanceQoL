@@ -519,6 +519,13 @@ local function buildUnitSettings(unit)
 		},
 	})
 
+	list[#list + 1] = checkbox(L["Use absorb glow"] or "Use absorb glow", function()
+		return getValue(unit, { "health", "useAbsorbGlow" }, healthDef.useAbsorbGlow ~= false) ~= false
+	end, function(val)
+		setValue(unit, { "health", "useAbsorbGlow" }, val and true or false)
+		refresh()
+	end, healthDef.useAbsorbGlow ~= false, "absorb")
+
 	list[#list + 1] = checkbox(L["Show sample absorb"] or "Show sample absorb", function()
 		return getValue(unit, { "health", "showSampleAbsorb" }, healthDef.showSampleAbsorb == true)
 	end, function(val)

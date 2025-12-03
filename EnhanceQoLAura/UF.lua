@@ -121,6 +121,7 @@ local defaults = {
 			absorbUseCustomColor = false,
 			showSampleAbsorb = false,
 			absorbTexture = "DEFAULT",
+			useAbsorbGlow = true,
 			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
 			textLeft = "PERCENT",
 			textRight = "CURMAX",
@@ -684,7 +685,6 @@ local function updateHealth(cfg, unit)
 		hr, hg, hb, ha = color[1] or 0, color[2] or 0.8, color[3] or 0, color[4] or 1
 	end
 	st.health:SetStatusBarColor(hr or 0, hg or 0.8, hb or 0, ha or 1)
-	st.health:SetStatusBarDesaturated(true)
 	if st.absorb then
 		local abs = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0
 		local maxForValue
@@ -701,6 +701,19 @@ local function updateHealth(cfg, unit)
 		st.absorb:SetValue(abs or 0)
 		local ar, ag, ab, aa = getAbsorbColor(hc, unit)
 		st.absorb:SetStatusBarColor(ar or 0.85, ag or 0.95, ab or 1, aa or 0.7)
+		if st.overAbsorbGlow then
+			local showGlow = hc.useAbsorbGlow ~= false and ( (C_StringUtil and not C_StringUtil.TruncateWhenZero(abs)) or (not issecretvalue and abs > 0))
+			-- (not (C_StringUtil and C_StringUtil.TruncateWhenZero(abs)) or (not addon.variables.isMidnight and abs))
+			if showGlow then
+				st.overAbsorbGlow:ClearAllPoints()
+				st.overAbsorbGlow:SetPoint("TOPLEFT", st.health, "TOPRIGHT", -7, 0)
+				st.overAbsorbGlow:SetPoint("BOTTOMLEFT", st.health, "BOTTOMRIGHT", -7, 0)
+				
+				st.overAbsorbGlow:Show()
+			else
+				st.overAbsorbGlow:Hide()
+			end
+		end
 	end
 	if st.healthTextLeft then st.healthTextLeft:SetText(formatText(hc.textLeft or "PERCENT", cur, maxv, hc.useShortNumbers ~= false, percentVal)) end
 	if st.healthTextRight then st.healthTextRight:SetText(formatText(hc.textRight or "CURMAX", cur, maxv, hc.useShortNumbers ~= false, percentVal)) end
@@ -738,7 +751,7 @@ local function updatePower(cfg, unit)
 		cr, cg, cb, ca = getPowerColor(powerToken)
 	end
 	bar:SetStatusBarColor(cr or 0.1, cg or 0.45, cb or 1, ca or 1)
-	if bar.SetStatusBarDesaturated then bar:SetStatusBarDesaturated(pcfg.useCustomColor ~= true) end
+	if bar.SetStatusBarDesaturated then bar:SetStatusBarDesaturated(pcfg.useCustomColor == true) end
 	if st.powerTextLeft then
 		if (issecretvalue and not issecretvalue(maxv) and maxv == 0) or (not addon.variables.isMidnight and maxv == 0) then
 			st.powerTextLeft:SetText("")
@@ -937,8 +950,21 @@ local function ensureFrames(unit)
 	st.status = _G[info.statusName] or CreateFrame("Frame", info.statusName, st.frame)
 	st.barGroup = st.barGroup or CreateFrame("Frame", nil, st.frame, "BackdropTemplate")
 	st.health = _G[info.healthName] or CreateFrame("StatusBar", info.healthName, st.barGroup, "BackdropTemplate")
+	st.health:SetStatusBarDesaturated(true)
 	st.power = _G[info.powerName] or CreateFrame("StatusBar", info.powerName, st.barGroup, "BackdropTemplate")
 	st.absorb = CreateFrame("StatusBar", info.healthName .. "Absorb", st.health, "BackdropTemplate")
+	st.absorb:SetStatusBarDesaturated(true)
+	st.overAbsorbGlow = st.overAbsorbGlow or st.health:CreateTexture(nil, "ARTWORK", "OverAbsorbGlowTemplate")
+	st.absorb.overAbsorbGlow = st.overAbsorbGlow
+	if not st.overAbsorbGlow then
+		st.overAbsorbGlow = st.health:CreateTexture(nil, "ARTWORK")
+	end
+	if st.overAbsorbGlow then
+		st.overAbsorbGlow:SetTexture(798066)
+		st.overAbsorbGlow:SetBlendMode("ADD")
+		st.overAbsorbGlow:SetAlpha(0.8)
+		st.overAbsorbGlow:Hide()
+	end
 
 	st.healthTextLayer = st.healthTextLayer or CreateFrame("Frame", nil, st.health)
 	st.healthTextLayer:SetAllPoints(st.health)
@@ -1000,6 +1026,7 @@ local function applyBars(cfg, unit)
 	st.absorb:SetFrameLevel(st.health:GetFrameLevel() + 1)
 	st.absorb:SetMinMaxValues(0, 1)
 	st.absorb:SetValue(0)
+	if st.overAbsorbGlow then st.overAbsorbGlow:Hide() end
 
 	applyFont(st.healthTextLeft, hc.font, hc.fontSize or 14)
 	applyFont(st.healthTextRight, hc.font, hc.fontSize or 14)
@@ -1602,6 +1629,13 @@ local function addOptions(container, skipClear, unit)
 	UF.ui.absorbColorPicker = addColorPicker(absorbGroup, L["Absorb color"] or "Absorb color", cfg.health.absorbColor, function() refresh() end)
 	UF.ui.absorbColorPicker:SetRelativeWidth(0.5)
 	if UF.ui.absorbColorPicker then UF.ui.absorbColorPicker:SetDisabled(cfg.health.absorbUseCustomColor ~= true) end
+
+	local cbAbsorbGlow = addon.functions.createCheckboxAce(L["Use absorb glow"] or "Use absorb glow", cfg.health.useAbsorbGlow ~= false, function(_, _, v)
+		cfg.health.useAbsorbGlow = v and true or false
+		refresh()
+	end)
+	cbAbsorbGlow:SetFullWidth(true)
+	absorbGroup:AddChild(cbAbsorbGlow)
 
 	local cbSampleAbsorb = addon.functions.createCheckboxAce(L["Show sample absorb"] or "Show sample absorb", cfg.health.showSampleAbsorb == true, function(_, _, v)
 		cfg.health.showSampleAbsorb = v and true or false
