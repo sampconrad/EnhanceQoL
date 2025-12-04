@@ -129,9 +129,8 @@ L["UFBorderSize"] = "Border size"
 L["UFUseClassColor"] = "Use class color"
 L["UFUseClassColorPower"] = "Use power color"
 L["UFPowerColor"] = "Custom power color"
-L["UFPlusHint"] = "Configure EnhanceQoL's custom Player/Target/ToT frames.\n"
-	.. "Enable each unit frame and tweak size, position, texts, colors, auras, and castbar options.\n"
-	.. '"Default" texture keeps the Blizzard atlas; custom textures come from SharedMedia.'
+L["UFPlusHint"] =
+	'Configure EnhanceQoL\'s custom Player/Target/ToT frames.\nEnable each unit frame and tweak size, position, texts, colors, auras, and castbar options.\n"Default" texture keeps the Blizzard atlas; custom textures come from SharedMedia.'
 L["TextLeftOffsetX"] = "Left text X offset"
 L["TextLeftOffsetY"] = "Left text Y offset"
 L["TextRightOffsetX"] = "Right text X offset"
