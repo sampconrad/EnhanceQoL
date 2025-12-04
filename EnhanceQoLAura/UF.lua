@@ -1098,10 +1098,10 @@ local function setCastInfoFromUnit(unit)
 		stopCast(unit)
 		return
 	end
-	local name, text, texture, startTimeMS, endTimeMS, _, _, notInterruptible, spellId, isEmpowered, numEmpowerStages = UnitChannelInfo(unit)
+	local name, text, texture, startTimeMS, endTimeMS, _, _, notInterruptible, _, isEmpowered, numEmpowerStages = UnitChannelInfo(unit)
 	local isChannel = true
 	if not name then
-		name, text, texture, startTimeMS, endTimeMS, _, _, notInterruptible, spellId = UnitCastingInfo(unit)
+		name, text, texture, startTimeMS, endTimeMS, _, _, notInterruptible = UnitCastingInfo(unit)
 		isChannel = false
 	end
 	if not name then
