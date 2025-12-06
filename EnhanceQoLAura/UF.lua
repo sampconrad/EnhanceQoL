@@ -17,6 +17,20 @@ local sampleAbsorb = addon.variables.ufSampleAbsorb
 addon.variables.ufSampleCast = addon.variables.ufSampleCast or {}
 local sampleCast = addon.variables.ufSampleCast
 
+local hiddenParent = CreateFrame("Frame", nil, UIParent)
+hiddenParent:SetAllPoints()
+hiddenParent:Hide()
+
+local function DisableBossFrames()
+	hooksecurefunc(BossTargetFrameContainer, "SetParent", function(self, parent)
+		if InCombatLockdown() then return end
+		if parent ~= hiddenParent then self:SetParent(hiddenParent) end
+	end)
+	for i = 1, MAX_BOSS_FRAMES do
+		if _G["Boss" .. i .. "TargetFrame"] then _G["Boss" .. i .. "TargetFrame"]:SetAlpha(0) end
+	end
+end
+
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 local LSM = LibStub("LibSharedMedia-3.0")
 local AceGUI = addon.AceGUI or LibStub("AceGUI-3.0")
@@ -1903,6 +1917,16 @@ local function anyUFEnabled()
 	return p or t or tt or pet or focus
 end
 
+local function isBossFrameSettingEnabled()
+	if not addon.db or not addon.db.ufFrames then return false end
+	if not MAX_BOSS_FRAMES then return false end
+	for i = 1, MAX_BOSS_FRAMES do
+		local cfg = addon.db.ufFrames["boss" .. i]
+		if cfg and cfg.enabled then return true end
+	end
+	return false
+end
+
 local allowedEventUnit = {
 	["target"] = true,
 	["player"] = true,
@@ -2300,6 +2324,7 @@ function UF.Disable()
 end
 
 function UF.Refresh()
+	if isBossFrameSettingEnabled() then DisableBossFrames() end
 	ensureEventHandling()
 	if not anyUFEnabled() then return end
 	applyConfig("player")
@@ -2366,6 +2391,7 @@ if not addon.Aura.UFInitialized then
 		updateFocusFrame(fcfg, true)
 	end
 end
+if isBossFrameSettingEnabled() then DisableBossFrames() end
 
 UF.targetAuras = targetAuras
 UF.defaults = defaults
