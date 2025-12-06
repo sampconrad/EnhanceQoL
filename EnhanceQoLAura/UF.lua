@@ -235,6 +235,7 @@ local defaults = {
 			height = 16,
 			anchor = "BOTTOM", -- or "TOP"
 			offset = { x = 0, y = -4 },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
 			showName = true,
 			nameOffset = { x = 6, y = 0 },
 			showDuration = true,
@@ -1046,6 +1047,8 @@ local function applyCastLayout(cfg, unit)
 		st.castDuration:ClearAllPoints()
 		st.castDuration:SetPoint("RIGHT", st.castBar, "RIGHT", durOff.x or 0, durOff.y or 0)
 		st.castDuration:SetShown(ccfg.showDuration ~= false)
+		if st.castDuration.SetWordWrap then st.castDuration:SetWordWrap(false) end
+		if st.castDuration.SetJustifyH then st.castDuration:SetJustifyH("RIGHT") end
 	end
 	if st.castIcon then
 		local size = ccfg.iconSize or defc.iconSize or height
@@ -1057,6 +1060,32 @@ local function applyCastLayout(cfg, unit)
 	local texKey = ccfg.texture or defc.texture or "DEFAULT"
 	st.castBar:SetStatusBarTexture(resolveCastTexture(texKey))
 	if st.castBar.SetStatusBarDesaturated then st.castBar:SetStatusBarDesaturated(false) end
+	do -- Cast backdrop
+		local bd = (ccfg and ccfg.backdrop) or (defc and defc.backdrop) or { enabled = true, color = { 0, 0, 0, 0.6 } }
+		if bd.enabled == false then
+			if st.castBar.SetBackdrop then st.castBar:SetBackdrop(nil) end
+		elseif st.castBar.SetBackdrop then
+			st.castBar:SetBackdrop({
+				bgFile = "Interface\\Buttons\\WHITE8x8",
+				edgeFile = nil,
+				tile = false,
+			})
+			local col = bd.color or { 0, 0, 0, 0.6 }
+			if st.castBar.SetBackdropColor then st.castBar:SetBackdropColor(col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.6) end
+		end
+	end
+	-- Limit cast name width so long names don't overlap duration text
+	if st.castName then
+		local iconSize = (ccfg.iconSize or defc.iconSize or height) + 4
+		if ccfg.showIcon == false then iconSize = 0 end
+		local durationSpace = (ccfg.showDuration ~= false) and 60 or 0
+		local available = (width or 0) - iconSize - durationSpace - 6
+		if available < 0 then available = 0 end
+		st.castName:SetWidth(available)
+		if st.castName.SetWordWrap then st.castName:SetWordWrap(false) end
+		if st.castName.SetMaxLines then st.castName:SetMaxLines(1) end
+		if st.castName.SetJustifyH then st.castName:SetJustifyH("LEFT") end
+	end
 end
 
 local function configureCastStatic(unit, ccfg, defc)

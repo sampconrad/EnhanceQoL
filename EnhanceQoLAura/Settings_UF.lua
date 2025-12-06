@@ -970,6 +970,27 @@ local function buildUnitSettings(unit)
 		castTexture.isEnabled = isCastEnabled
 		list[#list + 1] = castTexture
 
+		list[#list + 1] = checkboxColor({
+			name = L["UFBarBackdrop"] or "Show bar backdrop",
+			parentId = "cast",
+			defaultChecked = (castDef.backdrop and castDef.backdrop.enabled) ~= false,
+			isChecked = function() return getValue(unit, { "cast", "backdrop", "enabled" }, (castDef.backdrop and castDef.backdrop.enabled) ~= false) ~= false end,
+			onChecked = function(val)
+				setValue(unit, { "cast", "backdrop", "enabled" }, val and true or false)
+				refresh()
+				refreshSettingsUI()
+			end,
+			getColor = function()
+				return toRGBA(getValue(unit, { "cast", "backdrop", "color" }, castDef.backdrop and castDef.backdrop.color), castDef.backdrop and castDef.backdrop.color or { 0, 0, 0, 0.6 })
+			end,
+			onColor = function(color)
+				setColor(unit, { "cast", "backdrop", "color" }, color.r, color.g, color.b, color.a)
+				refresh()
+			end,
+			colorDefault = { r = 0, g = 0, b = 0, a = 0.6 },
+			isEnabled = isCastEnabled,
+		})
+
 		list[#list + 1] = {
 			name = L["Cast color"] or "Cast color",
 			kind = settingType.Color,
