@@ -24,16 +24,11 @@ hiddenParent:Hide()
 
 local throttleHook
 local function DisableBossFrames()
-	hooksecurefunc(BossTargetFrameContainer, "SetParent", function(self, parent)
-		if InCombatLockdown() then return end
-		if parent ~= hiddenParent and not throttleHook then
-			throttleHook = true
-			C_Timer.After(0, function() self:SetParent(hiddenParent) end)
-		end
+	BossTargetFrameContainer:SetAlpha(0)
+	BossTargetFrameContainer.Selection:SetAlpha(0)
+	hooksecurefunc(BossTargetFrameContainer, "OnShow", function(self, parent)
+		if self:GetAlpha() ~= 0 then self:SetAlpha(0) end
 	end)
-	for i = 1, (MAX_BOSS_FRAMES or maxBossFrames or 5) do
-		if _G["Boss" .. i .. "TargetFrame"] then _G["Boss" .. i .. "TargetFrame"]:SetAlpha(0) end
-	end
 end
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
@@ -2133,12 +2128,7 @@ local function updateBossFrames(force)
 			else
 				local exists = UnitExists and UnitExists(unit)
 				if not InCombatLockdown() then
-					if st.frame.SetAttribute then
-						st.frame:SetAttribute("unit", unit)
-						st.frame:SetAttribute("type1", "target")
-						st.frame:SetAttribute("type2", "togglemenu")
-						st.frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-					end
+					if st.frame.SetAttribute then st.frame:SetAttribute("unit", unit) end
 					applyVisibilityDriver(unit, cfg.enabled)
 				else
 					if exists then
