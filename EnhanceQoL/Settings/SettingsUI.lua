@@ -239,6 +239,7 @@ function addon.functions.SettingsCreateColorOverrides(cat, cbData)
 		getColor = cbData.getColor,
 		setColor = cbData.setColor,
 		getDefaultColor = cbData.getDefaultColor,
+		colorizeLabel = cbData.colorizeLabel or cbData.colorizeText,
 		rowHeight = cbData.rowHeight,
 		basePadding = cbData.basePadding,
 		minHeight = cbData.minHeight,
@@ -306,6 +307,7 @@ function addon.functions.SettingsCreateColorPicker(cat, cbData)
 		notify = cbData.notify,
 		parentSection = cbData.parentSection,
 		prefix = prefix,
+		colorizeLabel = cbData.colorizeLabel,
 	})
 
 	addon.SettingsLayout = addon.SettingsLayout or {}

@@ -4,7 +4,8 @@ local L = LibStub("AceLocale-3.0"):NewLocale("EnhanceQoL", "enUS", true) -- “t
 
 L["Quick signup"] = "Quick signup"
 L["interruptWithShift"] = "Hold shift to interrupt that feature"
-L["SettingsLegacyNotice"] = "Legacy settings (old UI)\n\nRight-click the minimap button and choose \"Legacy Settings\" to open them.\n\nWarning: These old settings are unlikely to work in Midnight anymore."
+L["SettingsLegacyNotice"] =
+	'Legacy settings (old UI)\n\nRight-click the minimap button and choose "Legacy Settings" to open them.\n\nWarning: These old settings are unlikely to work in Midnight anymore.'
 
 L["Persist LFG signup note"] = "Persist LFG signup note"
 L["Hide Minimap Button"] = "Hide Minimap Button"
@@ -380,6 +381,14 @@ L["AutoPushSpellToActionBar"] = "Automatically place new spells on your action b
 L["raidFramesDisplayClassColor"] = "Show class colors on raid-style frames"
 L["pvpFramesDisplayClassColor"] = "Show class colors on PvP frames"
 L["cooldownViewerEnabled"] = "Enable the Cooldown Viewer"
+L["cooldownManagerHeader"] = "Cooldown Manager"
+L["cooldownManagerNoOverride"] = "No visibility override"
+L["cooldownManagerHideMounted"] = "Hide while mounted (incl. Druid travel/stag forms)"
+L["cooldownManagerHideMountedDesc"] = "Uses a state driver to hide these frames while mounted or in Druid travel/stag forms. Requires the Cooldown Viewer CVar to be enabled."
+L["cooldownViewerEssential"] = "Essential Cooldown Viewer"
+L["cooldownViewerUtility"] = "Utility Cooldown Viewer"
+L["cooldownViewerBuffBar"] = "Buff Bar Cooldown Viewer"
+L["cooldownViewerBuffIcon"] = "Buff Icon Cooldown Viewer"
 L["enableMouseoverCast"] = "Enable Mouseover Cast"
 L["UnitNamePlayerGuild"] = "Show the Guild on Players"
 L["UnitNamePlayerPVPTitle"] = "Show the Title on Players"

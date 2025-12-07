@@ -525,6 +525,7 @@ function lib:CreateColorOverrides(cat, data)
 		setColor = data.setColor,
 		getDefaultColor = data.getDefaultColor,
 		parentCheck = data.parentCheck,
+		colorizeLabel = data.colorizeLabel or data.colorizeText,
 	})
 	-- addSearchTags(initializer, data.searchtags, data.name or data.text)
 	Settings.RegisterInitializer(cat, initializer)

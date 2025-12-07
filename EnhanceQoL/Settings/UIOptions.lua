@@ -11,10 +11,18 @@ local UpdateUnitFrameMouseover = addon.functions.UpdateUnitFrameMouseover or fun
 local RefreshAllActionBarAnchors = addon.functions.RefreshAllActionBarAnchors or function() end
 local GetVisibilityRuleMetadata = addon.functions.GetVisibilityRuleMetadata or function() return {} end
 local HasFrameVisibilityOverride = addon.functions.HasFrameVisibilityOverride or function() return false end
+local SetCooldownViewerVisibility = addon.functions.SetCooldownViewerVisibility or function() end
+local GetCooldownViewerVisibility = addon.functions.GetCooldownViewerVisibility or function() return "NONE" end
+local IsCooldownViewerEnabled = addon.functions.IsCooldownViewerEnabled or function() return false end
 
 local ACTION_BAR_FRAME_NAMES = constants.ACTION_BAR_FRAME_NAMES or {}
 local ACTION_BAR_ANCHOR_ORDER = constants.ACTION_BAR_ANCHOR_ORDER or {}
 local ACTION_BAR_ANCHOR_CONFIG = constants.ACTION_BAR_ANCHOR_CONFIG or {}
+local COOLDOWN_VIEWER_FRAMES = constants.COOLDOWN_VIEWER_FRAMES or {}
+local COOLDOWN_VIEWER_VISIBILITY_MODES = constants.COOLDOWN_VIEWER_VISIBILITY_MODES or {
+	NONE = "NONE",
+	HIDE_WHILE_MOUNTED = "HIDE_WHILE_MOUNTED",
+}
 local wipe = wipe
 local fontOrder = {}
 
@@ -141,16 +149,16 @@ local function createAnchorControls(category)
 		local dbKey = "actionBarAnchor" .. index
 		local defaultKey = "actionBarAnchorDefault" .. index
 
-			addon.functions.SettingsCreateDropdown(category, {
-				var = dbKey,
-				text = label,
-				list = anchorOptions,
-				order = anchorOrder,
-				default = addon.db[defaultKey] or ACTION_BAR_ANCHOR_ORDER[1],
-				get = function()
-					local current = addon.db[dbKey]
-					if not current or not ACTION_BAR_ANCHOR_CONFIG[current] then current = addon.db[defaultKey] end
-					if not current or not ACTION_BAR_ANCHOR_CONFIG[current] then current = ACTION_BAR_ANCHOR_ORDER[1] end
+		addon.functions.SettingsCreateDropdown(category, {
+			var = dbKey,
+			text = label,
+			list = anchorOptions,
+			order = anchorOrder,
+			default = addon.db[defaultKey] or ACTION_BAR_ANCHOR_ORDER[1],
+			get = function()
+				local current = addon.db[dbKey]
+				if not current or not ACTION_BAR_ANCHOR_CONFIG[current] then current = addon.db[defaultKey] end
+				if not current or not ACTION_BAR_ANCHOR_CONFIG[current] then current = ACTION_BAR_ANCHOR_ORDER[1] end
 				return current
 			end,
 			set = function(key)
@@ -410,6 +418,7 @@ local function createLabelControls(category)
 		parent = true,
 		element = rangeToggle.element,
 		parentCheck = function() return rangeToggle.setting and rangeToggle.setting:GetValue() == true end,
+		colorizeLabel = true,
 	})
 
 	addon.functions.SettingsCreateSlider(category, {
@@ -496,6 +505,52 @@ local function getFrameRuleOptions(info)
 	return options
 end
 
+local function createCooldownViewerDropdowns(category)
+	if not category or #COOLDOWN_VIEWER_FRAMES == 0 then return end
+
+	addon.functions.SettingsCreateHeadline(category, L["cooldownManagerHeader"] or "Cooldown Manager")
+
+	local dropdownValues = {
+		[COOLDOWN_VIEWER_VISIBILITY_MODES.NONE] = L["cooldownManagerNoOverride"] or NONE,
+		[COOLDOWN_VIEWER_VISIBILITY_MODES.HIDE_WHILE_MOUNTED] = L["cooldownManagerHideMounted"] or "Hide while mounted",
+	}
+	local dropdownOrder = {
+		COOLDOWN_VIEWER_VISIBILITY_MODES.NONE,
+		COOLDOWN_VIEWER_VISIBILITY_MODES.HIDE_WHILE_MOUNTED,
+	}
+	local labels = {
+		EssentialCooldownViewer = L["cooldownViewerEssential"] or "Essential Cooldown Viewer",
+		UtilityCooldownViewer = L["cooldownViewerUtility"] or "Utility Cooldown Viewer",
+		BuffBarCooldownViewer = L["cooldownViewerBuffBar"] or "Buff Bar Cooldowns",
+		BuffIconCooldownViewer = L["cooldownViewerBuffIcon"] or "Buff Icon Cooldowns",
+	}
+
+	local function dropdownEnabled() return IsCooldownViewerEnabled() end
+	local desc = L["cooldownManagerHideMountedDesc"] or "Requires the Cooldown Viewer to be enabled (cooldownViewerEnabled = 1)."
+
+	for _, frameName in ipairs(COOLDOWN_VIEWER_FRAMES) do
+		local label = labels[frameName] or frameName
+		addon.functions.SettingsCreateDropdown(category, {
+			var = "cooldownViewerVisibility_" .. tostring(frameName),
+			text = label,
+			list = dropdownValues,
+			order = dropdownOrder,
+			default = COOLDOWN_VIEWER_VISIBILITY_MODES.NONE,
+			get = function()
+				local cur = GetCooldownViewerVisibility(frameName)
+				if not dropdownValues[cur] then cur = COOLDOWN_VIEWER_VISIBILITY_MODES.NONE end
+				return cur
+			end,
+			set = function(key)
+				if not dropdownValues[key] then key = COOLDOWN_VIEWER_VISIBILITY_MODES.NONE end
+				SetCooldownViewerVisibility(frameName, key)
+			end,
+			isEnabled = dropdownEnabled,
+			desc = desc,
+		})
+	end
+end
+
 local function createFrameCategory()
 	local category = addon.functions.SettingsCreateCategory(nil, L["visibilityKindFrames"] or UNITFRAME_LABEL, nil, "Frames")
 	addon.SettingsLayout.frameVisibilityCategory = category
@@ -540,6 +595,8 @@ local function createFrameCategory()
 			end
 		end
 	end
+
+	createCooldownViewerDropdowns(category)
 end
 
 createActionBarCategory()

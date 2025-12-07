@@ -103,6 +103,22 @@ local ACTION_BAR_ANCHOR_CONFIG = {
 }
 addon.constants.ACTION_BAR_ANCHOR_CONFIG = ACTION_BAR_ANCHOR_CONFIG
 
+local COOLDOWN_VIEWER_FRAMES = {
+	"EssentialCooldownViewer",
+	"UtilityCooldownViewer",
+	"BuffBarCooldownViewer",
+	"BuffIconCooldownViewer",
+}
+addon.constants.COOLDOWN_VIEWER_FRAMES = COOLDOWN_VIEWER_FRAMES
+
+local COOLDOWN_VIEWER_VISIBILITY_MODES = {
+	NONE = "NONE",
+	HIDE_WHILE_MOUNTED = "HIDE_WHILE_MOUNTED",
+}
+addon.constants.COOLDOWN_VIEWER_VISIBILITY_MODES = COOLDOWN_VIEWER_VISIBILITY_MODES
+
+local COOLDOWN_VIEWER_MOUNT_DRIVER = "[mounted] hide; [stance:3] hide; [stance:6] hide; show"
+
 local DEFAULT_BUTTON_SINK_COLUMNS = 4
 
 local DEFAULT_ACTION_BUTTON_COUNT = _G.NUM_ACTIONBAR_BUTTONS or 12
@@ -554,11 +570,7 @@ local function SetFrameVisibilityOverride(varName, config)
 end
 addon.functions.SetFrameVisibilityOverride = SetFrameVisibilityOverride
 
-local function HasFrameVisibilityOverride(varName)
-	return varName ~= nil
-		and addon.variables.frameVisibilityOverrides ~= nil
-		and addon.variables.frameVisibilityOverrides[varName] ~= nil
-end
+local function HasFrameVisibilityOverride(varName) return varName ~= nil and addon.variables.frameVisibilityOverrides ~= nil and addon.variables.frameVisibilityOverrides[varName] ~= nil end
 addon.functions.HasFrameVisibilityOverride = HasFrameVisibilityOverride
 
 local function MigrateLegacyVisibilityFlag(oldKey, targetVar)
@@ -1153,7 +1165,131 @@ local function ApplyUnitFrameSettingByVar(varName)
 end
 addon.functions.ApplyUnitFrameSettingByVar = ApplyUnitFrameSettingByVar
 
+local function IsCooldownViewerEnabled()
+	if not C_CVar or not C_CVar.GetCVar then return false end
+	local ok, value = pcall(C_CVar.GetCVar, "cooldownViewerEnabled")
+	if not ok then return false end
+	return tonumber(value) == 1
+end
+addon.functions.IsCooldownViewerEnabled = IsCooldownViewerEnabled
+
+local function sanitizeCooldownViewerMode(mode)
+	if mode == COOLDOWN_VIEWER_VISIBILITY_MODES.HIDE_WHILE_MOUNTED then return mode end
+	return COOLDOWN_VIEWER_VISIBILITY_MODES.NONE
+end
+
+local function applyCooldownViewerMode(frameName, mode)
+	local frame = frameName and _G[frameName]
+	if not frame then return false end
+
+	local expression
+	if mode == COOLDOWN_VIEWER_VISIBILITY_MODES.HIDE_WHILE_MOUNTED then expression = COOLDOWN_VIEWER_MOUNT_DRIVER end
+
+	ApplyUnitFrameStateDriver(frame, expression)
+	if not expression then
+		if InCombatLockdown and InCombatLockdown() then
+			addon.variables = addon.variables or {}
+			addon.variables.pendingCooldownViewerShow = addon.variables.pendingCooldownViewerShow or {}
+			addon.variables.pendingCooldownViewerShow[frame] = true
+			EnsureCooldownViewerWatcher()
+		elseif frame.Show and not frame:IsShown() then
+			frame:Show()
+		end
+	end
+	return true
+end
+
+local function ensureCooldownViewerDb()
+	addon.db = addon.db or {}
+	if type(addon.db.cooldownViewerVisibility) ~= "table" then addon.db.cooldownViewerVisibility = {} end
+	return addon.db.cooldownViewerVisibility
+end
+
+function addon.functions.GetCooldownViewerVisibility(frameName)
+	local db = ensureCooldownViewerDb()
+	return sanitizeCooldownViewerMode(db[frameName])
+end
+
+function addon.functions.SetCooldownViewerVisibility(frameName, mode)
+	local db = ensureCooldownViewerDb()
+	local sanitized = sanitizeCooldownViewerMode(mode)
+	if sanitized == COOLDOWN_VIEWER_VISIBILITY_MODES.NONE then
+		db[frameName] = nil
+	else
+		db[frameName] = sanitized
+	end
+	if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
+end
+
+local function scheduleCooldownViewerReapply()
+	addon.variables = addon.variables or {}
+	if addon.variables.cooldownViewerReapplyPending then return end
+	if not C_Timer or not C_Timer.After then return end
+
+	local attempts = (addon.variables.cooldownViewerRetryCount or 0) + 1
+	addon.variables.cooldownViewerRetryCount = attempts
+	if attempts > 10 then return end
+
+	addon.variables.cooldownViewerReapplyPending = true
+	C_Timer.After(1, function()
+		addon.variables.cooldownViewerReapplyPending = nil
+		if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
+	end)
+end
+
+function addon.functions.ApplyCooldownViewerVisibility()
+	addon.db = addon.db or {}
+	addon.variables = addon.variables or {}
+	local enabled = IsCooldownViewerEnabled()
+	local missingFrame = false
+	local pendingShow = addon.variables.pendingCooldownViewerShow
+
+	for _, frameName in ipairs(COOLDOWN_VIEWER_FRAMES) do
+		local mode = addon.functions.GetCooldownViewerVisibility(frameName)
+		if not enabled then mode = COOLDOWN_VIEWER_VISIBILITY_MODES.NONE end
+		if not applyCooldownViewerMode(frameName, mode) then missingFrame = true end
+	end
+
+	if enabled and missingFrame then
+		scheduleCooldownViewerReapply()
+	elseif addon.variables then
+		addon.variables.cooldownViewerRetryCount = nil
+	end
+
+	if pendingShow and not (InCombatLockdown and InCombatLockdown()) then
+		for frame in pairs(pendingShow) do
+			if frame and frame.Show then frame:Show() end
+		end
+		addon.variables.pendingCooldownViewerShow = nil
+	end
+end
+
+local function EnsureCooldownViewerWatcher()
+	addon.variables = addon.variables or {}
+	if addon.variables.cooldownViewerWatcher then return end
+
+	local watcher = CreateFrame("Frame")
+	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+	watcher:RegisterEvent("COOLDOWN_VIEWER_DATA_LOADED")
+	watcher:RegisterEvent("CVAR_UPDATE")
+	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+	watcher:SetScript("OnEvent", function(_, event, name)
+		if event == "CVAR_UPDATE" and name ~= "cooldownViewerEnabled" then return end
+		if addon.variables then addon.variables.cooldownViewerRetryCount = nil end
+		if event == "PLAYER_REGEN_ENABLED" and addon.variables and addon.variables.pendingCooldownViewerShow then
+			for frame in pairs(addon.variables.pendingCooldownViewerShow) do
+				if frame and frame.Show then frame:Show() end
+			end
+			addon.variables.pendingCooldownViewerShow = nil
+		end
+		if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
+	end)
+	addon.variables.cooldownViewerWatcher = watcher
+end
+addon.functions.EnsureCooldownViewerWatcher = EnsureCooldownViewerWatcher
+
 local hookedButtons = {}
+local EnsureCooldownViewerWatcher -- forward declaration
 
 -- Keep action bars visible while interacting with SpellFlyout
 local EQOL_LastMouseoverBar
@@ -1954,6 +2090,7 @@ local function initUnitFrame()
 	addon.functions.InitDBValue("unitFrameScaleEnabled", false)
 	addon.functions.InitDBValue("unitFrameScale", addon.variables.unitFrameScale)
 	addon.functions.InitDBValue("hiddenCastBars", addon.db["hiddenCastBars"] or {})
+	addon.functions.InitDBValue("cooldownViewerVisibility", addon.db["cooldownViewerVisibility"] or {})
 	-- Health text settings (player/target/boss)
 	addon.functions.InitDBValue("healthTextPlayerMode", addon.db["healthTextPlayerMode"] or "OFF")
 	addon.functions.InitDBValue("healthTextTargetMode", addon.db["healthTextTargetMode"] or "OFF")
@@ -2133,6 +2270,9 @@ local function initUnitFrame()
 	for _, cbData in ipairs(addon.variables.unitFrameNames) do
 		if cbData.var and cbData.name then UpdateUnitFrameMouseover(cbData.name, cbData) end
 	end
+
+	if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
+	if addon.functions.EnsureCooldownViewerWatcher then addon.functions.EnsureCooldownViewerWatcher() end
 end
 
 local function initBagsFrame()
