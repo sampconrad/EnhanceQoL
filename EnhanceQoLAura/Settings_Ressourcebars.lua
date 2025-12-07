@@ -1629,15 +1629,13 @@ local function registerEditModeBars()
 				local bcfg = specCfg[barType]
 				bcfg.anchor = bcfg.anchor or {}
 				if data.point then
-					local relFrame = bcfg.anchor.relativeFrame or "UIParent"
-					-- Nur UIParent-Anker von Edit Mode übernehmen; externe Anker behalten ihre Werte
-					if relFrame == "UIParent" then
-						bcfg.anchor.point = data.point
-						bcfg.anchor.relativePoint = data.relativePoint or data.point
-						bcfg.anchor.x = data.x or 0
-						bcfg.anchor.y = data.y or 0
-					end
-					bcfg.anchor.relativeFrame = relFrame
+					bcfg.anchor.point = data.point
+					bcfg.anchor.relativePoint = data.relativePoint or data.point
+					bcfg.anchor.x = data.x or 0
+					bcfg.anchor.y = data.y or 0
+					bcfg.anchor.relativeFrame = "UIParent"
+					bcfg.anchor.autoSpacing = nil
+					bcfg.anchor.matchRelativeWidth = nil
 				end
 				bcfg.width = data.width or bcfg.width
 				bcfg.height = data.height or bcfg.height
