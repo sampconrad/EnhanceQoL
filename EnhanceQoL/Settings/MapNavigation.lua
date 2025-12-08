@@ -43,8 +43,8 @@ local data = {
 					addon.variables.requireReload = true
 					addon.functions.checkReloadFrame()
 				end,
-				get = function() return addon.db["enableSquareMinimapLayout"] or true end,
-				default = true,
+				get = function() return addon.db["enableSquareMinimapLayout"] or false end,
+				default = false,
 				sType = "checkbox",
 				parentCheck = function()
 					return addon.SettingsLayout.elements["enableSquareMinimap"]
