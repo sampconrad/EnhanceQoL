@@ -284,24 +284,24 @@ local function registerEditModeBars()
 			if not msg or msg == "" then return end
 			print("|cff00ff98Enhance QoL|r: " .. tostring(msg))
 		end
-			local function hasGlobalProfile(targetKey)
-				local store = addon.db and addon.db.globalResourceBarSettings
-				if not store then return false end
-				if targetKey == "MAIN" then return store.MAIN end
-				if targetKey == "SECONDARY" then return store.SECONDARY end
-				return store[targetKey or barType]
-			end
-			local function confirmSaveGlobal(targetKey, doSave)
-				local specInfo = currentSpecInfo()
-				if hasGlobalProfile(targetKey) then
-					local key = "EQOL_SAVE_GLOBAL_RB_" .. tostring(targetKey or barType)
-					local popupText
-					if targetKey == "MAIN" or (not targetKey and specInfo and specInfo.MAIN == barType) then
-						popupText = L["OverwriteGlobalMainProfile"] or "Overwrite global main profile?"
-					else
-						popupText = (L["OverwriteGlobalProfile"] or "Overwrite global profile for %s?"):format(titleLabel)
-					end
-					StaticPopupDialogs[key] = StaticPopupDialogs[key]
+		local function hasGlobalProfile(targetKey)
+			local store = addon.db and addon.db.globalResourceBarSettings
+			if not store then return false end
+			if targetKey == "MAIN" then return store.MAIN end
+			if targetKey == "SECONDARY" then return store.SECONDARY end
+			return store[targetKey or barType]
+		end
+		local function confirmSaveGlobal(targetKey, doSave)
+			local specInfo = currentSpecInfo()
+			if hasGlobalProfile(targetKey) then
+				local key = "EQOL_SAVE_GLOBAL_RB_" .. tostring(targetKey or barType)
+				local popupText
+				if targetKey == "MAIN" or (not targetKey and specInfo and specInfo.MAIN == barType) then
+					popupText = L["OverwriteGlobalMainProfile"] or "Overwrite global main profile?"
+				else
+					popupText = (L["OverwriteGlobalProfile"] or "Overwrite global profile for %s?"):format(titleLabel)
+				end
+				StaticPopupDialogs[key] = StaticPopupDialogs[key]
 					or {
 						text = popupText,
 						button1 = OKAY,
@@ -371,6 +371,12 @@ local function registerEditModeBars()
 
 			settingsList = {
 				{
+					name = L["Frame"] or "Frame",
+					kind = settingType.Collapsible,
+					id = "frame",
+					defaultCollapsed = false,
+				},
+				{
 					name = HUD_EDIT_MODE_SETTING_CHAT_FRAME_WIDTH,
 					kind = settingType.Slider,
 					allowInput = true,
@@ -379,6 +385,7 @@ local function registerEditModeBars()
 					maxValue = 600,
 					valueStep = 1,
 					default = widthDefault or 200,
+					parentId = "frame",
 					get = function()
 						local c = curSpecCfg()
 						return c and c.width or widthDefault or 200
@@ -407,6 +414,7 @@ local function registerEditModeBars()
 					maxValue = 80,
 					valueStep = 1,
 					default = heightDefault or 20,
+					parentId = "frame",
 					get = function()
 						local c = curSpecCfg()
 						return c and c.height or heightDefault or 20
@@ -587,6 +595,7 @@ local function registerEditModeBars()
 						refreshSettingsUI()
 					end,
 					default = "UIParent",
+					parentId = "frame",
 				}
 
 				settingsList[#settingsList + 1] = {
@@ -620,6 +629,7 @@ local function registerEditModeBars()
 						queueRefresh()
 					end,
 					default = "CENTER",
+					parentId = "frame",
 				}
 
 				settingsList[#settingsList + 1] = {
@@ -651,6 +661,7 @@ local function registerEditModeBars()
 						queueRefresh()
 					end,
 					default = "CENTER",
+					parentId = "frame",
 				}
 
 				settingsList[#settingsList + 1] = {
@@ -671,6 +682,7 @@ local function registerEditModeBars()
 					end,
 					isEnabled = function() return not anchorUsesUIParent() end,
 					default = false,
+					parentId = "frame",
 				}
 
 				settingsList[#settingsList + 1] = {
@@ -695,6 +707,7 @@ local function registerEditModeBars()
 						queueRefresh()
 					end,
 					default = 0,
+					parentId = "frame",
 				}
 
 				settingsList[#settingsList + 1] = {
@@ -719,8 +732,122 @@ local function registerEditModeBars()
 						queueRefresh()
 					end,
 					default = 0,
+					parentId = "frame",
 				}
 			end
+
+			settingsList[#settingsList + 1] = {
+				name = L["Bar Texture"] or "Bar Texture",
+				kind = settingType.Dropdown,
+				height = 180,
+				field = "barTexture",
+				parentId = "frame",
+				generator = function(_, root)
+					local listTex, orderTex = addon.Aura.functions.getStatusbarDropdownLists(true)
+					if not listTex or not orderTex then
+						listTex, orderTex = { DEFAULT = DEFAULT }, { "DEFAULT" }
+					end
+					if not listTex or not orderTex then return end
+					for _, key in ipairs(orderTex) do
+						local label = listTex[key] or key
+						root:CreateRadio(label, function()
+							local c = curSpecCfg()
+							local cur = c and c.barTexture or cfg.barTexture or "DEFAULT"
+							return cur == key
+						end, function()
+							local c = curSpecCfg()
+							if not c then return end
+							c.barTexture = key
+							queueRefresh()
+						end)
+					end
+				end,
+				get = function()
+					local c = curSpecCfg()
+					return (c and c.barTexture) or cfg.barTexture or "DEFAULT"
+				end,
+				set = function(_, value)
+					local c = curSpecCfg()
+					if not c then return end
+					c.barTexture = value
+					queueRefresh()
+				end,
+				default = cfg and cfg.barTexture or "DEFAULT",
+			}
+
+			do -- Behavior
+				local behaviorValues = ResourceBars.BehaviorOptionsForType and ResourceBars.BehaviorOptionsForType(barType)
+				if not behaviorValues then
+					behaviorValues = {
+						{ value = "reverseFill", text = L["Reverse fill"] or "Reverse fill" },
+					}
+					if barType ~= "RUNES" then
+						behaviorValues[#behaviorValues + 1] = { value = "verticalFill", text = L["Vertical orientation"] or "Vertical orientation" }
+						behaviorValues[#behaviorValues + 1] = { value = "smoothFill", text = L["Smooth fill"] or "Smooth fill" }
+					end
+				end
+
+				local function currentBehaviorSelection()
+					if ResourceBars and ResourceBars.BehaviorSelectionFromConfig then return ResourceBars.BehaviorSelectionFromConfig(curSpecCfg(), barType) end
+					local c = curSpecCfg()
+					local map = {}
+					if c then
+						if c.reverseFill == true then map.reverseFill = true end
+						if barType ~= "RUNES" then
+							if c.verticalFill == true then map.verticalFill = true end
+							if c.smoothFill == true then map.smoothFill = true end
+						end
+					end
+					return map
+				end
+
+				local function applyBehaviorFlag(key, enabled)
+					local cfg = curSpecCfg()
+					if not cfg then return end
+					local selection = currentBehaviorSelection()
+					if key then selection[key] = enabled and true or nil end
+					local swapped = false
+					if ResourceBars and ResourceBars.ApplyBehaviorSelection then
+						swapped = ResourceBars.ApplyBehaviorSelection(cfg, selection, barType, addon.variables.unitSpec) and true or false
+					else
+						cfg.reverseFill = selection.reverseFill == true
+						if barType ~= "RUNES" then
+							cfg.verticalFill = selection.verticalFill == true
+							cfg.smoothFill = selection.smoothFill == true
+						else
+							cfg.verticalFill = nil
+							cfg.smoothFill = nil
+						end
+					end
+					queueRefresh()
+					if swapped then refreshSettingsUI() end
+				end
+
+				if settingType.MultiDropdown and behaviorValues and #behaviorValues > 0 then
+					settingsList[#settingsList + 1] = {
+						name = L["Behavior"] or "Behavior",
+						kind = settingType.MultiDropdown,
+						height = 180,
+						field = "behavior",
+						default = currentBehaviorSelection(),
+						values = behaviorValues,
+						hideSummary = true,
+						parentId = "frame",
+						isSelected = function(_, value)
+							local selection = currentBehaviorSelection()
+							return selection[value] == true
+						end,
+						setSelected = function(_, value, state) applyBehaviorFlag(value, state) end,
+					}
+				end
+			end
+
+			settingsList[#settingsList + 1] = {
+				name = LOCALE_TEXT_LABEL or L["Text"] or STATUS_TEXT,
+				kind = settingType.Collapsible,
+				id = "textsettings",
+				defaultCollapsed = true,
+			}
 
 			if barType ~= "RUNES" then
 				local function defaultStyle()
@@ -739,6 +866,7 @@ local function registerEditModeBars()
 					kind = settingType.Dropdown,
 					height = 180,
 					field = "textStyle",
+					parentId = "textsettings",
 					get = function()
 						local c = curSpecCfg()
 						return (c and c.textStyle) or defaultStyle()
@@ -773,6 +901,7 @@ local function registerEditModeBars()
 					minValue = 6,
 					maxValue = 64,
 					valueStep = 1,
+					parentId = "textsettings",
 					get = function()
 						local c = curSpecCfg()
 						return c and c.fontSize or 16
@@ -794,6 +923,7 @@ local function registerEditModeBars()
 					minValue = -500,
 					maxValue = 500,
 					valueStep = 1,
+					parentId = "textsettings",
 					get = function()
 						local c = curSpecCfg()
 						local off = c and c.textOffset
@@ -819,6 +949,7 @@ local function registerEditModeBars()
 					minValue = -500,
 					maxValue = 500,
 					valueStep = 1,
+					parentId = "textsettings",
 					get = function()
 						local c = curSpecCfg()
 						local off = c and c.textOffset
@@ -841,6 +972,7 @@ local function registerEditModeBars()
 					kind = settingType.DropdownColor,
 					height = 180,
 					field = "fontFace",
+					parentId = "textsettings",
 					generator = function(_, root)
 						local currentPath
 						do
@@ -916,6 +1048,7 @@ local function registerEditModeBars()
 					kind = settingType.Dropdown,
 					height = 180,
 					field = "fontOutline",
+					parentId = "textsettings",
 					generator = function(_, root)
 						for _, entry in ipairs(outlineOptions) do
 							root:CreateRadio(entry.label, function()
@@ -942,110 +1075,6 @@ local function registerEditModeBars()
 					end,
 					default = "OUTLINE",
 				}
-
-				settingsList[#settingsList + 1] = {
-					name = L["Bar Texture"] or "Bar Texture",
-					kind = settingType.Dropdown,
-					height = 180,
-					field = "barTexture",
-					generator = function(_, root)
-						local listTex, orderTex = addon.Aura.functions.getStatusbarDropdownLists(true)
-						if not listTex or not orderTex then
-							listTex, orderTex = { DEFAULT = DEFAULT }, { "DEFAULT" }
-						end
-						if not listTex or not orderTex then return end
-						for _, key in ipairs(orderTex) do
-							local label = listTex[key] or key
-							root:CreateRadio(label, function()
-								local c = curSpecCfg()
-								local cur = c and c.barTexture or cfg.barTexture or "DEFAULT"
-								return cur == key
-							end, function()
-								local c = curSpecCfg()
-								if not c then return end
-								c.barTexture = key
-								queueRefresh()
-							end)
-						end
-					end,
-					get = function()
-						local c = curSpecCfg()
-						return (c and c.barTexture) or cfg.barTexture or "DEFAULT"
-					end,
-					set = function(_, value)
-						local c = curSpecCfg()
-						if not c then return end
-						c.barTexture = value
-						queueRefresh()
-					end,
-					default = cfg and cfg.barTexture or "DEFAULT",
-				}
-			end
-
-			do -- Behavior
-				local behaviorValues = ResourceBars.BehaviorOptionsForType and ResourceBars.BehaviorOptionsForType(barType)
-				if not behaviorValues then
-					behaviorValues = {
-						{ value = "reverseFill", text = L["Reverse fill"] or "Reverse fill" },
-					}
-					if barType ~= "RUNES" then
-						behaviorValues[#behaviorValues + 1] = { value = "verticalFill", text = L["Vertical orientation"] or "Vertical orientation" }
-						behaviorValues[#behaviorValues + 1] = { value = "smoothFill", text = L["Smooth fill"] or "Smooth fill" }
-					end
-				end
-
-				local function currentBehaviorSelection()
-					if ResourceBars and ResourceBars.BehaviorSelectionFromConfig then return ResourceBars.BehaviorSelectionFromConfig(curSpecCfg(), barType) end
-					local c = curSpecCfg()
-					local map = {}
-					if c then
-						if c.reverseFill == true then map.reverseFill = true end
-						if barType ~= "RUNES" then
-							if c.verticalFill == true then map.verticalFill = true end
-							if c.smoothFill == true then map.smoothFill = true end
-						end
-					end
-					return map
-				end
-
-				local function applyBehaviorFlag(key, enabled)
-					local cfg = curSpecCfg()
-					if not cfg then return end
-					local selection = currentBehaviorSelection()
-					if key then selection[key] = enabled and true or nil end
-					local swapped = false
-					if ResourceBars and ResourceBars.ApplyBehaviorSelection then
-						swapped = ResourceBars.ApplyBehaviorSelection(cfg, selection, barType, addon.variables.unitSpec) and true or false
-					else
-						cfg.reverseFill = selection.reverseFill == true
-						if barType ~= "RUNES" then
-							cfg.verticalFill = selection.verticalFill == true
-							cfg.smoothFill = selection.smoothFill == true
-						else
-							cfg.verticalFill = nil
-							cfg.smoothFill = nil
-						end
-					end
-					queueRefresh()
-					if swapped then refreshSettingsUI() end
-				end
-
-				if settingType.MultiDropdown and behaviorValues and #behaviorValues > 0 then
-					settingsList[#settingsList + 1] = {
-						name = L["Behavior"] or "Behavior",
-						kind = settingType.MultiDropdown,
-						height = 180,
-						field = "behavior",
-						default = currentBehaviorSelection(),
-						values = behaviorValues,
-						hideSummary = true,
-						isSelected = function(_, value)
-							local selection = currentBehaviorSelection()
-							return selection[value] == true
-						end,
-						setSelected = function(_, value, state) applyBehaviorFlag(value, state) end,
-					}
-				end
 			end
 
 			-- Separator controls (eligible bars only)
@@ -1079,6 +1108,7 @@ local function registerEditModeBars()
 						queueRefresh()
 					end,
 					hasOpacity = true,
+					parentId = "frame",
 				}
 
 				settingsList[#settingsList + 1] = {
@@ -1106,6 +1136,7 @@ local function registerEditModeBars()
 						local c = curSpecCfg()
 						return c and c.showSeparator == true
 					end,
+					parentId = "frame",
 				}
 			end
 
@@ -1195,99 +1226,104 @@ local function registerEditModeBars()
 							refreshSettingsUI()
 						end,
 						default = ensureShowForms(),
+						parentId = "frame",
 					}
 				end
+			end
+
+			do -- Global profile helpers
+				local function syncSizeFromConfig()
+					local c = curSpecCfg()
+					if not c then return end
+					local w = c.width or widthDefault or 200
+					local h = c.height or heightDefault or 20
+					if EditMode and EditMode.SetValue and frameId then
+						EditMode:SetValue(frameId, "width", w, nil, true)
+						EditMode:SetValue(frameId, "height", h, nil, true)
+					end
+					if barType == "HEALTH" then
+						ResourceBars.SetHealthBarSize(w, h)
+					else
+						ResourceBars.SetPowerBarSize(w, h, barType)
+					end
 				end
 
-				do -- Global profile helpers
-					local function syncSizeFromConfig()
-						local c = curSpecCfg()
-						if not c then return end
-						local w = c.width or widthDefault or 200
-						local h = c.height or heightDefault or 20
-						if EditMode and EditMode.SetValue and frameId then
-							EditMode:SetValue(frameId, "width", w, nil, true)
-							EditMode:SetValue(frameId, "height", h, nil, true)
-						end
-						if barType == "HEALTH" then
-							ResourceBars.SetHealthBarSize(w, h)
-						else
-							ResourceBars.SetPowerBarSize(w, h, barType)
-						end
-					end
-
-					local function saveGlobal(targetKey, label)
-						local specInfo = currentSpecInfo()
-						if ResourceBars.SaveGlobalProfile then
-							confirmSaveGlobal(targetKey, function()
-								local ok = ResourceBars.SaveGlobalProfile(barType, addon.variables.unitSpec, targetKey)
-								if ok then
-									if targetKey == "MAIN" or (not targetKey and specInfo and specInfo.MAIN == barType) then
-										notify(L["SavedGlobalMainProfile"] or "Saved global main profile")
-									else
-										notify((L["SavedGlobalProfile"] or "Saved global profile for %s"):format(label or titleLabel))
-									end
-								else
-									notify(L["GlobalProfileSaveFailed"] or "Could not save global profile.")
-								end
-							end)
-						end
-					end
-
-					local function applyGlobal(targetKey, label)
-						local specInfo = currentSpecInfo()
-						if ResourceBars.ApplyGlobalProfile then
-							local ok, reason = ResourceBars.ApplyGlobalProfile(barType, addon.variables.unitSpec, nil, targetKey)
+				local function saveGlobal(targetKey, label)
+					local specInfo = currentSpecInfo()
+					if ResourceBars.SaveGlobalProfile then
+						confirmSaveGlobal(targetKey, function()
+							local ok = ResourceBars.SaveGlobalProfile(barType, addon.variables.unitSpec, targetKey)
 							if ok then
-								syncSizeFromConfig()
-								queueRefresh()
-								refreshSettingsUI()
 								if targetKey == "MAIN" or (not targetKey and specInfo and specInfo.MAIN == barType) then
-									notify(L["AppliedGlobalMainProfile"] or "Applied global main profile")
+									notify(L["SavedGlobalMainProfile"] or "Saved global main profile")
 								else
-									notify((L["AppliedGlobalProfile"] or "Applied global profile for %s"):format(label or titleLabel))
+									notify((L["SavedGlobalProfile"] or "Saved global profile for %s"):format(label or titleLabel))
 								end
 							else
-								if reason == "NO_GLOBAL" then
-									notify(L["GlobalProfileMissing"] or "No global profile saved for this bar.")
-								else
-									notify(L["GlobalProfileApplyFailed"] or "Could not apply global profile.")
-								end
+								notify(L["GlobalProfileSaveFailed"] or "Could not save global profile.")
 							end
-						end
+						end)
 					end
-
-					local function globalProfileOptions()
-						local opts = {}
-						local specInfo = currentSpecInfo()
-						local isMain = specInfo and specInfo.MAIN == barType
-						local powerLabel = titleLabel
-						if isMain then
-							opts[#opts + 1] = { label = L["UseAsGlobalMainProfile"] or "Use as global main profile", action = function() saveGlobal("MAIN", powerLabel) end }
-						end
-						opts[#opts + 1] = { label = (L["UseAsGlobalProfile"] or "Use as global %s profile"):format(powerLabel), action = function() saveGlobal(barType, powerLabel) end }
-						if isMain then
-							opts[#opts + 1] = { label = L["ApplyGlobalMainProfile"] or "Apply global main profile", action = function() applyGlobal("MAIN", powerLabel) end }
-						end
-						opts[#opts + 1] = { label = (L["ApplyGlobalProfile"] or "Apply global %s profile"):format(powerLabel), action = function() applyGlobal(barType, powerLabel) end }
-						return opts
-					end
-
-					settingsList[#settingsList + 1] = {
-						name = L["Profiles"] or "Profiles",
-						kind = settingType.Dropdown,
-						height = 180,
-						hideSummary = true,
-						generator = function(_, root)
-							for _, opt in ipairs(globalProfileOptions()) do
-								root:CreateRadio(opt.label, function() return false end, opt.action)
-							end
-						end,
-					}
 				end
 
-				settingsList[#settingsList + 1] = {
-					name = COLOR,
+				local function applyGlobal(targetKey, label)
+					local specInfo = currentSpecInfo()
+					if ResourceBars.ApplyGlobalProfile then
+						local ok, reason = ResourceBars.ApplyGlobalProfile(barType, addon.variables.unitSpec, nil, targetKey)
+						if ok then
+							syncSizeFromConfig()
+							queueRefresh()
+							refreshSettingsUI()
+							if targetKey == "MAIN" or (not targetKey and specInfo and specInfo.MAIN == barType) then
+								notify(L["AppliedGlobalMainProfile"] or "Applied global main profile")
+							else
+								notify((L["AppliedGlobalProfile"] or "Applied global profile for %s"):format(label or titleLabel))
+							end
+						else
+							if reason == "NO_GLOBAL" then
+								notify(L["GlobalProfileMissing"] or "No global profile saved for this bar.")
+							else
+								notify(L["GlobalProfileApplyFailed"] or "Could not apply global profile.")
+							end
+						end
+					end
+				end
+
+				local function globalProfileOptions()
+					local opts = {}
+					local specInfo = currentSpecInfo()
+					local isMain = specInfo and specInfo.MAIN == barType
+					local powerLabel = titleLabel
+					if isMain then opts[#opts + 1] = { label = L["UseAsGlobalMainProfile"] or "Use as global main profile", action = function() saveGlobal("MAIN", powerLabel) end } end
+					opts[#opts + 1] = { label = (L["UseAsGlobalProfile"] or "Use as global %s profile"):format(powerLabel), action = function() saveGlobal(barType, powerLabel) end }
+					if isMain then opts[#opts + 1] = { label = L["ApplyGlobalMainProfile"] or "Apply global main profile", action = function() applyGlobal("MAIN", powerLabel) end } end
+					opts[#opts + 1] = { label = (L["ApplyGlobalProfile"] or "Apply global %s profile"):format(powerLabel), action = function() applyGlobal(barType, powerLabel) end }
+					return opts
+				end
+
+				table.insert(settingsList, 1, {
+					name = SETTINGS or L["Settings"] or "Settings",
+					kind = settingType.Collapsible,
+					id = "profiles",
+					defaultCollapsed = true,
+				})
+
+				table.insert(settingsList, 2, {
+					name = SETTINGS or L["Settings"] or "Settings",
+					kind = settingType.Dropdown,
+					height = 180,
+					hideSummary = true,
+					parentId = "profiles",
+					generator = function(_, root)
+						for _, opt in ipairs(globalProfileOptions()) do
+							root:CreateRadio(opt.label, function() return false end, opt.action)
+						end
+					end,
+				})
+			end
+
+			settingsList[#settingsList + 1] = {
+				name = COLOR,
 				kind = settingType.Collapsible,
 				id = "colorsetting",
 				defaultCollapsed = true,
@@ -1703,6 +1739,7 @@ local function registerEditModeBars()
 			settings = settingsList,
 			buttons = buttons,
 			showOutsideEditMode = true,
+			collapseExclusive = true,
 		})
 		if addon.EditModeLib and addon.EditModeLib.SetFrameResetVisible then addon.EditModeLib:SetFrameResetVisible(frame, false) end
 		registeredFrames[frameId] = true
