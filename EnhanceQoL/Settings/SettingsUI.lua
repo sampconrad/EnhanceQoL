@@ -324,7 +324,11 @@ end
 function addon.functions.SettingsCreateExpandableSection(cat, cbData)
 	local section = SettingsLib:CreateExpandableSection(cat, {
 		name = cbData.name,
-		expanded = true,
+		expanded = cbData.expanded,
+		searchtags = cbData.searchtags,
+		colorizeTitle = cbData.colorizeTitle,
+		titleColor = cbData.titleColor,
+		extent = cbData.extent,
 		prefix = prefix,
 	})
 	if cbData.var then

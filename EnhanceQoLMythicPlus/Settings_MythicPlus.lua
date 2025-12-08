@@ -507,7 +507,10 @@ if cMythic then
 			for _, specData in ipairs(addon.MythicPlus.variables.specNames) do
 				local orderTable = talentLoadoutOrders[specData.value] or {}
 				talentLoadoutOrders[specData.value] = orderTable
-				addon.functions.SettingsCreateHeadline(cTalent, specData.text)
+				local specSection = addon.functions.SettingsCreateExpandableSection(cTalent, {
+					name = specData.text,
+					expanded = false,
+				})
 				for _, mapData in ipairs(addon.MythicPlus.variables.seasonMapInfo) do
 					addon.functions.SettingsCreateDropdown(cTalent, {
 						var = string.format("talentReminder_%s_%s", specData.value, mapData.id),
@@ -537,6 +540,7 @@ if cMythic then
 						parent = true,
 						element = talentEnable.element,
 						parentCheck = isTalentReminderEnabled,
+						parentSection = specSection,
 					})
 				end
 			end
