@@ -185,6 +185,7 @@ function addon.functions.SettingsCreateMultiDropdown(cat, cbData)
 		parentSection = cbData.parentSection,
 		isEnabled = cbData.isEnabled,
 		prefix = prefix,
+		hideSummary = true,
 	})
 
 	addon.SettingsLayout.elements = addon.SettingsLayout.elements or {}
