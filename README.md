@@ -5,15 +5,19 @@ Every feature can be switched off; footprint is negligible.
 
 ***
 
+**Discord:** [![Join our Discord](https://raw.githubusercontent.com/R41z0r/EnhanceQoL/refs/heads/main/docs/Discord%20invite%20Card.png)](https://discord.gg/kqQfG9YhVn)
+
+***
+
 ## Slash Commands
 
-| Command          |Action                                           |
-| ---------------- |------------------------------------------------ |
-| <code>/eqol</code> |Open the configuration window                    |
+| Command              |Action                                           |
+| -------------------- |------------------------------------------------ |
+| <code>/eqol</code>   |Open the configuration window                    |
 | <code>/eqol resetframe</code> |Re-center all Enhance QoL windows                |
 | <code>/eqol lag</code> |List gossip IDs of the current NPC dialog        |
-| <code>/eqol aag &lt;id&gt;</code> |Auto-pick a gossip option (chosen via <code>/eqol lag</code>) |
-| <code>/eqol rag &lt;id&gt;</code> |Remove an auto-picked gossip ID                  |
+| <code>/eqol aag &amp;lt;id&amp;gt;</code> |Auto-pick a gossip option (chosen via <code>/eqol lag</code>) |
+| <code>/eqol rag &amp;lt;id&amp;gt;</code> |Remove an auto-picked gossip ID                  |
 
 ***
 
@@ -25,89 +29,119 @@ English • German • French • Spanish • Italian • Russian • Korean •
 
 ## Feature Set
 
+### Chat & Social
+
+*   Chat fading with configurable delay.
+*   **Instant Messenger** – mini whisper window with tabs, history, optional fade, animation, and combat suppression. Toggle with `/eim`.
+*   Custom whisper sounds.
+*   Context menu links for Raider.IO and WarcraftLogs.
+
 ### Bags & Inventory
 
-*   Show item level, gems, enchants and durability on bag icons (bank optional).
-*   Flexible **Bag Filter Window** – filter by slot, rarity, spec-usable, expansion, upgrade track, vendor-sellable, auction-house-sellable, binding type or custom item-level range.
-*   Use `/way` to drop a map pin from the Bag Filter search.
+*   Show item level, gems, enchants and durability on bag and bank icons.
+*   Display bind type (BoE/WB/etc.).
+*   Positioning options for item-level labels.
+*   Flexible **Bag Filter Window** – filter by slot, rarity, spec-usable, expansion or custom item-level range.
 *   Hideable Bag Bar (mouse-over).
-*   Money tracker – total gold for all characters in one tooltip.
-*   Alt-inventory cache – counts how many of each item your alts own.
+*   Money tracker – total gold across characters and Warband, with option to show account-only gold.
+*   Inventory item filter (by category, upgrade track, item level, spec relevance).
+*   Fade profession quality icons during search.
 
 ### Character & Inspect
 
-*   Item level, gems and enchants displayed in the Character Frame.
-*   Extra info in the Inspect Frame (experimental).
+*   Item level, gems, enchants and durability displayed in the Character Frame.
+*   Catalyst charge display.
+*   Gem-Socket Helper.
+*   Extra info in the Inspect Frame.
+*   Class-specific frame toggles (e.g. rune frame, combo points).
 
 ### Action Bars & Mouse
 
 *   Mouse-over action bars.
-*   Optional full button range coloring.
-*   Customisable mouse ring and mouse trail for better cursor visibility.
-*   Choose separate fonts, sizes, and outlines for macro names and keybind text.
-*   Per-bar keybind visibility plus optional shorthand labels (e.g., `SM3` for Shift + Mouse Button 3).
+*   **Full button range coloring** – tint entire action button when out of range.
+*   Visible cursor ring and trail, with options to hide the dot or adjust visuals.
+*   Optional shortened keybind text and custom fonts/outlines for macro/keybind labels.
+
+### Unit Frames & Resource Bars
+
+*   Hide floating combat text (player/pet).
+*   Custom EQoL Player/Target/ToT/Pet/Focus/Boss frames with Edit Mode sizing/anchoring, borders, bar textures, fonts, castbar options, aura anchors.
+*   Options to hide Target, Player or Boss frames until mouse-over.
+*   Truncate long unit names with adjustable limit.
+*   Frame scale adjustment for compact frames.
+*   Resource Bars: configurable health/power bars with global profiles, out-of-combat/mounted/vehicle visibility, anchoring to other EQoL frames, separator ticks, and absorb bar settings (enable, custom color/texture, sample preview).
+
+### Minimap & Micro Menu
+
+*   Gather minimap buttons into a movable, lockable button sink.
+*   Quick spec/loot switching.
+*   Optional square minimap and custom instance difficulty icon.
+*   Right-click menus for expansion/garrison buttons.
+*   Hide minimap button, bags bar, micro menu, Quick Join Toast, Raid Tools in party.
+*   Show/hide specific landing page buttons.
 
 ### Group & Raid Tools
 
-*   **Auto Marker** – mark the tank on dungeon entry; removes the marker from yourself when you switch to healer spec.
-*   Leader-crown icon in compact party frames.
-*   Auto-accept invites (friends / guild only if desired).
-*   Option to show the party frame even when solo.
+*   **Auto Marker** – mark tank/healer automatically in dungeons.
+*   Leader icon in compact party frames.
+*   Auto-accept invites (friends/guild configurable).
+*   Option to show party frames solo; option to hide player frame.
+*   Block duel and group invites.
 
-### Dungeon / Mythic Plus
+### Dungeon / Mythic+
 
-*   Quick-signup in the LFG browser; sort applicants by Raider.IO score.
-*   Keystone helper: auto-insert keystone, ready-check & pull timer (DBM/BigWigs compatible), auto-start on zero.
-*   Keystone helper UI options: polished design with animated status icon or revert to the legacy layout.
-*   Objective-Tracker Auto-Hide when a Mythic+ key starts.
-*   Talent loadout reminders per dungeon.
-*   Combat-rez tracker and party keystone list.
-*   Extended dungeon filter (Bloodlust, Battle Res, role fit, spec duplicates).
+*   Quick signup with persisted note.
+*   Skip role selection when possible.
+*   Sort applicants by Mythic Score.
+*   Extended group filters (Bloodlust, Battle Res, role fit, duplicates).
+*   Keystone Helper – auto insert, improved UI, auto-start after pull, close bags, decimal forces, chest timers.
+*   Talent Reminder – check on Ready Check, show active build name, play sound if mismatched.
+*   Combat rez tracker, potion tracker, BR tracker, rating display.
+*   Hide LFG text messages, shift reset filter button.
 
 ### Teleports & Travel
 
-*   Teleport Frame with cooldowns, portals, class & engineering teleports, toys, etc.
-*   "Teleport Compendium" tab inside the PVE frame.
-*   Right-click portals to mark them as favourites – favourites show at the top and can bypass hide options when **Always show favorites from hidden expansions** and **Always show favorite teleports regardless of filters** are enabled.
+*   Dedicated Teleport Frame with class, engineering, toy and item teleports.
+*   “Teleport Compendium” inside PvE frame.
+*   Filter/hide missing or seasonal teleports.
+*   Always show favourites.
 
-### Quest & Vendor Automation
+### Quest, Vendor & Loot Automation
 
-*   Auto-accept/turn-in quests with daily/weekly/trivial/NPC excludes.
-*   Auto-repair and smart junk-sell (rarity & ilvl threshold, drag-and-drop whitelist/blacklist).
-*   "DELETE" confirmation text on item destroys.
+*   Auto-accept/turn-in quests with excludes (daily/weekly/trivial/account-completed).
+*   Auto-repair and smart vendoring by quality, ilvl, bind type, upgrade track, crafting expansions.
+*   Auto-sell junk, drag-and-drop whitelist/blacklist.
+*   Quick loot mode.
+*   Auto confirm for crafting orders and loot trades.
+*   DELETE text confirmation.
+*   Custom loot toasts with thresholds, IDs, mounts/pets, sounds.
+*   Hide boss banners, Azerite toasts, add instant Catalyst button.
 
 ### Tooltip Control
 
-Fully configurable per context (combat, dungeon, friendly/enemy): items, item counts & IDs, spell IDs, NPC IDs, Mythic+ score, class colours and more.
+*   Context-based filtering (combat/dungeon/friendly/enemy).
+*   Show/hide item, spell, unit, buff/debuff tooltips.
+*   Add IDs: item, spell, NPC, quest, currency, enchant, icons.
+*   Show counts per location, account-wide currency, Mythic+ score, class colours.
 
-### UI Tweaks & Extras
+### Map & CVars
 
-*   Hideable Target Frame, Micro Menu (fade in on mouse-over).
-*   Profession-quality icon fade while searching.
-*   Quick-loot mode (disable Blizzard auto-loot for best speed).
-*   Custom loot toasts with item-level thresholds, mount/pet filtering,
-    include list and optional sound.
-*   Option to hide Raid Tools in party play.
-*   Disable Talking Head frame, plus other minor class-specific bar tweaks.
+*   Provide basic `/way` command for waypoints.
+*   Expose CVars as toggles (autodismount, map fade, nameplate colours, castbars, disable tutorials, enhanced tooltips, etc.).
 
-* **Enhanced Ignore List** – organise ignored players in a searchable window, highlight them in group finder and block unwanted requests. Toggle with `/eil`.
-* **Instant Messenger** – mini whisper window with tabs, message history and optional fade. Toggle with `/eim`.
-* **Gem-Socket Helper** – shows socketable gems below the socket UI.
-* **Aura Tracker** – track buffs and debuffs in custom categories. Categories can be exported and imported for easy sharing.
+### Combat Meter
 
-# DataPanels & Streams
+*   Lightweight meter with pre-pull capture, pet tracking, self-always-shown.
+*   Overlay with rounded corners.
+*   Reset on challenge start.
 
-DataPanels display information supplied by registered streams and can be configured through the in-game interface.
+### Drink Macro
 
-### Creating external streams
+*   Smart food/drink usage – prefer mage food, ignore Well Fed, handle Recuperate.
+*   Reminders for mage food, with sound alerts and custom sound options.
+*   Ignore Jewelcrafting gems for Earthen race.
 
-1. Copy <code>Streams/Template.lua</code> to a new file.
-2. Fill in the required provider fields and implement <code>collect</code>.
-3. Register the stream with <code>EnhanceQoL.DataHub.RegisterStream</code> during addon load.
-4. Optionally add filters, actions or settings.
-5. Add the stream to a DataPanel through the DataPanel configuration interface.
+### Sound Control
 
-For more details, see [docs/Streams.md](docs/Streams.md).
+*   Mute categories (class abilities, mounts, etc.).
 
-# Help
-For a full list of configuration checkboxes see [docs/OptionsReference.md](docs/OptionsReference.md).

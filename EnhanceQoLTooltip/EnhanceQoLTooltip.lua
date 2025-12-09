@@ -321,7 +321,12 @@ local function ResolveTooltipUnit(tooltip)
 	if addon.variables.isMidnight then
 		unit = "mouseover"
 	else
-		GetUnitTokenFromTooltip(tooltip)
+		if GetUnitTokenFromTooltip then unit = GetUnitTokenFromTooltip(tooltip) end
+		if not unit and tooltip and tooltip.GetUnit then
+			-- Fallback for older clients: read unit from tooltip directly
+			local _, ttUnit = tooltip:GetUnit()
+			unit = ttUnit
+		end
 	end
 	if unit and UnitExists(unit) then return unit end
 	if UnitExists("mouseover") then return "mouseover" end
@@ -344,6 +349,8 @@ local function checkAdditionalTooltip(tooltip)
 		local classDisplayName, class, classID = UnitClass(unit)
 		if classDisplayName then
 			local r, g, b = GetClassColor(class)
+			local nameLine = _G[tooltip:GetName() .. "TextLeft1"]
+			if nameLine then nameLine:SetTextColor(r, g, b) end
 			for i = 1, tooltip:NumLines() do
 				local line = _G[tooltip:GetName() .. "TextLeft" .. i]
 				local text = line:GetText()

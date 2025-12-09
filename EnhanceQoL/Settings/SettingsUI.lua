@@ -271,6 +271,7 @@ function addon.functions.SettingsCreateText(cat, text, extra) return SettingsLib
 
 function addon.functions.SettingsCreateButton(cat, cbData)
 	local btn = SettingsLib:CreateButton(cat, {
+		label = cbData.label,
 		text = cbData.text,
 		func = cbData.func,
 		desc = cbData.desc,

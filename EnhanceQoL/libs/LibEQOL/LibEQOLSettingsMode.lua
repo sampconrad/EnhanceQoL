@@ -572,26 +572,262 @@ function lib:CreateSoundDropdown(cat, data)
 	return initializer, setting
 end
 
+function lib:CreateCheckboxDropdown(cat, data)
+	assert(cat and data and data.key and data.dropdownKey, "category, data.key, and data.dropdownKey required")
+
+	-- Checkbox setting
+	local cbSetting = registerSetting(
+		cat,
+		data.key,
+		Settings.VarType.Boolean,
+		data.name or data.text or data.cbName or data.cbLabel or data.key,
+		data.default ~= nil and data.default or false,
+		data.get or data.getCheckbox or function()
+			return data.default
+		end,
+		data.set or data.setCheckbox,
+		data
+	)
+
+	-- Dropdown setting
+	local dropdownDefault = data.dropdownDefault
+	local dropdownType = data.dropdownVarType
+	if not dropdownType then
+		local dt = type(dropdownDefault)
+		if dt == "number" then
+			dropdownType = Settings.VarType.Number
+		elseif dt == "boolean" then
+			dropdownType = Settings.VarType.Boolean
+		else
+			dropdownType = Settings.VarType.String
+		end
+	end
+
+	local dropdownData = {
+		prefix = data.dropdownPrefix or data.prefix,
+		variable = data.dropdownVariable,
+	}
+	local dropdownSetting = registerSetting(
+		cat,
+		data.dropdownKey,
+		dropdownType,
+		data.dropdownName or data.dropdownText or data.dropdownLabel or data.dropdownKey,
+		dropdownDefault,
+		data.dropdownGet or data.getDropdown,
+		data.dropdownSet or data.setDropdown,
+		dropdownData
+	)
+
+	-- Build options (invoked when the menu builds)
+	local function dropdownOptions()
+		local container = Settings.CreateControlTextContainer()
+		local list = data.dropdownValues or data.dropdownOptions
+		if data.dropdownOptionfunc then
+			local ok, result = pcall(data.dropdownOptionfunc)
+			if ok and type(result) == "table" then
+				list = result
+			end
+		end
+		if type(list) == "table" then
+			local orderedKeys = type(data.dropdownOrder) == "table" and data.dropdownOrder or nil
+			local seen = nil
+			if orderedKeys then
+				seen = {}
+				for _, key in ipairs(orderedKeys) do
+					if key ~= "_order" and list[key] ~= nil then
+						container:Add(key, list[key])
+						seen[key] = true
+					end
+				end
+			end
+			for key, value in pairs(list) do
+				if key ~= "_order" and (not seen or not seen[key]) then
+					container:Add(key, value)
+				end
+			end
+		end
+		return container:GetData()
+	end
+
+	local initializer = Settings.CreateElementInitializer("SettingsCheckboxDropdownControlTemplate", {
+		name = data.name or data.text or data.cbName or data.cbLabel or data.key,
+		tooltip = data.desc or data.cbDesc or data.tooltip,
+		cbSetting = cbSetting,
+		cbLabel = data.name or data.text or data.cbName or data.cbLabel or data.key,
+		cbTooltip = data.desc or data.cbDesc or data.tooltip,
+		dropdownSetting = dropdownSetting,
+		dropdownOptions = dropdownOptions,
+		dropDownLabel = data.dropdownName or data.dropdownText or data.dropdownLabel or data.dropdownKey,
+		dropDownTooltip = data.dropdownDesc or data.dropdownTooltip,
+	})
+	if data.getSelectionText or data.dropdownSelectionText then
+		local selectionTextFunc = data.getSelectionText or data.dropdownSelectionText
+		initializer.getSelectionTextFunc = function(selectionInfo)
+			local value = selectionInfo
+			if type(selectionInfo) == "table" then
+				value = selectionInfo.value or selectionInfo.text or selectionInfo.label or selectionInfo[1]
+			end
+			if type(value) == "table" then
+				value = value.value or value.text or value.label or value[1]
+			end
+			if value == nil then
+				value = ""
+			end
+			if type(value) ~= "string" and type(value) ~= "number" then
+				value = tostring(value)
+			end
+			return selectionTextFunc(value, selectionInfo)
+		end
+	end
+
+	addSearchTags(initializer, data.searchtags, data.name or data.text)
+	applyParentInitializer(initializer, data.parent, data.parentCheck)
+	applyModifyPredicate(initializer, data)
+	applyExpandablePredicate(initializer, data)
+	Settings.RegisterInitializer(cat, initializer)
+	State.elements[data.key .. "_dropdown"] = initializer
+	maybeAttachNotify(cbSetting, data)
+	maybeAttachNotify(dropdownSetting, data.dropdownNotify and { notify = data.dropdownNotify })
+	return initializer, cbSetting, dropdownSetting
+end
+
+function lib:CreateCheckboxSlider(cat, data)
+	assert(cat and data and data.key and data.sliderKey, "category, data.key, and data.sliderKey required")
+
+	-- Checkbox setting
+	local cbSetting = registerSetting(
+		cat,
+		data.key,
+		Settings.VarType.Boolean,
+		data.name or data.text or data.cbName or data.cbLabel or data.key,
+		data.default ~= nil and data.default or false,
+		data.get or data.getCheckbox or function()
+			return data.default
+		end,
+		data.set or data.setCheckbox,
+		data
+	)
+
+	-- Slider setting
+	local sliderDefault = data.sliderDefault or data.sliderValue or data.sliderMin or data.min or 0
+	local function sliderGetWrapper()
+		local val
+		if data.sliderGet then
+			val = data.sliderGet()
+		elseif data.getSlider then
+			val = data.getSlider()
+		elseif data.get then
+			val = data.get()
+		end
+		if val ~= nil then
+			local num = tonumber(val)
+			if num ~= nil then
+				val = num
+			end
+		end
+		if val == nil then
+			val = sliderDefault
+		end
+		return val
+	end
+	local sliderSetting = registerSetting(
+		cat,
+		data.sliderKey,
+		Settings.VarType.Number,
+		data.sliderName or data.sliderText or data.sliderLabel or data.sliderKey,
+		sliderDefault,
+		sliderGetWrapper,
+		data.sliderSet or data.setSlider or data.set,
+		{
+			prefix = data.sliderPrefix or data.prefix,
+			variable = data.sliderVariable,
+		}
+	)
+
+	local sliderOptions = Settings.CreateSliderOptions(data.sliderMin or data.min or 0, data.sliderMax or data.max or 1, data.sliderStep or data.step or 1)
+	if data.sliderFormatter or data.formatter then
+		sliderOptions:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, data.sliderFormatter or data.formatter)
+	end
+
+	local initializer = Settings.CreateElementInitializer("SettingsCheckboxSliderControlTemplate", {
+		name = data.name or data.text or data.cbName or data.cbLabel or data.key,
+		tooltip = data.desc or data.cbDesc or data.tooltip,
+		cbSetting = cbSetting,
+		cbLabel = data.name or data.text or data.cbName or data.cbLabel or data.key,
+		cbTooltip = data.desc or data.cbDesc or data.tooltip,
+		sliderSetting = sliderSetting,
+		sliderOptions = sliderOptions,
+		sliderLabel = data.sliderName or data.sliderText or data.sliderLabel or data.sliderKey,
+		sliderTooltip = data.sliderDesc or data.sliderTooltip,
+		newTagID = data.newTagID,
+	})
+
+	addSearchTags(initializer, data.searchtags, data.name or data.text)
+	applyParentInitializer(initializer, data.parent, data.parentCheck)
+	applyModifyPredicate(initializer, data)
+	applyExpandablePredicate(initializer, data)
+	Settings.RegisterInitializer(cat, initializer)
+	State.elements[data.key .. "_slider"] = initializer
+	maybeAttachNotify(cbSetting, data)
+	maybeAttachNotify(sliderSetting, data.sliderNotify and { notify = data.sliderNotify })
+	return initializer, cbSetting, sliderSetting
+end
+
+function lib:CreateCheckboxButton(cat, data)
+	assert(cat and data and data.key and (data.buttonClick or data.click), "category, data.key, and data.buttonClick/click required")
+	local setting = registerSetting(
+		cat,
+		data.key,
+		Settings.VarType.Boolean,
+		data.name or data.text or data.cbName or data.cbLabel or data.key,
+		data.default ~= nil and data.default or false,
+		data.get or data.getCheckbox or function()
+			return data.default
+		end,
+		data.set or data.setCheckbox,
+		data
+	)
+
+	local initializer = Settings.CreateElementInitializer("SettingsCheckboxWithButtonControlTemplate", {
+		buttonText = data.buttonText or data.buttonLabel or data.button or data.text or data.name,
+		OnButtonClick = data.buttonClick or data.click,
+		clickRequiresSet = data.clickRequiresSet or data.buttonRequiresChecked or data.buttonRequiresSet,
+	})
+	initializer:SetSetting(setting)
+
+	addSearchTags(initializer, data.searchtags, data.name or data.text)
+	applyParentInitializer(initializer, data.parent, data.parentCheck)
+	applyModifyPredicate(initializer, data)
+	applyExpandablePredicate(initializer, data)
+	Settings.RegisterInitializer(cat, initializer)
+	State.elements[data.key .. "_button"] = initializer
+	maybeAttachNotify(setting, data)
+	return initializer, setting
+end
+
 function lib:CreateColorOverrides(cat, data)
 	assert(cat and data and data.entries, "category and entries required")
 	local initializer = Settings.CreateElementInitializer("LibEQOL@project-abbreviated-hash@_ColorOverridesPanelNoHead", {
 		categoryID = cat:GetID(),
 		entries = data.entries,
 		getColor = data.getColor,
+		getColorMixin = data.getColorMixin,
 		setColor = data.setColor,
+		setColorMixin = data.setColorMixin,
 		getDefaultColor = data.getDefaultColor,
+		getDefaultColorMixin = data.getDefaultColorMixin,
 		parentCheck = data.parentCheck,
 		colorizeLabel = data.colorizeLabel or data.colorizeText,
 		hasOpacity = data.hasOpacity or data.hasAlpha,
 	})
-	function initializer:GetExtent()
+	initializer.GetExtent = function(_)
 		if data.height then
 			return data.height
 		end
 		local count = #(data.entries or {})
 		local rowHeight = data.rowHeight or 20
 		local spacing = data.spacing or 10 -- template default
-		local padding = data.basePadding or 16
+		local padding = data.basePadding or 5
 		local height = padding * 2
 		if count > 0 then
 			height = height + (count * rowHeight) + math.max(0, count - 1) * spacing
@@ -648,11 +884,14 @@ function lib:CreateMultiDropdown(cat, data)
 		defaultSelection = defaultSelection,
 		categoryID = cat and cat.GetID and cat:GetID(),
 		hideSummary = data.hideSummary,
+		customText = data.customText,
+		customDefaultText = data.customDefaultText,
 		isSelectedFunc = data.isSelected,
 		setSelectedFunc = data.setSelected,
 		getSelection = data.getSelection or data.get,
 		setSelection = data.setSelection or data.set,
 		summaryFunc = data.summary,
+		callback = data.callback,
 	})
 	initializer:SetSetting(setting)
 	addSearchTags(initializer, data.searchtags, data.name or data.text)
@@ -792,8 +1031,9 @@ end
 
 function lib:CreateButton(cat, data)
 	assert(cat and data and data.text, "category and data.text required")
+	local label = data.label or data.name or data.textLabel or ""
 	local btn =
-		CreateSettingsButtonInitializer("", data.text, data.click or data.func, data.desc, data.searchtags or false)
+		CreateSettingsButtonInitializer(label, data.text, data.click or data.func, data.desc, data.searchtags or false)
 	SettingsPanel:GetLayout(cat):AddInitializer(btn)
 	applyParentInitializer(btn, data.parent, data.parentCheck)
 	applyModifyPredicate(btn, data)

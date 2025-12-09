@@ -376,6 +376,18 @@ local function buildUnitSettings(unit)
 
 	list[#list + 1] = { name = L["Frame"] or "Frame", kind = settingType.Collapsible, id = "frame", defaultCollapsed = false }
 
+	
+		list[#list + 1] = checkbox(
+			L["UFShowTooltip"] or "Show unit tooltip",
+			function() return getValue(unit, { "showTooltip" }, def.showTooltip or false) == true end,
+			function(val)
+				setValue(unit, { "showTooltip" }, val and true or false)
+				refreshSelf()
+			end,
+			def.showTooltip or false,
+			"frame"
+		)
+
 	list[#list + 1] = slider(L["UFWidth"] or "Frame width", MIN_WIDTH, 800, 1, function() return getValue(unit, { "width" }, def.width or MIN_WIDTH) end, function(val)
 		setValue(unit, { "width" }, math.max(MIN_WIDTH, val or MIN_WIDTH))
 		refreshSelf()

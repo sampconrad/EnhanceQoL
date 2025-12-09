@@ -178,6 +178,7 @@ end
 local defaults = {
 	player = {
 		enabled = false,
+		showTooltip = false,
 		width = 220,
 		healthHeight = 24,
 		powerHeight = 16,
@@ -242,6 +243,7 @@ local defaults = {
 	},
 	target = {
 		enabled = false,
+		showTooltip = false,
 		auraIcons = {
 			size = 24,
 			padding = 2,
@@ -277,6 +279,7 @@ local defaults = {
 	},
 	targettarget = {
 		enabled = false,
+		showTooltip = false,
 		width = 180,
 		healthHeight = 20,
 		powerHeight = 12,
@@ -1825,6 +1828,19 @@ local function ensureFrames(unit)
 	st.frame:SetAttribute("unit", info.unit)
 	st.frame:SetAttribute("type1", "target")
 	st.frame:SetAttribute("type2", "togglemenu")
+	st.frame:HookScript("OnEnter", function(self)
+		local cfg = ensureDB(unit)
+		if not (cfg and cfg.showTooltip) then return end
+		if not GameTooltip or GameTooltip:IsForbidden() then return end
+		if info and info.unit then
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetUnit(info.unit)
+			GameTooltip:Show()
+		end
+	end)
+	st.frame:HookScript("OnLeave", function()
+		if GameTooltip and not GameTooltip:IsForbidden() then GameTooltip:Hide() end
+	end)
 	st.frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	st.frame:Hide()
 	hideSettingsReset(st.frame)
