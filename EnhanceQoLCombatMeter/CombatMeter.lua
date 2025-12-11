@@ -18,8 +18,13 @@ local barTextureOrder = {}
 -- TODO remove Combat Meter settings when WoW Midnight launches
 if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 	local cCM = addon.SettingsLayout.characterInspectCategory
-	addon.functions.SettingsCreateHeadline(cCM, L["Combat Meter"])
-	if L["combatMeterMidnightWarning"] then addon.functions.SettingsCreateText(cCM, L["combatMeterMidnightWarning"]) end
+	local sectionCM = addon.functions.SettingsCreateExpandableSection(cCM, {
+		name = L["Combat Meter"],
+		expanded = true,
+		colorizeTitle = false,
+	})
+
+	if L["combatMeterMidnightWarning"] then addon.functions.SettingsCreateText(cCM, L["combatMeterMidnightWarning"], { parentSection = sectionCM }) end
 
 	local cmEnable = addon.functions.SettingsCreateCheckbox(cCM, {
 		var = "combatMeterEnabled",
@@ -28,6 +33,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 			addon.db["combatMeterEnabled"] = v
 			if addon.CombatMeter and addon.CombatMeter.functions and addon.CombatMeter.functions.toggle then addon.CombatMeter.functions.toggle(v) end
 		end,
+		parentSection = sectionCM,
 	})
 	local function cmEnabled() return cmEnable and cmEnable.setting and cmEnable.setting:GetValue() == true end
 
@@ -45,6 +51,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		parent = true,
 		element = cmEnable.element,
 		parentCheck = cmEnabled,
+		parentSection = sectionCM,
 	})
 
 	addon.functions.SettingsCreateCheckbox(cCM, {
@@ -63,6 +70,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		parent = true,
 		element = cmEnable.element,
 		parentCheck = cmEnabled,
+		parentSection = sectionCM,
 	})
 
 	addon.functions.SettingsCreateSlider(cCM, {
@@ -80,6 +88,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		parent = true,
 		element = cmEnable.element,
 		parentCheck = cmEnabled,
+		parentSection = sectionCM,
 	})
 
 	addon.functions.SettingsCreateSlider(cCM, {
@@ -97,6 +106,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		parent = true,
 		element = cmEnable.element,
 		parentCheck = cmEnabled,
+		parentSection = sectionCM,
 	})
 
 	addon.functions.SettingsCreateSlider(cCM, {
@@ -114,6 +124,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		parent = true,
 		element = cmEnable.element,
 		parentCheck = cmEnabled,
+		parentSection = sectionCM,
 	})
 
 	local prePull = addon.functions.SettingsCreateCheckbox(cCM, {
@@ -123,10 +134,9 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		parent = true,
 		element = cmEnable.element,
 		parentCheck = cmEnabled,
+		parentSection = sectionCM,
 	})
-	local function prePullEnabled()
-		return prePull and prePull.setting and prePull.setting:GetValue() == true and cmEnabled()
-	end
+	local function prePullEnabled() return prePull and prePull.setting and prePull.setting:GetValue() == true and cmEnabled() end
 
 	addon.functions.SettingsCreateSlider(cCM, {
 		var = "combatMeterPrePullWindow",
@@ -140,6 +150,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		parent = true,
 		element = prePull.element,
 		parentCheck = prePullEnabled,
+		parentSection = sectionCM,
 	})
 
 	local function buildBarTextureOptions()
@@ -180,6 +191,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		parent = true,
 		element = cmEnable.element,
 		parentCheck = cmEnabled,
+		parentSection = sectionCM,
 	})
 
 	local overlayTextures = {
@@ -217,10 +229,9 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		parent = true,
 		element = cmEnable.element,
 		parentCheck = cmEnabled,
+		parentSection = sectionCM,
 	})
-	local function overlayEnabled()
-		return overlayEnable and overlayEnable.setting and overlayEnable.setting:GetValue() == true and cmEnabled()
-	end
+	local function overlayEnabled() return overlayEnable and overlayEnable.setting and overlayEnable.setting:GetValue() == true and cmEnabled() end
 
 	addon.functions.SettingsCreateDropdown(cCM, {
 		var = "combatMeterOverlayTexture",
@@ -241,6 +252,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		element = overlayEnable.element,
 		parentCheck = overlayEnabled,
 		listOrder = overlayOrder,
+		parentSection = sectionCM,
 	})
 
 	addon.functions.SettingsCreateDropdown(cCM, {
@@ -257,6 +269,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		element = overlayEnable.element,
 		parentCheck = overlayEnabled,
 		listOrder = blendOrder,
+		parentSection = sectionCM,
 	})
 
 	addon.functions.SettingsCreateSlider(cCM, {
@@ -274,6 +287,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		parent = true,
 		element = overlayEnable.element,
 		parentCheck = overlayEnabled,
+		parentSection = sectionCM,
 	})
 
 	addon.functions.SettingsCreateCheckbox(cCM, {
@@ -286,6 +300,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		parent = true,
 		element = cmEnable.element,
 		parentCheck = cmEnabled,
+		parentSection = sectionCM,
 	})
 
 	local metricNames = {
@@ -331,6 +346,7 @@ if addon.SettingsLayout and addon.SettingsLayout.characterInspectCategory then
 		element = cmEnable.element,
 		parentCheck = cmEnabled,
 		listOrder = metricOrder,
+		parentSection = sectionCM,
 	})
 end
 

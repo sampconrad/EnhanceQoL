@@ -14,6 +14,15 @@ local wipe = wipe
 local cTeleports = addon.functions.SettingsCreateCategory(nil, L["Teleports"], nil, "Teleports")
 addon.SettingsLayout.teleportsCategory = cTeleports
 
+local sectionPotion = nil
+if addon.SettingsLayout.characterInspectCategory then
+	sectionPotion = addon.functions.SettingsCreateExpandableSection(addon.SettingsLayout.characterInspectCategory, {
+		name = L["Potion Tracker"],
+		expanded = true,
+		colorizeTitle = false,
+	})
+end
+
 local data = {
 	{
 		var = "teleportFrame",
@@ -60,8 +69,7 @@ addon.functions.SettingsCreateCheckboxes(cTeleports, data)
 -- Potion Tracker (Combat & Dungeon)
 local cPotion = addon.SettingsLayout.characterInspectCategory
 if cPotion then
-	addon.functions.SettingsCreateHeadline(cPotion, L["Potion Tracker"])
-	if L["potionTrackerMidnightWarning"] then addon.functions.SettingsCreateText(cPotion, L["potionTrackerMidnightWarning"]) end
+	if L["potionTrackerMidnightWarning"] then addon.functions.SettingsCreateText(cPotion, L["potionTrackerMidnightWarning"], { parentSection = sectionPotion }) end
 
 	local potionEnable = addon.functions.SettingsCreateCheckbox(cPotion, {
 		var = "potionTracker",
@@ -76,6 +84,7 @@ if cPotion then
 				if addon.MythicPlus and addon.MythicPlus.anchorFrame and addon.MythicPlus.anchorFrame.Hide then addon.MythicPlus.anchorFrame:Hide() end
 			end
 		end,
+		parentSection = sectionPotion,
 	})
 
 	local function isPotionEnabled() return potionEnable and potionEnable.setting and potionEnable.setting:GetValue() == true end
@@ -88,11 +97,13 @@ if cPotion then
 				addon.db["potionTrackerUpwardsBar"] = v
 				if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.updateBars then addon.MythicPlus.functions.updateBars() end
 			end,
+			parentSection = sectionPotion,
 		},
 		{
 			var = "potionTrackerClassColor",
 			text = L["potionTrackerClassColor"],
 			func = function(v) addon.db["potionTrackerClassColor"] = v end,
+			parentSection = sectionPotion,
 		},
 		{
 			var = "potionTrackerDisableRaid",
@@ -103,21 +114,25 @@ if cPotion then
 					addon.MythicPlus.functions.resetCooldownBars()
 				end
 			end,
+			parentSection = sectionPotion,
 		},
 		{
 			var = "potionTrackerShowTooltip",
 			text = L["potionTrackerShowTooltip"],
 			func = function(v) addon.db["potionTrackerShowTooltip"] = v end,
+			parentSection = sectionPotion,
 		},
 		{
 			var = "potionTrackerHealingPotions",
 			text = L["potionTrackerHealingPotions"],
 			func = function(v) addon.db["potionTrackerHealingPotions"] = v end,
+			parentSection = sectionPotion,
 		},
 		{
 			var = "potionTrackerOffhealing",
 			text = L["potionTrackerOffhealing"],
 			func = function(v) addon.db["potionTrackerOffhealing"] = v end,
+			parentSection = sectionPotion,
 		},
 	}
 
@@ -172,6 +187,7 @@ if cPotion then
 		parent = true,
 		element = potionEnable.element,
 		parentCheck = isPotionEnabled,
+		parentSection = sectionPotion,
 	})
 
 	addon.functions.SettingsCreateButton(cPotion, {
@@ -189,13 +205,18 @@ if cPotion then
 		parent = true,
 		element = potionEnable.element,
 		parentCheck = isPotionEnabled,
+		parentSection = sectionPotion,
 	})
 end
 
 -- Mythic+ & Raid (Combat & Dungeon)
 local cMythic = addon.SettingsLayout.characterInspectCategory
 if cMythic then
-	addon.functions.SettingsCreateHeadline(cMythic, PLAYER_DIFFICULTY_MYTHIC_PLUS .. " & " .. RAID)
+	local sectionMythic = addon.functions.SettingsCreateExpandableSection(cMythic, {
+		name = PLAYER_DIFFICULTY_MYTHIC_PLUS .. " & " .. RAID,
+		expanded = true,
+		colorizeTitle = false,
+	})
 
 	-- Keystone Helper
 	local keystoneEnable = addon.functions.SettingsCreateCheckbox(cMythic, {
@@ -206,13 +227,14 @@ if cMythic then
 			addon.db["enableKeystoneHelper"] = v
 			if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.toggleFrame then addon.MythicPlus.functions.toggleFrame() end
 		end,
+		parentSection = sectionMythic,
 	})
 	local function isKeystoneEnabled() return keystoneEnable and keystoneEnable.setting and keystoneEnable.setting:GetValue() == true end
 
 	local keystoneChildren = {
-		{ var = "autoInsertKeystone", text = L["Automatically insert keystone"], func = function(v) addon.db["autoInsertKeystone"] = v end },
-		{ var = "closeBagsOnKeyInsert", text = L["Close all bags on keystone insert"], func = function(v) addon.db["closeBagsOnKeyInsert"] = v end },
-		{ var = "autoKeyStart", text = L["autoKeyStart"], func = function(v) addon.db["autoKeyStart"] = v end },
+		{ var = "autoInsertKeystone", text = L["Automatically insert keystone"], func = function(v) addon.db["autoInsertKeystone"] = v end, parentSection = sectionMythic },
+		{ var = "closeBagsOnKeyInsert", text = L["Close all bags on keystone insert"], func = function(v) addon.db["closeBagsOnKeyInsert"] = v end, parentSection = sectionMythic },
+		{ var = "autoKeyStart", text = L["autoKeyStart"], func = function(v) addon.db["autoKeyStart"] = v end, parentSection = sectionMythic },
 		{
 			var = "groupfinderShowPartyKeystone",
 			text = L["groupfinderShowPartyKeystone"],
@@ -221,12 +243,14 @@ if cMythic then
 				addon.db["groupfinderShowPartyKeystone"] = v
 				if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.togglePartyKeystone then addon.MythicPlus.functions.togglePartyKeystone() end
 			end,
+			parentSection = sectionMythic,
 		},
 		{
 			var = "mythicPlusShowChestTimers",
 			text = L["mythicPlusShowChestTimers"],
 			desc = L["mythicPlusShowChestTimersDesc"],
 			func = function(v) addon.db["mythicPlusShowChestTimers"] = v end,
+			parentSection = sectionMythic,
 		},
 	}
 	for _, entry in ipairs(keystoneChildren) do
@@ -254,6 +278,7 @@ if cMythic then
 		parent = true,
 		element = keystoneEnable.element,
 		parentCheck = isKeystoneEnabled,
+		parentSection = sectionMythic,
 	})
 
 	addon.functions.SettingsCreateCheckbox(cMythic, {
@@ -263,6 +288,7 @@ if cMythic then
 		parent = true,
 		element = keystoneEnable.element,
 		parentCheck = isKeystoneEnabled,
+		parentSection = sectionMythic,
 	})
 
 	addon.functions.SettingsCreateSlider(cMythic, {
@@ -277,6 +303,7 @@ if cMythic then
 		parent = true,
 		element = keystoneEnable.element,
 		parentCheck = isKeystoneEnabled,
+		parentSection = sectionMythic,
 	})
 
 	addon.functions.SettingsCreateSlider(cMythic, {
@@ -291,6 +318,7 @@ if cMythic then
 		parent = true,
 		element = keystoneEnable.element,
 		parentCheck = isKeystoneEnabled,
+		parentSection = sectionMythic,
 	})
 
 	-- Objective Tracker
@@ -302,6 +330,7 @@ if cMythic then
 			addon.db["mythicPlusEnableObjectiveTracker"] = v
 			if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.setObjectiveFrames then addon.MythicPlus.functions.setObjectiveFrames() end
 		end,
+		parentSection = sectionMythic,
 	})
 	local function isObjectiveEnabled() return objEnable and objEnable.setting and objEnable.setting:GetValue() == true end
 
@@ -321,6 +350,7 @@ if cMythic then
 		parent = true,
 		element = objEnable.element,
 		parentCheck = isObjectiveEnabled,
+		parentSection = sectionMythic,
 	})
 
 	-- Dungeon Score next to Group Finder
@@ -331,6 +361,7 @@ if cMythic then
 			addon.db["groupfinderShowDungeonScoreFrame"] = v
 			if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.toggleFrame then addon.MythicPlus.functions.toggleFrame() end
 		end,
+		parentSection = sectionMythic,
 	})
 
 	-- BR Tracker
@@ -346,12 +377,17 @@ if cMythic then
 				addon.MythicPlus.functions.setObjectiveFrames()
 			end
 		end,
+		parentSection = sectionMythic,
 	})
 
 	-- Talent Reminder (own group)
 	local cTalent = addon.functions.SettingsCreateCategory(nil, L["TalentReminder"], nil, "TalentReminder")
 	if cTalent then
-		addon.functions.SettingsCreateHeadline(cTalent, L["TalentReminder"])
+		local sectionTalent = addon.functions.SettingsCreateExpandableSection(cTalent, {
+			name = L["TalentReminder"],
+			expanded = true,
+			colorizeTitle = false,
+		})
 
 		addon.MythicPlus.functions.getAllLoadouts()
 		if #addon.MythicPlus.variables.seasonMapInfo == 0 then addon.MythicPlus.functions.createSeasonInfo() end
@@ -406,6 +442,7 @@ if cMythic then
 				addon.MythicPlus.functions.checkLoadout()
 				addon.MythicPlus.functions.updateActiveTalentText()
 			end,
+			parentSection = sectionTalent,
 		})
 		local function isTalentReminderEnabled() return talentEnable and talentEnable.setting and talentEnable.setting:GetValue() == true end
 
@@ -419,6 +456,7 @@ if cMythic then
 			parent = true,
 			element = talentEnable.element,
 			parentCheck = isTalentReminderEnabled,
+			parentSection = sectionTalent,
 		})
 
 		local soundDifference = addon.functions.SettingsCreateCheckbox(cTalent, {
@@ -431,6 +469,7 @@ if cMythic then
 			parent = true,
 			element = talentEnable.element,
 			parentCheck = isTalentReminderEnabled,
+			parentSection = sectionTalent,
 		})
 		local function isSoundReminderEnabled() return soundDifference and soundDifference.setting and soundDifference.setting:GetValue() == true end
 
@@ -448,6 +487,7 @@ if cMythic then
 					and addon.SettingsLayout.elements["talentReminderSoundOnDifference"].setting
 					and addon.SettingsLayout.elements["talentReminderSoundOnDifference"].setting:GetValue() == true
 			end,
+			parentSection = sectionTalent,
 		})
 
 		addon.functions.SettingsCreateSoundDropdown(cTalent, {
@@ -468,6 +508,7 @@ if cMythic then
 			parent = true,
 			element = customSound.element,
 			parentCheck = function() return isTalentReminderEnabled() and isSoundReminderEnabled() and addon.db["talentReminderUseCustomSound"] == true end,
+			parentSection = sectionTalent,
 		})
 
 		local showActiveBuild = addon.functions.SettingsCreateCheckbox(cTalent, {
@@ -480,16 +521,17 @@ if cMythic then
 			parent = true,
 			element = talentEnable.element,
 			parentCheck = isTalentReminderEnabled,
+			parentSection = sectionTalent,
 		})
 
 		addon.functions.SettingsAttachNotify(talentEnable.setting, "talentReminderSoundOnDifference")
 		addon.functions.SettingsAttachNotify(talentEnable.setting, "talentReminderUseCustomSound")
 		addon.functions.SettingsAttachNotify(soundDifference.setting, "talentReminderUseCustomSound")
 
-		addon.functions.SettingsCreateText(cTalent, "|cff99e599" .. L["talentReminderHint"]:format(CRF_EDIT_MODE) .. "|r")
+		addon.functions.SettingsCreateText(cTalent, "|cff99e599" .. L["talentReminderHint"]:format(CRF_EDIT_MODE) .. "|r", { parentSection = sectionTalent })
 
 		if TalentLoadoutEx then
-			addon.functions.SettingsCreateText(cTalent, "|cffffd700" .. L["labelExplainedlineTLE"] .. "|r")
+			addon.functions.SettingsCreateText(cTalent, "|cffffd700" .. L["labelExplainedlineTLE"] .. "|r", { parentSection = sectionTalent })
 			addon.functions.SettingsCreateButton(cTalent, {
 				var = "talentReminderReloadLoadouts",
 				text = L["ReloadLoadouts"],
@@ -500,6 +542,7 @@ if cMythic then
 				parent = true,
 				element = talentEnable.element,
 				parentCheck = isTalentReminderEnabled,
+				parentSection = sectionTalent,
 			})
 		end
 
@@ -562,6 +605,7 @@ if cMythic then
 				end
 			end
 		end,
+		parentSection = sectionMythic,
 	})
 	local function isFilterEnabled() return filterEnable and filterEnable.setting and filterEnable.setting:GetValue() == true end
 
@@ -572,6 +616,7 @@ if cMythic then
 		parent = true,
 		element = filterEnable.element,
 		parentCheck = isFilterEnabled,
+		parentSection = sectionMythic,
 	})
 end
 
@@ -579,14 +624,21 @@ end
 if addon.SettingsLayout.characterInspectCategory and not addon.variables.isMidnight then
 	-- TODO remove in midnight
 	local cAuto = addon.SettingsLayout.characterInspectCategory
-	addon.functions.SettingsCreateHeadline(cAuto, L["AutoMark"])
-	if L["autoMarkMidnightWarning"] then addon.functions.SettingsCreateText(cAuto, L["autoMarkMidnightWarning"]) end
-	if L["autoMarkTankExplanation"] then addon.functions.SettingsCreateText(cAuto, "|cffffd700" .. L["autoMarkTankExplanation"]:format(TANK, COMMUNITY_MEMBER_ROLE_NAME_LEADER, TANK) .. "|r") end
+	local sectionAuto = addon.functions.SettingsCreateExpandableSection(cAuto, {
+		name = L["AutoMark"],
+		expanded = true,
+		colorizeTitle = false,
+	})
+	if L["autoMarkMidnightWarning"] then addon.functions.SettingsCreateText(cAuto, L["autoMarkMidnightWarning"], { parentSection = sectionAuto }) end
+	if L["autoMarkTankExplanation"] then
+		addon.functions.SettingsCreateText(cAuto, "|cffffd700" .. L["autoMarkTankExplanation"]:format(TANK, COMMUNITY_MEMBER_ROLE_NAME_LEADER, TANK) .. "|r", { parentSection = sectionAuto })
+	end
 
 	local autoMarkTank = addon.functions.SettingsCreateCheckbox(cAuto, {
 		var = "autoMarkTankInDungeon",
 		text = L["autoMarkTankInDungeon"]:format(TANK),
 		func = function(v) addon.db["autoMarkTankInDungeon"] = v end,
+		parentSection = sectionAuto,
 	})
 	local function isTankEnabled() return autoMarkTank and autoMarkTank.setting and autoMarkTank.setting:GetValue() == true end
 
@@ -620,6 +672,7 @@ if addon.SettingsLayout.characterInspectCategory and not addon.variables.isMidni
 		parent = true,
 		element = autoMarkTank.element,
 		parentCheck = isTankEnabled,
+		parentSection = sectionAuto,
 	})
 
 	local autoMarkHealer = addon.functions.SettingsCreateCheckbox(cAuto, {
@@ -627,6 +680,7 @@ if addon.SettingsLayout.characterInspectCategory and not addon.variables.isMidni
 		text = L["autoMarkHealerInDungeon"]:format(HEALER),
 		func = function(v) addon.db["autoMarkHealerInDungeon"] = v end,
 		notify = "autoMarkTankInDungeon",
+		parentSection = sectionAuto,
 	})
 	local function isHealerEnabled() return autoMarkHealer and autoMarkHealer.setting and autoMarkHealer.setting:GetValue() == true end
 
@@ -648,12 +702,14 @@ if addon.SettingsLayout.characterInspectCategory and not addon.variables.isMidni
 		parent = true,
 		element = autoMarkHealer.element,
 		parentCheck = isHealerEnabled,
+		parentSection = sectionAuto,
 	})
 
 	addon.functions.SettingsCreateCheckbox(cAuto, {
 		var = "mythicPlusNoHealerMark",
 		text = L["mythicPlusNoHealerMark"],
 		func = function(v) addon.db["mythicPlusNoHealerMark"] = v end,
+		parentSection = sectionAuto,
 	})
 
 	local excludeOptions = {
@@ -692,6 +748,7 @@ if addon.SettingsLayout.characterInspectCategory and not addon.variables.isMidni
 					and addon.SettingsLayout.elements["autoMarkTankInDungeon"].setting:GetValue() == true
 		end,
 		element = addon.SettingsLayout.elements["autoMarkTankInDungeon"].element,
+		parentSection = sectionAuto,
 	})
 end
 

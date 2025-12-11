@@ -205,6 +205,8 @@ L["confirmReplaceEnchant"] = "Automatically accept Enchant Replacement"
 L["confirmReplaceEnchantDesc"] = "Skips the confirmation dialog when replacing an enchant"
 L["confirmSocketReplace"] = "Automatically accept Socket replacement"
 L["confirmSocketReplaceDesc"] = "Skips the confirmation dialog when replacing sockets"
+L["confirmPurchaseTokenItem"] = "Automatically confirm purchasing token items"
+L["confirmPurchaseTokenItemDesc"] = "Skips the confirmation dialog when buying token-style items that prompt for confirmation"
 L["confirmHighCostItem"] = "Automatically confirm purchasing high-value items"
 L["confirmHighCostItemDesc"] = "Skips the confirmation dialog when buying expensive items from a vendor"
 

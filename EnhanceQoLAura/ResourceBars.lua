@@ -349,8 +349,6 @@ end
 
 local function mainTemplateMatches(store, barType)
 	if not store or not store.MAIN then return nil end
-	local tag = store._MAIN_TYPE or (store.MAIN and store.MAIN._rbType)
-	if tag and tag ~= barType then return nil end
 	return store.MAIN
 end
 
@@ -502,6 +500,28 @@ local function notifyUser(msg)
 	print("|cff00ff98Enhance QoL|r: " .. tostring(msg))
 end
 
+local function autoEnableSelection()
+	addon.db.resourceBarsAutoEnable = addon.db.resourceBarsAutoEnable or {}
+	-- Migrate legacy boolean flag to the new map-based selection
+	if addon.db.resourceBarsAutoEnableAll ~= nil then
+		if addon.db.resourceBarsAutoEnableAll == true and not next(addon.db.resourceBarsAutoEnable) then
+			addon.db.resourceBarsAutoEnable.HEALTH = true
+			addon.db.resourceBarsAutoEnable.MAIN = true
+			addon.db.resourceBarsAutoEnable.SECONDARY = true
+		end
+		addon.db.resourceBarsAutoEnableAll = nil
+	end
+	return addon.db.resourceBarsAutoEnable
+end
+
+local function shouldAutoEnableBar(pType, specInfo, selection)
+	if not selection then return false end
+	if pType == "HEALTH" then return selection.HEALTH == true end
+	if specInfo and specInfo.MAIN == pType then return selection.MAIN == true end
+	if specInfo and pType ~= specInfo.MAIN and pType ~= "HEALTH" then return specInfo[pType] == true and selection.SECONDARY == true end
+	return false
+end
+
 ensureSpecCfg = function(specIndex)
 	local class = addon.variables.unitClass
 	local spec = specIndex or addon.variables.unitSpec
@@ -513,20 +533,28 @@ ensureSpecCfg = function(specIndex)
 
 	-- Auto-populate from global when enabled and spec has no explicit enables yet
 	local function maybeAutoEnableRuntime()
-		if not addon.db.resourceBarsAutoEnableAll then return end
 		local specInfo = powertypeClasses[class] and powertypeClasses[class][spec]
 		if not specInfo then return end
+		local selection = autoEnableSelection()
+		if not selection or not (selection.HEALTH or selection.MAIN or selection.SECONDARY) then return end
 		if specCfg._autoEnabledRuntime or specCfg._autoEnableInProgress then return end
 		for _, cfg in pairs(specCfg) do
 			if type(cfg) == "table" and cfg.enabled ~= nil then return end
 		end
 		specCfg._autoEnableInProgress = true
 
-		local bars = { "HEALTH" }
+		local bars = {}
 		local mainType = specInfo.MAIN
-		if mainType then bars[#bars + 1] = mainType end
-		for _, pType in ipairs(classPowerTypes or {}) do
-			if specInfo[pType] and pType ~= mainType then bars[#bars + 1] = pType end
+		if selection.HEALTH then bars[#bars + 1] = "HEALTH" end
+		if selection.MAIN and mainType then bars[#bars + 1] = mainType end
+		if selection.SECONDARY then
+			for _, pType in ipairs(classPowerTypes or {}) do
+				if specInfo[pType] and pType ~= mainType and pType ~= "HEALTH" then bars[#bars + 1] = pType end
+			end
+		end
+		if #bars == 0 then
+			specCfg._autoEnableInProgress = nil
+			return
 		end
 
 		local function frameNameFor(typeId)
@@ -534,45 +562,55 @@ ensureSpecCfg = function(specIndex)
 			return "EQOL" .. tostring(typeId) .. "Bar"
 		end
 
-		local prevFrame = frameNameFor("HEALTH")
+		local prevFrame = selection.HEALTH and frameNameFor("HEALTH") or nil
 		local mainFrame = frameNameFor(mainType or "HEALTH")
 		local applied = 0
 		for _, pType in ipairs(bars) do
-			specCfg[pType] = specCfg[pType] or {}
-			local ok = false
-			if ResourceBars.ApplyGlobalProfile then ok = ResourceBars.ApplyGlobalProfile(pType, specIndex or spec, false) end
-			if ok then
-				applied = applied + 1
-				specCfg[pType].enabled = true
-				if pType == mainType and pType ~= "HEALTH" then
-					local a = specCfg[pType].anchor or {}
-					a.point = "TOP"
-					a.relativePoint = "BOTTOM"
-					a.relativeFrame = frameNameFor("HEALTH")
-					a.x = 0
-					a.y = -2
-					a.autoSpacing = nil
-					a.matchRelativeWidth = true
-					specCfg[pType].anchor = a
-					prevFrame = frameNameFor(pType)
-				elseif pType ~= "HEALTH" then
-					local a = specCfg[pType].anchor or {}
-					a.point = "TOP"
-					a.relativePoint = "BOTTOM"
-					local targetFrame
-					if class == "DRUID" then
-						if pType == "COMBO_POINTS" then targetFrame = frameNameFor("ENERGY") end
-						if not targetFrame or targetFrame == "" then targetFrame = mainFrame end
+			if shouldAutoEnableBar(pType, specInfo, selection) then
+				specCfg[pType] = specCfg[pType] or {}
+				local ok = false
+				if ResourceBars.ApplyGlobalProfile then ok = ResourceBars.ApplyGlobalProfile(pType, specIndex or spec, false) end
+				if ok then
+					applied = applied + 1
+					specCfg[pType].enabled = true
+					if pType == mainType and pType ~= "HEALTH" then
+						local a = specCfg[pType].anchor or {}
+						a.point = a.point or "CENTER"
+						a.relativePoint = a.relativePoint or "CENTER"
+						local targetFrame = a.relativeFrame or frameNameFor("HEALTH")
+						if not selection.HEALTH and targetFrame == frameNameFor("HEALTH") then targetFrame = nil end
+						a.relativeFrame = targetFrame
+						a.x = a.x or 0
+						a.y = a.y or -2
+						a.autoSpacing = a.autoSpacing or nil
+						a.matchRelativeWidth = a.matchRelativeWidth or true
+						specCfg[pType].anchor = a
+						prevFrame = frameNameFor(pType)
+					elseif pType ~= "HEALTH" then
+						local a = specCfg[pType].anchor or {}
+						a.point = a.point or "CENTER"
+						a.relativePoint = a.relativePoint or "CENTER"
+						local targetFrame = a.relativeFrame or frameNameFor("HEALTH")
+						if class == "DRUID" then
+							if pType == "COMBO_POINTS" then
+								targetFrame = frameNameFor("ENERGY")
+							else
+								targetFrame = prevFrame
+							end
+							if not targetFrame or targetFrame == "" then targetFrame = prevFrame or (selection.MAIN and mainFrame or nil) end
+						else
+							targetFrame = prevFrame
+						end
+						a.relativeFrame = targetFrame
+						a.x = a.x or 0
+						a.y = a.y or -2
+						a.autoSpacing = a.autoSpacing or nil
+						a.matchRelativeWidth = a.matchRelativeWidth or true
+						specCfg[pType].anchor = a
+						if class ~= "DRUID" then prevFrame = frameNameFor(pType) end
 					else
-						targetFrame = prevFrame
+						prevFrame = frameNameFor(pType)
 					end
-					a.relativeFrame = targetFrame
-					a.x = 0
-					a.y = -2
-					a.autoSpacing = nil
-					a.matchRelativeWidth = true
-					specCfg[pType].anchor = a
-					if class ~= "DRUID" then prevFrame = frameNameFor(pType) end
 				end
 			end
 		end
@@ -1183,6 +1221,33 @@ local function applyBarFillColor(bar, cfg, pType)
 	configureSpecialTexture(bar, pType, cfg)
 end
 
+local DK_SPEC_COLOR = {
+	[1] = { 0.8, 0.1, 0.1 },
+	[2] = { 0.2, 0.6, 1.0 },
+	[3] = { 0.0, 0.9, 0.3 },
+}
+local function dkSpecColor()
+	-- addon.variables.unitSpec uses spec index (1 Blood, 2 Frost, 3 Unholy)
+	return DK_SPEC_COLOR[addon.variables.unitSpec] or DK_SPEC_COLOR[1]
+end
+
+local function resolveRuneReadyColor(cfg)
+	cfg = cfg or {}
+	if cfg.useBarColor and cfg.barColor then
+		local c = cfg.barColor
+		return c[1] or 1, c[2] or 1, c[3] or 1
+	end
+	local dk = dkSpecColor()
+	if dk then return dk[1] or 1, dk[2] or 1, dk[3] or 1 end
+	local cc = C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor("DEATHKNIGHT")
+	if cc and cc.GetRGB then
+		local cr, cg, cb = cc:GetRGB()
+		return cr or 1, cg or 1, cb or 1
+	end
+	local pr, pg, pb = getPowerBarColor("RUNES")
+	return pr or 1, pg or 1, pb or 1
+end
+
 local function configureBarBehavior(bar, cfg, pType)
 	if not bar then return end
 	cfg = cfg or {}
@@ -1315,6 +1380,26 @@ local function Snap(bar, off)
 	return floor(off * s + 0.5) / s
 end
 
+-- Legacy migration: pull saved Edit Mode layout coords into empty anchors so
+-- old profiles keep their bar positions after a reload.
+local function backfillAnchorFromLayout(anchor, barType)
+	if not anchor or (anchor.x ~= nil and anchor.y ~= nil) then return end
+	if anchor.relativeFrame and anchor.relativeFrame ~= "" and anchor.relativeFrame ~= "UIParent" then return end
+	local editMode = addon and addon.EditMode
+	if not editMode or not editMode.GetLayoutData then return end
+	local layoutName = (editMode.GetActiveLayoutName and editMode:GetActiveLayoutName()) or editMode.activeLayout
+	local frameId = "resourceBar_" .. tostring(barType or "")
+	local data = editMode:GetLayoutData(frameId, layoutName)
+	if not data or data.x == nil or data.y == nil then return end
+	local point = data.point or data.relativePoint
+	if not point then return end
+	anchor.point = anchor.point or point
+	anchor.relativePoint = anchor.relativePoint or data.relativePoint or point
+	anchor.relativeFrame = anchor.relativeFrame or "UIParent"
+	anchor.x = data.x
+	anchor.y = data.y
+end
+
 local FREQUENT = { ENERGY = true, FOCUS = true, RAGE = true, RUNIC_POWER = true, LUNAR_POWER = true }
 local formIndexToKey = {
 	[0] = "HUMANOID",
@@ -1358,11 +1443,90 @@ local function mapFormNameToKey(name)
 	return nil
 end
 
-local DK_SPEC_COLOR = {
-	[1] = { 0.8, 0.1, 0.1 },
-	[2] = { 0.2, 0.6, 1.0 },
-	[3] = { 0.0, 0.9, 0.3 },
-}
+local function ensureDruidShowFormsDefaults(cfg, pType, specInfo)
+	if addon.variables.unitClass ~= "DRUID" then return end
+	if not cfg or type(cfg) ~= "table" then return end
+	if pType == "HEALTH" then return end
+
+	-- Combo points are only meaningful in Cat; force that mapping regardless of previous user input.
+	if pType == "COMBO_POINTS" then
+		cfg.showForms = {
+			HUMANOID = false,
+			BEAR = false,
+			CAT = true,
+			TRAVEL = false,
+			MOONKIN = false,
+			TREANT = false,
+			STAG = false,
+		}
+		return
+	end
+
+	-- Other bars: only set defaults if the user has not customized the forms table.
+	if type(cfg.showForms) == "table" and next(cfg.showForms) ~= nil then return end
+	local sf = {}
+	local isSecondaryMana = pType == "MANA" and specInfo and specInfo.MAIN ~= "MANA"
+	local isSecondaryEnergy = pType == "ENERGY" and specInfo and specInfo.MAIN ~= "ENERGY"
+	if isSecondaryMana then
+		sf.HUMANOID = true
+		sf.BEAR = false
+		sf.CAT = false
+		sf.TRAVEL = false
+		sf.MOONKIN = false
+		sf.TREANT = false
+		sf.STAG = false
+	elseif isSecondaryEnergy then
+		sf.HUMANOID = false
+		sf.BEAR = false
+		sf.CAT = true
+		sf.TRAVEL = false
+		sf.MOONKIN = false
+		sf.TREANT = false
+		sf.STAG = false
+	else
+		sf.HUMANOID = true
+		sf.BEAR = true
+		sf.CAT = true
+		sf.TRAVEL = true
+		sf.MOONKIN = true
+		sf.TREANT = true
+		sf.STAG = true
+	end
+	cfg.showForms = sf
+end
+
+local function isEQOLBarFrameName(name) return type(name) == "string" and name:match("^EQOL.+Bar$") end
+
+local function ensureRelativeFrameFallback(anchor, pType, specInfo)
+	if pType == "HEALTH" then return end
+	if not anchor then return end
+	local rf = anchor.relativeFrame
+	if not rf or rf == "" then return end
+	if not isEQOLBarFrameName(rf) then return end
+	local relType = (rf == "EQOLHealthBar") and "HEALTH" or rf:match("^EQOL(.+)Bar$")
+	if relType and relType ~= "" then
+		-- If the target bar type is valid for this spec, keep it even if the frame isn't created yet
+		if relType == "HEALTH" then return end
+		if specInfo and (specInfo.MAIN == relType or specInfo[relType]) then return end
+	end
+	if _G[rf] then return end -- relative bar already exists (e.g., created earlier)
+
+	-- Fallback to spec MAIN bar if available; otherwise health
+	local fallback
+	if specInfo and specInfo.MAIN and pType ~= "HEALTH" then
+		fallback = "EQOL" .. specInfo.MAIN .. "Bar"
+		if fallback == ("EQOL" .. tostring(pType) .. "Bar") then fallback = nil end
+	end
+	if not fallback or fallback == rf then fallback = "EQOLHealthBar" end
+
+	anchor.relativeFrame = fallback
+	if not anchor.point then anchor.point = "TOP" end
+	if not anchor.relativePoint then anchor.relativePoint = "BOTTOM" end
+	if anchor.x == nil then anchor.x = 0 end
+	if anchor.y == nil then anchor.y = -2 end
+	anchor.autoSpacing = nil
+	if anchor.matchRelativeWidth == nil then anchor.matchRelativeWidth = true end
+end
 
 function updateHealthBar(evt)
 	if healthBar and healthBar:IsShown() then
@@ -1509,50 +1673,50 @@ function updateHealthBar(evt)
 					healthBar:GetStatusBarTexture():SetVertexColor(color:GetRGB())
 				end
 			end
-	end
-	setBarDesaturated(healthBar, true)
+		end
+		setBarDesaturated(healthBar, true)
 
-	local absorbBar = healthBar.absorbBar
-	if absorbBar then
-		local absorbEnabled = settings.absorbEnabled ~= false
-		if not absorbEnabled or maxHealth <= 0 then
-			absorbBar:Hide()
-			absorbBar:SetValue(0)
-			absorbBar._lastVal = 0
-		else
-			if not absorbBar:IsShown() then absorbBar:Show() end
-			-- Texture
-			local absorbTex = resolveTexture({ barTexture = settings.absorbTexture or settings.barTexture })
-			local curTex = absorbBar:GetStatusBarTexture() and absorbBar:GetStatusBarTexture():GetTexture()
-			if curTex ~= absorbTex then absorbBar:SetStatusBarTexture(absorbTex) end
-			-- Color
-			local defAbsorb = { 0.8, 0.8, 0.8, 0.8 }
-			local col = (settings.absorbUseCustomColor and settings.absorbColor) or defAbsorb
-			local ar, ag, ab, aa = col[1] or defAbsorb[1], col[2] or defAbsorb[2], col[3] or defAbsorb[3], col[4] or defAbsorb[4]
-			if not absorbBar._lastColor or absorbBar._lastColor[1] ~= ar or absorbBar._lastColor[2] ~= ag or absorbBar._lastColor[3] ~= ab or absorbBar._lastColor[4] ~= aa then
-				absorbBar:SetStatusBarColor(ar, ag, ab, aa)
-				absorbBar._lastColor = { ar, ag, ab, aa }
-			end
-
-			local abs = UnitGetTotalAbsorbs("player") or 0
-			if settings.absorbSample and abs <= 0 then abs = maxHealth * 0.6 end
-			if addon.variables.isMidnight then
-				absorbBar:SetValue(abs)
-				absorbBar:SetMinMaxValues(0, maxHealth)
+		local absorbBar = healthBar.absorbBar
+		if absorbBar then
+			local absorbEnabled = settings.absorbEnabled ~= false
+			if not absorbEnabled or maxHealth <= 0 then
+				absorbBar:Hide()
+				absorbBar:SetValue(0)
+				absorbBar._lastVal = 0
 			else
-				if abs > maxHealth then abs = maxHealth end
-				if absorbBar._lastMax ~= maxHealth then
-					absorbBar:SetMinMaxValues(0, maxHealth)
-					absorbBar._lastMax = maxHealth
+				if not absorbBar:IsShown() then absorbBar:Show() end
+				-- Texture
+				local absorbTex = resolveTexture({ barTexture = settings.absorbTexture or settings.barTexture })
+				local curTex = absorbBar:GetStatusBarTexture() and absorbBar:GetStatusBarTexture():GetTexture()
+				if curTex ~= absorbTex then absorbBar:SetStatusBarTexture(absorbTex) end
+				-- Color
+				local defAbsorb = { 0.8, 0.8, 0.8, 0.8 }
+				local col = (settings.absorbUseCustomColor and settings.absorbColor) or defAbsorb
+				local ar, ag, ab, aa = col[1] or defAbsorb[1], col[2] or defAbsorb[2], col[3] or defAbsorb[3], col[4] or defAbsorb[4]
+				if not absorbBar._lastColor or absorbBar._lastColor[1] ~= ar or absorbBar._lastColor[2] ~= ag or absorbBar._lastColor[3] ~= ab or absorbBar._lastColor[4] ~= aa then
+					absorbBar:SetStatusBarColor(ar, ag, ab, aa)
+					absorbBar._lastColor = { ar, ag, ab, aa }
 				end
-				if absorbBar._lastVal ~= abs then
+
+				local abs = UnitGetTotalAbsorbs("player") or 0
+				if settings.absorbSample and abs <= 0 then abs = maxHealth * 0.6 end
+				if addon.variables.isMidnight then
 					absorbBar:SetValue(abs)
-					absorbBar._lastVal = abs
+					absorbBar:SetMinMaxValues(0, maxHealth)
+				else
+					if abs > maxHealth then abs = maxHealth end
+					if absorbBar._lastMax ~= maxHealth then
+						absorbBar:SetMinMaxValues(0, maxHealth)
+						absorbBar._lastMax = maxHealth
+					end
+					if absorbBar._lastVal ~= abs then
+						absorbBar:SetValue(abs)
+						absorbBar._lastVal = abs
+					end
 				end
 			end
 		end
 	end
-end
 end
 
 function getAnchor(name, spec)
@@ -1570,6 +1734,7 @@ function getAnchor(name, spec)
 		anchor.matchEssentialWidth = nil
 	end
 	if (anchor.relativeFrame or "UIParent") == "UIParent" then anchor.matchRelativeWidth = nil end
+	backfillAnchorFromLayout(anchor, name)
 	return anchor
 end
 
@@ -1842,17 +2007,23 @@ ResourceBars.RUNE_BORDER_LABEL = ResourceBars.RUNE_BORDER_LABEL or (getCustomBor
 function getBarSettings(pType)
 	local class = addon.variables.unitClass
 	local spec = addon.variables.unitSpec
+	local specInfo = getSpecInfo(spec)
 	if addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[class] and addon.db.personalResourceBarSettings[class][spec] then
 		local cfg = addon.db.personalResourceBarSettings[class][spec][pType]
-		if cfg then return cfg end
+		if cfg then
+			ensureDruidShowFormsDefaults(cfg, pType, specInfo)
+			ensureRelativeFrameFallback(cfg.anchor, pType, specInfo)
+			return cfg
+		end
 	end
-	local specInfo = getSpecInfo(spec)
 	if class and spec then
 		local specCfg = ensureSpecCfg(spec)
 		if specCfg and not specCfg[pType] then
 			local globalCfg, secondaryIdx = resolveGlobalTemplate(pType, spec)
 			if globalCfg then
 				specCfg[pType] = CopyTable(globalCfg)
+				ensureDruidShowFormsDefaults(specCfg[pType], pType, specInfo)
+				ensureRelativeFrameFallback(specCfg[pType].anchor, pType, specInfo)
 				if secondaryIdx and secondaryIdx > 1 then
 					local prevType = specSecondaries(specInfo)[secondaryIdx - 1]
 					if prevType then maybeChainSecondaryAnchor(specCfg[pType], prevType) end
@@ -1966,8 +2137,7 @@ function updatePowerBar(type, runeSlot)
 	if not bar or not bar:IsShown() then return end
 	-- Special handling for DK RUNES: six sub-bars that fill as cooldown progresses
 	if type == "RUNES" then
-		local col = bar._dkColor or DK_SPEC_COLOR[addon.variables.unitSpec] or DK_SPEC_COLOR[1]
-		local r, g, b = col[1], col[2], col[3]
+		local r, g, b = resolveRuneReadyColor(getBarSettings("RUNES"))
 		local grey = 0.35
 		bar._rune = bar._rune or {}
 		bar._runeOrder = bar._runeOrder or {}
@@ -2480,7 +2650,8 @@ function layoutRunes(bar)
 	local w = max(1, inner:GetWidth() or (bar:GetWidth() or 0))
 	local h = max(1, inner:GetHeight() or (bar:GetHeight() or 0))
 	local cfg = getBarSettings("RUNES") or {}
-	local show = cfg.showCooldownText == true
+	if nil == cfg.showCooldownText then cfg.showCooldownText = true end
+	local show = cfg.showCooldownText ~= false -- default on
 	local size = cfg.cooldownTextFontSize or 16
 	local fontPath = resolveFontFace(cfg)
 	local fontOutline = resolveFontOutline(cfg)
@@ -2744,9 +2915,7 @@ local function setPowerbars(opts)
 	local druidForm = currentDruidForm()
 	local mainPowerBar
 	local lastBar
-	local specCfg = addon.db.personalResourceBarSettings
-		and addon.db.personalResourceBarSettings[addon.variables.unitClass]
-		and addon.db.personalResourceBarSettings[addon.variables.unitClass][addon.variables.unitSpec]
+	local specCfg = ensureSpecCfg(addon.variables.unitSpec)
 
 	local desiredVisibility = {}
 
@@ -3087,21 +3256,9 @@ end
 
 -- Coalesce spec/trait refreshes to avoid duplicate work or timing races
 local function scheduleSpecRefresh()
-	if not After then
-		-- First detach all bar points to avoid transient loops
-		if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.DetachAllBars then addon.Aura.ResourceBars.DetachAllBars() end
-		ResourceBars._suspendAnchors = true
-		setPowerbars()
-		ResourceBars._suspendAnchors = false
-		if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ReanchorAll then addon.Aura.ResourceBars.ReanchorAll() end
-		if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.UpdateRuneEventRegistration then addon.Aura.ResourceBars.UpdateRuneEventRegistration() end
-		if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ForceRuneRecolor then addon.Aura.ResourceBars.ForceRuneRecolor() end
-		updatePowerBar("RUNES")
-		return
-	end
 	if frameAnchor and frameAnchor._specRefreshScheduled then return end
 	if frameAnchor then frameAnchor._specRefreshScheduled = true end
-	After(0.08, function()
+	After(0.2, function()
 		if frameAnchor then frameAnchor._specRefreshScheduled = false end
 		-- First detach all bar points to avoid transient loops
 		if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.DetachAllBars then addon.Aura.ResourceBars.DetachAllBars() end
@@ -3111,7 +3268,7 @@ local function scheduleSpecRefresh()
 		if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ReanchorAll then addon.Aura.ResourceBars.ReanchorAll() end
 		if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.UpdateRuneEventRegistration then addon.Aura.ResourceBars.UpdateRuneEventRegistration() end
 		if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ForceRuneRecolor then addon.Aura.ResourceBars.ForceRuneRecolor() end
-		updatePowerBar("RUNES")
+		if addon.variables.unitClass == "DEATHKNIGHT" then updatePowerBar("RUNES") end
 	end)
 end
 

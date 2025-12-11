@@ -152,12 +152,17 @@ function addon.functions.initDungeonFrame()
 	}
 	addon.variables.keybindFindings = addon.functions.FindBindingIndex(find)
 
-	if #addon.variables.keybindFindings then
-		addon.functions.SettingsCreateHeadline(addon.SettingsLayout.characterInspectCategory, AUCTION_CATEGORY_MISCELLANEOUS, "CombatDungeon_Misc")
-		addon.functions.SettingsCreateText(addon.SettingsLayout.characterInspectCategory, "|cff99e599" .. L["WorldMarkerCycle"] .. "|r", "EQOL_WorldMarkerCycle")
+	local sectionMisc
+	if addon.variables.keybindFindings and next(addon.variables.keybindFindings) then
+		sectionMisc = addon.functions.SettingsCreateExpandableSection(addon.SettingsLayout.characterInspectCategory, {
+			name = AUCTION_CATEGORY_MISCELLANEOUS,
+			expanded = true,
+			colorizeTitle = false,
+		})
+		addon.functions.SettingsCreateText(addon.SettingsLayout.characterInspectCategory, "|cff99e599" .. L["WorldMarkerCycle"] .. "|r", { parentSection = sectionMisc })
 	end
-	for i, v in pairs(addon.variables.keybindFindings) do
-		addon.functions.SettingsCreateKeybind(addon.SettingsLayout.characterInspectCategory, v)
+	for _, v in pairs(addon.variables.keybindFindings) do
+		addon.functions.SettingsCreateKeybind(addon.SettingsLayout.characterInspectCategory, v, sectionMisc)
 	end
 
 	if LFGListFrame and LFGListFrame.SearchPanel and LFGListFrame.SearchPanel.FilterButton and LFGListFrame.SearchPanel.FilterButton.ResetButton then
@@ -234,7 +239,11 @@ end
 ---- REGION SETTINGS
 local cChar = addon.functions.SettingsCreateCategory(nil, L["CombatDungeons"], nil, "CombatDungeons")
 addon.SettingsLayout.characterInspectCategory = cChar
-addon.functions.SettingsCreateHeadline(cChar, DUNGEONS, "CombatDungeon_Dungeon")
+local sectionDungeon = addon.functions.SettingsCreateExpandableSection(cChar, {
+	name = DUNGEONS,
+	expanded = true,
+	colorizeTitle = false,
+})
 
 local data = {
 	{
@@ -244,6 +253,7 @@ local data = {
 			addon.db["groupfinderAppText"] = value
 			toggleGroupApplication(value)
 		end,
+		parentSection = sectionDungeon,
 	},
 	{
 		text = L["groupfinderMoveResetButton"],
@@ -252,12 +262,14 @@ local data = {
 			addon.db["groupfinderMoveResetButton"] = value
 			toggleLFGFilterPosition()
 		end,
+		parentSection = sectionDungeon,
 	},
 	{
 		text = L["groupfinderSkipRoleSelect"],
 		var = "groupfinderSkipRoleSelect",
 		func = function(value) addon.db["groupfinderSkipRoleSelect"] = value end,
 		desc = L["interruptWithShift"],
+		parentSection = sectionDungeon,
 		children = {
 			{
 				list = { [1] = L["groupfinderSkipRolecheckUseSpec"], [2] = L["groupfinderSkipRolecheckUseLFD"] },
@@ -274,6 +286,7 @@ local data = {
 				var = "groupfinderSkipRoleSelectOption",
 				type = Settings.VarType.Number,
 				sType = "dropdown",
+				parentSection = sectionDungeon,
 			},
 		},
 	},
@@ -281,47 +294,62 @@ local data = {
 		var = "persistSignUpNote",
 		text = L["Persist LFG signup note"],
 		func = function(value) addon.db["persistSignUpNote"] = value end,
+		parentSection = sectionDungeon,
 	},
 	{
 		var = "skipSignUpDialog",
 		text = L["Quick signup"],
 		func = function(value) addon.db["skipSignUpDialog"] = value end,
+		parentSection = sectionDungeon,
 	},
 	{
 		var = "lfgSortByRio",
 		text = L["lfgSortByRio"],
 		func = function(value) addon.db["lfgSortByRio"] = value end,
+		parentSection = sectionDungeon,
 	},
 	{
 		var = "enableChatIMRaiderIO",
 		text = L["enableChatIMRaiderIO"],
 		func = function(value) addon.db["enableChatIMRaiderIO"] = value end,
+		parentSection = sectionDungeon,
 	},
 }
 table.sort(data, function(a, b) return a.text < b.text end)
---- DELVES
+-- DELVES
 addon.functions.SettingsCreateCheckboxes(cChar, data)
 
-addon.functions.SettingsCreateHeadline(cChar, DELVES_LABEL)
+local sectionDelves = addon.functions.SettingsCreateExpandableSection(cChar, {
+	name = DELVES_LABEL,
+	expanded = true,
+	colorizeTitle = false,
+})
 
 data = {
 	{
 		var = "autoChooseDelvePower",
 		text = L["autoChooseDelvePower"],
 		func = function(self, _, value) addon.db["autoChooseDelvePower"] = value end,
+		parentSection = sectionDelves,
 	},
 }
 table.sort(data, function(a, b) return a.text < b.text end)
 
 addon.functions.SettingsCreateCheckboxes(cChar, data)
 
---- GENERAL
-addon.functions.SettingsCreateHeadline(cChar, GENERAL)
+-- GENERAL
+
+local sectionGeneral = addon.functions.SettingsCreateExpandableSection(cChar, {
+	name = GENERAL,
+	expanded = true,
+	colorizeTitle = false,
+})
 
 data = {
 	var = "timeoutRelease",
 	text = L["timeoutRelease"],
 	func = function(value) addon.db["timeoutRelease"] = value end,
+	parentSection = sectionGeneral,
 }
 table.sort(data, function(a, b) return a.text < b.text end)
 
@@ -341,6 +369,7 @@ data = {
 	parent = true,
 	default = "SHIFT",
 	var = "timeoutReleaseModifier",
+	parentSection = sectionGeneral,
 }
 
 addon.functions.SettingsCreateDropdown(cChar, data)
@@ -480,6 +509,7 @@ addon.functions.SettingsCreateMultiDropdown(cChar, {
 	element = rData.element,
 	parentCheck = function() return rData.setting and rData.setting:GetValue() == true end,
 	options = timeoutReleaseGroups,
+	parentSection = sectionGeneral,
 })
 
 ---- REGION END

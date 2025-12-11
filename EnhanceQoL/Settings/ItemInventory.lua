@@ -1837,6 +1837,12 @@ data = {
 		func = function(value) addon.db["confirmSocketReplace"] = value end,
 	},
 	{
+		var = "confirmPurchaseTokenItem",
+		text = L["confirmPurchaseTokenItem"],
+		desc = L["confirmPurchaseTokenItemDesc"],
+		func = function(value) addon.db["confirmPurchaseTokenItem"] = value end,
+	},
+	{
 		var = "confirmHighCostItem",
 		text = L["confirmHighCostItem"],
 		desc = L["confirmHighCostItemDesc"],

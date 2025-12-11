@@ -119,7 +119,11 @@ local function getFont(path)
 	if path and path ~= "" then return path end
 	return addon.variables and addon.variables.defaultFont or (LSM and LSM:Fetch("font", LSM.DefaultMedia.font)) or STANDARD_TEXT_FONT
 end
-local function isBossUnit(unit) return unit == "boss" or (unit and unit:match("^boss%d+$")) end
+local function isBossUnit(unit)
+	if type(unit) ~= "string" then return false end
+	return unit == "boss" or (unit and unit:match("^boss%d+$"))
+end
+
 local UNITS = {
 	player = {
 		unit = "player",
@@ -505,7 +509,6 @@ local function ensureBossContainer()
 	bossContainer:SetSize(220, 200)
 	bossContainer:SetClampedToScreen(true)
 	bossContainer:SetMovable(true)
-	bossContainer:EnableMouse(true)
 	bossContainer:RegisterForDrag("LeftButton")
 	bossContainer:Hide()
 	anchorBossContainer()
@@ -556,13 +559,14 @@ local function isPermanentAura(aura)
 	local duration = aura.duration
 	local expiration = aura.expirationTime
 
-	if C_StringUtil then
-		local checkNr = C_StringUtil.TruncateWhenZero(duration)
-		if issecretvalue and issecretvalue(checkNr) then
-			return false
-		else
-			return true
-		end
+	if C_UnitAuras.DoesAuraHaveExpirationTime then
+		return C_UnitAuras.DoesAuraHaveExpirationTime(aura)
+		-- local checkNr = C_StringUtil.TruncateWhenZero(duration)
+		-- if issecretvalue and issecretvalue(checkNr) then
+		-- 	return false
+		-- else
+		-- 	return true
+		-- end
 	end
 	if issecretvalue and issecretvalue(duration) then return false end
 	if duration and duration > 0 then return false end
@@ -627,7 +631,8 @@ local function applyAuraToButton(btn, aura, ac, isDebuff)
 	btn.cd:SetHideCountdownNumbers(ac.showCooldown == false)
 	if issecretvalue and issecretvalue(aura.applications) or aura.applications and aura.applications > 1 then
 		local appStacks = aura.applications
-		if C_StringUtil then appStacks = C_StringUtil.TruncateWhenZero(appStacks) end
+		-- TODO test in midnight for the new functions
+		if C_UnitAuras.GetAuraApplicationDisplayCount then appStacks = C_UnitAuras.GetAuraApplicationDisplayCount(aura, 2) end
 		btn.count:SetText(appStacks)
 		btn.count:Show()
 	else
@@ -1841,7 +1846,7 @@ local function ensureFrames(unit)
 	st.frame:HookScript("OnLeave", function()
 		if GameTooltip and not GameTooltip:IsForbidden() then GameTooltip:Hide() end
 	end)
-	st.frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	st.frame:RegisterForClicks("AnyUp")
 	st.frame:Hide()
 	hideSettingsReset(st.frame)
 
@@ -2436,12 +2441,14 @@ local function updateFocusFrame(cfg, forceApply)
 	cfg = cfg or ensureDB(FOCUS_UNIT)
 	local st = states[FOCUS_UNIT]
 	if not cfg.enabled then
+		if applyFrameRuleOverride then applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, false) end
 		if st then
 			if st.barGroup then st.barGroup:Hide() end
 			if st.status then st.status:Hide() end
 		end
 		return
 	end
+	if applyFrameRuleOverride then applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, true) end
 	if forceApply or not st or not st.frame then
 		applyConfig(FOCUS_UNIT)
 		st = states[FOCUS_UNIT]
@@ -2806,7 +2813,12 @@ function UF.Refresh()
 	end
 	applyConfig("player")
 	applyConfig("target")
-	if ensureDB(FOCUS_UNIT).enabled then updateFocusFrame(ensureDB(FOCUS_UNIT), true) end
+	local focusCfg = ensureDB(FOCUS_UNIT)
+	if focusCfg.enabled then
+		updateFocusFrame(focusCfg, true)
+	elseif applyFrameRuleOverride then
+		applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, false)
+	end
 	local targetCfg = ensureDB("target")
 	if targetCfg.enabled and UnitExists and UnitExists(TARGET_UNIT) and states[TARGET_UNIT] and states[TARGET_UNIT].frame then
 		states[TARGET_UNIT].barGroup:Show()
@@ -2814,7 +2826,11 @@ function UF.Refresh()
 	end
 	local totCfg = ensureDB(TARGET_TARGET_UNIT)
 	updateTargetTargetFrame(totCfg, true)
-	if ensureDB(PET_UNIT).enabled then applyConfig(PET_UNIT) end
+	if ensureDB(PET_UNIT).enabled then
+		applyConfig(PET_UNIT)
+	elseif applyFrameRuleOverride then
+		applyFrameRuleOverride(BLIZZ_PET_FRAME_NAME, false)
+	end
 	if bossCfg.enabled then
 		ensureBossFramesReady(bossCfg)
 		updateBossFrames(true)
@@ -2838,9 +2854,18 @@ function UF.RefreshUnit(unit)
 			states[TARGET_UNIT].status:Show()
 		end
 	elseif unit == FOCUS_UNIT then
-		updateFocusFrame(ensureDB(FOCUS_UNIT), true)
+		local focusCfg = ensureDB(FOCUS_UNIT)
+		if focusCfg.enabled then
+			updateFocusFrame(focusCfg, true)
+		elseif applyFrameRuleOverride then
+			applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, false)
+		end
 	elseif unit == PET_UNIT then
-		applyConfig(PET_UNIT)
+		if ensureDB(PET_UNIT).enabled then
+			applyConfig(PET_UNIT)
+		elseif applyFrameRuleOverride then
+			applyFrameRuleOverride(BLIZZ_PET_FRAME_NAME, false)
+		end
 	elseif isBossUnit(unit) then
 		updateBossFrames(true)
 	else
@@ -2869,11 +2894,15 @@ if not addon.Aura.UFInitialized then
 	if pcfg.enabled then
 		ensureEventHandling()
 		applyConfig(PET_UNIT)
+	elseif applyFrameRuleOverride then
+		applyFrameRuleOverride(BLIZZ_PET_FRAME_NAME, false)
 	end
 	local fcfg = ensureDB(FOCUS_UNIT)
 	if fcfg.enabled then
 		ensureEventHandling()
 		updateFocusFrame(fcfg, true)
+	elseif applyFrameRuleOverride then
+		applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, false)
 	end
 	local bcfg = ensureDB("boss")
 	if bcfg.enabled then

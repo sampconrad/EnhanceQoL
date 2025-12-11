@@ -24,7 +24,7 @@ function addon.functions.SettingsCreateCategory(parent, treeName, sort, newTagID
 	return cat, layout
 end
 
-function addon.functions.SettingsCreateKeybind(cat, bindingIndex) SettingsLib:CreateKeybind(cat, { bindingIndex = bindingIndex }) end
+function addon.functions.SettingsCreateKeybind(cat, bindingIndex, parentSection) SettingsLib:CreateKeybind(cat, { bindingIndex = bindingIndex, parentSection = parentSection }) end
 
 ---------------------------------------------------------
 -- Checkbox

@@ -22,11 +22,36 @@ local function customBorderOptions()
 	if ResourceBars and ResourceBars.GetCustomBorderOptions then return ResourceBars.GetCustomBorderOptions() end
 	return nil
 end
+local AUTO_ENABLE_OPTIONS = {
+	HEALTH = L["AutoEnableHealth"] or "Health",
+	MAIN = L["AutoEnableMain"] or "Main resource",
+	SECONDARY = L["AutoEnableSecondary"] or "Secondary resources",
+}
+local AUTO_ENABLE_ORDER = { "HEALTH", "MAIN", "SECONDARY" }
 
 local specSettingVars = {}
+local function autoEnableSelection()
+	addon.db.resourceBarsAutoEnable = addon.db.resourceBarsAutoEnable or {}
+	-- Migrate legacy boolean flag into the new selection map
+	if addon.db.resourceBarsAutoEnableAll ~= nil then
+		if addon.db.resourceBarsAutoEnableAll == true and not next(addon.db.resourceBarsAutoEnable) then addon.db.resourceBarsAutoEnable = { HEALTH = true, MAIN = true, SECONDARY = true } end
+		addon.db.resourceBarsAutoEnableAll = nil
+	end
+	return addon.db.resourceBarsAutoEnable
+end
+
+local function shouldAutoEnableBar(pType, specInfo, selection)
+	if not selection then return false end
+	if pType == "HEALTH" then return selection.HEALTH == true end
+	if specInfo and specInfo.MAIN == pType then return selection.MAIN == true end
+	if specInfo and pType ~= specInfo.MAIN and pType ~= "HEALTH" then return specInfo[pType] == true and selection.SECONDARY == true end
+	return false
+end
+
 local function maybeAutoEnableBars(specIndex, specCfg)
-	if not addon.db.resourceBarsAutoEnableAll then return end
 	if not specCfg or specCfg._autoEnabled then return end
+	local selection = autoEnableSelection()
+	if not selection or not (selection.HEALTH or selection.MAIN or selection.SECONDARY) then return end
 
 	-- Skip if user already touched enable state
 	for _, cfg in pairs(specCfg) do
@@ -38,60 +63,67 @@ local function maybeAutoEnableBars(specIndex, specCfg)
 	local specInfo = ResourceBars and ResourceBars.powertypeClasses and ResourceBars.powertypeClasses[class] and ResourceBars.powertypeClasses[class][specIndex]
 	if not specInfo then return end
 
-	local bars = { "HEALTH" }
+	local bars = {}
 	local mainType = specInfo.MAIN
-	if mainType then bars[#bars + 1] = mainType end
-	for _, pType in ipairs(ResourceBars.classPowerTypes or {}) do
-		if specInfo[pType] and pType ~= mainType then bars[#bars + 1] = pType end
+	if selection.HEALTH then bars[#bars + 1] = "HEALTH" end
+	if selection.MAIN and mainType then bars[#bars + 1] = mainType end
+	if selection.SECONDARY then
+		for _, pType in ipairs(ResourceBars.classPowerTypes or {}) do
+			if specInfo[pType] and pType ~= mainType and pType ~= "HEALTH" then bars[#bars + 1] = pType end
+		end
 	end
+	if #bars == 0 then return end
 
 	local function frameNameFor(typeId)
 		if typeId == "HEALTH" then return "EQOLHealthBar" end
 		return "EQOL" .. tostring(typeId) .. "Bar"
 	end
 
-	local prevFrame = frameNameFor("HEALTH")
+	local prevFrame = selection.HEALTH and frameNameFor("HEALTH") or nil
 	local mainFrame = frameNameFor(mainType or "HEALTH")
 	local applied = 0
 	for _, pType in ipairs(bars) do
-		specCfg[pType] = specCfg[pType] or {}
-		local ok = false
-		if ResourceBars.ApplyGlobalProfile then ok = ResourceBars.ApplyGlobalProfile(pType, specIndex, false) end
-		if ok then
-			applied = applied + 1
-			specCfg[pType].enabled = true
-			if pType == mainType and pType ~= "HEALTH" then
-				local a = specCfg[pType].anchor or {}
-				a.point = "TOP"
-				a.relativePoint = "BOTTOM"
-				a.relativeFrame = frameNameFor("HEALTH")
-				a.x = 0
-				a.y = -2
-				a.autoSpacing = nil
-				a.matchRelativeWidth = true
-				specCfg[pType].anchor = a
-				prevFrame = frameNameFor(pType)
-			elseif pType ~= "HEALTH" then
-				local a = specCfg[pType].anchor or {}
-				a.point = "TOP"
-				a.relativePoint = "BOTTOM"
-				-- Druids: Cat combo points should hang off Energy; others off MAIN. Non-Druids chain.
-				local targetFrame
-				if addon.variables.unitClass == "DRUID" then
-					if pType == "COMBO_POINTS" then targetFrame = frameNameFor("ENERGY") end
-					if not targetFrame or targetFrame == "" then targetFrame = mainFrame end
+		if shouldAutoEnableBar(pType, specInfo, selection) then
+			specCfg[pType] = specCfg[pType] or {}
+			local ok = false
+			if ResourceBars.ApplyGlobalProfile then ok = ResourceBars.ApplyGlobalProfile(pType, specIndex, false) end
+			if ok then
+				applied = applied + 1
+				specCfg[pType].enabled = true
+				if pType == mainType and pType ~= "HEALTH" then
+					local a = specCfg[pType].anchor or {}
+					a.point = a.point or "CENTER"
+					a.relativePoint = a.relativePoint or "CENTER"
+					local targetFrame = a.relativeFrame or frameNameFor("HEALTH")
+					if not selection.HEALTH and targetFrame == frameNameFor("HEALTH") then targetFrame = nil end
+					a.relativeFrame = targetFrame
+					a.x = a.x or 0
+					a.y = a.y or -2
+					a.autoSpacing = a.autoSpacing or nil
+					a.matchRelativeWidth = a.matchRelativeWidth or true
+					specCfg[pType].anchor = a
+					prevFrame = frameNameFor(pType)
+				elseif pType ~= "HEALTH" then
+					local a = specCfg[pType].anchor or {}
+					a.point = a.point or "CENTER"
+					a.relativePoint = a.relativePoint or "CENTER"
+					local targetFrame = a.relativeFrame or frameNameFor("HEALTH")
+					if class == "DRUID" then
+						if pType == "COMBO_POINTS" then targetFrame = frameNameFor("ENERGY") end
+						if not targetFrame or targetFrame == "" then targetFrame = prevFrame or (selection.MAIN and mainFrame or nil) end
+					else
+						targetFrame = prevFrame
+					end
+					a.relativeFrame = targetFrame
+					a.x = a.x or 0
+					a.y = a.y or -2
+					a.autoSpacing = a.autoSpacing or nil
+					a.matchRelativeWidth = a.matchRelativeWidth or true
+					specCfg[pType].anchor = a
+					if class ~= "DRUID" then prevFrame = frameNameFor(pType) end
 				else
-					targetFrame = prevFrame
+					prevFrame = frameNameFor(pType)
 				end
-				a.relativeFrame = targetFrame
-				a.x = 0
-				a.y = -2
-				a.autoSpacing = nil
-				a.matchRelativeWidth = true
-				specCfg[pType].anchor = a
-				if addon.variables.unitClass ~= "DRUID" then prevFrame = frameNameFor(pType) end
-			else
-				prevFrame = frameNameFor(pType)
 			end
 		end
 	end
@@ -905,8 +937,8 @@ local function registerEditModeBars()
 				}
 			end
 
-			-- Druid: Show in (forms), exclude Health
-			if addon.variables.unitClass == "DRUID" and barType ~= "HEALTH" then
+			-- Druid: Show in (forms), exclude Health and enforced Cat-only Combo Points
+			if addon.variables.unitClass == "DRUID" and barType ~= "HEALTH" and barType ~= "COMBO_POINTS" then
 				local forms = { "HUMANOID", "BEAR", "CAT", "TRAVEL", "MOONKIN", "TREANT", "STAG" }
 				local formLabels = {
 					HUMANOID = L["Humanoid"] or "Humanoid",
@@ -995,7 +1027,6 @@ local function registerEditModeBars()
 					}
 				end
 			end
-
 
 			if barType == "HEALTH" then
 				local absorbDefaultColor = { 0.8, 0.8, 0.8, 0.8 }
@@ -1121,6 +1152,29 @@ local function registerEditModeBars()
 				id = "textsettings",
 				defaultCollapsed = true,
 			}
+
+			if barType == "RUNES" then
+				settingsList[#settingsList + 1] = {
+					name = L["Show cooldown text"] or "Show cooldown text",
+					kind = settingType.Checkbox,
+					field = "showCooldownText",
+					parentId = "textsettings",
+					get = function()
+						local class, specIndex = addon.variables.unitClass, addon.variables.unitSpec
+						local specCfg = addon.db.personalResourceBarSettings[class][specIndex]
+
+						return addon.db.personalResourceBarSettings[class][specIndex].RUNES.showCooldownText
+					end,
+					set = function(_, value)
+						local class, specIndex = addon.variables.unitClass, addon.variables.unitSpec
+						local specCfg = addon.db.personalResourceBarSettings[class][specIndex]
+
+						addon.db.personalResourceBarSettings[class][specIndex].RUNES.showCooldownText = value and true or false
+						queueRefresh()
+					end,
+					default = true,
+				}
+			end
 
 			if barType ~= "RUNES" then
 				local function defaultStyle()
@@ -1486,30 +1540,32 @@ local function registerEditModeBars()
 				parentId = "colorsetting",
 			}
 
-			settingsList[#settingsList + 1] = {
-				name = L["Use class color"] or "Use class color",
-				kind = settingType.Checkbox,
-				field = "useClassColor",
-				get = function()
-					local c = curSpecCfg()
-					return c and c.useClassColor == true
-				end,
-				set = function(_, value)
-					local c = curSpecCfg()
-					if not c then return end
-					c.useClassColor = value and true or false
-					if c.useClassColor and c.useBarColor then c.useBarColor = false end
-					queueRefresh()
-					addon.EditModeLib.internal:RefreshSettings()
-				end,
-				isEnabled = function()
-					local c = curSpecCfg()
-					return not (c and c.useBarColor == true)
-				end,
-				hasOpacity = true,
-				default = false,
-				parentId = "colorsetting",
-			}
+			if barType ~= "RUNES" then
+				settingsList[#settingsList + 1] = {
+					name = L["Use class color"] or "Use class color",
+					kind = settingType.Checkbox,
+					field = "useClassColor",
+					get = function()
+						local c = curSpecCfg()
+						return c and c.useClassColor == true
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.useClassColor = value and true or false
+						if c.useClassColor and c.useBarColor then c.useBarColor = false end
+						queueRefresh()
+						addon.EditModeLib.internal:RefreshSettings()
+					end,
+					isEnabled = function()
+						local c = curSpecCfg()
+						return not (c and c.useBarColor == true)
+					end,
+					hasOpacity = true,
+					default = false,
+					parentId = "colorsetting",
+				}
+			end
 
 			if barType == "HOLY_POWER" then
 				settingsList[#settingsList + 1] = {
@@ -2003,24 +2059,30 @@ local function buildSettings()
 					sType = "checkbox",
 				},
 				{
-					var = "resourceBarsAutoEnableAll",
+					var = "resourceBarsAutoEnable",
 					text = L["AutoEnableAllBars"] or "Auto-enable bars for new characters",
-					get = function() return addon.db["resourceBarsAutoEnableAll"] end,
-					func = function(val)
-						addon.db["resourceBarsAutoEnableAll"] = val and true or false
-						if val then
-							local spec = addon.variables.unitSpec
+					sType = "multidropdown",
+					options = AUTO_ENABLE_OPTIONS,
+					order = AUTO_ENABLE_ORDER,
+					isSelectedFunc = function(key)
+						local selection = autoEnableSelection()
+						return selection and selection[key] == true
+					end,
+					setSelectedFunc = function(key, shouldSelect)
+						local selection = autoEnableSelection()
+						if shouldSelect then
+							selection[key] = true
+						else
+							selection[key] = nil
+						end
+						local spec = addon.variables.unitSpec
+						if spec then
 							local cfg = ensureSpecCfg(spec)
-							if cfg then
-								maybeAutoEnableBars(spec, cfg)
-								addon.Aura.functions.requestActiveRefresh(spec)
-							end
+							if cfg then addon.Aura.functions.requestActiveRefresh(spec) end
 						end
 					end,
-					default = false,
 					parent = true,
 					parentCheck = function() return addon.db["enableResourceFrame"] == true end,
-					sType = "checkbox",
 				},
 			},
 		},

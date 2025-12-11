@@ -1,55 +1,58 @@
 # Changelog
 
-## [6.2.0] – 2025-12-09
+## [6.2.0] – 2025-12-11
 
 ### Important note
 
-Changing minimap Button behaviour
+Minimap button behavior has changed:
 
-- Leftclick now opens the new option menu
-- Rightclick has an option to open the old Legacy Settings until midnight comes out (Legacy will likely be gone in midnight)
+- Left-click now opens the new options menu.
+- Right-click now offers a shortcut to open the old legacy settings (until Midnight launches; legacy settings will likely be removed in Midnight).
 
 ### ✨ Added
 
-- Shortening per _Currency_ in _Currency Stream_ added
-- Hide border and/or background of _Button Sink_
-- Scaling, width, height of Reputation and XP-Bar implemented
-- World Marker Cycle
-  - Set a keybind to cycle through all world markers
-  - Set another keybind to clear all world markers
-- Hide Action Button borders
-- Action Bars: Fade amount slider to control how transparent mouseover-hidden bars become (applies to pet/stance bars too)
-- Square minimap: new layout re-anchor option (on by default) to reposition minimap, zoom buttons, addon compartment, and difficulty indicator for the square shape
-- Action Bars: Option to hide the Assisted Combat Rotation overlay/glow on buttons
-- Automatically open the preview for player housing items
-- _Cypher of Relocation_ and two Warlords teleports that were missing
-- 4 Borders, 4 Statusbar textures to sharedmedia
-- Cooldown Manager: per-viewer "Show when" multi-select (in combat, while mounted/not mounted, on mouseover) for Essential/Utility/Buff Bar/Buff Icon cooldown viewers, with edit-mode-friendly fading
-- Minimap Button Sink: configurable flyout direction (auto or specific edge/corner) with screen-safe fallback
-- Unit Frames (Player/Target/ToT/Pet/Focus/Boss)
-  - Custom frames with Edit Mode controls for size, strata/level, borders, health/power bars (colors, fonts, textures, text formats), cast bars, and status line options
-  - Target auras get anchor/offset controls and an optional separate debuff anchor; boss frames have container anchor, growth, and spacing
-  - New “Settings” group adds a copy dropdown + confirmation popup to duplicate another frame’s settings while keeping your current position/enable state
-- Resource Bars: Health bar absorb configuration (enable/disable, custom color, custom texture, sample preview)
-- Tooltip: Item icon toggle with configurable size for item tooltips (icon inline before the item name)
-- Tooltip: Optional guild name line (configurable color) on unit tooltips
-- Tooltip: Scale slider to resize tooltips
-- Tooltip: Optional guild rank line (configurable color) on unit tooltips
-- Tooltip: Optional hide faction/PvP lines on unit tooltips
+- Currency Stream: per-currency shortening option.
+- Button Sink: option to hide the border and/or background.
+- Reputation / XP bar: scaling, width, and height settings.
+- World Marker Cycle:
+  - New keybind to cycle through all world markers.
+  - New keybind to clear all world markers.
+- Action Bars: option to hide action button borders.
+- Action Bars: fade amount slider to control how transparent mouseover-hidden bars become (applies to pet and stance bars as well).
+- Square minimap: new “layout re-anchor” option (on by default) that repositions the minimap, zoom buttons, addon compartment, and difficulty indicator for the square shape.
+- Action Bars: option to hide the Assisted Combat Rotation overlay/glow on buttons.
+- Automatically open the preview window for player housing items.
+- Added _Cypher of Relocation_ and two missing Warlords teleports.
+- SharedMedia: 4 new borders and 4 new status bar textures.
+- Cooldown Manager: per-viewer **“Show when”** multi-select (in combat, while mounted / not mounted, on mouseover) for Essential / Utility / Buff Bar / Buff Icon viewers, with Edit-Mode-friendly fading.
+- Minimap Button Sink: configurable flyout direction (auto or specific edge/corner) with a screen-safe fallback.
+- Unit Frames (Player / Target / ToT / Pet / Focus / Boss):
+  - Custom frames with Edit Mode controls for size, strata/level, borders, health/power bars (colors, fonts, textures, text formats), cast bars, and status line options.
+  - Target auras: anchor/offset controls and an optional separate debuff anchor.
+  - Boss frames: container anchor, growth direction, and spacing controls.
+  - New **Settings** group with a copy dropdown + confirmation popup to duplicate another frame’s settings while keeping your current position and enable state.
+- Resource Bars: health bar absorb configuration (enable/disable, custom color, custom texture, sample preview).
+- Tooltip: item icon toggle with configurable size for item tooltips (icon inline before the item name).
+- Tooltip: optional guild name line (with configurable color) on unit tooltips.
+- Tooltip: scale slider to resize tooltips.
+- Tooltip: optional guild rank line (with configurable color) on unit tooltips.
+- Tooltip: optional hide-faction / PvP lines on unit tooltips.
+- Tooltip: spell tooltips can show the spell icon inline (new toggle; uses the tooltip icon size setting).
+- Housing décor items are now shown in **Container Action** to quickly open them.
 
 ### 🔄 Changed
 
-- _Show leader icon on raid style party frames_ now also shows leader and assist in raids
-  Changed everything which will be part of midnight to the Blizzard Option menu
+- **Show leader icon on raid-style party frames** now also shows leader and assist icons in raids.
+- All features that will be part of Midnight have been moved into the Blizzard Options menu.
 
 ### ❌ Removed
 
-- Old libraries
+- Old / unused libraries.
 
 ### 🐛 Fixed
 
-- _Enhance Ignore List_ Strata was to high
-- Range coloring on action bars now clears correctly when your bar switches (mounts/stance/override)
+- _Enhance Ignore List_ frame strata was set too high.
+- Range coloring on action bars now clears correctly when your bar switches (mounts / stance / override).
 
 ---
 
@@ -85,6 +88,8 @@ Changing minimap Button behaviour
 - BR Tracker working in m+/raid now
 - World Map Dungeon Teleports fixed in m+/raid
 - Resource Bars: Health bar now has absorb configuration (enable/disable, custom color, custom texture, sample preview)
+- Loot Spec Quick Switcher: Prevents reselecting the already active spec on right-click (no more pointless progress bar)
+- Tooltip: Inline spell icon no longer requires the "Show Spell Icon ID" toggle
 
 ---
 

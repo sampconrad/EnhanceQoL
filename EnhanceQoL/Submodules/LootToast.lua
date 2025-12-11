@@ -350,10 +350,7 @@ end
 local function UpdateToastAnchorConfig(data)
 	if not data then return end
 	local cfg = GetToastAnchorConfig()
-	if data.point then
-		cfg.point = data.point
-		cfg.relativePoint = data.point
-	end
+	if data.point then cfg.point = data.point end
 	if data.relativePoint then cfg.relativePoint = data.relativePoint end
 	if data.x ~= nil then cfg.x = data.x end
 	if data.y ~= nil then cfg.y = data.y end
@@ -373,10 +370,7 @@ end
 local function UpdateGroupRollAnchorConfig(data)
 	if not data then return end
 	local cfg = GetGroupRollAnchorConfig()
-	if data.point then
-		cfg.point = data.point
-		cfg.relativePoint = data.point
-	end
+	if data.point then cfg.point = data.point end
 	if data.relativePoint then cfg.relativePoint = data.relativePoint end
 	if data.x ~= nil then cfg.x = data.x end
 	if data.y ~= nil then cfg.y = data.y end
@@ -447,7 +441,13 @@ function LootToast:SyncToastEditModePosition()
 	if not EditMode or not self.toastAnchorEditModeId or self.toastAnchorSuspendEditSync or self.toastAnchorApplyingFromEditMode then return end
 	self.toastAnchorSuspendEditSync = true
 	local cfg = GetToastAnchorConfig()
-	EditMode:SetFramePosition(self.toastAnchorEditModeId, cfg.point or DEFAULT_TOAST_ANCHOR.point, cfg.x or DEFAULT_TOAST_ANCHOR.x, cfg.y or DEFAULT_TOAST_ANCHOR.y)
+	EditMode:SetFramePosition(
+		self.toastAnchorEditModeId,
+		cfg.point or DEFAULT_TOAST_ANCHOR.point,
+		cfg.x or DEFAULT_TOAST_ANCHOR.x,
+		cfg.y or DEFAULT_TOAST_ANCHOR.y,
+		cfg.relativePoint or cfg.point or DEFAULT_TOAST_ANCHOR.relativePoint
+	)
 	self.toastAnchorSuspendEditSync = nil
 end
 
@@ -455,7 +455,13 @@ function LootToast:SyncRollEditModePosition()
 	if not EditMode or not self.groupRollAnchorEditModeId or self.groupRollAnchorSuspendEditSync or self.groupRollAnchorApplyingFromEditMode then return end
 	self.groupRollAnchorSuspendEditSync = true
 	local cfg = GetGroupRollAnchorConfig()
-	EditMode:SetFramePosition(self.groupRollAnchorEditModeId, cfg.point or DEFAULT_GROUPROLL_ANCHOR.point, cfg.x or DEFAULT_GROUPROLL_ANCHOR.x, cfg.y or DEFAULT_GROUPROLL_ANCHOR.y)
+	EditMode:SetFramePosition(
+		self.groupRollAnchorEditModeId,
+		cfg.point or DEFAULT_GROUPROLL_ANCHOR.point,
+		cfg.x or DEFAULT_GROUPROLL_ANCHOR.x,
+		cfg.y or DEFAULT_GROUPROLL_ANCHOR.y,
+		cfg.relativePoint or cfg.point or DEFAULT_GROUPROLL_ANCHOR.relativePoint
+	)
 	self.groupRollAnchorSuspendEditSync = nil
 end
 

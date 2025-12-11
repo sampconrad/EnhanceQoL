@@ -1962,6 +1962,7 @@ local function initMisc()
 	addon.functions.InitDBValue("confirmReplaceEnchant", false)
 	addon.functions.InitDBValue("confirmSocketReplace", false)
 	addon.functions.InitDBValue("confirmHighCostItem", false)
+	addon.functions.InitDBValue("confirmPurchaseTokenItem", false)
 	addon.functions.InitDBValue("timeoutRelease", false)
 	addon.functions.InitDBValue("timeoutReleaseModifier", "SHIFT")
 	addon.functions.InitDBValue("hideRaidTools", false)
@@ -2033,6 +2034,8 @@ local function initMisc()
 					elseif addon.db["confirmReplaceEnchant"] and self.which == "REPLACE_ENCHANT" and self.numButtons > 0 and self.GetButton then
 						self:GetButton(1):Click()
 					elseif addon.db["confirmSocketReplace"] and self.which == "CONFIRM_ACCEPT_SOCKETS" and self.numButtons > 0 and self.GetButton then
+						self:GetButton(1):Click()
+					elseif addon.db["confirmPurchaseTokenItem"] and self.which == "CONFIRM_PURCHASE_TOKEN_ITEM" and self.numButtons > 0 and self.GetButton then
 						self:GetButton(1):Click()
 					elseif addon.db["confirmHighCostItem"] and self.which == "CONFIRM_HIGH_COST_ITEM" and self.numButtons > 0 and self.GetButton then
 						C_Timer.After(0, function() self:GetButton(1):Click() end)
@@ -3225,6 +3228,8 @@ local function initUI()
 			if button == "LeftButton" then
 				SetLootSpecialization(specId)
 			else
+				local cur = C_SpecializationInfo.GetSpecialization()
+				if index > 0 and cur and cur == index then return end
 				C_SpecializationInfo.SetSpecialization(index)
 			end
 		end)
@@ -3233,6 +3238,8 @@ local function initUI()
 			if button == "LeftButton" then
 				SetLootSpecialization(specId)
 			else
+				local cur = C_SpecializationInfo.GetSpecialization()
+				if index > 0 and cur and cur == index then return end
 				C_SpecializationInfo.SetSpecialization(index)
 			end
 		end)

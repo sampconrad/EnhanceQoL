@@ -272,9 +272,7 @@ function ContainerActions:EnsureButtonVisibilityWatcher()
 		frame:UnregisterAllEvents()
 		frame:SetScript("OnEvent", nil)
 		ContainerActions._buttonVisibilityWatcher = nil
-		if ContainerActions._pendingButtonVisibilityDriver then
-			ContainerActions:EnsureButtonVisibilityDriver()
-		end
+		if ContainerActions._pendingButtonVisibilityDriver then ContainerActions:EnsureButtonVisibilityDriver() end
 	end)
 	self._buttonVisibilityWatcher = watcher
 end
@@ -1073,6 +1071,9 @@ function ContainerActions:ScanBags(bags)
 							table.insert(secureItems, self:BuildEntry(bag, slot, info, overrides))
 						elseif scanOpenables and self:IsTooltipOpenable(bag, slot, info) then
 							safeItems[#safeItems + 1] = { bag = bag, slot = slot }
+						else
+							local _, _, _, _, _, classValue, subclassValue = C_Item.GetItemInfoInstant(info.itemID)
+							if classValue == 20 and subclassValue == 0 then table.insert(secureItems, self:BuildEntry(bag, slot, info)) end
 						end
 					end
 				end

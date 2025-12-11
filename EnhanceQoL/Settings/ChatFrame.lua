@@ -2,10 +2,10 @@ local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 
-local cChatFrame = addon.functions.SettingsCreateCategory(nil, HUD_EDIT_MODE_CHAT_FRAME_LABEL, nil, "ChatFrame")
+local cChatFrame = addon.functions.SettingsCreateCategory(nil, CHAT, nil, "ChatFrame")
 addon.SettingsLayout.chatframeCategory = cChatFrame
 
-addon.functions.SettingsCreateHeadline(cChatFrame, CHAT)
+addon.functions.SettingsCreateHeadline(cChatFrame, COMMUNITIES_ADD_TO_CHAT_DROP_DOWN_TITLE)
 
 local data = {
 	{
@@ -80,6 +80,14 @@ local data = {
 			},
 		},
 	},
+}
+
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cChatFrame, data)
+
+addon.functions.SettingsCreateHeadline(cChatFrame, CHAT_BUBBLES_TEXT)
+
+data = {
 	{
 		var = "chatBubbleFontOverride",
 		text = L["chatBubbleFontOverride"],
@@ -197,12 +205,14 @@ data = {
 						get = function() return addon.db.chatIMCustomSoundFile or "" end,
 						set = function(key) addon.db.chatIMCustomSoundFile = key end,
 						parentCheck = function()
-							return (addon.SettingsLayout.elements["chatIMUseCustomSound"]
+							return (
+								addon.SettingsLayout.elements["chatIMUseCustomSound"]
 								and addon.SettingsLayout.elements["chatIMUseCustomSound"].setting
 								and addon.SettingsLayout.elements["chatIMUseCustomSound"].setting:GetValue() == true
 								and addon.SettingsLayout.elements["enableChatIM"]
 								and addon.SettingsLayout.elements["enableChatIM"].setting
-								and addon.SettingsLayout.elements["enableChatIM"].setting:GetValue() == true) or false
+								and addon.SettingsLayout.elements["enableChatIM"].setting:GetValue() == true
+							) or false
 						end,
 						parent = true,
 						sType = "sounddropdown",

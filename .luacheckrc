@@ -35,6 +35,7 @@ exclude_files = {
 	"EnhanceQoL/libs/LibEditMode/**",
 	".git/**",
 	"EnhanceQoL/libs/LibEQOL/**",
+	"News/**",
 }
 ignore = {
 	"11./SLASH_.*", -- Setting an undefined (Slash handler) global variable
@@ -211,6 +212,7 @@ globals = {
 	"utf8sub",
 	"AzeriteLevelUpToast",
 	"OrderHallCommandBar",
+	"COMMUNITIES_ADD_TO_CHAT_DROP_DOWN_TITLE",
 	"C_TransmogSets",
 	"string.utf8sub",
 	"CharacterHeadSlot",

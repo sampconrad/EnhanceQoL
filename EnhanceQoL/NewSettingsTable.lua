@@ -15,6 +15,7 @@ addon.variables.NewVersionTableEQOL = {
 
 	["EQOL_ItemsInventory"] = true,
 	["EQOL_confirmHighCostItem"] = true,
+	["EQOL_confirmPurchaseTokenItem"] = true,
 
 	["EQOL_Tooltip"] = true,
 	["EQOL_TooltipHousingAutoPreview"] = true,
@@ -25,6 +26,7 @@ addon.variables.NewVersionTableEQOL = {
 	["EQOL_TooltipGuildNameColor"] = true,
 	["EQOL_TooltipHideFaction"] = true,
 	["EQOL_TooltipHidePVP"] = true,
+	["EQOL_TooltipShowSpellIconInline"] = true,
 
 	["EQOL_ActionBar"] = true,
 	["EQOL_actionBarHideBorders"] = true,
