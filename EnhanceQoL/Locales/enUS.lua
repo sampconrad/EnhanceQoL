@@ -520,7 +520,6 @@ L["actionBarFadeStrengthDesc"] = "Controls how far action bars fade when hidden.
 L["fullButtonRangeColoring"] = "Full button range coloring"
 L["fullButtonRangeColoringDesc"] = "Tint the entire action button when out of range"
 L["rangeOverlayColor"] = "Overlay color"
-L["rangeOverlayAlpha"] = "Overlay opacity"
 L["rangeOverlayShape"] = "Overlay shape"
 L["rangeOverlayShapeSquare"] = "Square"
 L["rangeOverlayShapeRound"] = "Rounded"

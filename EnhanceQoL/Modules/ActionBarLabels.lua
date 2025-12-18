@@ -107,38 +107,25 @@ function Labels.RefreshActionButtonBorders()
 	ForEachActionButton(function(button) RefreshButtonBorder(button) end)
 end
 
-local function EnsureOverlay(btn)
-	if btn.EQOL_RangeOverlay then return btn.EQOL_RangeOverlay end
-
-	local tex = btn:CreateTexture(nil, "OVERLAY", nil, 7)
-	tex:SetAllPoints(btn.icon or btn.Icon or btn)
-
-	tex:Hide()
-	btn.EQOL_RangeOverlay = tex
-	return tex
-end
-
-local function ApplyOverlayShape(overlay)
-	if not overlay then return end
-	local shape = (addon.db and addon.db.actionBarFullRangeShape) or "SQUARE"
-	if shape == "ROUND" then
-		overlay:SetTexture("Interface\\AddOns\\EnhanceQoL\\Assets\\EQOL_RoundRect_128_soft.tga")
-	else
-		overlay:SetTexture("Interface\\BUTTONS\\WHITE8X8")
-	end
-	overlay:SetTexCoord(0, 1, 0, 1)
-end
-
 local function ShowRangeOverlay(btn, show)
-	local ov = EnsureOverlay(btn)
+	local icon = btn and (btn.icon or btn.Icon)
+	if not icon then return end
 	if show and addon.db and addon.db.actionBarFullRangeColoring then
 		local col = addon.db.actionBarFullRangeColor or { r = 1, g = 0.1, b = 0.1 }
-		local alpha = addon.db.actionBarFullRangeAlpha or 0.35
-		ApplyOverlayShape(ov)
-		ov:SetVertexColor(col.r, col.g, col.b, alpha)
-		ov:Show()
+		if not icon.EQOL_OriginalVertexColor then
+			local r, g, b, a = icon:GetVertexColor()
+			icon.EQOL_OriginalVertexColor = { r = r, g = g, b = b, a = a }
+		end
+		local cr, cg, cb, ca = icon:GetVertexColor()
+		if math.abs((cr or 0) - col.r) > 0.001 or math.abs((cg or 0) - col.g) > 0.001 or math.abs((cb or 0) - col.b) > 0.001 or math.abs((ca or 0) - 1) > 0.001 then
+			icon:SetVertexColor(col.r, col.g, col.b, 1)
+		end
 	else
-		ov:Hide()
+		if icon.EQOL_OriginalVertexColor then
+			local c = icon.EQOL_OriginalVertexColor
+			icon:SetVertexColor(c.r or 1, c.g or 1, c.b or 1, c.a or 1)
+			icon.EQOL_OriginalVertexColor = nil
+		end
 	end
 end
 

@@ -447,29 +447,6 @@ local function createLabelControls(category)
 		end,
 	})
 
-	addon.functions.SettingsCreateDropdown(category, {
-		var = "actionBarFullRangeShape",
-		text = L["rangeOverlayShape"] or "Overlay shape",
-		list = {
-			SQUARE = L["rangeOverlayShapeSquare"] or "Square",
-			ROUND = L["rangeOverlayShapeRound"] or "Rounded",
-		},
-		default = "SQUARE",
-		get = function()
-			local v = addon.db.actionBarFullRangeShape or "SQUARE"
-			if v ~= "ROUND" then v = "SQUARE" end
-			return v
-		end,
-		set = function(val)
-			if val ~= "ROUND" then val = "SQUARE" end
-			addon.db.actionBarFullRangeShape = val
-			if ActionBarLabels and ActionBarLabels.RefreshAllRangeOverlays then ActionBarLabels.RefreshAllRangeOverlays() end
-		end,
-		parent = true,
-		element = rangeToggle.element,
-		parentCheck = function() return rangeToggle.setting and rangeToggle.setting:GetValue() == true end,
-	})
-
 	addon.functions.SettingsCreateColorPicker(category, {
 		var = "actionBarFullRangeColor",
 		text = L["rangeOverlayColor"],
@@ -480,26 +457,6 @@ local function createLabelControls(category)
 		element = rangeToggle.element,
 		parentCheck = function() return rangeToggle.setting and rangeToggle.setting:GetValue() == true end,
 		colorizeLabel = true,
-	})
-
-	addon.functions.SettingsCreateSlider(category, {
-		var = "actionBarFullRangeAlpha",
-		text = L["rangeOverlayAlpha"],
-		min = 1,
-		max = 100,
-		step = 1,
-		default = 35,
-		get = function()
-			local val = addon.db["actionBarFullRangeAlpha"] or 0.35
-			return math.floor((val * 100) + 0.5)
-		end,
-		set = function(val)
-			addon.db["actionBarFullRangeAlpha"] = (val or 0) / 100
-			if ActionBarLabels and ActionBarLabels.RefreshAllRangeOverlays then ActionBarLabels.RefreshAllRangeOverlays() end
-		end,
-		parent = true,
-		element = rangeToggle.element,
-		parentCheck = function() return rangeToggle.setting and rangeToggle.setting:GetValue() == true end,
 	})
 
 	addon.functions.SettingsCreateMultiDropdown(category, {

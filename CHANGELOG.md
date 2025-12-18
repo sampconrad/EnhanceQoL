@@ -10,7 +10,7 @@
 - Collections: optional auto-unwrap for new mounts, pets, and toys (clears fanfare/alerts).
 - UI & Input: toggle to hide the micro menu notification diamonds.
 - Mythic+: keybind to open the World Map Teleport panel directly.
-- Action Bars: range overlay now supports square or rounded fill shapes.
+- Action Bars: out-of-range highlight now tints the action button icon directly (no separate overlay), using your chosen color/alpha.
 - Profiles: export/import the active profile (full overwrite) via copy/paste with reload after import.
 - Added Naaru's Enfold toy (ID 263489) support to teleport/hearthstone handling.
 
