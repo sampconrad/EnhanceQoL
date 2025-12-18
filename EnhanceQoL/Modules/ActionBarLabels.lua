@@ -109,11 +109,24 @@ end
 
 local function EnsureOverlay(btn)
 	if btn.EQOL_RangeOverlay then return btn.EQOL_RangeOverlay end
+
 	local tex = btn:CreateTexture(nil, "OVERLAY", nil, 7)
 	tex:SetAllPoints(btn.icon or btn.Icon or btn)
+
 	tex:Hide()
 	btn.EQOL_RangeOverlay = tex
 	return tex
+end
+
+local function ApplyOverlayShape(overlay)
+	if not overlay then return end
+	local shape = (addon.db and addon.db.actionBarFullRangeShape) or "SQUARE"
+	if shape == "ROUND" then
+		overlay:SetTexture("Interface\\AddOns\\EnhanceQoL\\Assets\\EQOL_RoundRect_128_soft.tga")
+	else
+		overlay:SetTexture("Interface\\BUTTONS\\WHITE8X8")
+	end
+	overlay:SetTexCoord(0, 1, 0, 1)
 end
 
 local function ShowRangeOverlay(btn, show)
@@ -121,7 +134,8 @@ local function ShowRangeOverlay(btn, show)
 	if show and addon.db and addon.db.actionBarFullRangeColoring then
 		local col = addon.db.actionBarFullRangeColor or { r = 1, g = 0.1, b = 0.1 }
 		local alpha = addon.db.actionBarFullRangeAlpha or 0.35
-		ov:SetColorTexture(col.r, col.g, col.b, alpha)
+		ApplyOverlayShape(ov)
+		ov:SetVertexColor(col.r, col.g, col.b, alpha)
 		ov:Show()
 	else
 		ov:Hide()

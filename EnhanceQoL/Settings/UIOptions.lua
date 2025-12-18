@@ -447,6 +447,29 @@ local function createLabelControls(category)
 		end,
 	})
 
+	addon.functions.SettingsCreateDropdown(category, {
+		var = "actionBarFullRangeShape",
+		text = L["rangeOverlayShape"] or "Overlay shape",
+		list = {
+			SQUARE = L["rangeOverlayShapeSquare"] or "Square",
+			ROUND = L["rangeOverlayShapeRound"] or "Rounded",
+		},
+		default = "SQUARE",
+		get = function()
+			local v = addon.db.actionBarFullRangeShape or "SQUARE"
+			if v ~= "ROUND" then v = "SQUARE" end
+			return v
+		end,
+		set = function(val)
+			if val ~= "ROUND" then val = "SQUARE" end
+			addon.db.actionBarFullRangeShape = val
+			if ActionBarLabels and ActionBarLabels.RefreshAllRangeOverlays then ActionBarLabels.RefreshAllRangeOverlays() end
+		end,
+		parent = true,
+		element = rangeToggle.element,
+		parentCheck = function() return rangeToggle.setting and rangeToggle.setting:GetValue() == true end,
+	})
+
 	addon.functions.SettingsCreateColorPicker(category, {
 		var = "actionBarFullRangeColor",
 		text = L["rangeOverlayColor"],
