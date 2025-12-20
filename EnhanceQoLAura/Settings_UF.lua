@@ -51,6 +51,17 @@ local anchorOptions = {
 	{ value = "RIGHT", label = "RIGHT" },
 }
 
+local classResourceClasses = {
+	DEATHKNIGHT = true,
+	DRUID = true,
+	EVOKER = true,
+	MAGE = true,
+	MONK = true,
+	PALADIN = true,
+	ROGUE = true,
+	WARLOCK = true,
+}
+
 local function isBossUnit(unit) return unit == "boss" or (unit and unit:match("^boss%d+$")) end
 
 local function defaultsFor(unit)
@@ -269,7 +280,7 @@ local function radioDropdown(name, options, getter, setter, default, parentId)
 	}
 end
 
-local function slider(name, minVal, maxVal, step, getter, setter, default, parentId, allowInput)
+local function slider(name, minVal, maxVal, step, getter, setter, default, parentId, allowInput, formatter)
 	return {
 		name = name,
 		kind = settingType.Slider,
@@ -281,6 +292,7 @@ local function slider(name, minVal, maxVal, step, getter, setter, default, paren
 		default = default,
 		get = function() return getter() end,
 		set = function(_, value) setter(value) end,
+		formatter = formatter,
 	}
 end
 
@@ -356,6 +368,7 @@ local function buildUnitSettings(unit)
 	end
 	local refresh = refreshSelf
 	local isPlayer = unit == "player"
+	local classHasResource = isPlayer and classResourceClasses[addon.variables and addon.variables.unitClass]
 	local copyOptions = availableCopySources(unit)
 
 	list[#list + 1] = { name = SETTINGS or "Settings", kind = settingType.Collapsible, id = "utility", defaultCollapsed = true }
@@ -926,6 +939,158 @@ local function buildUnitSettings(unit)
 		colorDefault = { r = 0, g = 0, b = 0, a = 0.6 },
 		isEnabled = isPowerEnabled,
 	})
+
+	if isPlayer and classHasResource then
+		local crDef = def.classResource or {}
+		list[#list + 1] = { name = L["ClassResource"] or "Class Resource", kind = settingType.Collapsible, id = "classResource", defaultCollapsed = true }
+		local function isClassResourceEnabled() return getValue(unit, { "classResource", "enabled" }, crDef.enabled ~= false) ~= false end
+		local function defaultOffsetY()
+			local anchor = getValue(unit, { "classResource", "anchor" }, crDef.anchor or "TOP")
+			return anchor == "TOP" and -5 or 5
+		end
+
+		list[#list + 1] = checkbox(L["Show class resource"] or "Show class resource", isClassResourceEnabled, function(val)
+			setValue(unit, { "classResource", "enabled" }, val and true or false)
+			refreshSelf()
+		end, crDef.enabled ~= false, "classResource")
+
+		local classAnchorOpts = {
+			{ value = "TOP", label = L["Top"] or "Top" },
+			{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+		}
+		local classAnchor = radioDropdown(L["Anchor"] or "Anchor", classAnchorOpts, function() return getValue(unit, { "classResource", "anchor" }, crDef.anchor or "TOP") end, function(val)
+			setValue(unit, { "classResource", "anchor" }, val or "TOP")
+			refreshSelf()
+		end, crDef.anchor or "TOP", "classResource")
+		classAnchor.isEnabled = isClassResourceEnabled
+		list[#list + 1] = classAnchor
+
+		local classOffsetX = slider(
+			L["Offset X"] or "Offset X",
+			-400,
+			400,
+			1,
+			function() return getValue(unit, { "classResource", "offset", "x" }, (crDef.offset and crDef.offset.x) or 0) end,
+			function(val)
+				debounced(unit .. "_classResourceOffsetX", function()
+					setValue(unit, { "classResource", "offset", "x" }, val or 0)
+					refreshSelf()
+				end)
+			end,
+			(crDef.offset and crDef.offset.x) or 0,
+			"classResource",
+			true
+		)
+		classOffsetX.isEnabled = isClassResourceEnabled
+		list[#list + 1] = classOffsetX
+
+		local classOffsetY = slider(L["Offset Y"] or "Offset Y", -400, 400, 1, function() return getValue(unit, { "classResource", "offset", "y" }, defaultOffsetY()) end, function(val)
+			debounced(unit .. "_classResourceOffsetY", function()
+				setValue(unit, { "classResource", "offset", "y" }, val or 0)
+				refreshSelf()
+			end)
+		end, defaultOffsetY(), "classResource", true)
+		classOffsetY.isEnabled = isClassResourceEnabled
+		list[#list + 1] = classOffsetY
+
+		local function SnapToStep(value, step, minV, maxV)
+			value = tonumber(value)
+			if not value then return nil end
+
+			if minV then value = math.max(minV, value) end
+			if maxV then value = math.min(maxV, value) end
+
+			local inv = 1 / (step or 1)
+			local ticks = math.floor(value * inv + 0.5)
+			local snapped = ticks / inv
+
+			snapped = math.floor(snapped * 100 + 0.5) / 100
+			return snapped
+		end
+
+		local classScale = slider(
+			L["Scale"] or "Scale",
+			0.5,
+			2,
+			0.05,
+			function()
+				local v = getValue(unit, { "classResource", "scale" }, crDef.scale or 1)
+				return SnapToStep(v, 0.05, 0.5, 2) or 1
+			end,
+			function(val)
+				debounced(unit .. "_classResourceScale", function()
+					val = SnapToStep(val, 0.05, 0.5, 2) or 1
+					setValue(unit, { "classResource", "scale" }, val)
+					refreshSelf()
+
+					-- DAS ist der Punkt: UI-Wert neu setzen
+					refreshSettingsUI()
+				end)
+			end,
+			SnapToStep(crDef.scale or 1, 0.05, 0.5, 2) or 1,
+			"classResource",
+			true,
+			function(value)
+				value = SnapToStep(value, 0.05, 0.5, 2) or 1
+				return string.format("%.2f", value)
+			end
+		)
+		classScale.isEnabled = isClassResourceEnabled
+		list[#list + 1] = classScale
+	end
+
+	local raidIconDef = def.raidIcon or { enabled = true, size = 18, offset = { x = 0, y = -2 } }
+	local function isRaidIconEnabled() return getValue(unit, { "raidIcon", "enabled" }, raidIconDef.enabled ~= false) ~= false end
+	list[#list + 1] = { name = L["RaidTargetIcon"] or "Raid Target Icon", kind = settingType.Collapsible, id = "raidicon", defaultCollapsed = true }
+
+	list[#list + 1] = checkbox(L["Show raid target icon"] or "Show raid target icon", isRaidIconEnabled, function(val)
+		setValue(unit, { "raidIcon", "enabled" }, val and true or false)
+		refreshSelf()
+	end, raidIconDef.enabled ~= false, "raidicon")
+
+	local raidIconSize = slider(L["Icon size"] or "Icon size", 10, 30, 1, function() return getValue(unit, { "raidIcon", "size" }, raidIconDef.size or 18) end, function(val)
+		local v = val or raidIconDef.size or 18
+		if v < 10 then v = 10 end
+		if v > 30 then v = 30 end
+		setValue(unit, { "raidIcon", "size" }, v)
+		refreshSelf()
+	end, raidIconDef.size or 18, "raidicon", true)
+	raidIconSize.isEnabled = isRaidIconEnabled
+	list[#list + 1] = raidIconSize
+
+	local raidIconOffsetX = slider(
+		L["Offset X"] or "Offset X",
+		-200,
+		200,
+		1,
+		function() return getValue(unit, { "raidIcon", "offset", "x" }, (raidIconDef.offset and raidIconDef.offset.x) or 0) end,
+		function(val)
+			setValue(unit, { "raidIcon", "offset", "x" }, val or 0)
+			refreshSelf()
+		end,
+		(raidIconDef.offset and raidIconDef.offset.x) or 0,
+		"raidicon",
+		true
+	)
+	raidIconOffsetX.isEnabled = isRaidIconEnabled
+	list[#list + 1] = raidIconOffsetX
+
+	local raidIconOffsetY = slider(
+		L["Offset Y"] or "Offset Y",
+		-200,
+		200,
+		1,
+		function() return getValue(unit, { "raidIcon", "offset", "y" }, (raidIconDef.offset and raidIconDef.offset.y) or 0) end,
+		function(val)
+			setValue(unit, { "raidIcon", "offset", "y" }, val or 0)
+			refreshSelf()
+		end,
+		(raidIconDef.offset and raidIconDef.offset.y) or 0,
+		"raidicon",
+		true
+	)
+	raidIconOffsetY.isEnabled = isRaidIconEnabled
+	list[#list + 1] = raidIconOffsetY
 
 	if unit == "target" or unit == "focus" then
 		local castDef = def.cast or {}

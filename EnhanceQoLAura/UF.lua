@@ -48,27 +48,22 @@ local atlasByPower = {
 	HEALTH = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Health",
 }
 
-local UnitHealth, UnitHealthMax = UnitHealth, UnitHealthMax
-local UnitPower, UnitPowerMax, UnitPowerType = UnitPower, UnitPowerMax, UnitPowerType
-local UnitExists = UnitExists
-local InCombatLockdown = InCombatLockdown
-local BreakUpLargeNumbers = BreakUpLargeNumbers
-local AbbreviateNumbers = AbbreviateNumbers
 local CASTING_BAR_TYPES = _G.CASTING_BAR_TYPES
 local EnumPowerType = Enum and Enum.PowerType
-local PowerBarColor = PowerBarColor
-local UnitName, UnitClass, UnitLevel, UnitClassification = UnitName, UnitClass, UnitLevel, UnitClassification
 local UnitGetTotalAbsorbs = UnitGetTotalAbsorbs or function() return 0 end
 local RegisterStateDriver = _G.RegisterStateDriver
 local UnregisterStateDriver = _G.UnregisterStateDriver
-local RAID_CLASS_COLORS = RAID_CLASS_COLORS
-local CUSTOM_CLASS_COLORS = CUSTOM_CLASS_COLORS
 local After = C_Timer and C_Timer.After
 local NewTicker = C_Timer and C_Timer.NewTicker
 local floor = math.floor
 local max = math.max
 local abs = math.abs
 local wipe = wipe or (table and table.wipe)
+local function clamp(value, minV, maxV)
+	if value < minV then return minV end
+	if value > maxV then return maxV end
+	return value
+end
 local SetFrameVisibilityOverride = addon.functions and addon.functions.SetFrameVisibilityOverride
 local HasFrameVisibilityOverride = addon.functions and addon.functions.HasFrameVisibilityOverride
 
@@ -107,6 +102,20 @@ local BLIZZ_TARGET_TARGET_FRAME_NAME = "TargetFrameToT"
 local BLIZZ_FOCUS_FRAME_NAME = "FocusFrame"
 local BLIZZ_PET_FRAME_NAME = "PetFrame"
 local MIN_WIDTH = 50
+local classResourceFramesByClass = {
+	DEATHKNIGHT = { "RuneFrame" },
+	DRUID = { "DruidComboPointBarFrame" },
+	EVOKER = { "EssencePlayerFrame" },
+	MAGE = { "MageArcaneChargesFrame" },
+	MONK = { "MonkHarmonyBarFrame" },
+	PALADIN = { "PaladinPowerBarFrame" },
+	ROGUE = { "RogueComboPointBarFrame" },
+	WARLOCK = { "WarlockPowerFrame" },
+}
+local classResourceOriginalLayouts = {}
+local classResourceManagedFrames = {}
+local classResourceHooks = {}
+local applyClassResourceLayout
 
 local function getFont(path)
 	if path and path ~= "" then return path end
@@ -236,6 +245,17 @@ local defaults = {
 				texture = "Interface\\CharacterFrame\\UI-StateIcon",
 				texCoords = { 0.5, 1, 0, 0.5 }, -- combat icon region
 			},
+		},
+		classResource = {
+			enabled = true,
+			anchor = "TOP",
+			offset = { x = 0, y = -5 },
+			scale = 1,
+		},
+		raidIcon = {
+			enabled = true,
+			size = 18,
+			offset = { x = 0, y = -2 },
 		},
 	},
 	target = {
@@ -385,6 +405,162 @@ local function copySettings(fromUnit, toUnit, opts)
 	if keepAnchor then dest.anchor = anchor end
 	if keepEnabled then dest.enabled = enabled end
 	return true
+end
+
+local function applyRaidIconLayout(unit, cfg)
+	local st = states[unit]
+	if not st or not st.raidIcon or not st.frame then return end
+	local def = defaultsFor(unit)
+	local rcfg = (cfg and cfg.raidIcon) or (def and def.raidIcon) or {}
+	local offsetDef = def and def.raidIcon and def.raidIcon.offset or {}
+	local sizeDef = def and def.raidIcon and def.raidIcon.size or 18
+	local enabled = rcfg.enabled ~= false
+	local size = clamp(rcfg.size or sizeDef or 18, 10, 30)
+	local ox = (rcfg.offset and rcfg.offset.x) or offsetDef.x or 0
+	local oy = (rcfg.offset and rcfg.offset.y) or offsetDef.y or -2
+	st.raidIcon:ClearAllPoints()
+	st.raidIcon:SetSize(size, size)
+	st.raidIcon:SetPoint("TOP", st.frame, "TOP", ox, oy)
+	if not enabled then st.raidIcon:Hide() end
+end
+
+local function checkRaidTargetIcon(unitToken, st)
+	if not st or not st.raidIcon then return end
+	local cfg = st.cfg or ensureDB(unitToken)
+	applyRaidIconLayout(unitToken, cfg)
+	local def = defaultsFor(unitToken)
+	local rcfg = (cfg and cfg.raidIcon) or (def and def.raidIcon) or {}
+	if (cfg and cfg.enabled == false) or rcfg.enabled == false then
+		st.raidIcon:Hide()
+		return
+	end
+	if addon.EditModeLib and addon.EditModeLib:IsInEditMode() then
+		SetRaidTargetIconTexture(st.raidIcon, 8)
+		st.raidIcon:Show()
+		return
+	end
+	local idx = GetRaidTargetIndex(unitToken)
+	if idx then
+		SetRaidTargetIconTexture(st.raidIcon, idx)
+		st.raidIcon:Show()
+	else
+		st.raidIcon:Hide()
+	end
+end
+local function updateAllRaidTargetIcons()
+	checkRaidTargetIcon(PLAYER_UNIT, states[PLAYER_UNIT])
+	checkRaidTargetIcon(TARGET_UNIT, states[TARGET_UNIT])
+	checkRaidTargetIcon(TARGET_TARGET_UNIT, states[TARGET_TARGET_UNIT])
+	checkRaidTargetIcon(PET_UNIT, states[PET_UNIT])
+	checkRaidTargetIcon(FOCUS_UNIT, states[FOCUS_UNIT])
+	for i = 1, maxBossFrames do
+		local u = "boss" .. i
+		if states[u] then checkRaidTargetIcon(u, states[u]) end
+	end
+end
+
+local function getClassResourceFrames()
+	local classKey = addon.variables and addon.variables.unitClass
+	local names = classKey and classResourceFramesByClass[classKey]
+	if not names then return nil end
+	local frames = {}
+	for _, name in ipairs(names) do
+		local frame = _G[name]
+		if frame then frames[#frames + 1] = frame end
+	end
+	return frames
+end
+
+local function storeClassResourceDefaults(frame)
+	if not frame or classResourceOriginalLayouts[frame] then return end
+	local info = {
+		parent = frame:GetParent(),
+		scale = frame:GetScale(),
+		strata = frame:GetFrameStrata(),
+		level = frame:GetFrameLevel(),
+		ignoreFramePositionManager = frame.ignoreFramePositionManager,
+		points = {},
+	}
+	for i = 1, frame:GetNumPoints() do
+		local point, rel, relPoint, x, y = frame:GetPoint(i)
+		info.points[#info.points + 1] = { point = point, relativeTo = rel, relativePoint = relPoint, x = x, y = y }
+	end
+	classResourceOriginalLayouts[frame] = info
+end
+
+local function restoreClassResourceFrame(frame)
+	if not frame then return end
+	local info = classResourceOriginalLayouts[frame]
+	classResourceManagedFrames[frame] = nil
+	if not info then return end
+	if frame.SetParent and info.parent then frame:SetParent(info.parent) end
+	frame:ClearAllPoints()
+	if info.points and #info.points > 0 then
+		for _, pt in ipairs(info.points) do
+			frame:SetPoint(pt.point, pt.relativeTo, pt.relativePoint, pt.x or 0, pt.y or 0)
+		end
+	end
+	if info.scale and frame.SetScale then frame:SetScale(info.scale) end
+	if info.strata and frame.SetFrameStrata then frame:SetFrameStrata(info.strata) end
+	if info.level and frame.SetFrameLevel then frame:SetFrameLevel(info.level) end
+	if info.ignoreFramePositionManager ~= nil then frame.ignoreFramePositionManager = info.ignoreFramePositionManager end
+end
+
+local function restoreClassResourceFrames()
+	for frame in pairs(classResourceManagedFrames) do
+		restoreClassResourceFrame(frame)
+	end
+end
+
+local function onClassResourceShow()
+	if applyClassResourceLayout then applyClassResourceLayout(states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg or ensureDB(PLAYER_UNIT)) end
+end
+
+local function hookClassResourceFrame(frame)
+	if not frame or classResourceHooks[frame] then return end
+	classResourceHooks[frame] = true
+	frame:HookScript("OnShow", onClassResourceShow)
+end
+
+applyClassResourceLayout = function(cfg)
+	local classKey = addon.variables and addon.variables.unitClass
+	if not classKey or not classResourceFramesByClass[classKey] then
+		restoreClassResourceFrames()
+		return
+	end
+	local frames = getClassResourceFrames()
+	if not frames or #frames == 0 then
+		restoreClassResourceFrames()
+		return
+	end
+	local st = states[PLAYER_UNIT]
+	if not st or not st.frame then return end
+	local def = defaultsFor(PLAYER_UNIT)
+	local rcfg = (cfg and cfg.classResource) or (def and def.classResource) or {}
+	if rcfg.enabled == false then
+		restoreClassResourceFrames()
+		return
+	end
+	if InCombatLockdown and InCombatLockdown() then return end
+
+	local anchor = rcfg.anchor or (def.classResource and def.classResource.anchor) or "TOP"
+	local offsetX = (rcfg.offset and rcfg.offset.x) or 0
+	local offsetY = (rcfg.offset and rcfg.offset.y)
+	if offsetY == nil then offsetY = anchor == "TOP" and -5 or 5 end
+	local scale = rcfg.scale or (def.classResource and def.classResource.scale) or 1
+
+	for _, frame in ipairs(frames) do
+		storeClassResourceDefaults(frame)
+		hookClassResourceFrame(frame)
+		classResourceManagedFrames[frame] = true
+		frame.ignoreFramePositionManager = true
+		frame:ClearAllPoints()
+		frame:SetPoint(anchor, st.frame, anchor, offsetX, offsetY)
+		frame:SetParent(st.frame)
+		if frame.SetScale then frame:SetScale(scale) end
+		if frame.SetFrameStrata and st.frame.GetFrameStrata then frame:SetFrameStrata(st.frame:GetFrameStrata()) end
+		if frame.SetFrameLevel and st.frame.GetFrameLevel then frame:SetFrameLevel((st.frame:GetFrameLevel() or 0) + 5) end
+	end
 end
 
 local function trim(str)
@@ -1866,6 +2042,7 @@ local function layoutFrame(cfg, unit)
 			end
 		end
 	end
+	if unit == PLAYER_UNIT then applyClassResourceLayout(cfg) end
 	syncTextFrameLevels(st)
 end
 
@@ -1908,6 +2085,7 @@ local function ensureFrames(unit)
 	if st.health.SetStatusBarDesaturated then st.health:SetStatusBarDesaturated(false) end
 	st.power = _G[info.powerName] or CreateFrame("StatusBar", info.powerName, st.barGroup, "BackdropTemplate")
 	if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(false) end
+
 	local allowAbsorb = not (info and info.disableAbsorb)
 	if allowAbsorb then
 		st.absorb = st.absorb or CreateFrame("StatusBar", info.healthName .. "Absorb", st.health, "BackdropTemplate")
@@ -1953,6 +2131,11 @@ local function ensureFrames(unit)
 	st.powerTextRight = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.nameText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.levelText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	st.raidIcon = st.statusTextLayer:CreateTexture(nil, "OVERLAY", nil, 7)
+	st.raidIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+	st.raidIcon:SetSize(18, 18)
+	st.raidIcon:SetPoint("TOP", st.frame, "TOP", 0, -2)
+	st.raidIcon:Hide()
 	if unit == PLAYER_UNIT then st.combatIcon = st.statusTextLayer:CreateTexture("EQOLUFPlayerCombatIcon", "OVERLAY") end
 
 	if unit == "target" then
@@ -2097,6 +2280,7 @@ local function applyConfig(unit)
 		if unit == TARGET_TARGET_UNIT then applyFrameRuleOverride(BLIZZ_TARGET_TARGET_FRAME_NAME, false) end
 		if unit == FOCUS_UNIT then applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, false) end
 		if unit == PET_UNIT then applyFrameRuleOverride(BLIZZ_PET_FRAME_NAME, false) end
+		if unit == PLAYER_UNIT then restoreClassResourceFrames() end
 		if unit == "target" then resetTargetAuras() end
 		return
 	end
@@ -2115,6 +2299,7 @@ local function applyConfig(unit)
 	updateNameAndLevel(cfg, unit)
 	updateHealth(cfg, unit)
 	updatePower(cfg, unit)
+	checkRaidTargetIcon(unit, st)
 	if unit == PLAYER_UNIT then updateCombatIndicator(cfg) end
 	-- if unit == "target" then hideBlizzardTargetFrame() end
 	if st and st.frame then
@@ -2302,6 +2487,7 @@ local function updateBossFrames(force)
 					updateNameAndLevel(cfg, unit)
 					updateHealth(cfg, unit)
 					updatePower(cfg, unit)
+					checkRaidTargetIcon(unit, st)
 				else
 					if st.barGroup then st.barGroup:Hide() end
 					if st.status then st.status:Hide() end
@@ -2358,6 +2544,7 @@ local generalEvents = {
 	"INSTANCE_ENCOUNTER_ENGAGE_UNIT",
 	"ENCOUNTER_START",
 	"ENCOUNTER_END",
+	"RAID_TARGET_UPDATE",
 }
 
 local eventFrame
@@ -2477,6 +2664,7 @@ local function updateTargetTargetFrame(cfg, forceApply)
 				st.power:Hide()
 			end
 			updatePower(cfg, TARGET_TARGET_UNIT)
+			checkRaidTargetIcon(TARGET_TARGET_UNIT, st)
 		end
 	else
 		if st then
@@ -2484,6 +2672,7 @@ local function updateTargetTargetFrame(cfg, forceApply)
 			if st.status then st.status:Hide() end
 		end
 	end
+	checkRaidTargetIcon(TARGET_TARGET_UNIT, st)
 	ensureToTTicker()
 end
 
@@ -2522,6 +2711,7 @@ local function updateFocusFrame(cfg, forceApply)
 			end
 			updatePower(cfg, FOCUS_UNIT)
 			if st.castBar then setCastInfoFromUnit(FOCUS_UNIT) end
+			checkRaidTargetIcon(FOCUS_UNIT, st)
 		end
 	else
 		if st then
@@ -2530,6 +2720,7 @@ local function updateFocusFrame(cfg, forceApply)
 			if st.castBar then stopCast(FOCUS_UNIT) end
 		end
 	end
+	checkRaidTargetIcon(FOCUS_UNIT, st)
 end
 
 local function onEvent(self, event, unit, arg1)
@@ -2548,6 +2739,7 @@ local function onEvent(self, event, unit, arg1)
 		if focusCfg.enabled then updateFocusFrame(focusCfg, true) end
 		if petCfg.enabled then applyConfig(PET_UNIT) end
 		updateCombatIndicator(playerCfg)
+		updateAllRaidTargetIcons()
 		if bossCfg.enabled then
 			updateBossFrames(true)
 		else
@@ -2603,6 +2795,7 @@ local function onEvent(self, event, unit, arg1)
 			st.status:Hide()
 			stopCast(unitToken)
 		end
+		checkRaidTargetIcon(unitToken, st)
 		if totCfg.enabled then updateTargetTargetFrame(totCfg) end
 		if focusCfg.enabled then updateFocusFrame(focusCfg) end
 	elseif event == "UNIT_AURA" and unit == "target" then
@@ -2785,7 +2978,12 @@ local function onEvent(self, event, unit, arg1)
 			updatePower(petCfg, PET_UNIT)
 		end
 	elseif event == "PLAYER_FOCUS_CHANGED" then
-		if focusCfg.enabled then updateFocusFrame(focusCfg, true) end
+		if focusCfg.enabled then
+			updateFocusFrame(focusCfg, true)
+			checkRaidTargetIcon(FOCUS_UNIT, states[FOCUS_UNIT])
+		end
+	elseif event == "RAID_TARGET_UPDATE" then
+		updateAllRaidTargetIcons()
 	end
 end
 
@@ -2813,12 +3011,14 @@ local function ensureEventHandling()
 			updateCombatIndicator(states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg or ensureDB(PLAYER_UNIT))
 			ensureBossFramesReady(ensureDB("boss"))
 			updateBossFrames(true)
+			updateAllRaidTargetIcons()
 		end)
 
 		addon.EditModeLib:RegisterCallback("exit", function()
 			updateCombatIndicator(states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg or ensureDB(PLAYER_UNIT))
 			hideBossFrames(true)
 			if ensureDB("boss").enabled then updateBossFrames(true) end
+			updateAllRaidTargetIcons()
 		end)
 	end
 end
@@ -2846,6 +3046,7 @@ function UF.Disable()
 	local cfg = ensureDB("player")
 	cfg.enabled = false
 	if states.player and states.player.frame then states.player.frame:Hide() end
+	restoreClassResourceFrames()
 	stopToTTicker()
 	addon.variables.requireReload = true
 	if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end

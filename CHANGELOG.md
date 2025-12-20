@@ -1,5 +1,16 @@
 # Changelog
 
+## [6.5.0] – 2025-12-22
+
+### ✨ Added
+
+- Option to show the Class Resources with UF Plus
+- Maelstrom Weapon tracking added as Resourcebar for Enhancement Shaman
+- Devourer Resource bar tracking added (but disabled until next beta release of WoW - Will be non-secret than)
+- Tooltips for Spell/Item/Aura-IDs enabled in Combat with better secret handling for midnight
+- UF Plus now let's you enable/disable and change Raid Icons size/offset
+- UF Plus now let's you show the blizzard class resources and manage it
+
 ## [6.4.0] – 2025-12-17
 
 ### ✨ Added
@@ -13,9 +24,6 @@
 - Action Bars: out-of-range highlight now tints the action button icon directly (no separate overlay), using your chosen color/alpha.
 - Profiles: export/import the active profile (full overwrite) via copy/paste with reload after import.
 - Added Naaru's Enfold toy (ID 263489) support to teleport/hearthstone handling.
-- Maelstrom Weapon tracking added as Resourcebar for Enhancement Shaman
-- Devourer Resource bar tracking added (but disabled until next beta release of WoW - Will be non-secret than)
-- Tooltips for Spell/Item/Aura-IDs enabled in Combat with better secret handling for midnight
 
 ### 🔄 Changed
 
