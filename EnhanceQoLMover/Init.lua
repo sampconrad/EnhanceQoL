@@ -218,6 +218,7 @@ function addon.Mover.functions.RegisterFrame(def)
 		handles = (#handles > 0) and handles or nil,
 		addon = def.addon,
 		useRootHandle = def.useRootHandle,
+		keepTwoPointSize = def.keepTwoPointSize,
 		ignoreFramePositionManager = def.ignoreFramePositionManager,
 		userPlaced = def.userPlaced,
 		settingKey = def.settingKey or makeSettingKey(def.id),
@@ -315,6 +316,26 @@ local function isEntryActive(entry)
 	return addon.Mover.functions.IsFrameEnabled(entry)
 end
 
+local function MoveKeepTwoPointSize(frame, x, y, point, relPoint)
+	point = point or "TOPLEFT"
+	relPoint = relPoint or point
+
+	local w, h = frame:GetSize()
+	if not w or not h or w <= 0 or h <= 0 then
+		w = frame:GetWidth() or 700
+		h = frame:GetHeight() or 700
+	end
+
+	frame:ClearAllPoints()
+
+	-- 1) TOPLEFT setzen
+	frame:SetPoint(point, UIParent, relPoint, x or 0, y or 0)
+
+	-- 2) BOTTOMRIGHT so setzen, dass die alte Groesse erhalten bleibt
+	-- (BOTTOMRIGHT relativ zu TOPLEFT, y ist negativ weil nach unten)
+	frame:SetPoint("BOTTOMRIGHT", UIParent, relPoint, (x or 0) + w, (y or 0) - h)
+end
+
 function addon.Mover.functions.applyFrameSettings(frame, entry)
 	if not frame then return end
 	local resolved = resolveEntry(entry) or addon.Mover.functions.GetEntryForFrameName(frame:GetName() or "")
@@ -327,8 +348,12 @@ function addon.Mover.functions.applyFrameSettings(frame, entry)
 		return
 	end
 	frame._eqol_isApplying = true
-	frame:ClearAllPoints()
-	frame:SetPoint(frameDb.point, UIParent, frameDb.point, frameDb.x, frameDb.y)
+	if resolved.keepTwoPointSize then
+		MoveKeepTwoPointSize(frame, frameDb.x, frameDb.y, frameDb.point, frameDb.point)
+	else
+		frame:ClearAllPoints()
+		frame:SetPoint(frameDb.point, UIParent, frameDb.point, frameDb.x, frameDb.y)
+	end
 	frame._eqol_isApplying = nil
 end
 
@@ -378,6 +403,7 @@ function addon.Mover.functions.createHooks(frame, entry)
 		frame:StopMovingOrSizing()
 		frame._eqol_isDragging = nil
 		addon.Mover.functions.StoreFramePosition(frame, resolved)
+		if resolved.keepTwoPointSize then addon.Mover.functions.applyFrameSettings(frame, resolved) end
 	end
 
 	local function attachHandle(anchor)
@@ -434,8 +460,12 @@ function addon.Mover.functions.createHooks(frame, entry)
 			return
 		end
 		self._eqol_isApplying = true
-		self:ClearAllPoints()
-		self:SetPoint(frameDb.point, UIParent, frameDb.point, frameDb.x, frameDb.y)
+		if resolved.keepTwoPointSize then
+			MoveKeepTwoPointSize(self, frameDb.x, frameDb.y, frameDb.point, frameDb.point)
+		else
+			self:ClearAllPoints()
+			self:SetPoint(frameDb.point, UIParent, frameDb.point, frameDb.x, frameDb.y)
+		end
 		self._eqol_isApplying = nil
 	end)
 

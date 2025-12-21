@@ -487,6 +487,14 @@ local frames = {
 		defaultEnabled = true,
 	},
 	{
+		id = "ClassTrainerFrame",
+		label = MINIMAP_TRACKING_TRAINER_CLASS,
+		group = "world",
+		names = { "ClassTrainerFrame" },
+		addon = "Blizzard_TrainerUI",
+		defaultEnabled = true,
+	},
+	{
 		id = "BankFrame",
 		label = L["Bank"] or "Bank",
 		group = "bags",
@@ -508,6 +516,7 @@ local frames = {
 	-- 	group = "character",
 	-- 	names = { "CollectionsJournal" },
 	-- 	addon = "Blizzard_Collections",
+	-- 	keepTwoPointSize = true,
 	-- 	defaultEnabled = true,
 	-- },
 	{
