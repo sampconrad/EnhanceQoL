@@ -18,6 +18,7 @@
 ### 🐛 Fixed
 
 - Rune cooldown text now renders above the border to avoid clipping at small bar heights
+- Unit Frame status line settings now correctly gate name/level options and combat indicator sub-options
 
 ## [6.4.0] – 2025-12-17
 

@@ -339,7 +339,13 @@ local function calcLayout(unit, frame)
 	local def = defaultsFor(unit)
 	local anchor = cfg.anchor or def.anchor or {}
 	local powerEnabled = getValue(unit, { "power", "enabled" }, (def.power and def.power.enabled) ~= false)
-	local statusHeight = (cfg.status and cfg.status.enabled ~= false) and (cfg.statusHeight or def.statusHeight or 18) or 0
+	local statusDef = def.status or {}
+	local showName = getValue(unit, { "status", "enabled" }, statusDef.enabled ~= false) ~= false
+	local showLevel = getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) ~= false
+	local ciDef = statusDef.combatIndicator or {}
+	local showCombat = unit == "player" and getValue(unit, { "status", "combatIndicator", "enabled" }, ciDef.enabled ~= false) ~= false
+	local showStatus = showName or showLevel or showCombat
+	local statusHeight = showStatus and (cfg.statusHeight or def.statusHeight or 18) or 0
 	local width = cfg.width or def.width or frame:GetWidth() or 200
 	local barGap = powerEnabled and (cfg.barGap or def.barGap or 0) or 0
 	local powerHeight = powerEnabled and (cfg.powerHeight or def.powerHeight or 16) or 0
@@ -1344,26 +1350,35 @@ local function buildUnitSettings(unit)
 
 	list[#list + 1] = { name = L["UFStatusLine"] or "Status line", kind = settingType.Collapsible, id = "status", defaultCollapsed = true }
 	local statusDef = def.status or {}
+	local function isNameEnabled() return getValue(unit, { "status", "enabled" }, statusDef.enabled ~= false) ~= false end
+	local function isLevelEnabled() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) ~= false end
+	local function isStatusTextEnabled() return isNameEnabled() or isLevelEnabled() end
 
-	list[#list + 1] = checkbox(L["UFStatusEnable"] or "Show status line", function() return getValue(unit, { "status", "enabled" }, statusDef.enabled ~= false) end, function(val)
+	list[#list + 1] = checkbox(L["UFStatusEnable"] or "Show status line", isNameEnabled, function(val)
 		setValue(unit, { "status", "enabled" }, val and true or false)
 		refresh()
+		refreshSettingsUI()
 	end, statusDef.enabled ~= false, "status")
 
 	if isPlayer then
 		local ciDef = statusDef.combatIndicator or {}
-		list[#list + 1] = checkbox(
+		local function isCombatIndicatorEnabled()
+			return getValue(unit, { "status", "combatIndicator", "enabled" }, ciDef.enabled ~= false) ~= false
+		end
+		local combatIndicatorToggle = checkbox(
 			L["UFCombatIndicator"] or "Show combat indicator",
 			function() return getValue(unit, { "status", "combatIndicator", "enabled" }, ciDef.enabled ~= false) end,
 			function(val)
 				setValue(unit, { "status", "combatIndicator", "enabled" }, val and true or false)
 				refresh()
+				refreshSettingsUI()
 			end,
 			ciDef.enabled ~= false,
 			"status"
 		)
+		list[#list + 1] = combatIndicatorToggle
 
-		list[#list + 1] = slider(
+		local combatIndicatorSize = slider(
 			L["UFCombatIndicatorSize"] or "Combat indicator size",
 			10,
 			64,
@@ -1377,8 +1392,10 @@ local function buildUnitSettings(unit)
 			"status",
 			true
 		)
+		combatIndicatorSize.isEnabled = isCombatIndicatorEnabled
+		list[#list + 1] = combatIndicatorSize
 
-		list[#list + 1] = slider(
+		local combatIndicatorOffsetX = slider(
 			L["UFCombatIndicatorOffsetX"] or "Combat indicator X offset",
 			-300,
 			300,
@@ -1394,8 +1411,10 @@ local function buildUnitSettings(unit)
 			"status",
 			true
 		)
+		combatIndicatorOffsetX.isEnabled = isCombatIndicatorEnabled
+		list[#list + 1] = combatIndicatorOffsetX
 
-		list[#list + 1] = slider(
+		local combatIndicatorOffsetY = slider(
 			L["UFCombatIndicatorOffsetY"] or "Combat indicator Y offset",
 			-300,
 			300,
@@ -1411,15 +1430,19 @@ local function buildUnitSettings(unit)
 			"status",
 			true
 		)
+		combatIndicatorOffsetY.isEnabled = isCombatIndicatorEnabled
+		list[#list + 1] = combatIndicatorOffsetY
 	end
 
-	list[#list + 1] = checkbox(L["UFShowLevel"] or "Show level", function() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) end, function(val)
+	local showLevelToggle = checkbox(L["UFShowLevel"] or "Show level", function() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) end, function(val)
 		setValue(unit, { "status", "levelEnabled" }, val and true or false)
 		refresh()
+		refreshSettingsUI()
 	end, statusDef.levelEnabled ~= false, "status")
+	list[#list + 1] = showLevelToggle
 
 	if not isBoss then
-		list[#list + 1] = checkboxColor({
+		local nameColorSetting = checkboxColor({
 			name = L["UFNameColor"] or "Custom name color",
 			parentId = "status",
 			defaultChecked = (statusDef.nameColorMode or "CLASS") ~= "CLASS",
@@ -1441,8 +1464,10 @@ local function buildUnitSettings(unit)
 				a = (statusDef.nameColor and statusDef.nameColor[4]) or 1,
 			},
 		})
+		nameColorSetting.isEnabled = isNameEnabled
+		list[#list + 1] = nameColorSetting
 
-		list[#list + 1] = checkboxColor({
+		local levelColorSetting = checkboxColor({
 			name = L["UFLevelColor"] or "Custom level color",
 			parentId = "status",
 			defaultChecked = (statusDef.levelColorMode or "CLASS") ~= "CLASS",
@@ -1464,24 +1489,30 @@ local function buildUnitSettings(unit)
 				a = (statusDef.levelColor and statusDef.levelColor[4]) or 1,
 			},
 		})
+		levelColorSetting.isEnabled = isLevelEnabled
+		list[#list + 1] = levelColorSetting
 	end
 
-	list[#list + 1] = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "status", "fontSize" }, statusDef.fontSize or 14) end, function(val)
+	local statusFontSize = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "status", "fontSize" }, statusDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_statusFontSize", function()
 			setValue(unit, { "status", "fontSize" }, val or statusDef.fontSize or 14)
 			refreshSelf()
 		end)
 	end, statusDef.fontSize or 14, "status", true)
+	statusFontSize.isEnabled = isStatusTextEnabled
+	list[#list + 1] = statusFontSize
 
 	fontOpts = fontOptions()
 	if #fontOpts > 0 then
-		list[#list + 1] = radioDropdown(L["Font"] or "Font", fontOpts, function() return getValue(unit, { "status", "font" }, statusDef.font or defaultFontPath()) end, function(val)
+		local statusFont = radioDropdown(L["Font"] or "Font", fontOpts, function() return getValue(unit, { "status", "font" }, statusDef.font or defaultFontPath()) end, function(val)
 			setValue(unit, { "status", "font" }, val)
 			refreshSelf()
 		end, statusDef.font or defaultFontPath(), "status")
+		statusFont.isEnabled = isStatusTextEnabled
+		list[#list + 1] = statusFont
 	end
 
-	list[#list + 1] = radioDropdown(
+	local statusFontOutline = radioDropdown(
 		L["Font outline"] or "Font outline",
 		outlineOptions,
 		function() return getValue(unit, { "status", "fontOutline" }, statusDef.fontOutline or "OUTLINE") end,
@@ -1492,13 +1523,17 @@ local function buildUnitSettings(unit)
 		statusDef.fontOutline or "OUTLINE",
 		"status"
 	)
+	statusFontOutline.isEnabled = isStatusTextEnabled
+	list[#list + 1] = statusFontOutline
 
-	list[#list + 1] = radioDropdown(L["UFNameAnchor"] or "Name anchor", anchorOptions, function() return getValue(unit, { "status", "nameAnchor" }, statusDef.nameAnchor or "LEFT") end, function(val)
+	local nameAnchorSetting = radioDropdown(L["UFNameAnchor"] or "Name anchor", anchorOptions, function() return getValue(unit, { "status", "nameAnchor" }, statusDef.nameAnchor or "LEFT") end, function(val)
 		setValue(unit, { "status", "nameAnchor" }, val)
 		refresh()
 	end, statusDef.nameAnchor or "LEFT", "status")
+	nameAnchorSetting.isEnabled = isNameEnabled
+	list[#list + 1] = nameAnchorSetting
 
-	list[#list + 1] = slider(
+	local nameOffsetXSetting = slider(
 		L["UFNameX"] or "Name X offset",
 		-200,
 		200,
@@ -1512,8 +1547,10 @@ local function buildUnitSettings(unit)
 		"status",
 		true
 	)
+	nameOffsetXSetting.isEnabled = isNameEnabled
+	list[#list + 1] = nameOffsetXSetting
 
-	list[#list + 1] = slider(
+	local nameOffsetYSetting = slider(
 		L["UFNameY"] or "Name Y offset",
 		-200,
 		200,
@@ -1527,8 +1564,10 @@ local function buildUnitSettings(unit)
 		"status",
 		true
 	)
+	nameOffsetYSetting.isEnabled = isNameEnabled
+	list[#list + 1] = nameOffsetYSetting
 
-	list[#list + 1] = radioDropdown(
+	local levelAnchorSetting = radioDropdown(
 		L["UFLevelAnchor"] or "Level anchor",
 		anchorOptions,
 		function() return getValue(unit, { "status", "levelAnchor" }, statusDef.levelAnchor or "RIGHT") end,
@@ -1539,8 +1578,10 @@ local function buildUnitSettings(unit)
 		statusDef.levelAnchor or "RIGHT",
 		"status"
 	)
+	levelAnchorSetting.isEnabled = isLevelEnabled
+	list[#list + 1] = levelAnchorSetting
 
-	list[#list + 1] = slider(
+	local levelOffsetXSetting = slider(
 		L["UFLevelX"] or "Level X offset",
 		-200,
 		200,
@@ -1554,8 +1595,10 @@ local function buildUnitSettings(unit)
 		"status",
 		true
 	)
+	levelOffsetXSetting.isEnabled = isLevelEnabled
+	list[#list + 1] = levelOffsetXSetting
 
-	list[#list + 1] = slider(
+	local levelOffsetYSetting = slider(
 		L["UFLevelY"] or "Level Y offset",
 		-200,
 		200,
@@ -1569,6 +1612,8 @@ local function buildUnitSettings(unit)
 		"status",
 		true
 	)
+	levelOffsetYSetting.isEnabled = isLevelEnabled
+	list[#list + 1] = levelOffsetYSetting
 
 	if unit == "player" then
 		list[#list + 1] = { name = L["UFRestingIndicator"] or "Resting indicator", kind = settingType.Collapsible, id = "resting", defaultCollapsed = true }

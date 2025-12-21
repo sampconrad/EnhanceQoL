@@ -20,6 +20,9 @@ local function buildSettings()
 		expanded = true,
 	})
 
+	local rootSettingKey = "moverEnabled"
+	local rootElement
+
 	local settings = addon.Mover.variables.settings or {}
 	for _, def in ipairs(settings) do
 		local kind = def.type or "checkbox"
@@ -28,8 +31,15 @@ local function buildSettings()
 			if key ~= "type" and key ~= "dbKey" and key ~= "init" then data[key] = value end
 		end
 		data.parentSection = data.parentSection or sectionGeneral
+		if def.var ~= rootSettingKey and rootElement then
+			local originalParentCheck = data.parentCheck
+			data.element = rootElement
+			data.parent = true
+			data.parentCheck = function() return db.enabled and (originalParentCheck == nil or originalParentCheck()) end
+		end
 		if kind == "checkbox" then
-			addon.functions.SettingsCreateCheckbox(cLayout, data)
+			local created = addon.functions.SettingsCreateCheckbox(cLayout, data)
+			if def.var == rootSettingKey then rootElement = created and created.element or rootElement end
 		elseif kind == "dropdown" then
 			addon.functions.SettingsCreateDropdown(cLayout, data)
 		elseif kind == "slider" then
@@ -38,6 +48,7 @@ local function buildSettings()
 	end
 
 	for _, group in ipairs(addon.Mover.functions.GetGroups()) do
+		local enableElement = rootElement
 		local section = addon.functions.SettingsCreateExpandableSection(cLayout, {
 			name = group.label or group.id,
 			expanded = group.expanded,
@@ -54,6 +65,8 @@ local function buildSettings()
 					addon.Mover.functions.SetFrameEnabled(e, value)
 					addon.Mover.functions.RefreshEntry(e)
 				end,
+				element = enableElement,
+				parent = true,
 				parentSection = section,
 				parentCheck = function() return db.enabled end,
 			})

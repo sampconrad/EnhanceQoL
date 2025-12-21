@@ -150,6 +150,7 @@ local settings = {
 		default = true,
 		get = function() return db.requireModifier end,
 		set = function(value) db.requireModifier = value end,
+		parentCheck = function() return db.enabled end,
 	},
 	{
 		type = "dropdown",
@@ -161,7 +162,7 @@ local settings = {
 		default = "SHIFT",
 		get = function() return db.modifier or "SHIFT" end,
 		set = function(value) db.modifier = value end,
-		parentCheck = function() return db.requireModifier end,
+		parentCheck = function() return db.enabled and db.requireModifier end,
 	},
 }
 
