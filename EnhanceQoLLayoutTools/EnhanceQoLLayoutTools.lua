@@ -44,14 +44,15 @@ local function buildSettings()
 		})
 
 		for _, entry in ipairs(addon.LayoutTools.functions.GetEntriesForGroup(group.id)) do
+			local e = entry
 			addon.functions.SettingsCreateCheckbox(cLayout, {
-				var = entry.settingKey or entry.id,
-				text = entry.label or entry.id,
-				default = entry.defaultEnabled ~= false,
-				get = function() return addon.LayoutTools.functions.IsFrameEnabled(entry) end,
+				var = e.settingKey or e.id,
+				text = e.label or e.id,
+				default = e.defaultEnabled ~= false,
+				get = function() return addon.LayoutTools.functions.IsFrameEnabled(e) end,
 				set = function(value)
-					addon.LayoutTools.functions.SetFrameEnabled(entry, value)
-					addon.LayoutTools.functions.RefreshEntry(entry)
+					addon.LayoutTools.functions.SetFrameEnabled(e, value)
+					addon.LayoutTools.functions.RefreshEntry(e)
 				end,
 				parentSection = section,
 				parentCheck = function() return db.enabled end,
@@ -63,7 +64,5 @@ end
 buildSettings()
 
 function addon.LayoutTools.functions.treeCallback(container, group)
-	if addon.SettingsLayout.layoutToolsCategory then
-		Settings.OpenToCategory(addon.SettingsLayout.layoutToolsCategory:GetID())
-	end
+	if addon.SettingsLayout.layoutToolsCategory then Settings.OpenToCategory(addon.SettingsLayout.layoutToolsCategory:GetID()) end
 end

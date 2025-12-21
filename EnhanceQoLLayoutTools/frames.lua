@@ -40,7 +40,7 @@ local frames = {
 	},
 	{
 		id = "AchievementFrame",
-		label = LOOT_JOURNAL_LEGENDARIES_SOURCE_ACHIEVEMENT,
+		label = _G.LOOT_JOURNAL_LEGENDARIES_SOURCE_ACHIEVEMENT,
 		group = "blizzard",
 		names = { "AchievementFrame" },
 		addon = "Blizzard_AchievementUI",
@@ -49,7 +49,7 @@ local frames = {
 	},
 	{
 		id = "HousingControlsFrame",
-		label = AUCTION_CATEGORY_HOUSING,
+		label = _G.AUCTION_CATEGORY_HOUSING,
 		group = "blizzard",
 		names = { "HousingControlsFrame" },
 		addon = "Blizzard_HousingControls",
@@ -65,7 +65,7 @@ local frames = {
 	},
 	{
 		id = "PlayerSpellsFrame",
-		label = INSPECT_TALENTS_BUTTON,
+		label = _G.INSPECT_TALENTS_BUTTON,
 		group = "blizzard",
 		names = { "PlayerSpellsFrame" },
 		handlesRelative = { "TalentsFrame", "SpecFrame" },
@@ -77,6 +77,14 @@ local frames = {
 		label = GROUP_FINDER,
 		group = "blizzard",
 		names = { "PVEFrame" },
+		defaultEnabled = true,
+	},
+	{
+		id = "ItemInteractionFrame",
+		label = L["Catalyst"],
+		group = "blizzard",
+		names = { "ItemInteractionFrame" },
+		addon = "Blizzard_ItemInteractionUI",
 		defaultEnabled = true,
 	},
 	{
@@ -112,7 +120,6 @@ local frames = {
 		addon = "Blizzard_AuctionHouseUI",
 		defaultEnabled = true,
 	},
-
 	{
 		id = "MailFrame",
 		label = BUTTON_LAG_MAIL,

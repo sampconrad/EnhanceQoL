@@ -134,9 +134,7 @@ end
 local function modifierPressed()
 	if not db.requireModifier then return true end
 	local mod = db.modifier or "SHIFT"
-	return (mod == "SHIFT" and IsShiftKeyDown())
-		or (mod == "CTRL" and IsControlKeyDown())
-		or (mod == "ALT" and IsAltKeyDown())
+	return (mod == "SHIFT" and IsShiftKeyDown()) or (mod == "CTRL" and IsControlKeyDown()) or (mod == "ALT" and IsAltKeyDown())
 end
 
 function addon.LayoutTools.functions.RegisterGroup(id, label, opts)
@@ -159,9 +157,7 @@ function addon.LayoutTools.functions.RegisterGroup(id, label, opts)
 	return group
 end
 
-local function makeSettingKey(id)
-	return "layoutToolsFrame_" .. tostring(id):gsub("[^%w]", "_")
-end
+local function makeSettingKey(id) return "layoutToolsFrame_" .. tostring(id):gsub("[^%w]", "_") end
 
 function addon.LayoutTools.functions.RegisterFrame(def)
 	if not def or not def.id then return nil end
@@ -399,21 +395,12 @@ function addon.LayoutTools.functions.createHooks(frame, entry)
 			if handle.SetPropagateMouseClicks then handle:SetPropagateMouseClicks(true) end
 		end
 		if handle.EnableMouse then handle:EnableMouse(true) end
-		if handle.RegisterForDrag then handle:RegisterForDrag("LeftButton") end
 		handle:HookScript("OnDragStart", onStartDrag)
 		handle:HookScript("OnDragStop", onStopDrag)
-		handle:HookScript("OnMouseDown", function(_, btn)
-			if btn == "LeftButton" then onStartDrag() end
-		end)
-		handle:HookScript("OnMouseUp", function(_, btn)
-			if btn == "LeftButton" then onStopDrag() end
-		end)
 		return handle
 	end
 
-	if resolved.useRootHandle ~= false then
-		frame._eqolMoveHandle = attachHandle(frame)
-	end
+	if resolved.useRootHandle ~= false then frame._eqolMoveHandle = attachHandle(frame) end
 
 	local createdSubs = frame._eqolMoveSubHandles or {}
 	if resolved.handles then
@@ -440,7 +427,7 @@ function addon.LayoutTools.functions.createHooks(frame, entry)
 		if not isEntryActive(resolved) then return end
 		if self._eqol_isDragging or self._eqol_isApplying then return end
 		local frameDb = ensureFrameDb(resolved)
-		if not frameDb or not frameDb.point then return end
+		if not frameDb or not frameDb.point or frameDb.x == nil or frameDb.y == nil then return end
 		if InCombatLockdown() and self:IsProtected() then
 			addon.LayoutTools.functions.deferApply(self, resolved)
 			return
@@ -520,6 +507,7 @@ local eventHandlers = {
 				addon.LayoutTools.functions.TryHookEntry(entry)
 			end
 		end
+		print(arg1)
 		local list = registry.addonIndex and registry.addonIndex[arg1]
 		if list then
 			for _, entry in ipairs(list) do
