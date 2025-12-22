@@ -1,6 +1,7 @@
 local MODULE_MAJOR, BASE_MAJOR, MINOR = "LibEQOLEditMode-1.0", "LibEQOL-1.0", 7001001
 local LibStub = _G.LibStub
 assert(LibStub, MODULE_MAJOR .. " requires LibStub")
+local C_Timer = _G.C_Timer
 
 -- Primary sublib name; BASE_MAJOR remains as an alias for existing callers.
 local moduleLib, moduleMinor = LibStub:GetLibrary(MODULE_MAJOR, true)
@@ -1475,7 +1476,7 @@ local function buildColor()
 				local a = self.hasOpacity and (ColorPickerFrame.GetColorAlpha and ColorPickerFrame:GetColorAlpha() or prev.a)
 				self:SetColor(r, g, b, a)
 				self.setting.set(lib.activeLayoutName, { r = r, g = g, b = b, a = a }, lib:GetActiveLayoutIndex())
-				Internal:RefreshSettings()
+				Internal:RequestRefreshSettings()
 			end,
 			opacityFunc = function()
 				if not self.hasOpacity then return end
@@ -1483,12 +1484,12 @@ local function buildColor()
 				local a = ColorPickerFrame.GetColorAlpha and ColorPickerFrame:GetColorAlpha() or prev.a
 				self:SetColor(r, g, b, a)
 				self.setting.set(lib.activeLayoutName, { r = r, g = g, b = b, a = a }, lib:GetActiveLayoutIndex())
-				Internal:RefreshSettings()
+				Internal:RequestRefreshSettings()
 			end,
 			cancelFunc = function()
 				self:SetColor(prev.r, prev.g, prev.b, prev.a)
 				self.setting.set(lib.activeLayoutName, { r = prev.r, g = prev.g, b = prev.b, a = prev.a }, lib:GetActiveLayoutIndex())
-				Internal:RefreshSettings()
+				Internal:RequestRefreshSettings()
 			end,
 		})
 	end
@@ -1603,7 +1604,7 @@ local function buildCheckboxColor()
 				local a = self.hasOpacity and (ColorPickerFrame.GetColorAlpha and ColorPickerFrame:GetColorAlpha() or prev.a)
 				self:SetColor(r, g, b, a)
 				apply(lib.activeLayoutName, { r = r, g = g, b = b, a = a }, lib:GetActiveLayoutIndex())
-				Internal:RefreshSettings()
+				Internal:RequestRefreshSettings()
 			end,
 			opacityFunc = function()
 				if not self.hasOpacity then return end
@@ -1611,12 +1612,12 @@ local function buildCheckboxColor()
 				local a = ColorPickerFrame.GetColorAlpha and ColorPickerFrame:GetColorAlpha() or prev.a
 				self:SetColor(r, g, b, a)
 				apply(lib.activeLayoutName, { r = r, g = g, b = b, a = a }, lib:GetActiveLayoutIndex())
-				Internal:RefreshSettings()
+				Internal:RequestRefreshSettings()
 			end,
 			cancelFunc = function()
 				self:SetColor(prev.r, prev.g, prev.b, prev.a)
 				apply(lib.activeLayoutName, { r = prev.r, g = prev.g, b = prev.b, a = prev.a }, lib:GetActiveLayoutIndex())
-				Internal:RefreshSettings()
+				Internal:RequestRefreshSettings()
 			end,
 		})
 	end
@@ -1873,7 +1874,8 @@ local function buildSlider()
 			if data.allowInput then
 				self.Input:Show()
 				self.Input:SetNumeric(false)
-				self.Input:SetText(tostring(current or ""))
+				local fmt = self.formatters and self.formatters[MinimalSliderWithSteppersMixin.Label.Right]
+				self.Input:SetText(fmt and fmt(current) or tostring(current or ""))
 				if self.Slider.RightText then self.Slider.RightText:Hide() end
 			else
 				self.Input:Hide()
@@ -1891,10 +1893,11 @@ local function buildSlider()
 			if value ~= self.currentValue then
 				self.setting.set(lib.activeLayoutName, value, lib:GetActiveLayoutIndex())
 				self.currentValue = value
-				Internal:RefreshSettings()
+				Internal:RequestRefreshSettings()
 			end
 			if self.Input and self.Input:IsShown() then
-				self.Input:SetText(tostring(value))
+				local fmt = self.formatters and self.formatters[MinimalSliderWithSteppersMixin.Label.Right]
+				self.Input:SetText(fmt and fmt(value) or tostring(value))
 				if self.Slider.RightText and self.Slider.RightText:IsShown() then self.Slider.RightText:Hide() end
 			end
 		end
@@ -1942,9 +1945,11 @@ local function buildSlider()
 			end
 			local step = tonumber(data.valueStep) or 0
 			if step <= 0 then step = 0 end
-			local val = tonumber(box:GetText())
+			local inputText = (box:GetText() or ""):gsub(",", ".")
+			local val = tonumber(inputText)
 			if not val then
-				box:SetText(tostring(owner.currentValue or ""))
+				local fmt = owner.formatters and owner.formatters[MinimalSliderWithSteppersMixin.Label.Right]
+				box:SetText(fmt and owner.currentValue and fmt(owner.currentValue) or tostring(owner.currentValue or ""))
 				return
 			end
 			if val < minV then val = minV end
@@ -1954,11 +1959,12 @@ local function buildSlider()
 				if val < minV then val = minV end
 				if val > maxV then val = maxV end
 			end
-			owner.Input:SetText(val)
+			local fmt = owner.formatters and owner.formatters[MinimalSliderWithSteppersMixin.Label.Right]
+			owner.Input:SetText(fmt and fmt(val) or tostring(val))
 			owner.currentValue = val
 			owner.Slider:SetValue(val)
 			owner.setting.set(lib.activeLayoutName, val, lib:GetActiveLayoutIndex())
-			Internal:RefreshSettings()
+			Internal:RequestRefreshSettings()
 			box:ClearFocus()
 		end
 
@@ -2921,6 +2927,20 @@ function Internal:GetFrameButtons(frame)
 	else
 		return nil, 0
 	end
+end
+
+function Internal:RequestRefreshSettings()
+	if self._refreshQueued then return end
+	self._refreshQueued = true
+	if not (C_Timer and C_Timer.After) then
+		self._refreshQueued = false
+		self:RefreshSettings()
+		return
+	end
+	C_Timer.After(0, function()
+		self._refreshQueued = false
+		self:RefreshSettings()
+	end)
 end
 
 function Internal:RefreshSettings()

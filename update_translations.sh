@@ -18,6 +18,7 @@ declare -A locale_files=(
   ["CombatMeter"]="EnhanceQoLCombatMeter/Locales/enUS.lua"
   ["Drink"]="EnhanceQoLDrinkMacro/Locales/enUS.lua"
   ["Mouse"]="EnhanceQoLMouse/Locales/enUS.lua"
+  ["Mover"]="EnhanceQoLMover/Locales/enUS.lua"
   ["MythicPlus"]="EnhanceQoLMythicPlus/Locales/enUS.lua"
   ["SharedMedia"]="EnhanceQoLSharedMedia/Locales/enUS.lua"
   ["Sound"]="EnhanceQoLSound/Locales/enUS.lua"

@@ -2052,7 +2052,6 @@ local function initParty()
 	addon.functions.InitDBValue("autoAcceptGroupInviteFriendOnly", false)
 	addon.functions.InitDBValue("autoAcceptGroupInviteGuildOnly", false)
 	addon.functions.InitDBValue("showLeaderIconRaidFrame", false)
-	addon.functions.InitDBValue("showPartyFrameInSoloContent", false)
 
 	if CompactUnitFrame_SetUnit then
 		hooksecurefunc("CompactUnitFrame_SetUnit", function(s, type)
@@ -2074,42 +2073,6 @@ local function initParty()
 			removeLeaderIcon()
 		end
 	end)
-
-	local last_solo
-	local pending_update = false
-	local updateFrame = CreateFrame("Frame")
-
-	-- TODO throws many errors in midnight in group content for now - maybe later in beta it works
-	if not addon.variables.isMidnight then
-		local function manage_raid_frame()
-			if not addon.db["showPartyFrameInSoloContent"] then return end
-			if InCombatLockdown() then
-				if not pending_update then
-					pending_update = true
-					updateFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-				end
-				return
-			end
-
-			local solo = 1
-			if IsInGroup() or IsInRaid() then solo = 0 end
-
-			if solo == 0 and last_solo == 0 then return end
-
-			CompactPartyFrame:SetShown(solo)
-			last_solo = solo
-		end
-
-		updateFrame:SetScript("OnEvent", function(self, event)
-			if event == "PLAYER_REGEN_ENABLED" and pending_update then
-				self:UnregisterEvent("PLAYER_REGEN_ENABLED")
-				pending_update = false
-				manage_raid_frame()
-			end
-		end)
-
-		hooksecurefunc(CompactPartyFrame, "UpdateVisibility", manage_raid_frame)
-	end
 end
 
 local function initMisc()
@@ -2617,6 +2580,7 @@ local function initChatFrame()
 	addon.functions.ChatLearnFilter = addon.functions.ChatLearnFilter
 		or function(_, _, msg)
 			if not msg then return false end
+			if issecretvalue and issecretvalue(msg) then return end
 			for _, pat in ipairs(addon.variables.learnUnlearnPatterns or {}) do
 				if msg:match(pat) then return true end
 			end
@@ -3727,9 +3691,9 @@ local function CreateUI()
 		elseif string.match(group, "^combatmeter") then
 			addon.CombatMeter.functions.treeCallback(container, group)
 		elseif string.match(group, "^move") then
-			addon.LayoutTools.functions.treeCallback(container, group)
+			addon.Mover.functions.treeCallback(container, group)
 		elseif string.sub(group, 1, string.len("ui\001move")) == "ui\001move" then
-			addon.LayoutTools.functions.treeCallback(container, group:sub(4))
+			addon.Mover.functions.treeCallback(container, group:sub(4))
 		end
 	end)
 	addon.treeGroup:SetStatusTable(addon.variables.statusTable)
@@ -3814,65 +3778,113 @@ end
 local function setAllHooks()
 	if RuneFrame then
 		RuneFrame:HookScript("OnShow", function(self)
-			if addon.db["deathknight_HideRuneFrame"] then
+			local ufCRDisabled = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if addon.db["deathknight_HideRuneFrame"] and not ufActive and not ufCRDisabled then
 				RuneFrame:Hide()
 			else
 				RuneFrame:Show()
 			end
 		end)
 
-		if addon.db["deathknight_HideRuneFrame"] then RuneFrame:Hide() end
+		if
+			addon.db["deathknight_HideRuneFrame"]
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled)
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true)
+		then
+			RuneFrame:Hide()
+		end
 	end
 
 	if DruidComboPointBarFrame then
 		DruidComboPointBarFrame:HookScript("OnShow", function(self)
-			if addon.db["druid_HideComboPoint"] then
+			local ufCRDisabled = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if addon.db["druid_HideComboPoint"] and not ufActive and not ufCRDisabled then
 				DruidComboPointBarFrame:Hide()
 			else
 				DruidComboPointBarFrame:Show()
 			end
 		end)
-		if addon.db["druid_HideComboPoint"] then DruidComboPointBarFrame:Hide() end
+		if
+			addon.db["druid_HideComboPoint"]
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled)
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true)
+		then
+			DruidComboPointBarFrame:Hide()
+		end
 	end
 
 	if EssencePlayerFrame then
 		EssencePlayerFrame:HookScript("OnShow", function(self)
-			if addon.db["evoker_HideEssence"] then EssencePlayerFrame:Hide() end
+			local ufCRDisabled = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if addon.db["evoker_HideEssence"] and not ufActive and not ufCRDisabled then EssencePlayerFrame:Hide() end
 		end)
-		if addon.db["evoker_HideEssence"] then EssencePlayerFrame:Hide() end -- Initialset
+		if
+			addon.db["evoker_HideEssence"]
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled)
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true)
+		then
+			EssencePlayerFrame:Hide()
+		end -- Initialset
 	end
 
 	if MonkHarmonyBarFrame then
 		MonkHarmonyBarFrame:HookScript("OnShow", function(self)
-			if addon.db["monk_HideHarmonyBar"] then
+			local ufCRDisabled = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if addon.db["monk_HideHarmonyBar"] and not ufActive and not ufCRDisabled then
 				MonkHarmonyBarFrame:Hide()
 			else
 				MonkHarmonyBarFrame:Show()
 			end
 		end)
-		if addon.db["monk_HideHarmonyBar"] then MonkHarmonyBarFrame:Hide() end
+		if
+			addon.db["monk_HideHarmonyBar"]
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled)
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true)
+		then
+			MonkHarmonyBarFrame:Hide()
+		end
 	end
 
 	if RogueComboPointBarFrame then
 		RogueComboPointBarFrame:HookScript("OnShow", function(self)
-			if addon.db["rogue_HideComboPoint"] then
+			local ufCRDisabled = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if addon.db["rogue_HideComboPoint"] and not ufActive and not ufCRDisabled then
 				RogueComboPointBarFrame:Hide()
 			else
 				RogueComboPointBarFrame:Show()
 			end
 		end)
-		if addon.db["rogue_HideComboPoint"] then RogueComboPointBarFrame:Hide() end
+		if
+			addon.db["rogue_HideComboPoint"]
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled)
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true)
+		then
+			RogueComboPointBarFrame:Hide()
+		end
 	end
 
 	if PaladinPowerBarFrame then
 		PaladinPowerBarFrame:HookScript("OnShow", function(self)
-			if addon.db["paladin_HideHolyPower"] then
+			local ufCRDisabled = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if addon.db["paladin_HideHolyPower"] and not ufActive and not ufCRDisabled then
 				PaladinPowerBarFrame:Hide()
 			else
 				PaladinPowerBarFrame:Show()
 			end
 		end)
-		if addon.db["paladin_HideHolyPower"] then PaladinPowerBarFrame:Hide() end
+		if
+			addon.db["paladin_HideHolyPower"]
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled)
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true)
+		then
+			PaladinPowerBarFrame:Hide()
+		end
 	end
 
 	if TotemFrame then
@@ -3889,13 +3901,21 @@ local function setAllHooks()
 
 	if WarlockPowerFrame then
 		WarlockPowerFrame:HookScript("OnShow", function(self)
-			if addon.db["warlock_HideSoulShardBar"] then
+			local ufCRDisabled = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if addon.db["warlock_HideSoulShardBar"] and not ufActive and not ufCRDisabled then
 				WarlockPowerFrame:Hide()
 			else
 				WarlockPowerFrame:Show()
 			end
 		end)
-		if addon.db["warlock_HideSoulShardBar"] then WarlockPowerFrame:Hide() end
+		if
+			addon.db["warlock_HideSoulShardBar"]
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled)
+			and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true)
+		then
+			WarlockPowerFrame:Hide()
+		end
 	end
 
 	local ignoredApplicants = {}
@@ -4211,8 +4231,8 @@ local eventHandlers = {
 			loadMain()
 			EQOL.PersistSignUpNote()
 
+			loadSubAddon("EnhanceQoLMover")
 			--@debug@
-			loadSubAddon("EnhanceQoLLayoutTools")
 			loadSubAddon("EnhanceQoLQuery")
 			--@end-debug@
 			loadSubAddon("EnhanceQoLSharedMedia")

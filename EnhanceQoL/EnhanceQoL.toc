@@ -1,4 +1,4 @@
-## Interface: 110000, 110002, 110005, 110007, 110100, 110105, 110107, 110200, 110205, 110207, 120001
+## Interface: 110207, 120000, 120001
 ## Title: Enhance QoL Core
 ## Author: R41Z0R
 ## Version: @project-version@
@@ -16,7 +16,7 @@
 ## Notes-koKR: 사소한 편의 기능으로 게임 품질을 향상합니다
 ## Notes-zhCN: 一些小调整，以改善您的游戏体验
 ## Notes-zhTW: 一些小調整，以改善您的遊戲體驗
-## SavedVariables: EnhanceQoLDB, EnhanceQoL_IMHistory, EnhanceQoL_IgnoreDB, EnhanceQoL_ChannelHistory
+## SavedVariables: EnhanceQoLDB, EnhanceQoL_IMHistory, EnhanceQoL_IgnoreDB, EnhanceQoL_ChannelHistory, EnhanceQoLMoverDB
 ## X-Wago-ID: aN0Ykv6j
 ## X-Curse-Project-ID: 1076354
 ## Retail: true

@@ -178,19 +178,6 @@ data = {
 		},
 	},
 }
-if not addon.variables.isMidnight then
-	table.insert(data, {
-		var = "showPartyFrameInSoloContent",
-		text = L["showPartyFrameInSoloContent"],
-		func = function(v)
-			addon.db["showPartyFrameInSoloContent"] = v
-			addon.variables.requireReload = true
-			addon.functions.checkReloadFrame()
-			addon.functions.ApplyUnitFrameSettingByVar("unitframeSettingPlayerFrame")
-			addon.functions.togglePartyFrameTitle(addon.db["hidePartyFrameTitle"])
-		end,
-	})
-end
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cUnitFrame, data)
 

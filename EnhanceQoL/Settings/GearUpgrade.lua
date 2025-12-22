@@ -169,19 +169,6 @@ data = {
 	},
 }
 
--- TODO remove on midnight release
-if not addon.variables.isMidnight then
-	table.insert(data, {
-		var = "showCloakUpgradeButton",
-		text = L["showCloakUpgradeButton"],
-		func = function(value)
-			addon.db["showCloakUpgradeButton"] = value and true or false
-			addon.functions.updateCloakUpgradeButton()
-		end,
-		get = function() return addon.db["showCloakUpgradeButton"] end,
-	})
-end
-
 table.sort(data, function(a, b) return a.text < b.text end)
 
 addon.functions.SettingsCreateCheckboxes(cGearUpgrade, data)

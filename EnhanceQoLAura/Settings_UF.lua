@@ -51,6 +51,17 @@ local anchorOptions = {
 	{ value = "RIGHT", label = "RIGHT" },
 }
 
+local classResourceClasses = {
+	DEATHKNIGHT = true,
+	DRUID = true,
+	EVOKER = true,
+	MAGE = true,
+	MONK = true,
+	PALADIN = true,
+	ROGUE = true,
+	WARLOCK = true,
+}
+
 local function isBossUnit(unit) return unit == "boss" or (unit and unit:match("^boss%d+$")) end
 
 local function defaultsFor(unit)
@@ -269,7 +280,7 @@ local function radioDropdown(name, options, getter, setter, default, parentId)
 	}
 end
 
-local function slider(name, minVal, maxVal, step, getter, setter, default, parentId, allowInput)
+local function slider(name, minVal, maxVal, step, getter, setter, default, parentId, allowInput, formatter)
 	return {
 		name = name,
 		kind = settingType.Slider,
@@ -281,6 +292,7 @@ local function slider(name, minVal, maxVal, step, getter, setter, default, paren
 		default = default,
 		get = function() return getter() end,
 		set = function(_, value) setter(value) end,
+		formatter = formatter,
 	}
 end
 
@@ -327,7 +339,13 @@ local function calcLayout(unit, frame)
 	local def = defaultsFor(unit)
 	local anchor = cfg.anchor or def.anchor or {}
 	local powerEnabled = getValue(unit, { "power", "enabled" }, (def.power and def.power.enabled) ~= false)
-	local statusHeight = (cfg.status and cfg.status.enabled ~= false) and (cfg.statusHeight or def.statusHeight or 18) or 0
+	local statusDef = def.status or {}
+	local showName = getValue(unit, { "status", "enabled" }, statusDef.enabled ~= false) ~= false
+	local showLevel = getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) ~= false
+	local ciDef = statusDef.combatIndicator or {}
+	local showCombat = unit == "player" and getValue(unit, { "status", "combatIndicator", "enabled" }, ciDef.enabled ~= false) ~= false
+	local showStatus = showName or showLevel or showCombat
+	local statusHeight = showStatus and (cfg.statusHeight or def.statusHeight or 18) or 0
 	local width = cfg.width or def.width or frame:GetWidth() or 200
 	local barGap = powerEnabled and (cfg.barGap or def.barGap or 0) or 0
 	local powerHeight = powerEnabled and (cfg.powerHeight or def.powerHeight or 16) or 0
@@ -356,6 +374,7 @@ local function buildUnitSettings(unit)
 	end
 	local refresh = refreshSelf
 	local isPlayer = unit == "player"
+	local classHasResource = isPlayer and classResourceClasses[addon.variables and addon.variables.unitClass]
 	local copyOptions = availableCopySources(unit)
 
 	list[#list + 1] = { name = SETTINGS or "Settings", kind = settingType.Collapsible, id = "utility", defaultCollapsed = true }
@@ -927,7 +946,159 @@ local function buildUnitSettings(unit)
 		isEnabled = isPowerEnabled,
 	})
 
-	if unit == "target" or unit == "focus" then
+	if isPlayer and classHasResource then
+		local crDef = def.classResource or {}
+		list[#list + 1] = { name = L["ClassResource"] or "Class Resource", kind = settingType.Collapsible, id = "classResource", defaultCollapsed = true }
+		local function isClassResourceEnabled() return getValue(unit, { "classResource", "enabled" }, crDef.enabled ~= false) ~= false end
+		local function defaultOffsetY()
+			local anchor = getValue(unit, { "classResource", "anchor" }, crDef.anchor or "TOP")
+			return anchor == "TOP" and -5 or 5
+		end
+
+		list[#list + 1] = checkbox(L["Show class resource"] or "Show class resource", isClassResourceEnabled, function(val)
+			setValue(unit, { "classResource", "enabled" }, val and true or false)
+			refreshSelf()
+		end, crDef.enabled ~= false, "classResource")
+
+		local classAnchorOpts = {
+			{ value = "TOP", label = L["Top"] or "Top" },
+			{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+		}
+		local classAnchor = radioDropdown(L["Anchor"] or "Anchor", classAnchorOpts, function() return getValue(unit, { "classResource", "anchor" }, crDef.anchor or "TOP") end, function(val)
+			setValue(unit, { "classResource", "anchor" }, val or "TOP")
+			refreshSelf()
+		end, crDef.anchor or "TOP", "classResource")
+		classAnchor.isEnabled = isClassResourceEnabled
+		list[#list + 1] = classAnchor
+
+		local classOffsetX = slider(
+			L["Offset X"] or "Offset X",
+			-400,
+			400,
+			1,
+			function() return getValue(unit, { "classResource", "offset", "x" }, (crDef.offset and crDef.offset.x) or 0) end,
+			function(val)
+				debounced(unit .. "_classResourceOffsetX", function()
+					setValue(unit, { "classResource", "offset", "x" }, val or 0)
+					refreshSelf()
+				end)
+			end,
+			(crDef.offset and crDef.offset.x) or 0,
+			"classResource",
+			true
+		)
+		classOffsetX.isEnabled = isClassResourceEnabled
+		list[#list + 1] = classOffsetX
+
+		local classOffsetY = slider(L["Offset Y"] or "Offset Y", -400, 400, 1, function() return getValue(unit, { "classResource", "offset", "y" }, defaultOffsetY()) end, function(val)
+			debounced(unit .. "_classResourceOffsetY", function()
+				setValue(unit, { "classResource", "offset", "y" }, val or 0)
+				refreshSelf()
+			end)
+		end, defaultOffsetY(), "classResource", true)
+		classOffsetY.isEnabled = isClassResourceEnabled
+		list[#list + 1] = classOffsetY
+
+		local function SnapToStep(value, step, minV, maxV)
+			value = tonumber(value)
+			if not value then return nil end
+
+			if minV then value = math.max(minV, value) end
+			if maxV then value = math.min(maxV, value) end
+
+			local inv = 1 / (step or 1)
+			local ticks = math.floor(value * inv + 0.5)
+			local snapped = ticks / inv
+
+			snapped = math.floor(snapped * 100 + 0.5) / 100
+			return snapped
+		end
+
+		local classScale = slider(
+			L["Scale"] or "Scale",
+			0.5,
+			2,
+			0.05,
+			function()
+				local v = getValue(unit, { "classResource", "scale" }, crDef.scale or 1)
+				return SnapToStep(v, 0.05, 0.5, 2) or 1
+			end,
+			function(val)
+				debounced(unit .. "_classResourceScale", function()
+					val = SnapToStep(val, 0.05, 0.5, 2) or 1
+					setValue(unit, { "classResource", "scale" }, val)
+					refreshSelf()
+
+					-- DAS ist der Punkt: UI-Wert neu setzen
+					refreshSettingsUI()
+				end)
+			end,
+			SnapToStep(crDef.scale or 1, 0.05, 0.5, 2) or 1,
+			"classResource",
+			true,
+			function(value)
+				value = SnapToStep(value, 0.05, 0.5, 2) or 1
+				return string.format("%.2f", value)
+			end
+		)
+		classScale.isEnabled = isClassResourceEnabled
+		list[#list + 1] = classScale
+	end
+
+	local raidIconDef = def.raidIcon or { enabled = true, size = 18, offset = { x = 0, y = -2 } }
+	local function isRaidIconEnabled() return getValue(unit, { "raidIcon", "enabled" }, raidIconDef.enabled ~= false) ~= false end
+	list[#list + 1] = { name = L["RaidTargetIcon"] or "Raid Target Icon", kind = settingType.Collapsible, id = "raidicon", defaultCollapsed = true }
+
+	list[#list + 1] = checkbox(L["Show raid target icon"] or "Show raid target icon", isRaidIconEnabled, function(val)
+		setValue(unit, { "raidIcon", "enabled" }, val and true or false)
+		refreshSelf()
+	end, raidIconDef.enabled ~= false, "raidicon")
+
+	local raidIconSize = slider(L["Icon size"] or "Icon size", 10, 30, 1, function() return getValue(unit, { "raidIcon", "size" }, raidIconDef.size or 18) end, function(val)
+		local v = val or raidIconDef.size or 18
+		if v < 10 then v = 10 end
+		if v > 30 then v = 30 end
+		setValue(unit, { "raidIcon", "size" }, v)
+		refreshSelf()
+	end, raidIconDef.size or 18, "raidicon", true)
+	raidIconSize.isEnabled = isRaidIconEnabled
+	list[#list + 1] = raidIconSize
+
+	local raidIconOffsetX = slider(
+		L["Offset X"] or "Offset X",
+		-200,
+		200,
+		1,
+		function() return getValue(unit, { "raidIcon", "offset", "x" }, (raidIconDef.offset and raidIconDef.offset.x) or 0) end,
+		function(val)
+			setValue(unit, { "raidIcon", "offset", "x" }, val or 0)
+			refreshSelf()
+		end,
+		(raidIconDef.offset and raidIconDef.offset.x) or 0,
+		"raidicon",
+		true
+	)
+	raidIconOffsetX.isEnabled = isRaidIconEnabled
+	list[#list + 1] = raidIconOffsetX
+
+	local raidIconOffsetY = slider(
+		L["Offset Y"] or "Offset Y",
+		-200,
+		200,
+		1,
+		function() return getValue(unit, { "raidIcon", "offset", "y" }, (raidIconDef.offset and raidIconDef.offset.y) or 0) end,
+		function(val)
+			setValue(unit, { "raidIcon", "offset", "y" }, val or 0)
+			refreshSelf()
+		end,
+		(raidIconDef.offset and raidIconDef.offset.y) or 0,
+		"raidicon",
+		true
+	)
+	raidIconOffsetY.isEnabled = isRaidIconEnabled
+	list[#list + 1] = raidIconOffsetY
+
+	if unit == "target" or unit == "focus" or isBoss then
 		local castDef = def.cast or {}
 		list[#list + 1] = { name = L["CastBar"] or "Cast Bar", kind = settingType.Collapsible, id = "cast", defaultCollapsed = true }
 		local function isCastEnabled() return getValue(unit, { "cast", "enabled" }, castDef.enabled ~= false) ~= false end
@@ -1179,26 +1350,35 @@ local function buildUnitSettings(unit)
 
 	list[#list + 1] = { name = L["UFStatusLine"] or "Status line", kind = settingType.Collapsible, id = "status", defaultCollapsed = true }
 	local statusDef = def.status or {}
+	local function isNameEnabled() return getValue(unit, { "status", "enabled" }, statusDef.enabled ~= false) ~= false end
+	local function isLevelEnabled() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) ~= false end
+	local function isStatusTextEnabled() return isNameEnabled() or isLevelEnabled() end
 
-	list[#list + 1] = checkbox(L["UFStatusEnable"] or "Show status line", function() return getValue(unit, { "status", "enabled" }, statusDef.enabled ~= false) end, function(val)
+	list[#list + 1] = checkbox(L["UFStatusEnable"] or "Show status line", isNameEnabled, function(val)
 		setValue(unit, { "status", "enabled" }, val and true or false)
 		refresh()
+		refreshSettingsUI()
 	end, statusDef.enabled ~= false, "status")
 
 	if isPlayer then
 		local ciDef = statusDef.combatIndicator or {}
-		list[#list + 1] = checkbox(
+		local function isCombatIndicatorEnabled()
+			return getValue(unit, { "status", "combatIndicator", "enabled" }, ciDef.enabled ~= false) ~= false
+		end
+		local combatIndicatorToggle = checkbox(
 			L["UFCombatIndicator"] or "Show combat indicator",
 			function() return getValue(unit, { "status", "combatIndicator", "enabled" }, ciDef.enabled ~= false) end,
 			function(val)
 				setValue(unit, { "status", "combatIndicator", "enabled" }, val and true or false)
 				refresh()
+				refreshSettingsUI()
 			end,
 			ciDef.enabled ~= false,
 			"status"
 		)
+		list[#list + 1] = combatIndicatorToggle
 
-		list[#list + 1] = slider(
+		local combatIndicatorSize = slider(
 			L["UFCombatIndicatorSize"] or "Combat indicator size",
 			10,
 			64,
@@ -1212,8 +1392,10 @@ local function buildUnitSettings(unit)
 			"status",
 			true
 		)
+		combatIndicatorSize.isEnabled = isCombatIndicatorEnabled
+		list[#list + 1] = combatIndicatorSize
 
-		list[#list + 1] = slider(
+		local combatIndicatorOffsetX = slider(
 			L["UFCombatIndicatorOffsetX"] or "Combat indicator X offset",
 			-300,
 			300,
@@ -1229,8 +1411,10 @@ local function buildUnitSettings(unit)
 			"status",
 			true
 		)
+		combatIndicatorOffsetX.isEnabled = isCombatIndicatorEnabled
+		list[#list + 1] = combatIndicatorOffsetX
 
-		list[#list + 1] = slider(
+		local combatIndicatorOffsetY = slider(
 			L["UFCombatIndicatorOffsetY"] or "Combat indicator Y offset",
 			-300,
 			300,
@@ -1246,15 +1430,19 @@ local function buildUnitSettings(unit)
 			"status",
 			true
 		)
+		combatIndicatorOffsetY.isEnabled = isCombatIndicatorEnabled
+		list[#list + 1] = combatIndicatorOffsetY
 	end
 
-	list[#list + 1] = checkbox(L["UFShowLevel"] or "Show level", function() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) end, function(val)
+	local showLevelToggle = checkbox(L["UFShowLevel"] or "Show level", function() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) end, function(val)
 		setValue(unit, { "status", "levelEnabled" }, val and true or false)
 		refresh()
+		refreshSettingsUI()
 	end, statusDef.levelEnabled ~= false, "status")
+	list[#list + 1] = showLevelToggle
 
 	if not isBoss then
-		list[#list + 1] = checkboxColor({
+		local nameColorSetting = checkboxColor({
 			name = L["UFNameColor"] or "Custom name color",
 			parentId = "status",
 			defaultChecked = (statusDef.nameColorMode or "CLASS") ~= "CLASS",
@@ -1276,8 +1464,10 @@ local function buildUnitSettings(unit)
 				a = (statusDef.nameColor and statusDef.nameColor[4]) or 1,
 			},
 		})
+		nameColorSetting.isEnabled = isNameEnabled
+		list[#list + 1] = nameColorSetting
 
-		list[#list + 1] = checkboxColor({
+		local levelColorSetting = checkboxColor({
 			name = L["UFLevelColor"] or "Custom level color",
 			parentId = "status",
 			defaultChecked = (statusDef.levelColorMode or "CLASS") ~= "CLASS",
@@ -1299,24 +1489,30 @@ local function buildUnitSettings(unit)
 				a = (statusDef.levelColor and statusDef.levelColor[4]) or 1,
 			},
 		})
+		levelColorSetting.isEnabled = isLevelEnabled
+		list[#list + 1] = levelColorSetting
 	end
 
-	list[#list + 1] = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "status", "fontSize" }, statusDef.fontSize or 14) end, function(val)
+	local statusFontSize = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "status", "fontSize" }, statusDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_statusFontSize", function()
 			setValue(unit, { "status", "fontSize" }, val or statusDef.fontSize or 14)
 			refreshSelf()
 		end)
 	end, statusDef.fontSize or 14, "status", true)
+	statusFontSize.isEnabled = isStatusTextEnabled
+	list[#list + 1] = statusFontSize
 
 	fontOpts = fontOptions()
 	if #fontOpts > 0 then
-		list[#list + 1] = radioDropdown(L["Font"] or "Font", fontOpts, function() return getValue(unit, { "status", "font" }, statusDef.font or defaultFontPath()) end, function(val)
+		local statusFont = radioDropdown(L["Font"] or "Font", fontOpts, function() return getValue(unit, { "status", "font" }, statusDef.font or defaultFontPath()) end, function(val)
 			setValue(unit, { "status", "font" }, val)
 			refreshSelf()
 		end, statusDef.font or defaultFontPath(), "status")
+		statusFont.isEnabled = isStatusTextEnabled
+		list[#list + 1] = statusFont
 	end
 
-	list[#list + 1] = radioDropdown(
+	local statusFontOutline = radioDropdown(
 		L["Font outline"] or "Font outline",
 		outlineOptions,
 		function() return getValue(unit, { "status", "fontOutline" }, statusDef.fontOutline or "OUTLINE") end,
@@ -1327,13 +1523,17 @@ local function buildUnitSettings(unit)
 		statusDef.fontOutline or "OUTLINE",
 		"status"
 	)
+	statusFontOutline.isEnabled = isStatusTextEnabled
+	list[#list + 1] = statusFontOutline
 
-	list[#list + 1] = radioDropdown(L["UFNameAnchor"] or "Name anchor", anchorOptions, function() return getValue(unit, { "status", "nameAnchor" }, statusDef.nameAnchor or "LEFT") end, function(val)
+	local nameAnchorSetting = radioDropdown(L["UFNameAnchor"] or "Name anchor", anchorOptions, function() return getValue(unit, { "status", "nameAnchor" }, statusDef.nameAnchor or "LEFT") end, function(val)
 		setValue(unit, { "status", "nameAnchor" }, val)
 		refresh()
 	end, statusDef.nameAnchor or "LEFT", "status")
+	nameAnchorSetting.isEnabled = isNameEnabled
+	list[#list + 1] = nameAnchorSetting
 
-	list[#list + 1] = slider(
+	local nameOffsetXSetting = slider(
 		L["UFNameX"] or "Name X offset",
 		-200,
 		200,
@@ -1347,8 +1547,10 @@ local function buildUnitSettings(unit)
 		"status",
 		true
 	)
+	nameOffsetXSetting.isEnabled = isNameEnabled
+	list[#list + 1] = nameOffsetXSetting
 
-	list[#list + 1] = slider(
+	local nameOffsetYSetting = slider(
 		L["UFNameY"] or "Name Y offset",
 		-200,
 		200,
@@ -1362,8 +1564,10 @@ local function buildUnitSettings(unit)
 		"status",
 		true
 	)
+	nameOffsetYSetting.isEnabled = isNameEnabled
+	list[#list + 1] = nameOffsetYSetting
 
-	list[#list + 1] = radioDropdown(
+	local levelAnchorSetting = radioDropdown(
 		L["UFLevelAnchor"] or "Level anchor",
 		anchorOptions,
 		function() return getValue(unit, { "status", "levelAnchor" }, statusDef.levelAnchor or "RIGHT") end,
@@ -1374,8 +1578,10 @@ local function buildUnitSettings(unit)
 		statusDef.levelAnchor or "RIGHT",
 		"status"
 	)
+	levelAnchorSetting.isEnabled = isLevelEnabled
+	list[#list + 1] = levelAnchorSetting
 
-	list[#list + 1] = slider(
+	local levelOffsetXSetting = slider(
 		L["UFLevelX"] or "Level X offset",
 		-200,
 		200,
@@ -1389,8 +1595,10 @@ local function buildUnitSettings(unit)
 		"status",
 		true
 	)
+	levelOffsetXSetting.isEnabled = isLevelEnabled
+	list[#list + 1] = levelOffsetXSetting
 
-	list[#list + 1] = slider(
+	local levelOffsetYSetting = slider(
 		L["UFLevelY"] or "Level Y offset",
 		-200,
 		200,
@@ -1404,6 +1612,63 @@ local function buildUnitSettings(unit)
 		"status",
 		true
 	)
+	levelOffsetYSetting.isEnabled = isLevelEnabled
+	list[#list + 1] = levelOffsetYSetting
+
+	if unit == "player" then
+		list[#list + 1] = { name = L["UFRestingIndicator"] or "Resting indicator", kind = settingType.Collapsible, id = "resting", defaultCollapsed = true }
+		local restDef = def.resting or {}
+		local function isRestEnabled() return getValue(unit, { "resting", "enabled" }, restDef.enabled ~= false) ~= false end
+
+		list[#list + 1] = checkbox(L["UFRestingEnable"] or "Show resting indicator", function() return getValue(unit, { "resting", "enabled" }, restDef.enabled ~= false) ~= false end, function(val)
+			setValue(unit, { "resting", "enabled" }, val and true or false)
+			refresh()
+		end, restDef.enabled ~= false, "resting")
+
+		list[#list + 1] = slider(L["UFRestingSize"] or "Resting size", 10, 80, 1, function() return getValue(unit, { "resting", "size" }, restDef.size or 20) end, function(val)
+			setValue(unit, { "resting", "size" }, val or restDef.size or 20)
+			refresh()
+		end, restDef.size or 20, "resting", true)
+		list[#list].isEnabled = isRestEnabled
+
+		list[#list + 1] = slider(
+			L["UFRestingOffsetX"] or "Resting offset X",
+			-200,
+			200,
+			1,
+			function() return getValue(unit, { "resting", "offset", "x" }, (restDef.offset and restDef.offset.x) or 0) end,
+			function(val)
+				local defx = (restDef.offset and restDef.offset.x) or 0
+				local off = getValue(unit, { "resting", "offset" }, { x = defx, y = 0 }) or {}
+				off.x = val ~= nil and val or defx
+				setValue(unit, { "resting", "offset" }, off)
+				refresh()
+			end,
+			(restDef.offset and restDef.offset.x) or 0,
+			"resting",
+			true
+		)
+		list[#list].isEnabled = isRestEnabled
+
+		list[#list + 1] = slider(
+			L["UFRestingOffsetY"] or "Resting offset Y",
+			-200,
+			200,
+			1,
+			function() return getValue(unit, { "resting", "offset", "y" }, (restDef.offset and restDef.offset.y) or 0) end,
+			function(val)
+				local defy = (restDef.offset and restDef.offset.y) or 0
+				local off = getValue(unit, { "resting", "offset" }, { x = 0, y = defy }) or {}
+				off.y = val ~= nil and val or defy
+				setValue(unit, { "resting", "offset" }, off)
+				refresh()
+			end,
+			(restDef.offset and restDef.offset.y) or 0,
+			"resting",
+			true
+		)
+		list[#list].isEnabled = isRestEnabled
+	end
 
 	if unit == "target" then
 		list[#list + 1] = { name = L["Auras"] or "Auras", kind = settingType.Collapsible, id = "auras", defaultCollapsed = true }
@@ -1705,6 +1970,7 @@ if addon.functions and addon.functions.SettingsCreateCategory then
 	end
 
 	addToggle("player", L["UFPlayerEnable"] or "Enable custom player frame", "ufEnablePlayer")
+	addon.functions.SettingsCreateText(cUF, L["UFPlayerCastbarHint"] or 'Uses Blizzard\'s Player Castbar.\nBefore enabling, open Edit Mode\nand make sure the Player Frame setting\n"HUD_EDIT_MODE_SETTING_UNIT_FRAME_CAST_BAR_UNDERNEATH" is unchecked.')
 	addToggle("target", L["UFTargetEnable"] or "Enable custom target frame", "ufEnableTarget")
 	addToggle("targettarget", L["UFToTEnable"] or "Enable target-of-target frame", "ufEnableToT")
 	addToggle("pet", L["UFPetEnable"] or "Enable pet frame", "ufEnablePet")

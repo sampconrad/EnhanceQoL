@@ -1393,7 +1393,6 @@ function addon.functions.initItemInventory()
 	addon.functions.InitDBValue("showEnchantOnCharframe", false)
 	addon.functions.InitDBValue("showCatalystChargesOnCharframe", false)
 	addon.functions.InitDBValue("movementSpeedStatEnabled", false)
-	addon.functions.InitDBValue("showCloakUpgradeButton", false)
 	addon.functions.InitDBValue("bagFilterFrameData", {})
 	addon.functions.InitDBValue("closeBagsOnAuctionHouse", false)
 	addon.functions.InitDBValue("showDurabilityOnCharframe", false)
@@ -1451,46 +1450,6 @@ function addon.functions.initItemInventory()
 	addon.general.durabilityIconFrame.count:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
 
 	if addon.db["showDurabilityOnCharframe"] == false or (addon.functions and addon.functions.IsTimerunner and addon.functions.IsTimerunner()) then addon.general.durabilityIconFrame:Hide() end
-
-	-- TODO remove on midnight release
-	if not addon.variables.isMidnight then
-		addon.general.cloakUpgradeFrame = CreateFrame("Button", nil, PaperDollFrame, "BackdropTemplate")
-		addon.general.cloakUpgradeFrame:SetSize(32, 32)
-		addon.general.cloakUpgradeFrame:SetPoint("LEFT", addon.general.durabilityIconFrame, "RIGHT", 4, 0)
-
-		addon.general.cloakUpgradeFrame.icon = addon.general.cloakUpgradeFrame:CreateTexture(nil, "OVERLAY")
-		addon.general.cloakUpgradeFrame.icon:SetSize(32, 32)
-		addon.general.cloakUpgradeFrame.icon:SetPoint("CENTER", addon.general.cloakUpgradeFrame, "CENTER")
-		addon.general.cloakUpgradeFrame.icon:SetTexture(addon.variables.cloakUpgradeIcon)
-
-		addon.general.cloakUpgradeFrame:SetScript("OnClick", function()
-			GenericTraitUI_LoadUI()
-			GenericTraitFrame:SetSystemID(29)
-			GenericTraitFrame:SetTreeID(1115)
-			ToggleFrame(GenericTraitFrame)
-		end)
-		addon.general.cloakUpgradeFrame:SetScript("OnEnter", function(self)
-			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-			GameTooltip:SetText(L["cloakUpgradeTooltip"] or "Upgrade skills")
-			GameTooltip:Show()
-		end)
-		addon.general.cloakUpgradeFrame:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-		local function updateCloakUpgradeButton()
-			if PaperDollFrame and PaperDollFrame:IsShown() then
-				if addon.db["showCloakUpgradeButton"] and C_Item.IsEquippedItem(235499) then
-					addon.general.cloakUpgradeFrame:Show()
-				else
-					addon.general.cloakUpgradeFrame:Hide()
-				end
-			end
-		end
-		addon.functions.updateCloakUpgradeButton = updateCloakUpgradeButton
-		local cloakEventFrame = CreateFrame("Frame")
-		cloakEventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
-		cloakEventFrame:SetScript("OnEvent", updateCloakUpgradeButton)
-		cloakEventFrame:Hide()
-	end
 
 	for key, value in pairs(addon.variables.itemSlots) do
 		-- Hintergrund für das Item-Level
@@ -1550,7 +1509,6 @@ function addon.functions.initItemInventory()
 
 	PaperDollFrame:HookScript("OnShow", function(self)
 		addon.functions.setCharFrame()
-		if not addon.variables.isMidnight then addon.functions.updateCloakUpgradeButton() end --todo remove on midnight release
 	end)
 end
 

@@ -232,7 +232,7 @@ local function registerEditModeBars()
 		registeredFrames[frameId] = true
 		local cfg = ResourceBars and ResourceBars.getBarSettings and ResourceBars.getBarSettings(barType) or ResourceBars and ResourceBars.GetBarSettings and ResourceBars.GetBarSettings(barType)
 		local anchor = ResourceBars and ResourceBars.getAnchor and ResourceBars.getAnchor(barType, addon.variables.unitSpec)
-		local titleLabel = (barType == "HEALTH") and (HEALTH or "Health") or (_G["POWER_TYPE_" .. barType] or _G[barType] or barType)
+		local titleLabel = (barType == "HEALTH") and (HEALTH or "Health") or (ResourceBars.PowerLabels and ResourceBars.PowerLabels[barType]) or _G["POWER_TYPE_" .. barType] or _G[barType] or barType
 		local function currentSpecInfo()
 			local uc = addon.variables.unitClass
 			local us = addon.variables.unitSpec
@@ -466,7 +466,7 @@ local function registerEditModeBars()
 				local points = { "TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" }
 				local function displayNameForBarType(pType)
 					if pType == "HEALTH" then return HEALTH or "Health" end
-					local s = _G["POWER_TYPE_" .. pType] or _G[pType]
+					local s = (ResourceBars.PowerLabels and ResourceBars.PowerLabels[pType]) or _G["POWER_TYPE_" .. pType] or _G[pType]
 					if type(s) == "string" and s ~= "" then return s end
 					return pType
 				end
@@ -1601,11 +1601,45 @@ local function registerEditModeBars()
 				}
 			end
 
+			if barType == "MAELSTROM_WEAPON" then
+				settingsList[#settingsList + 1] = {
+					name = "Use 5-stack color",
+					kind = settingType.CheckboxColor,
+					field = "useMaelstromFiveColor",
+					default = true,
+					get = function()
+						local c = curSpecCfg()
+						return c and c.useMaelstromFiveColor ~= false
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.useMaelstromFiveColor = value and true or false
+						queueRefresh()
+					end,
+					colorDefault = toUIColor(cfg and cfg.maelstromFiveColor, { 0.2, 0.7, 1, 1 }),
+					colorGet = function()
+						local c = curSpecCfg()
+						local col = (c and c.maelstromFiveColor) or (cfg and cfg.maelstromFiveColor) or { 0.2, 0.7, 1, 1 }
+						local r, g, b, a = toColorComponents(col, { 0.2, 0.7, 1, 1 })
+						return { r = r, g = g, b = b, a = a }
+					end,
+					colorSet = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.maelstromFiveColor = toColorArray(value, { 0.2, 0.7, 1, 1 })
+						queueRefresh()
+					end,
+					hasOpacity = true,
+					parentId = "colorsetting",
+				}
+			end
+
 			settingsList[#settingsList + 1] = {
 				name = L["Use max color"] or "Use max color",
 				kind = settingType.CheckboxColor,
 				field = "useMaxColor",
-				default = false,
+				default = barType == "MAELSTROM_WEAPON",
 				get = function()
 					local c = curSpecCfg()
 					return c and c.useMaxColor == true
@@ -1946,7 +1980,7 @@ local function buildSpecToggles(specIndex, specName, available)
 		local cfg = specCfg[mainType]
 		options[#options + 1] = {
 			value = mainType,
-			text = _G["POWER_TYPE_" .. mainType] or _G[mainType] or mainType,
+			text = (ResourceBars.PowerLabels and ResourceBars.PowerLabels[mainType]) or _G["POWER_TYPE_" .. mainType] or _G[mainType] or mainType,
 			enabled = cfg.enabled == true,
 		}
 		added[mainType] = true
@@ -1956,7 +1990,7 @@ local function buildSpecToggles(specIndex, specName, available)
 		if available[pType] and not added[pType] then
 			specCfg[pType] = specCfg[pType] or {}
 			local cfg = specCfg[pType]
-			local label = _G["POWER_TYPE_" .. pType] or _G[pType] or pType
+			local label = (ResourceBars.PowerLabels and ResourceBars.PowerLabels[pType]) or _G["POWER_TYPE_" .. pType] or _G[pType] or pType
 			options[#options + 1] = {
 				value = pType,
 				text = label,

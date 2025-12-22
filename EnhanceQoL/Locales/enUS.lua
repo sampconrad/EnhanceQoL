@@ -194,8 +194,6 @@ L["showCatalystChargesOnCharframe"] = "Display Catalyst charges on Character Equ
 L["Catalyst Charges"] = "Catalyst Charges"
 L["showIlvlOnBagItems"] = "Display ilvl on equipment in all bags"
 L["showDurabilityOnCharframe"] = "Display Durability on Character Equipment Frame"
-L["showCloakUpgradeButton"] = "Display cloak upgrade button" -- Todo remove on midnight release
-L["cloakUpgradeTooltip"] = "Open cloak skill upgrades"
 L["MissingEnchant"] = "Enchant"
 L["hideHitIndicatorPlayer"] = "Hide floating combat text (damage and healing) over your character"
 L["hideHitIndicatorPet"] = "Hide floating combat text (damage and healing) over your pet"
@@ -458,7 +456,6 @@ L["autoAcceptGroupInviteGuildOnly"] = "Guild members"
 L["autoAcceptGroupInviteFriendOnly"] = "Friends"
 
 L["showLeaderIconRaidFrame"] = "Show leader icon on raid-style party frames"
-L["showPartyFrameInSoloContent"] = "Show Party Frames in Solo Content"
 L["hidePlayerFrame"] = "Hide Player Frame"
 L["hidePartyFrameTitle"] = "Hide party frame title"
 L["unitFrameTruncateNames"] = "Truncate unit names"

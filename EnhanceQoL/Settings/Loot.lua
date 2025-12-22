@@ -515,7 +515,11 @@ data = {
 						and addon.SettingsLayout.elements["dungeonJournalLootSpecIcons"].setting
 						and addon.SettingsLayout.elements["dungeonJournalLootSpecIcons"].setting:GetValue() == true
 				end,
-				get = function() return addon.db and addon.db.dungeonJournalLootSpecScale or 0 end,
+				get = function()
+					local value = addon.db and addon.db.dungeonJournalLootSpecScale or 1
+					if value <= 0 then value = 1 end
+					return value
+				end,
 				set = function(value)
 					addon.db["dungeonJournalLootSpecScale"] = value
 					if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
@@ -524,7 +528,7 @@ data = {
 				max = 2,
 				step = 0.05,
 				parent = true,
-				default = 0,
+				default = 1,
 				sType = "slider",
 			},
 			{

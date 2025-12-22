@@ -67,6 +67,11 @@ end
 
 addon.functions.UpdateInspectEventRegistration = UpdateInspectEventRegistration
 
+local function IsValidSpellIdentifier(id)
+	local idType = type(id)
+	return idType == "number" or idType == "string"
+end
+
 local function FindLineIndexByLabel(tt, label)
 	local name = tt:GetName()
 	for i = 1, tt:NumLines() do
@@ -299,7 +304,7 @@ local function checkSpell(tooltip, id, name, isSpell)
 		end
 	end
 
-	if addon.db["TooltipShowSpellIconInline"] and isSpell then
+	if addon.db["TooltipShowSpellIconInline"] and isSpell and IsValidSpellIdentifier(id) then
 		local spellInfo = C_Spell.GetSpellInfo(id)
 		if spellInfo and spellInfo.iconID then
 			local line = tooltip and _G[tooltip:GetName() .. "TextLeft1"]
@@ -319,7 +324,7 @@ local function checkSpell(tooltip, id, name, isSpell)
 		end
 	end
 
-	if addon.db["TooltipShowSpellIcon"] and isSpell then
+	if addon.db["TooltipShowSpellIcon"] and isSpell and IsValidSpellIdentifier(id) then
 		local spellInfo = C_Spell.GetSpellInfo(id)
 		if spellInfo and spellInfo.iconID then
 			if first then
@@ -837,13 +842,16 @@ local function checkAura(tooltip, id, name)
 		end
 	end
 
-	if addon.db["TooltipShowSpellIconInline"] then
+	if addon.db["TooltipShowSpellIconInline"] and IsValidSpellIdentifier(id) then
 		local spellInfo = C_Spell.GetSpellInfo(id)
-		if spellInfo and spellInfo.iconID then
+		if spellInfo and spellInfo.iconID then --and (not issecretvalue or (issecretvalue and not issecretvalue(spellInfo.iconID))) then
 			local line = tooltip and _G[tooltip:GetName() .. "TextLeft1"]
 			if line then
 				local current = line:GetText()
-				if current and not current:find("|T", 1, true) then
+				if
+					current
+					--and not current:find("|T", 1, true)
+				then
 					local size = addon.db and addon.db["TooltipItemIconSize"] or 16
 					if size < 10 then
 						size = 10
@@ -857,7 +865,7 @@ local function checkAura(tooltip, id, name)
 		end
 	end
 
-	if addon.db["TooltipShowSpellIcon"] then
+	if addon.db["TooltipShowSpellIcon"] and IsValidSpellIdentifier(id) then
 		local spellInfo = C_Spell.GetSpellInfo(id)
 		if spellInfo and spellInfo.iconID then
 			if first then
@@ -908,7 +916,12 @@ if TooltipDataProcessor then
 
 		if issecretvalue and issecretvalue(data.type) then
 			-- check for mouseover
-			if UnitIsEnemy("mouseover", "player") or UnitIsFriend("mouseover", "player") then kind = "unit" end
+			if UnitIsEnemy("mouseover", "player") or UnitIsFriend("mouseover", "player") then
+				kind = "unit"
+			else
+				-- assume it's a aura?
+				kind = "aura"
+			end
 		else
 			kind = addon.Tooltip.variables.kindsByID[tonumber(data.type)]
 		end

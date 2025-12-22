@@ -1,0 +1,28 @@
+## Interface: 110207, 120000, 120001
+## Title: Mover
+## Author: R41Z0R
+## Version: @project-version@
+## Notes: Move Blizzard frames
+## Notes-deDE: Verschiebt Blizzard-Fenster
+## Notes-esES: Mueve marcos de Blizzard
+## Notes-esMX: Mueve marcos de Blizzard
+## Notes-frFR: Déplace les fenêtres Blizzard
+## Notes-itIT: Sposta i frame di Blizzard
+## Notes-ptBR: Move quadros da Blizzard
+## Notes-ruRU: Перемещает окна Blizzard
+## Notes-koKR: 블리자드 프레임을 이동합니다
+## Notes-zhCN: 移动暴雪框体
+## Notes-zhTW: 移動暴雪框體
+## IconTexture: Interface\AddOns\EnhanceQoLMover\Icons\Icon.tga
+## Dependencies: EnhanceQoL
+## Retail: true
+## X-Compatible-With: retail
+## LoadOnDemand: 1
+## Globe-Main: EnhanceQoL
+
+Init.lua
+locales\[TextLocale].lua
+frames.lua
+
+EnhanceQoLMover.lua
+#EditModeExamples.lua

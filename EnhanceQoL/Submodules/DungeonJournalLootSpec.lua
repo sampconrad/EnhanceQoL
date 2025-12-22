@@ -218,12 +218,14 @@ end
 
 local function GetConfig()
 	local db = addon.db or {}
+	local textureScale = type(db["dungeonJournalLootSpecScale"]) == "number" and db["dungeonJournalLootSpecScale"] or 1
+	if textureScale <= 0 then textureScale = 1 end
 	return {
 		anchor = db["dungeonJournalLootSpecAnchor"] or 1,
 		offsetX = db["dungeonJournalLootSpecOffsetX"] or 0,
 		offsetY = db["dungeonJournalLootSpecOffsetY"] or 0,
 		spacing = db["dungeonJournalLootSpecSpacing"] or 0,
-		textureScale = db["dungeonJournalLootSpecScale"] or 1,
+		textureScale = textureScale,
 		iconPadding = db["dungeonJournalLootSpecIconPadding"] or 0,
 		compressSpecs = true,
 		compressRoles = true,
@@ -357,6 +359,7 @@ local function UpdateItem(button, config, layout, playerClassID)
 
 	local iconPadding = layout.iconPadding
 	local textureScale = layout.textureScale
+	if not textureScale or textureScale <= 0 then textureScale = 1 end
 	local anchorKey = layout.anchorKey
 	local anchorFlip = layout.anchorFlip
 	local xOffset = layout.xOffset

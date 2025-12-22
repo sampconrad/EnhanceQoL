@@ -50,6 +50,8 @@ ChannelHistory.EVENT_FILTER_KEY = ChannelHistory.EVENT_FILTER_KEY
 		CHAT_MSG_MONSTER_SAY = "MONSTER",
 		CHAT_MSG_MONSTER_WHISPER = "MONSTER",
 		CHAT_MSG_MONSTER_YELL = "MONSTER",
+		CHAT_MSG_RAID_BOSS_EMOTE = "MONSTER",
+		CHAT_MSG_RAID_BOSS_WHISPER = "MONSTER",
 	}
 ChannelHistory.loggedIn = ChannelHistory.loggedIn or (IsLoggedIn and IsLoggedIn()) or false
 ChannelHistory.defaultFilters = {
@@ -1197,13 +1199,48 @@ local function formatURLs(text)
 	return text
 end
 
-function getChatColor(key)
-	if not key then return nil end
-	local chatKey = CHAT_COLOR_KEYS[key] or key
+local colorCacheByEvent = {}
+local colorCacheByKey = {}
+
+local function resolveChatTypeInfo(chatKey)
+	if not chatKey then return nil end
 	local info = ChatTypeInfo and ChatTypeInfo[chatKey]
 	if (not info or not info.r) and chatKey == "CHANNEL" then info = ChatTypeInfo and ChatTypeInfo["CHANNEL1"] end
 	if info and info.r and info.g and info.b then return info end
-	return CHAT_COLOR_FALLBACK[key]
+	return nil
+end
+
+function getChatColor(key, event)
+	if not key and not event then return nil end
+
+	if event and type(event) == "string" then
+		local cached = colorCacheByEvent[event]
+		if cached ~= nil then return cached end
+
+		local chatKeyFromEvent = event:sub(10) -- "CHAT_MSG_" weg
+		local infoFromEvent = resolveChatTypeInfo(chatKeyFromEvent)
+		if infoFromEvent then
+			colorCacheByEvent[event] = infoFromEvent
+			return infoFromEvent
+		end
+		local fb = (CHAT_COLOR_FALLBACK and CHAT_COLOR_FALLBACK[chatKeyFromEvent]) or nil
+		colorCacheByEvent[event] = fb or false
+		if fb then return fb end
+	end
+
+	local mappedKey = (CHAT_COLOR_KEYS and (CHAT_COLOR_KEYS[key] or key)) or key
+	local cached = colorCacheByKey[mappedKey]
+	if cached ~= nil then return cached end
+
+	local info = resolveChatTypeInfo(mappedKey)
+	if info then
+		colorCacheByKey[mappedKey] = info
+		return info
+	end
+
+	local fb = (CHAT_COLOR_FALLBACK and (CHAT_COLOR_FALLBACK[mappedKey] or CHAT_COLOR_FALLBACK[key])) or nil
+	colorCacheByKey[mappedKey] = fb or false
+	return fb
 end
 
 local _formatParts = {}
@@ -1274,7 +1311,7 @@ function formatLine(self, line)
 	local timeText = date("%H:%M:%S", line.time or now())
 	timeText = string.format("|cffb0b0b0%s|r", timeText)
 
-	local chatColor = line.color or getChatColor(line.filterKey) or { r = 1, g = 0.82, b = 0 }
+	local chatColor = line.color or getChatColor(line.filterKey, line.event) or { r = 1, g = 0.82, b = 0 }
 	local chatColorCode = toColorCode(chatColor)
 
 	local nameColor = classColor or chatColor
@@ -1542,6 +1579,15 @@ function ChannelHistory:LoadFiltersFromDB()
 	end
 end
 
+function ChannelHistory:SetSelection(selection)
+	if type(selection) ~= "table" then return end
+	if not self.history or not self.keys then self:InitStorage() end
+	self.ui = self.ui or {}
+	self.ui.selection = selection
+	if self.history then self.history._selection = selection end
+	if addon.db then addon.db.chatHistorySelection = selection end
+end
+
 function deriveScope(selection, keys)
 	if not selection then return "character", keys and keys.realmKey, keys and keys.charKey, keys and keys.faction end
 	if selection.type == "header" then return "faction", nil, nil, nil end
@@ -1691,27 +1737,26 @@ end
 function ChannelHistory:EnsureSelection()
 	self.ui = self.ui or {}
 	if self.ui.selection then return end
+	if not self.history or not self.keys then self:InitStorage() end
 	local function buildCharSelectionKey(keys) return string.format("char:%s:%s:%s", keys.realmKey or "", keys.faction or "", keys.charKey or "") end
-	local stored = addon.db and addon.db.chatHistorySelection
+	local stored = (self.history and self.history._selection) or (addon.db and addon.db.chatHistorySelection)
 	if stored and type(stored) == "table" and stored.type then
 		if stored.type == "character" and type(stored.key) == "string" and not stored.key:match("^char:[^:]+:[^:]+:") then
 			stored.key = buildCharSelectionKey(self.keys or {})
 			stored.realmKey = (self.keys and self.keys.realmKey) or stored.realmKey
 			stored.factionKey = (self.keys and self.keys.faction) or stored.factionKey
 			stored.charKey = (self.keys and self.keys.charKey) or stored.charKey
-			if addon.db then addon.db.chatHistorySelection = stored end
 		end
-		self.ui.selection = stored
+		self:SetSelection(stored)
 		return
 	end
-	self.ui.selection = {
+	self:SetSelection({
 		type = "character",
 		key = buildCharSelectionKey(self.keys or {}),
 		factionKey = self.keys and self.keys.faction,
 		realmKey = self.keys and self.keys.realmKey,
 		charKey = self.keys and self.keys.charKey,
-	}
-	if addon.db then addon.db.chatHistorySelection = self.ui.selection end
+	})
 end
 
 -- UI helpers: left tree
@@ -1834,37 +1879,33 @@ local function handleLeftClick(btn, button)
 	if not data then return end
 	local selfRef = ChannelHistory
 	if data.kind == "character" then
-		selfRef.ui.selection = {
+		selfRef:SetSelection({
 			type = "character",
 			key = data.key,
 			faction = data.factionKey,
 			factionKey = data.factionKey,
 			realmKey = data.realmKey,
 			charKey = data.charKey,
-		}
-		if addon.db then addon.db.chatHistorySelection = selfRef.ui.selection end
+		})
 		selfRef:RefreshLeftList()
 		selfRef:RequestLogRefresh()
 	elseif data.kind == "realm" then
 		local realmKey = data.realmKey or data.key:match("^realm:(.+)$") or data.key
-		selfRef.ui.selection = { type = "realm", key = data.key, realm = realmKey, realmKey = realmKey }
-		if addon.db then addon.db.chatHistorySelection = selfRef.ui.selection end
+		selfRef:SetSelection({ type = "realm", key = data.key, realm = realmKey, realmKey = realmKey })
 		selfRef:RefreshLeftList()
 		selfRef:RequestLogRefresh()
 	elseif data.kind == "faction" then
-		selfRef.ui.selection = {
+		selfRef:SetSelection({
 			type = "faction",
 			key = data.key,
 			faction = data.factionKey,
 			factionKey = data.factionKey,
 			realmKey = data.realmKey,
-		}
-		if addon.db then addon.db.chatHistorySelection = selfRef.ui.selection end
+		})
 		selfRef:RefreshLeftList()
 		selfRef:RequestLogRefresh()
 	elseif data.kind == "header" then
-		selfRef.ui.selection = { type = "header", key = data.key }
-		if addon.db then addon.db.chatHistorySelection = selfRef.ui.selection end
+		selfRef:SetSelection({ type = "header", key = data.key })
 		selfRef:RefreshLeftList()
 		selfRef:RequestLogRefresh()
 	end

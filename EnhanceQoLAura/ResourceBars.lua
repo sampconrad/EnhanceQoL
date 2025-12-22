@@ -14,7 +14,6 @@ ResourceBars.ui = ResourceBars.ui or {}
 
 -- forward declarations to satisfy luacheck for early function
 local LSM = LibStub("LibSharedMedia-3.0")
-local BLIZZARD_TEX
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 
@@ -48,27 +47,41 @@ local lastProfileShareScope = {}
 local lastSpecCopyMode = {}
 local lastSpecCopyBar = {}
 local lastSpecCopyCosmetic = {}
-local RESOURCE_SHARE_KIND = "EQOL_RESOURCE_BAR_PROFILE"
-local COOLDOWN_VIEWER_FRAME_NAME = "EssentialCooldownViewer"
-local MIN_RESOURCE_BAR_WIDTH = 50
-local DEFAULT_STACK_SPACING = 0
-local SEPARATOR_THICKNESS = 1
-local SEP_DEFAULT = { 1, 1, 1, 0.5 }
-local WHITE = { 1, 1, 1, 1 }
-local DEFAULT_RB_TEX = "Interface\\Buttons\\WHITE8x8" -- historical default (Solid)
-local DEFAULT_HEALTH_WIDTH
-local DEFAULT_HEALTH_HEIGHT
-local DEFAULT_POWER_WIDTH
-local DEFAULT_POWER_HEIGHT
-local RUNES_BORDER_ID = "EQOL_BORDER_RUNES"
-BLIZZARD_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
-local SMOOTH_SPEED = 12
-local DEFAULT_SMOOTH_DEADZONE = 0.75
-local RUNE_UPDATE_INTERVAL = 0.1
-local REFRESH_DEBOUNCE = 0.05
-local REANCHOR_REFRESH = { reanchorOnly = true }
-local OOC_VISIBILITY_DRIVER = "[combat] show; hide"
 local visibilityDriverWatcher
+local ResourcebarVars = {
+	RESOURCE_SHARE_KIND = "EQOL_RESOURCE_BAR_PROFILE",
+	COOLDOWN_VIEWER_FRAME_NAME = "EssentialCooldownViewer",
+	MIN_RESOURCE_BAR_WIDTH = 50,
+	DEFAULT_STACK_SPACING = 0,
+	SEPARATOR_THICKNESS = 1,
+	SEP_DEFAULT = { 1, 1, 1, 0.5 },
+	WHITE = { 1, 1, 1, 1 },
+	DEFAULT_RB_TEX = "Interface\\Buttons\\WHITE8x8", -- historical default (Solid)
+	DEFAULT_HEALTH_WIDTH = 200,
+	DEFAULT_HEALTH_HEIGHT = 20,
+	DEFAULT_POWER_WIDTH = 200,
+	DEFAULT_POWER_HEIGHT = 20,
+	RUNES_BORDER_ID = "EQOL_BORDER_RUNES",
+	BLIZZARD_TEX = "Interface\\TargetingFrame\\UI-StatusBar",
+	SMOOTH_SPEED = 12,
+	DEFAULT_SMOOTH_DEADZONE = 0.75,
+	RUNE_UPDATE_INTERVAL = 0.1,
+	REFRESH_DEBOUNCE = 0.05,
+	REANCHOR_REFRESH = { reanchorOnly = true },
+	OOC_VISIBILITY_DRIVER = "[combat] show; hide",
+	MAELSTROM_WEAPON_MAX_STACKS = 10,
+	MAELSTROM_WEAPON_SEGMENTS = 5,
+	MAELSTROM_WEAPON_SPELL_ID = 344179,
+	VOID_METAMORPHOSIS_SPELL_ID = 1225789,
+	DEFAULT_MAELSTROM_WEAPON_FIVE_COLOR = { 0.10, 0.85, 0.55, 1 },
+	CUSTOM_POWER_COLORS = {
+		MAELSTROM_WEAPON = { 0.15, 0.45, 1.00 },
+	},
+	POWER_LABELS = {},
+	AURA_POWER_CONFIG = {},
+}
+local RB = ResourcebarVars
+
 local tryActivateSmooth
 local requestActiveRefresh
 local getStatusbarDropdownLists
@@ -77,6 +90,9 @@ local scheduleRelativeFrameWidthSync
 local ensureSpecCfg
 local classPowerTypes
 local powertypeClasses
+local auraPowerState = {}
+local auraInstanceToType = {}
+local auraSpellToType = {}
 local COSMETIC_BAR_KEYS = {
 	"barTexture",
 	"width",
@@ -92,6 +108,8 @@ local COSMETIC_BAR_KEYS = {
 	"useClassColor",
 	"useMaxColor",
 	"maxColor",
+	"useMaelstromFiveColor",
+	"maelstromFiveColor",
 	"useHolyThreeColor",
 	"holyThreeColor",
 	"absorbEnabled",
@@ -145,9 +163,7 @@ end
 SetColorCurvePoints()
 
 local function getHealthPercent(unit, curHealth, maxHealth)
-	if addon.functions and addon.functions.GetHealthPercent then
-		return addon.functions.GetHealthPercent(unit, curHealth, maxHealth, true)
-	end
+	if addon.functions and addon.functions.GetHealthPercent then return addon.functions.GetHealthPercent(unit, curHealth, maxHealth, true) end
 	curHealth = curHealth or UnitHealth(unit)
 	maxHealth = maxHealth or UnitHealthMax(unit)
 	return (curHealth or 0) / max(maxHealth or 1, 1) * 100
@@ -162,6 +178,154 @@ local function getPowerPercent(unit, powerEnum, curPower, maxPower)
 	maxPower = maxPower or UnitPowerMax(unit, powerEnum)
 	if maxPower and maxPower > 0 then return (curPower or 0) / maxPower * 100 end
 	return 0
+end
+
+ResourceBars.PowerLabels = {
+	MAELSTROM_WEAPON = (C_Spell.GetSpellName(RB.MAELSTROM_WEAPON_SPELL_ID)) or "Maelstrom Weapon",
+	VOID_METAMORPHOSIS = (C_Spell.GetSpellName(RB.VOID_METAMORPHOSIS_SPELL_ID)) or "Void Metamorphosis",
+}
+
+RB.AURA_POWER_CONFIG = {
+	MAELSTROM_WEAPON = {
+		spellIds = { RB.MAELSTROM_WEAPON_SPELL_ID },
+		maxStacks = RB.MAELSTROM_WEAPON_MAX_STACKS,
+		visualSegments = RB.MAELSTROM_WEAPON_SEGMENTS,
+		midColor = RB.DEFAULT_MAELSTROM_WEAPON_FIVE_COLOR,
+		useMidColorKey = "useMaelstromFiveColor",
+		midColorKey = "maelstromFiveColor",
+		useMaxColorDefault = true,
+		defaultShowSeparator = true,
+	},
+	VOID_METAMORPHOSIS = {
+		spellIds = { RB.VOID_METAMORPHOSIS_SPELL_ID },
+		maxStacks = 50,
+		visualSegments = 0,
+		defaultColor = { 0.67, 0.37, 0.97, 1 }, -- #AC5FF8
+		useMaxColorDefault = true,
+		defaultShowSeparator = false,
+	},
+}
+
+local function registerAuraSpellLookup()
+	for pType, cfg in pairs(RB.AURA_POWER_CONFIG or {}) do
+		if cfg.spellIds then
+			for _, sid in ipairs(cfg.spellIds) do
+				if sid then auraSpellToType[sid] = pType end
+			end
+		end
+	end
+end
+
+local function isAuraPowerType(pType) return RB.AURA_POWER_CONFIG and RB.AURA_POWER_CONFIG[pType] ~= nil end
+
+local function isAuraPowerSpell(spellId)
+	if not spellId then return nil end
+	if issecretvalue and issecretvalue(spellId) then return nil end
+	return auraSpellToType[spellId]
+end
+
+registerAuraSpellLookup()
+
+local function ensureAuraPowerState(pType)
+	if not auraPowerState[pType] then auraPowerState[pType] = { instances = {}, currentInstance = nil } end
+	return auraPowerState[pType]
+end
+
+local function assignAuraInstance(pType, auraInstanceID, spellId)
+	local state = ensureAuraPowerState(pType)
+	if auraInstanceID then
+		state.instances[auraInstanceID] = true
+		state.currentInstance = auraInstanceID
+		state.lastSpellId = spellId or state.lastSpellId
+		auraInstanceToType[auraInstanceID] = pType
+	end
+end
+
+local function clearAuraInstance(pType, auraInstanceID)
+	local state = ensureAuraPowerState(pType)
+	if auraInstanceID then
+		state.instances[auraInstanceID] = nil
+		if state.currentInstance == auraInstanceID then state.currentInstance = nil end
+	end
+	if auraInstanceID then auraInstanceToType[auraInstanceID] = nil end
+end
+
+local function resetAuraTracking()
+	for k in pairs(auraPowerState) do
+		auraPowerState[k] = nil
+	end
+	for k in pairs(auraInstanceToType) do
+		auraInstanceToType[k] = nil
+	end
+end
+
+local function handleAuraEventInfo(eventInfo)
+	if not eventInfo then return nil end
+	local changed = {}
+	for _, aura in ipairs(eventInfo.addedAuras or {}) do
+		local pType = aura and aura.spellId and isAuraPowerSpell(aura.spellId)
+		if pType and aura.auraInstanceID then
+			assignAuraInstance(pType, aura.auraInstanceID, aura.spellId)
+			changed[pType] = true
+		end
+	end
+	for _, inst in ipairs(eventInfo.updatedAuraInstanceIDs or {}) do
+		local pType = auraInstanceToType[inst]
+		if not pType and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID then
+			local data = C_UnitAuras.GetAuraDataByAuraInstanceID("player", inst)
+			if data and data.spellId then pType = isAuraPowerSpell(data.spellId) end
+			if pType and data then assignAuraInstance(pType, inst, data.spellId) end
+		end
+		if pType then changed[pType] = true end
+	end
+	for _, inst in ipairs(eventInfo.removedAuraInstanceIDs or {}) do
+		local pType = auraInstanceToType[inst]
+		if pType then
+			clearAuraInstance(pType, inst)
+			changed[pType] = true
+		end
+	end
+	return changed
+end
+local function getAuraPowerCounts(pType)
+	local cfg = RB.AURA_POWER_CONFIG[pType]
+	if not cfg then return 0, 0, 0 end
+	local state = ensureAuraPowerState(pType)
+	local auraData
+	if state.currentInstance and C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID then
+		auraData = C_UnitAuras.GetAuraDataByAuraInstanceID("player", state.currentInstance)
+		if not auraData then clearAuraInstance(pType, state.currentInstance) end
+	end
+	if not auraData then
+		if addon.variables.isMidnight and C_UnitAuras and C_UnitAuras.GetUnitAuras then
+			for _, v in pairs(C_UnitAuras.GetUnitAuras("player", "HELPFUL")) do
+				if not (issecretvalue and issecretvalue(v.spellId)) and isAuraPowerSpell(v.spellId) == pType then
+					assignAuraInstance(pType, v.auraInstanceID, v.spellId)
+					auraData = v
+					break
+				end
+			end
+		elseif C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+			for _, sid in ipairs(cfg.spellIds or {}) do
+				local aura = C_UnitAuras.GetPlayerAuraBySpellID(sid)
+				if aura and not (issecretvalue and issecretvalue(aura.spellId)) then
+					assignAuraInstance(pType, aura.auraInstanceID, aura.spellId)
+					auraData = aura
+					break
+				end
+			end
+		end
+	end
+	if not auraData then return 0, cfg.maxStacks or 0, cfg.visualSegments or (cfg.maxStacks or 0) end
+	state.currentInstance = auraData.auraInstanceID or state.currentInstance
+	if state.currentInstance then
+		auraInstanceToType[state.currentInstance] = pType
+		state.instances[state.currentInstance] = true
+	end
+	local stacks = auraData.applications or auraData.charges or 0
+	local logicalMax = auraData.maxCharges or auraData.pointsMax or cfg.maxStacks or stacks
+	local visualSegments = cfg.visualSegments or logicalMax or stacks
+	return stacks or 0, logicalMax or 0, visualSegments or logicalMax
 end
 
 local function getPlayerClassColor()
@@ -182,6 +346,10 @@ local function setBarDesaturated(bar, flag)
 end
 
 local function getPowerBarColor(type)
+	if ResourcebarVars.CUSTOM_POWER_COLORS and ResourcebarVars.CUSTOM_POWER_COLORS[type] then
+		local c = ResourcebarVars.CUSTOM_POWER_COLORS[type]
+		return c[1] or 1, c[2] or 1, c[3] or 1
+	end
 	local colorTable = PowerBarColor
 	if colorTable then
 		local entry = colorTable[string.upper(type)]
@@ -221,14 +389,14 @@ local function ensureSmoothUpdater(bar)
 				return
 			end
 			local current = self:GetValue() or 0
-			local dz = self._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
+			local dz = self._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
 			local diff = target - current
 			if abs(diff) <= dz then
 				self:SetValue(target)
 				stopSmoothUpdater(self)
 				return
 			end
-			local speed = self._smoothSpeed or SMOOTH_SPEED
+			local speed = self._smoothSpeed or RB.SMOOTH_SPEED
 			local step = diff * min(1, (elapsed or 0) * speed)
 			self:SetValue(current + step)
 		end
@@ -250,8 +418,8 @@ tryActivateSmooth = function(bar)
 	if addon.variables.isMidnight then return end
 	ensureSmoothUpdater(bar)
 	ensureSmoothVisibilityHooks(bar)
-	bar._smoothSpeed = bar._smoothSpeed or SMOOTH_SPEED
-	bar._smoothDeadzone = bar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
+	bar._smoothSpeed = bar._smoothSpeed or RB.SMOOTH_SPEED
+	bar._smoothDeadzone = bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
 	if not bar._smoothTarget then
 		stopSmoothUpdater(bar)
 		return
@@ -259,7 +427,7 @@ tryActivateSmooth = function(bar)
 	if not bar:IsShown() then return end
 	local current = bar:GetValue() or 0
 	local diff = bar._smoothTarget - current
-	local dz = bar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
+	local dz = bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
 	if abs(diff) > dz then
 		if bar:GetScript("OnUpdate") ~= bar._smoothUpdater then bar:SetScript("OnUpdate", bar._smoothUpdater) end
 		bar._smoothActive = true
@@ -324,6 +492,35 @@ local function copyCosmeticBarSettings(source, dest)
 			dest[key] = value
 		end
 	end
+end
+
+local function ensureMaelstromWeaponDefaults(cfg)
+	if not cfg then return end
+	if cfg.useMaelstromFiveColor == nil then cfg.useMaelstromFiveColor = true end
+	if cfg.useMaxColor == nil then cfg.useMaxColor = true end
+	if not cfg.maxColor then cfg.maxColor = { 0, 1, 0, 1 } end
+	if not cfg.maelstromFiveColor then cfg.maelstromFiveColor = CopyTable(ResourcebarVars.DEFAULT_MAELSTROM_WEAPON_FIVE_COLOR) end
+	if cfg.showSeparator == nil then cfg.showSeparator = true end
+	if not cfg.separatorThickness then cfg.separatorThickness = RB.SEPARATOR_THICKNESS end
+	if not cfg.separatorColor then cfg.separatorColor = CopyTable(RB.SEP_DEFAULT) end
+end
+
+local function ensureAuraPowerDefaults(pType, cfg)
+	if not cfg then return end
+	local def = RB.AURA_POWER_CONFIG[pType]
+	if cfg.showSeparator == nil then
+		if def and def.defaultShowSeparator ~= nil then
+			cfg.showSeparator = def.defaultShowSeparator and true or false
+		else
+			cfg.showSeparator = true
+		end
+	end
+	if not cfg.separatorThickness then cfg.separatorThickness = RB.SEPARATOR_THICKNESS end
+	if not cfg.separatorColor then cfg.separatorColor = CopyTable(RB.SEP_DEFAULT) end
+	if def and not cfg.visualSegments then cfg.visualSegments = def.visualSegments end
+	if def and def.useMaxColorDefault and cfg.useMaxColor == nil then cfg.useMaxColor = true end
+	if cfg.useMaxColor and not cfg.maxColor then cfg.maxColor = { 0, 1, 0, 1 } end
+	if pType == "MAELSTROM_WEAPON" then ensureMaelstromWeaponDefaults(cfg) end
 end
 
 local function ensureGlobalStore()
@@ -410,8 +607,8 @@ local function saveGlobalProfile(barType, specIndex, targetKey)
 				copy.height = copy.height or frame:GetHeight()
 			end
 		end
-		if not copy.width then copy.width = (barType == "HEALTH") and DEFAULT_HEALTH_WIDTH or DEFAULT_POWER_WIDTH end
-		if not copy.height then copy.height = (barType == "HEALTH") and DEFAULT_HEALTH_HEIGHT or DEFAULT_POWER_HEIGHT end
+		if not copy.width then copy.width = (barType == "HEALTH") and RB.DEFAULT_HEALTH_WIDTH or RB.DEFAULT_POWER_WIDTH end
+		if not copy.height then copy.height = (barType == "HEALTH") and RB.DEFAULT_HEALTH_HEIGHT or RB.DEFAULT_POWER_HEIGHT end
 		return copy
 	end
 
@@ -484,8 +681,8 @@ local function applyGlobalProfile(barType, specIndex, cosmeticOnly, sourceKey)
 		local frame = _G[frameName]
 		if frame and frame.GetWidth and frame.GetHeight then
 			globalCfg = CopyTable(globalCfg)
-			globalCfg.width = globalCfg.width or frame:GetWidth() or ((barType == "HEALTH") and DEFAULT_HEALTH_WIDTH or DEFAULT_POWER_WIDTH)
-			globalCfg.height = globalCfg.height or frame:GetHeight() or ((barType == "HEALTH") and DEFAULT_HEALTH_HEIGHT or DEFAULT_POWER_HEIGHT)
+			globalCfg.width = globalCfg.width or frame:GetWidth() or ((barType == "HEALTH") and RB.DEFAULT_HEALTH_WIDTH or RB.DEFAULT_POWER_WIDTH)
+			globalCfg.height = globalCfg.height or frame:GetHeight() or ((barType == "HEALTH") and RB.DEFAULT_HEALTH_HEIGHT or RB.DEFAULT_POWER_HEIGHT)
 		end
 	end
 	local specCfg = ensureSpecCfg(specIndex or addon.variables.unitSpec)
@@ -503,8 +700,8 @@ local function applyGlobalProfile(barType, specIndex, cosmeticOnly, sourceKey)
 		-- Always enable separators when applying globals for eligible bars
 		if ResourceBars.separatorEligible and ResourceBars.separatorEligible[barType] then
 			specCfg[barType].showSeparator = true
-			if not specCfg[barType].separatorThickness then specCfg[barType].separatorThickness = globalCfg.separatorThickness or SEPARATOR_THICKNESS end
-			specCfg[barType].separatorColor = specCfg[barType].separatorColor or globalCfg.separatorColor or SEP_DEFAULT
+			if not specCfg[barType].separatorThickness then specCfg[barType].separatorThickness = globalCfg.separatorThickness or RB.SEPARATOR_THICKNESS end
+			specCfg[barType].separatorColor = specCfg[barType].separatorColor or globalCfg.separatorColor or RB.SEP_DEFAULT
 		end
 	end
 	return true
@@ -659,7 +856,7 @@ local function exportResourceProfile(scopeKey)
 	if type(classConfig) ~= "table" then return nil, "NO_DATA" end
 
 	local payload = {
-		kind = RESOURCE_SHARE_KIND,
+		kind = RB.RESOURCE_SHARE_KIND,
 		version = 1,
 		class = classKey,
 		enableResourceFrame = addon.db["enableResourceFrame"] and true or false,
@@ -712,7 +909,7 @@ local function importResourceProfile(encoded, scopeKey)
 	local ok, data = serializer:Deserialize(decompressed)
 	if not ok or type(data) ~= "table" then return false, "DESERIALIZE" end
 
-	if data.kind ~= RESOURCE_SHARE_KIND then return false, "WRONG_KIND" end
+	if data.kind ~= RB.RESOURCE_SHARE_KIND then return false, "WRONG_KIND" end
 	if data.class and data.class ~= addon.variables.unitClass then return false, "WRONG_CLASS", data.class end
 
 	local specs = data.specs
@@ -770,7 +967,7 @@ end
 local function rebuildTextureCache()
 	local map = {
 		["DEFAULT"] = DEFAULT,
-		[BLIZZARD_TEX] = "Blizzard: UI-StatusBar",
+		[RB.BLIZZARD_TEX] = "Blizzard: UI-StatusBar",
 		["Interface\\Tooltips\\UI-Tooltip-Background"] = "Dark Flat (Tooltip bg)",
 		["Interface\\TargetingFrame\\UI-StatusBar"] = "Blizzard Unit Frame",
 		["Interface\\UnitPowerBarAlt\\Generic1Texture"] = "Alternate Power",
@@ -852,7 +1049,7 @@ end
 
 local function isValidStatusbarPath(path)
 	if not path or type(path) ~= "string" or path == "" then return false end
-	if path == BLIZZARD_TEX then return true end
+	if path == RB.BLIZZARD_TEX then return true end
 	if path == "Interface\\Buttons\\WHITE8x8" then return true end
 	if path == "Interface\\Tooltips\\UI-Tooltip-Background" then return true end
 	if LSM and LSM.HashTable then
@@ -866,7 +1063,7 @@ end
 
 local function resolveTexture(cfg)
 	local sel = cfg and cfg.barTexture
-	if sel == nil or sel == "DEFAULT" or not isValidStatusbarPath(sel) then return DEFAULT_RB_TEX end
+	if sel == nil or sel == "DEFAULT" or not isValidStatusbarPath(sel) then return RB.DEFAULT_RB_TEX end
 	return sel
 end
 
@@ -874,11 +1071,7 @@ local function isEQOLFrameName(name)
 	if name == "EQOLHealthBar" then return true end
 	return type(name) == "string" and name:match("^EQOL.+Bar$")
 end
--- Fixed, non-DB defaults
-DEFAULT_HEALTH_WIDTH = 200
-DEFAULT_HEALTH_HEIGHT = 20
-DEFAULT_POWER_WIDTH = 200
-DEFAULT_POWER_HEIGHT = 20
+-- Fixed, non-DB defaults are stored in ResourcebarVars (RB)
 
 local function defaultFontPath() return (addon.variables and addon.variables.defaultFont) or (LSM and LSM.DefaultMedia and LSM:Fetch("font", LSM.DefaultMedia.font)) or STANDARD_TEXT_FONT end
 
@@ -976,7 +1169,7 @@ local function applyCustomBorder(borderFrame, bd)
 	return false
 end
 
-local runeDef = getCustomBorder(RUNES_BORDER_ID)
+local runeDef = getCustomBorder(RB.RUNES_BORDER_ID)
 ResourceBars.RUNE_BORDER_LABEL = (runeDef and runeDef.label) or "EQOL: Runes"
 
 -- Statusbar content inset controller
@@ -1225,7 +1418,7 @@ local function applyBarFillColor(bar, cfg, pType)
 		a = a or (cfg.barColor and cfg.barColor[4]) or 1
 		shouldDesaturate = true
 	elseif cfg.useBarColor then
-		local color = cfg.barColor or WHITE
+		local color = cfg.barColor or RB.WHITE
 		r, g, b, a = color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1
 	else
 		r, g, b = getPowerBarColor(pType or "MANA")
@@ -1295,13 +1488,13 @@ local function configureBarBehavior(bar, cfg, pType)
 		ensureSmoothVisibilityHooks(bar)
 		if cfg.smoothFill then
 			bar._smoothEnabled = true
-			bar._smoothDeadzone = cfg.smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
-			bar._smoothSpeed = SMOOTH_SPEED
+			bar._smoothDeadzone = cfg.smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
+			bar._smoothSpeed = RB.SMOOTH_SPEED
 			ensureSmoothUpdater(bar)
 		else
 			bar._smoothEnabled = false
-			bar._smoothDeadzone = cfg.smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
-			bar._smoothSpeed = SMOOTH_SPEED
+			bar._smoothDeadzone = cfg.smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
+			bar._smoothSpeed = RB.SMOOTH_SPEED
 			bar._smoothTarget = nil
 			stopSmoothUpdater(bar)
 		end
@@ -1352,8 +1545,8 @@ local function applyBehaviorSelection(cfg, selection, pType, specIndex)
 	local dimensionsChanged = beforeVertical ~= afterVertical
 
 	if dimensionsChanged then
-		local defaultW = (pType == "HEALTH") and DEFAULT_HEALTH_WIDTH or DEFAULT_POWER_WIDTH
-		local defaultH = (pType == "HEALTH") and DEFAULT_HEALTH_HEIGHT or DEFAULT_POWER_HEIGHT
+		local defaultW = (pType == "HEALTH") and RB.DEFAULT_HEALTH_WIDTH or RB.DEFAULT_POWER_WIDTH
+		local defaultH = (pType == "HEALTH") and RB.DEFAULT_HEALTH_HEIGHT or RB.DEFAULT_POWER_HEIGHT
 		local curW = cfg.width or defaultW
 		local curH = cfg.height or defaultH
 		cfg.width, cfg.height = curH, curW
@@ -1573,8 +1766,8 @@ function updateHealthBar(evt)
 		local smooth = settings.smoothFill == true
 		if not addon.variables.isMidnight and smooth then
 			healthBar._smoothTarget = curHealth
-			healthBar._smoothDeadzone = settings.smoothDeadzone or healthBar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
-			healthBar._smoothSpeed = SMOOTH_SPEED
+			healthBar._smoothDeadzone = settings.smoothDeadzone or healthBar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
+			healthBar._smoothSpeed = RB.SMOOTH_SPEED
 			if not healthBar._smoothInitialized then
 				healthBar:SetValue(curHealth)
 				healthBar._smoothInitialized = true
@@ -1583,8 +1776,8 @@ function updateHealthBar(evt)
 			tryActivateSmooth(healthBar)
 		else
 			healthBar._smoothTarget = nil
-			healthBar._smoothDeadzone = settings.smoothDeadzone or healthBar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
-			healthBar._smoothSpeed = SMOOTH_SPEED
+			healthBar._smoothDeadzone = settings.smoothDeadzone or healthBar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
+			healthBar._smoothSpeed = RB.SMOOTH_SPEED
 			if not addon.variables.isMidnight and healthBar._lastVal ~= curHealth then
 				healthBar:SetValue(curHealth)
 			else
@@ -1638,7 +1831,7 @@ function updateHealthBar(evt)
 		end
 		local baseR, baseG, baseB, baseA
 		if settings.useBarColor then
-			local custom = settings.barColor or WHITE
+			local custom = settings.barColor or RB.WHITE
 			baseR, baseG, baseB, baseA = custom[1] or 1, custom[2] or 1, custom[3] or 1, custom[4] or 1
 		elseif settings.useClassColor then
 			baseR, baseG, baseB, baseA = getPlayerClassColor()
@@ -1661,7 +1854,7 @@ function updateHealthBar(evt)
 			local useMaxColor = settings.useMaxColor == true
 			local finalR, finalG, finalB, finalA = baseR, baseG, baseB, baseA
 			if useMaxColor and reachedCap then
-				local maxCol = settings.maxColor or WHITE
+				local maxCol = settings.maxColor or RB.WHITE
 				finalR, finalG, finalB, finalA = maxCol[1] or baseR, maxCol[2] or baseG, maxCol[3] or baseB, maxCol[4] or baseA
 			end
 
@@ -1683,7 +1876,7 @@ function updateHealthBar(evt)
 					if wasMax ~= settings.useMaxColor then
 						wasMax = settings.useMaxColor
 						if settings.useMaxColor then
-							SetColorCurvePoints(settings.maxColor or WHITE)
+							SetColorCurvePoints(settings.maxColor or RB.WHITE)
 						else
 							SetColorCurvePoints()
 						end
@@ -1814,8 +2007,8 @@ function createHealthBar()
 	healthBar._rbType = "HEALTH"
 	do
 		local cfg = getBarSettings("HEALTH")
-		local w = max(MIN_RESOURCE_BAR_WIDTH, (cfg and cfg.width) or DEFAULT_HEALTH_WIDTH)
-		local h = (cfg and cfg.height) or DEFAULT_HEALTH_HEIGHT
+		local w = max(RB.MIN_RESOURCE_BAR_WIDTH, (cfg and cfg.width) or RB.DEFAULT_HEALTH_WIDTH)
+		local h = (cfg and cfg.height) or RB.DEFAULT_HEALTH_HEIGHT
 		healthBar:SetSize(w, h)
 	end
 	do
@@ -1829,8 +2022,8 @@ function createHealthBar()
 	if looped and (anchor.relativeFrame or "UIParent") ~= "UIParent" then
 		local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
 		local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-		local w = healthBar:GetWidth() or DEFAULT_HEALTH_WIDTH
-		local h = healthBar:GetHeight() or DEFAULT_HEALTH_HEIGHT
+		local w = healthBar:GetWidth() or RB.DEFAULT_HEALTH_WIDTH
+		local h = healthBar:GetHeight() or RB.DEFAULT_HEALTH_HEIGHT
 		anchor.point = "TOPLEFT"
 		anchor.relativeFrame = "UIParent"
 		anchor.relativePoint = "TOPLEFT"
@@ -1843,8 +2036,8 @@ function createHealthBar()
 	if (anchor.relativeFrame or "UIParent") == "UIParent" and (anchor.x == nil or anchor.y == nil) then
 		local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
 		local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-		local w = healthBar:GetWidth() or DEFAULT_HEALTH_WIDTH
-		local h = healthBar:GetHeight() or DEFAULT_HEALTH_HEIGHT
+		local w = healthBar:GetWidth() or RB.DEFAULT_HEALTH_WIDTH
+		local h = healthBar:GetHeight() or RB.DEFAULT_HEALTH_HEIGHT
 		anchor.point = anchor.point or "TOPLEFT"
 		anchor.relativePoint = anchor.relativePoint or "TOPLEFT"
 		anchor.x = (pw - w) / 2
@@ -1909,7 +2102,9 @@ powertypeClasses = {
 	DEMONHUNTER = {
 		[1] = { MAIN = "FURY" },
 		[2] = { MAIN = "FURY" },
-		[3] = { MAIN = "FURY" },
+		[3] = { --MAIN = "VOID_METAMORPHOSIS", -- TODO When declassified uncomment
+			FURY = true,
+		},
 	},
 	DEATHKNIGHT = {
 		[1] = { MAIN = "RUNIC_POWER", RUNES = true },
@@ -1938,7 +2133,7 @@ powertypeClasses = {
 	},
 	SHAMAN = {
 		[1] = { MAIN = "MAELSTROM", MANA = true },
-		[2] = { MANA = true },
+		[2] = { MAIN = "MAELSTROM_WEAPON", MANA = true },
 		[3] = { MAIN = "MANA" },
 	},
 	MAGE = {
@@ -2003,6 +2198,8 @@ classPowerTypes = {
 	"LUNAR_POWER",
 	"HOLY_POWER",
 	"MAELSTROM",
+	"MAELSTROM_WEAPON",
+	"VOID_METAMORPHOSIS",
 	"CHI",
 	"INSANITY",
 	"ARCANE_CHARGES",
@@ -2018,10 +2215,11 @@ ResourceBars.separatorEligible = {
 	ARCANE_CHARGES = true,
 	CHI = true,
 	COMBO_POINTS = true,
+	VOID_METAMORPHOSIS = true,
 	RUNES = true,
 }
-ResourceBars.RUNE_BORDER_ID = RUNES_BORDER_ID
-ResourceBars.RUNE_BORDER_LABEL = ResourceBars.RUNE_BORDER_LABEL or (getCustomBorder and getCustomBorder(RUNES_BORDER_ID) or {}).label or "EQOL: Runes"
+ResourceBars.RUNE_BORDER_ID = RB.RUNES_BORDER_ID
+ResourceBars.RUNE_BORDER_LABEL = ResourceBars.RUNE_BORDER_LABEL or (getCustomBorder and getCustomBorder(RB.RUNES_BORDER_ID) or {}).label or "EQOL: Runes"
 
 function getBarSettings(pType)
 	local class = addon.variables.unitClass
@@ -2030,6 +2228,7 @@ function getBarSettings(pType)
 	if addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[class] and addon.db.personalResourceBarSettings[class][spec] then
 		local cfg = addon.db.personalResourceBarSettings[class][spec][pType]
 		if cfg then
+			if isAuraPowerType and isAuraPowerType(pType) then ensureAuraPowerDefaults(pType, cfg) end
 			ensureDruidShowFormsDefaults(cfg, pType, specInfo)
 			ensureRelativeFrameFallback(cfg.anchor, pType, specInfo)
 			return cfg
@@ -2041,6 +2240,7 @@ function getBarSettings(pType)
 			local globalCfg, secondaryIdx = resolveGlobalTemplate(pType, spec)
 			if globalCfg then
 				specCfg[pType] = CopyTable(globalCfg)
+				if isAuraPowerType and isAuraPowerType(pType) then ensureAuraPowerDefaults(pType, specCfg[pType]) end
 				ensureDruidShowFormsDefaults(specCfg[pType], pType, specInfo)
 				ensureRelativeFrameFallback(specCfg[pType].anchor, pType, specInfo)
 				if secondaryIdx and secondaryIdx > 1 then
@@ -2058,9 +2258,9 @@ local function wantsRelativeFrameWidthMatch(anchor) return anchor and (anchor.re
 
 local function getConfiguredBarWidth(pType)
 	local cfg = getBarSettings(pType)
-	local default = (pType == "HEALTH") and DEFAULT_HEALTH_WIDTH or DEFAULT_POWER_WIDTH
-	local width = (cfg and type(cfg.width) == "number" and cfg.width > 0 and cfg.width) or default or MIN_RESOURCE_BAR_WIDTH
-	return max(MIN_RESOURCE_BAR_WIDTH, width or MIN_RESOURCE_BAR_WIDTH)
+	local default = (pType == "HEALTH") and RB.DEFAULT_HEALTH_WIDTH or RB.DEFAULT_POWER_WIDTH
+	local width = (cfg and type(cfg.width) == "number" and cfg.width > 0 and cfg.width) or default or RB.MIN_RESOURCE_BAR_WIDTH
+	return max(RB.MIN_RESOURCE_BAR_WIDTH, width or RB.MIN_RESOURCE_BAR_WIDTH)
 end
 
 local function syncBarWidthWithAnchor(pType)
@@ -2084,7 +2284,7 @@ local function syncBarWidthWithAnchor(pType)
 		return true
 	end
 	local relWidth = relFrame:GetWidth() or 0
-	local desired = max(MIN_RESOURCE_BAR_WIDTH, relWidth or 0)
+	local desired = max(RB.MIN_RESOURCE_BAR_WIDTH, relWidth or 0)
 	desired = max(desired, 1)
 	local current = frame:GetWidth() or 0
 	if abs(current - desired) < 0.5 then return false end
@@ -2156,8 +2356,11 @@ function updatePowerBar(type, runeSlot)
 	if not bar or not bar:IsShown() then return end
 	-- Special handling for DK RUNES: six sub-bars that fill as cooldown progresses
 	if type == "RUNES" then
-		local r, g, b = resolveRuneReadyColor(getBarSettings("RUNES"))
+		local cfg = getBarSettings("RUNES") or {}
+		local r, g, b = resolveRuneReadyColor(cfg)
 		local grey = 0.35
+		local colorChanged = (bar._runeReadyR ~= r) or (bar._runeReadyG ~= g) or (bar._runeReadyB ~= b)
+		bar._runeReadyR, bar._runeReadyG, bar._runeReadyB = r, g, b
 		bar._rune = bar._rune or {}
 		bar._runeOrder = bar._runeOrder or {}
 		bar._charging = bar._charging or {}
@@ -2240,7 +2443,6 @@ function updatePowerBar(type, runeSlot)
 			bar._runeOrder[i] = nil
 		end
 
-		local cfg = getBarSettings("RUNES") or {}
 		local anyActive = #charging > 0
 		local now = GetTime()
 		local soonest
@@ -2252,7 +2454,7 @@ function updatePowerBar(type, runeSlot)
 				local prog = info.ready and 1 or min(1, max(0, (now - info.start) / max(info.duration, 1)))
 				sb:SetValue(prog)
 				local wantReady = info.ready or prog >= 1
-				if sb._isReady ~= wantReady then
+				if sb._isReady ~= wantReady or (wantReady and colorChanged) then
 					sb._isReady = wantReady
 					if wantReady then
 						sb:SetStatusBarColor(r, g, b)
@@ -2287,7 +2489,7 @@ function updatePowerBar(type, runeSlot)
 		end
 
 		if soonest then
-			bar._runeUpdateInterval = min(RUNE_UPDATE_INTERVAL, max(0.05, soonest))
+			bar._runeUpdateInterval = min(RB.RUNE_UPDATE_INTERVAL, max(0.05, soonest))
 		else
 			bar._runeUpdateInterval = nil
 		end
@@ -2302,11 +2504,16 @@ function updatePowerBar(type, runeSlot)
 						return
 					end
 					self._runeAccum = (self._runeAccum or 0) + (elapsed or 0)
-					local threshold = self._runeUpdateInterval or RUNE_UPDATE_INTERVAL
+					local threshold = self._runeUpdateInterval or RB.RUNE_UPDATE_INTERVAL
 					if self._runeAccum >= threshold then
 						self._runeAccum = 0
 						local n = GetTime()
 						local cfgOnUpdate = self._runeConfig or {}
+						local rr = self._runeReadyR or r
+						local rg = self._runeReadyG or g
+						local rb = self._runeReadyB or b
+						local forceColor = (self._appliedRuneReadyR ~= rr) or (self._appliedRuneReadyG ~= rg) or (self._appliedRuneReadyB ~= rb)
+						self._appliedRuneReadyR, self._appliedRuneReadyG, self._appliedRuneReadyB = rr, rg, rb
 						local allReady = true
 						for pos = 1, 6 do
 							local ri = self._runeOrder and self._runeOrder[pos]
@@ -2339,10 +2546,10 @@ function updatePowerBar(type, runeSlot)
 								end
 								sb:SetValue(prog)
 								local wantReady = runeReady
-								if sb._isReady ~= wantReady then
+								if sb._isReady ~= wantReady or (wantReady and forceColor) then
 									sb._isReady = wantReady
 									if wantReady then
-										sb:SetStatusBarColor(r, g, b)
+										sb:SetStatusBarColor(rr, rg, rb)
 									else
 										sb:SetStatusBarColor(grey, grey, grey)
 									end
@@ -2384,9 +2591,115 @@ function updatePowerBar(type, runeSlot)
 		if bar.text then bar.text:SetText("") end
 		return
 	end
+	if isAuraPowerType(type) then
+		local cfg = getBarSettings(type) or {}
+		if type == "MAELSTROM_WEAPON" then ensureMaelstromWeaponDefaults(cfg) end
+		local stacks, logicalMax, visualMax = getAuraPowerCounts(type)
+		local cfgDef = RB.AURA_POWER_CONFIG[type] or {}
+		logicalMax = logicalMax > 0 and logicalMax or cfgDef.maxStacks or visualMax
+		visualMax = visualMax > 0 and visualMax or logicalMax
+		if bar._lastMax ~= visualMax then
+			bar:SetMinMaxValues(0, visualMax)
+			bar._lastMax = visualMax
+		end
+
+		local style = bar._style or "CURMAX"
+		local smooth = cfg.smoothFill == true
+		local shownStacks = (visualMax and visualMax > 0) and ((stacks <= 0) and 0 or (((stacks - 1) % visualMax) + 1)) or stacks
+		if not addon.variables.isMidnight and smooth then
+			bar._smoothTarget = shownStacks
+			bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
+			bar._smoothSpeed = RB.SMOOTH_SPEED
+			if not bar._smoothInitialized then
+				bar:SetValue(shownStacks)
+				bar._smoothInitialized = true
+			end
+			bar._smoothEnabled = true
+			tryActivateSmooth(bar)
+		else
+			bar._smoothTarget = nil
+			bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
+			bar._smoothSpeed = RB.SMOOTH_SPEED
+			bar:SetValue(shownStacks)
+			bar._smoothInitialized = nil
+			bar._smoothEnabled = false
+			stopSmoothUpdater(bar)
+		end
+		bar._lastVal = shownStacks
+
+		local percent = logicalMax > 0 and (stacks / logicalMax * 100) or 0
+		local percentStr = addon.variables.isMidnight and string.format("%s%%", AbbreviateLargeNumbers(percent)) or tostring(floor(percent + 0.5))
+
+		if bar.text then
+			if style == "NONE" then
+				if bar._textShown then
+					bar.text:SetText("")
+					bar._lastText = ""
+					bar.text:Hide()
+					bar._textShown = false
+				elseif bar._lastText ~= "" then
+					bar.text:SetText("")
+					bar._lastText = ""
+				end
+			else
+				local text
+				if style == "PERCENT" then
+					text = percentStr
+				elseif style == "CURRENT" then
+					text = tostring(stacks)
+				else
+					text = tostring(stacks) .. " / " .. tostring(logicalMax)
+				end
+				if (not addon.variables.isMidnight or (issecretvalue and not issecretvalue(text))) and bar._lastText ~= text then
+					bar.text:SetText(text)
+					bar._lastText = text
+				else
+					bar.text:SetText(text)
+				end
+				if not bar._textShown then
+					bar.text:Show()
+					bar._textShown = true
+				end
+			end
+		end
+
+		bar._baseColor = bar._baseColor or {}
+		if bar._baseColor[1] == nil then
+			local br, bg, bb, ba = bar:GetStatusBarColor()
+			bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = br, bg, bb, ba or 1
+		end
+		if cfg.useBarColor then
+			local custom = cfg.barColor or RB.WHITE
+			bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = custom[1] or 1, custom[2] or 1, custom[3] or 1, custom[4] or 1
+		end
+
+		local targetR, targetG, targetB, targetA = bar._baseColor[1] or 1, bar._baseColor[2] or 1, bar._baseColor[3] or 1, bar._baseColor[4] or 1
+		local flag
+		local useMaxDefault = (RB.AURA_POWER_CONFIG[type] and RB.AURA_POWER_CONFIG[type].useMaxColorDefault) or false
+		if (cfg.useMaxColor ~= false and (cfg.useMaxColor or useMaxDefault)) and logicalMax > 0 and stacks >= logicalMax then
+			local maxCol = cfg.maxColor or RB.WHITE
+			targetR, targetG, targetB, targetA = maxCol[1] or targetR, maxCol[2] or targetG, maxCol[3] or targetB, maxCol[4] or targetA
+			flag = "max"
+		elseif type == "MAELSTROM_WEAPON" and cfg.useMaelstromFiveColor ~= false and visualMax and visualMax > 0 and stacks >= visualMax then
+			local mid = cfg.maelstromFiveColor or ResourcebarVars.DEFAULT_MAELSTROM_WEAPON_FIVE_COLOR
+			targetR, targetG, targetB, targetA = mid[1] or targetR, mid[2] or targetG, mid[3] or targetB, mid[4] or targetA
+			flag = "mid"
+		end
+		local lc = bar._lastColor or {}
+		if lc[1] ~= targetR or lc[2] ~= targetG or lc[3] ~= targetB or lc[4] ~= targetA then
+			lc[1], lc[2], lc[3], lc[4] = targetR, targetG, targetB, targetA
+			bar._lastColor = lc
+			bar:SetStatusBarColor(lc[1], lc[2], lc[3], lc[4])
+		end
+		bar._usingMaxColor = flag == "max"
+		bar._usingMaelstromFiveColor = flag == "mid"
+		configureSpecialTexture(bar, type, cfg)
+		return
+	end
 	local pType = POWER_ENUM[type]
 	if not pType then return end
 	local cfg = getBarSettings(type) or {}
+	local cfgDef = (RB.POWER_CONFIG and RB.POWER_CONFIG[type]) or {}
 	local maxPower = bar._lastMax
 	if not maxPower then
 		maxPower = UnitPowerMax("player", pType)
@@ -2399,8 +2712,8 @@ function updatePowerBar(type, runeSlot)
 	local smooth = cfg.smoothFill == true
 	if not addon.variables.isMidnight and smooth then
 		bar._smoothTarget = curPower
-		bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
-		bar._smoothSpeed = SMOOTH_SPEED
+		bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
+		bar._smoothSpeed = RB.SMOOTH_SPEED
 		if not bar._smoothInitialized then
 			bar:SetValue(curPower)
 			bar._smoothInitialized = true
@@ -2409,8 +2722,8 @@ function updatePowerBar(type, runeSlot)
 		tryActivateSmooth(bar)
 	else
 		bar._smoothTarget = nil
-		bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
-		bar._smoothSpeed = SMOOTH_SPEED
+		bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
+		bar._smoothSpeed = RB.SMOOTH_SPEED
 		if (not addon.variables.isMidnight and bar._lastVal ~= curPower) or (issecretvalue and not issecretvalue(curPower) and bar._lastVal ~= curPower) then
 			bar:SetValue(curPower)
 		else
@@ -2468,8 +2781,11 @@ function updatePowerBar(type, runeSlot)
 		bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = br, bg, bb, ba or 1
 	end
 	if cfg.useBarColor then
-		local custom = cfg.barColor or WHITE
+		local custom = cfg.barColor or RB.WHITE
 		bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = custom[1] or 1, custom[2] or 1, custom[3] or 1, custom[4] or 1
+	elseif cfgDef and cfgDef.defaultColor then
+		local c = cfgDef.defaultColor
+		bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1
 	end
 
 	local useHolyThreeColor = (type == "HOLY_POWER") and cfg.useHolyThreeColor == true
@@ -2481,7 +2797,7 @@ function updatePowerBar(type, runeSlot)
 		local targetR, targetG, targetB, targetA = bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4]
 		local flag
 		if useMaxColor and reachedCap then
-			local maxCol = cfg.maxColor or WHITE
+			local maxCol = cfg.maxColor or RB.WHITE
 			targetR, targetG, targetB, targetA = maxCol[1] or targetR, maxCol[2] or targetG, maxCol[3] or targetB, maxCol[4] or (bar._baseColor[4] or 1)
 			flag = "max"
 		elseif reachedThree then
@@ -2505,7 +2821,7 @@ function updatePowerBar(type, runeSlot)
 			local useMaxColor = cfg.useMaxColor == true
 			local reachedCap = (issecretvalue and not issecretvalue(curPower) or not addon.variables.isMidnight) and curPower >= max(maxPower, 1)
 			if useMaxColor and reachedCap then
-				local maxCol = cfg.maxColor or WHITE
+				local maxCol = cfg.maxColor or RB.WHITE
 				targetR, targetG, targetB, targetA = maxCol[1] or br, maxCol[2] or bgc, maxCol[3] or bb, maxCol[4] or ba
 			elseif reachedThree then
 				targetR, targetG, targetB, targetA = getHolyThreeColor(cfg)
@@ -2552,6 +2868,9 @@ updateBarSeparators = function(pType)
 	if pType == "RUNES" then
 		-- Runes don't use UnitPowerMax; always 6 segments
 		segments = 6
+	elseif isAuraPowerType and isAuraPowerType(pType) then
+		local auraCfg = RB.AURA_POWER_CONFIG[pType] or {}
+		segments = (cfg and cfg.visualSegments) or auraCfg.visualSegments or auraCfg.maxStacks or 0
 	elseif pType == "ENERGY" then
 		segments = 10
 	else
@@ -2604,7 +2923,7 @@ updateBarSeparators = function(pType)
 	local h = max(1, (bar:GetHeight() or 0) - (inset.top + inset.bottom))
 	local vertical = cfg and cfg.verticalFill == true
 	local span = vertical and h or w
-	local desiredThickness = (cfg and cfg.separatorThickness) or SEPARATOR_THICKNESS
+	local desiredThickness = (cfg and cfg.separatorThickness) or RB.SEPARATOR_THICKNESS
 	local thickness
 	if vertical then
 		local segH = span / segments
@@ -2613,7 +2932,7 @@ updateBarSeparators = function(pType)
 		local segW = span / segments
 		thickness = min(desiredThickness, max(1, floor(segW - 1)))
 	end
-	local sc = (cfg and cfg.separatorColor) or SEP_DEFAULT
+	local sc = (cfg and cfg.separatorColor) or RB.SEP_DEFAULT
 	local r, g, b, a = sc[1] or 1, sc[2] or 1, sc[3] or 1, sc[4] or 0.5
 
 	if
@@ -2665,6 +2984,7 @@ function layoutRunes(bar)
 	local count = 6
 	local gap = 0
 	local inner = bar._rbInner or bar
+	local overlay = ensureTextOverlayFrame(bar) or bar
 	local w = max(1, inner:GetWidth() or (bar:GetWidth() or 0))
 	local h = max(1, inner:GetHeight() or (bar:GetHeight() or 0))
 	local cfg = getBarSettings("RUNES") or {}
@@ -2726,10 +3046,11 @@ function layoutRunes(bar)
 			end
 		end
 		-- cooldown text per segment
-		if not sb.fs then
-			sb.fs = sb:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-			sb.fs:SetPoint("CENTER", sb, "CENTER", 0, 0)
-		end
+		if not sb.fs then sb.fs = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
+		if sb.fs:GetParent() ~= overlay then sb.fs:SetParent(overlay) end
+		sb.fs:SetDrawLayer("OVERLAY")
+		sb.fs:ClearAllPoints()
+		sb.fs:SetPoint("CENTER", sb, "CENTER", 0, 0)
 		if sb._fsSize ~= size or sb._fsFont ~= fontPath or sb._fsOutline ~= fontOutline then
 			setFontWithFallback(sb.fs, fontPath, size, fontOutline)
 			sb._fsSize = size
@@ -2753,8 +3074,8 @@ local function createPowerBar(type, anchor)
 	if bar:GetParent() ~= UIParent then bar:SetParent(UIParent) end
 
 	local settings = getBarSettings(type)
-	local w = max(MIN_RESOURCE_BAR_WIDTH, (settings and settings.width) or DEFAULT_POWER_WIDTH)
-	local h = settings and settings.height or DEFAULT_POWER_HEIGHT
+	local w = max(RB.MIN_RESOURCE_BAR_WIDTH, (settings and settings.width) or RB.DEFAULT_POWER_WIDTH)
+	local h = settings and settings.height or RB.DEFAULT_POWER_HEIGHT
 	bar._cfg = settings
 	bar._rbType = type
 	powerbar[type] = bar
@@ -2767,7 +3088,7 @@ local function createPowerBar(type, anchor)
 		configureSpecialTexture(bar, type, cfg2)
 	end
 	bar:SetClampedToScreen(true)
-	local stackSpacing = DEFAULT_STACK_SPACING
+	local stackSpacing = RB.DEFAULT_STACK_SPACING
 
 	-- Anchor handling: during spec/trait refresh we suppress inter-bar anchoring
 	local a = getAnchor(type, addon.variables.unitSpec)
@@ -2904,7 +3225,21 @@ local eventsToRegister = {
 	"UNIT_MAXPOWER",
 	"UPDATE_SHAPESHIFT_FORM",
 }
+local function classUsesAuraPowers(class)
+	local classTbl = powertypeClasses and powertypeClasses[class]
+	if not classTbl then return false end
 
+	for _, specInfo in pairs(classTbl) do
+		if type(specInfo) == "table" then
+			for pType in pairs(RB.AURA_POWER_CONFIG or {}) do
+				if specInfo.MAIN == pType or specInfo[pType] then return true end
+			end
+		end
+	end
+	return false
+end
+
+if classUsesAuraPowers(addon.variables.unitClass) then table.insert(eventsToRegister, "UNIT_AURA") end
 local function setPowerbars(opts)
 	local _, powerToken = UnitPowerType("player")
 	powerfrequent = {}
@@ -3117,7 +3452,7 @@ local function buildVisibilityDriverForBar(cfg)
 	if druidExpr then
 		clauses[#clauses + 1] = druidExpr
 	elseif hideOOC then
-		clauses[#clauses + 1] = OOC_VISIBILITY_DRIVER
+		clauses[#clauses + 1] = RB.OOC_VISIBILITY_DRIVER
 	else
 		clauses[#clauses + 1] = "show"
 	end
@@ -3272,6 +3607,12 @@ if addon.db["enableResourceFrame"] then
 	end)
 end
 
+local function wipeTable(t)
+	for k in pairs(t) do
+		t[k] = nil
+	end
+end
+
 -- Coalesce spec/trait refreshes to avoid duplicate work or timing races
 local function scheduleSpecRefresh()
 	if frameAnchor and frameAnchor._specRefreshScheduled then return end
@@ -3302,6 +3643,11 @@ local function eventHandler(self, event, unit, arg1)
 	elseif event == "PLAYER_ENTERING_WORLD" then
 		updateHealthBar("UNIT_ABSORB_AMOUNT_CHANGED")
 		setPowerbars()
+		if After then After(0, function()
+			for pType, _ in pairs(RB.AURA_POWER_CONFIG or {}) do
+				if powerbar[pType] and powerbar[pType]:IsShown() then updatePowerBar(pType) end
+			end
+		end) end
 		if scheduleRelativeFrameWidthSync then scheduleRelativeFrameWidthSync() end
 	elseif event == "UPDATE_SHAPESHIFT_FORM" then
 		setPowerbars()
@@ -3315,6 +3661,24 @@ local function eventHandler(self, event, unit, arg1)
 			if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ReanchorAll then addon.Aura.ResourceBars.ReanchorAll() end
 			if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.UpdateRuneEventRegistration then addon.Aura.ResourceBars.UpdateRuneEventRegistration() end
 		end
+	elseif event == "UNIT_AURA" and unit == "player" then
+		local info = arg1
+
+		if not info or info.isFullUpdate then
+			resetAuraTracking()
+			for pType, _ in pairs(RB.AURA_POWER_CONFIG or {}) do
+				if powerbar[pType] and powerbar[pType]:IsShown() then updatePowerBar(pType) end
+			end
+			return
+		end
+
+		local changed = handleAuraEventInfo(info)
+		if changed then
+			for pType in pairs(changed) do
+				if powerbar[pType] and powerbar[pType]:IsShown() then updatePowerBar(pType) end
+			end
+		end
+		return
 	elseif (event == "UNIT_MAXHEALTH" or event == "UNIT_HEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED") and healthBar and healthBar:IsShown() then
 		if event == "UNIT_MAXHEALTH" then
 			local max = UnitHealthMax("player")
@@ -3439,8 +3803,9 @@ end
 function ResourceBars.ForceRuneRecolor()
 	local rb = powerbar and powerbar.RUNES
 	if not rb or not rb.runes then return end
-	local spec = addon.variables.unitSpec
-	rb._dkColor = DK_SPEC_COLOR[spec] or DK_SPEC_COLOR[1]
+	-- Stop any stale ticker so the next update uses fresh spec colors.
+	deactivateRuneTicker(rb)
+	rb._runeUpdater = nil
 	for i = 1, 6 do
 		local sb = rb.runes[i]
 		if sb then
@@ -3497,8 +3862,8 @@ function ResourceBars.DetachAnchorsFrom(disabledType, specIndex)
 				local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
 				-- Determine dependent frame size (fallback to defaults by bar type)
 				local cfgDep = getBarSettings(pType)
-				local defaultW = (pType == "HEALTH") and DEFAULT_HEALTH_WIDTH or DEFAULT_POWER_WIDTH
-				local defaultH = (pType == "HEALTH") and DEFAULT_HEALTH_HEIGHT or DEFAULT_POWER_HEIGHT
+				local defaultW = (pType == "HEALTH") and RB.DEFAULT_HEALTH_WIDTH or RB.DEFAULT_POWER_WIDTH
+				local defaultH = (pType == "HEALTH") and RB.DEFAULT_HEALTH_HEIGHT or RB.DEFAULT_POWER_HEIGHT
 				local w = (depFrame and depFrame.GetWidth and depFrame:GetWidth()) or (cfgDep and cfgDep.width) or defaultW or 0
 				local h = (depFrame and depFrame.GetHeight and depFrame:GetHeight()) or (cfgDep and cfgDep.height) or defaultH or 0
 				cfg.anchor.point = "TOPLEFT"
@@ -3512,8 +3877,8 @@ function ResourceBars.DetachAnchorsFrom(disabledType, specIndex)
 end
 
 function ResourceBars.SetHealthBarSize(w, h)
-	local width = max(MIN_RESOURCE_BAR_WIDTH, w or DEFAULT_HEALTH_WIDTH)
-	local height = h or DEFAULT_HEALTH_HEIGHT
+	local width = max(RB.MIN_RESOURCE_BAR_WIDTH, w or RB.DEFAULT_HEALTH_WIDTH)
+	local height = h or RB.DEFAULT_HEALTH_HEIGHT
 	if healthBar then healthBar:SetSize(width, height) end
 	if ResourceBars and ResourceBars.SyncRelativeFrameWidths then ResourceBars.SyncRelativeFrameWidths() end
 end
@@ -3523,9 +3888,9 @@ function ResourceBars.SetPowerBarSize(w, h, pType)
 	-- Ensure sane defaults if nil provided
 	if pType then
 		local s = getBarSettings(pType)
-		local defaultW = DEFAULT_POWER_WIDTH
-		local defaultH = DEFAULT_POWER_HEIGHT
-		w = max(MIN_RESOURCE_BAR_WIDTH, w or (s and s.width) or defaultW)
+		local defaultW = RB.DEFAULT_POWER_WIDTH
+		local defaultH = RB.DEFAULT_POWER_HEIGHT
+		w = max(RB.MIN_RESOURCE_BAR_WIDTH, w or (s and s.width) or defaultW)
 		h = h or (s and s.height) or defaultH
 	end
 	if pType then
@@ -3534,8 +3899,8 @@ function ResourceBars.SetPowerBarSize(w, h, pType)
 			changed[getFrameName(pType)] = true
 		end
 	else
-		local width = max(MIN_RESOURCE_BAR_WIDTH, w or DEFAULT_POWER_WIDTH)
-		local height = h or DEFAULT_POWER_HEIGHT
+		local width = max(RB.MIN_RESOURCE_BAR_WIDTH, w or RB.DEFAULT_POWER_WIDTH)
+		local height = h or RB.DEFAULT_POWER_HEIGHT
 		for t, bar in pairs(powerbar) do
 			bar:SetSize(width, height)
 			changed[getFrameName(t)] = true
@@ -3599,8 +3964,8 @@ function ResourceBars.Refresh()
 			if a.x == nil or a.y == nil then
 				local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
 				local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-				local w = healthBar:GetWidth() or DEFAULT_HEALTH_WIDTH
-				local h = healthBar:GetHeight() or DEFAULT_HEALTH_HEIGHT
+				local w = healthBar:GetWidth() or RB.DEFAULT_HEALTH_WIDTH
+				local h = healthBar:GetHeight() or RB.DEFAULT_HEALTH_HEIGHT
 				a.x = (pw - w) / 2
 				a.y = (h - ph) / 2
 			end
@@ -3609,8 +3974,8 @@ function ResourceBars.Refresh()
 		if looped and (a.relativeFrame or "UIParent") ~= "UIParent" then
 			local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
 			local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-			local w = healthBar:GetWidth() or DEFAULT_HEALTH_WIDTH
-			local h = healthBar:GetHeight() or DEFAULT_HEALTH_HEIGHT
+			local w = healthBar:GetWidth() or RB.DEFAULT_HEALTH_WIDTH
+			local h = healthBar:GetHeight() or RB.DEFAULT_HEALTH_HEIGHT
 			a.point = "TOPLEFT"
 			a.relativeFrame = "UIParent"
 			a.relativePoint = "TOPLEFT"
@@ -3636,8 +4001,8 @@ function ResourceBars.Refresh()
 				if a.x == nil or a.y == nil then
 					local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
 					local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-					local w = bar:GetWidth() or DEFAULT_POWER_WIDTH
-					local h = bar:GetHeight() or DEFAULT_POWER_HEIGHT
+					local w = bar:GetWidth() or RB.DEFAULT_POWER_WIDTH
+					local h = bar:GetHeight() or RB.DEFAULT_POWER_HEIGHT
 					a.x = (pw - w) / 2
 					a.y = (h - ph) / 2
 				end
@@ -3647,15 +4012,15 @@ function ResourceBars.Refresh()
 				or (a.autoSpacing == nil and isEQOLFrameName(a.relativeFrame) and (a.point or "TOPLEFT") == "TOPLEFT" and (a.relativePoint or "BOTTOMLEFT") == "BOTTOMLEFT" and (a.x or 0) == 0)
 			then
 				a.x = 0
-				a.y = DEFAULT_STACK_SPACING
+				a.y = RB.DEFAULT_STACK_SPACING
 				a.autoSpacing = true
 			end
 			local rel, looped = resolveAnchor(a, pType)
 			if looped and (a.relativeFrame or "UIParent") ~= "UIParent" then
 				local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
 				local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-				local w = bar:GetWidth() or DEFAULT_POWER_WIDTH
-				local h = bar:GetHeight() or DEFAULT_POWER_HEIGHT
+				local w = bar:GetWidth() or RB.DEFAULT_POWER_WIDTH
+				local h = bar:GetHeight() or RB.DEFAULT_POWER_HEIGHT
 				a.point = "TOPLEFT"
 				a.relativeFrame = "UIParent"
 				a.relativePoint = "TOPLEFT"
@@ -3746,11 +4111,11 @@ function ResourceBars.QueueRefresh(specIndex, opts)
 	local pending = ResourceBars._pendingRefresh
 	local entry = pending[spec]
 	if not entry then
-		entry = { mode = mode, nextRunAt = now + REFRESH_DEBOUNCE }
+		entry = { mode = mode, nextRunAt = now + RB.REFRESH_DEBOUNCE }
 		pending[spec] = entry
 	else
 		if entry.mode ~= "full" and mode == "full" then entry.mode = "full" end
-		entry.nextRunAt = now + REFRESH_DEBOUNCE
+		entry.nextRunAt = now + RB.REFRESH_DEBOUNCE
 	end
 	if not After then
 		pending[spec] = nil
@@ -3814,8 +4179,8 @@ function ResourceBars.ReanchorAll()
 			if a.x == nil or a.y == nil then
 				local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
 				local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-				local w = healthBar:GetWidth() or DEFAULT_HEALTH_WIDTH
-				local h = healthBar:GetHeight() or DEFAULT_HEALTH_HEIGHT
+				local w = healthBar:GetWidth() or RB.DEFAULT_HEALTH_WIDTH
+				local h = healthBar:GetHeight() or RB.DEFAULT_HEALTH_HEIGHT
 				a.x = (pw - w) / 2
 				a.y = (h - ph) / 2
 			end
@@ -3824,8 +4189,8 @@ function ResourceBars.ReanchorAll()
 		if looped and (a.relativeFrame or "UIParent") ~= "UIParent" then
 			local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
 			local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-			local w = healthBar:GetWidth() or DEFAULT_HEALTH_WIDTH
-			local h = healthBar:GetHeight() or DEFAULT_HEALTH_HEIGHT
+			local w = healthBar:GetWidth() or RB.DEFAULT_HEALTH_WIDTH
+			local h = healthBar:GetHeight() or RB.DEFAULT_HEALTH_HEIGHT
 			a.point = "TOPLEFT"
 			a.relativeFrame = "UIParent"
 			a.relativePoint = "TOPLEFT"
@@ -3867,8 +4232,8 @@ function ResourceBars.ReanchorAll()
 		if a.x == nil or a.y == nil then
 			local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
 			local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-			local w = (bar and bar.GetWidth and bar:GetWidth()) or DEFAULT_POWER_WIDTH
-			local h = (bar and bar.GetHeight and bar:GetHeight()) or DEFAULT_POWER_HEIGHT
+			local w = (bar and bar.GetWidth and bar:GetWidth()) or RB.DEFAULT_POWER_WIDTH
+			local h = (bar and bar.GetHeight and bar:GetHeight()) or RB.DEFAULT_POWER_HEIGHT
 			a.x = (pw - w) / 2
 			a.y = (h - ph) / 2
 		end
@@ -3920,7 +4285,7 @@ function ResourceBars.ReanchorAll()
 				or (a.autoSpacing == nil and isEQOLFrameName(a.relativeFrame) and (a.point or "TOPLEFT") == "TOPLEFT" and (a.relativePoint or "BOTTOMLEFT") == "BOTTOMLEFT" and (a.x or 0) == 0)
 			then
 				a.x = 0
-				a.y = DEFAULT_STACK_SPACING
+				a.y = RB.DEFAULT_STACK_SPACING
 				a.autoSpacing = true
 			end
 			local rel, looped = resolveAnchor(a, pType)
@@ -3941,11 +4306,11 @@ function ResourceBars.ReanchorAll()
 	ResourceBars._reanchoring = false
 end
 
-ResourceBars.DEFAULT_HEALTH_WIDTH = DEFAULT_HEALTH_WIDTH
-ResourceBars.DEFAULT_HEALTH_HEIGHT = DEFAULT_HEALTH_HEIGHT
-ResourceBars.DEFAULT_POWER_WIDTH = DEFAULT_POWER_WIDTH
-ResourceBars.DEFAULT_POWER_HEIGHT = DEFAULT_POWER_HEIGHT or DEFAULT_HEALTH_HEIGHT
-ResourceBars.MIN_RESOURCE_BAR_WIDTH = MIN_RESOURCE_BAR_WIDTH
+ResourceBars.DEFAULT_HEALTH_WIDTH = RB.DEFAULT_HEALTH_WIDTH
+ResourceBars.DEFAULT_HEALTH_HEIGHT = RB.DEFAULT_HEALTH_HEIGHT
+ResourceBars.DEFAULT_POWER_WIDTH = RB.DEFAULT_POWER_WIDTH
+ResourceBars.DEFAULT_POWER_HEIGHT = RB.DEFAULT_POWER_HEIGHT or RB.DEFAULT_HEALTH_HEIGHT
+ResourceBars.MIN_RESOURCE_BAR_WIDTH = RB.MIN_RESOURCE_BAR_WIDTH
 ResourceBars.getBarSettings = getBarSettings
 ResourceBars.getAnchor = getAnchor
 ResourceBars.BehaviorOptionsForType = behaviorOptionsForType

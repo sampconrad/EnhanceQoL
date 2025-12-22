@@ -576,7 +576,6 @@ addon.variables.unitName = select(1, UnitName("player"))
 addon.variables.requireReload = false
 addon.variables.catalystID = nil -- Change to get the actual cataclyst charges in char frame
 addon.variables.durabilityIcon = 136241 -- Anvil Symbol
-addon.variables.cloakUpgradeIcon = "Interface\\AddOns\\" .. addonName .. "\\Icons\\Talents.tga"
 addon.variables.durabilityCount = 0
 addon.variables.hookedOrderHall = false
 addon.variables.unitFrameMaxNameLength = 6 -- default truncation length

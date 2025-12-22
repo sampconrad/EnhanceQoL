@@ -1,5 +1,31 @@
 # Changelog
 
+## [6.5.0] – 2025-12-22
+
+### ✨ Added
+
+- Enhancement Shaman: Maelstrom Weapon resource bar.
+- Devourer resource bar tracking added (disabled until the next WoW beta release; will be enabled then).
+- Combat tooltips now show spell/item/aura IDs with improved secret handling for Midnight.
+- UF Plus: toggle and adjust raid icon size/offset.
+- UF Plus: show Blizzard class resources and manage them.
+- UF Plus: optional cast bar for boss frames.
+- Mover: new module that lets you move and scale frames and keeps their positions saved
+
+### ❌ Removed
+
+- Removed the option to show party frames in solo content
+- Removed the cloak upgrade button feature
+
+### 🐛 Fixed
+
+- Rune cooldown text now renders above the border to avoid clipping at small bar heights
+- Rune ready colors now refresh reliably after spec or color setting changes
+- Dungeon Journal loot spec icon scale no longer crashes when the saved value is 0
+- Unit Frame status line settings now correctly gate name/level options and combat indicator sub-options
+
+---
+
 ## [6.4.0] – 2025-12-17
 
 ### ✨ Added
@@ -24,6 +50,7 @@
 - Assisted Combat Button Rotation border hide had an error with updating the button
 - Cooldown Viewer visibility now only hooks mouseover/polling when a visibility rule is set, preventing unintended alpha changes.
 - Cooldown Viewer frames no longer lose click-through behavior when using EQOL.
+- UF Plus had an issue with some secret states
 
 ---
 

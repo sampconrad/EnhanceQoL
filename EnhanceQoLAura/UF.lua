@@ -48,27 +48,24 @@ local atlasByPower = {
 	HEALTH = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Health",
 }
 
-local UnitHealth, UnitHealthMax = UnitHealth, UnitHealthMax
-local UnitPower, UnitPowerMax, UnitPowerType = UnitPower, UnitPowerMax, UnitPowerType
-local UnitExists = UnitExists
-local InCombatLockdown = InCombatLockdown
-local BreakUpLargeNumbers = BreakUpLargeNumbers
-local AbbreviateNumbers = AbbreviateNumbers
 local CASTING_BAR_TYPES = _G.CASTING_BAR_TYPES
 local EnumPowerType = Enum and Enum.PowerType
-local PowerBarColor = PowerBarColor
-local UnitName, UnitClass, UnitLevel, UnitClassification = UnitName, UnitClass, UnitLevel, UnitClassification
 local UnitGetTotalAbsorbs = UnitGetTotalAbsorbs or function() return 0 end
 local RegisterStateDriver = _G.RegisterStateDriver
 local UnregisterStateDriver = _G.UnregisterStateDriver
-local RAID_CLASS_COLORS = RAID_CLASS_COLORS
-local CUSTOM_CLASS_COLORS = CUSTOM_CLASS_COLORS
+local IsResting = _G.IsResting
+local UnitIsResting = _G.UnitIsResting
 local After = C_Timer and C_Timer.After
 local NewTicker = C_Timer and C_Timer.NewTicker
 local floor = math.floor
 local max = math.max
 local abs = math.abs
 local wipe = wipe or (table and table.wipe)
+local function clamp(value, minV, maxV)
+	if value < minV then return minV end
+	if value > maxV then return maxV end
+	return value
+end
 local SetFrameVisibilityOverride = addon.functions and addon.functions.SetFrameVisibilityOverride
 local HasFrameVisibilityOverride = addon.functions and addon.functions.HasFrameVisibilityOverride
 
@@ -107,6 +104,20 @@ local BLIZZ_TARGET_TARGET_FRAME_NAME = "TargetFrameToT"
 local BLIZZ_FOCUS_FRAME_NAME = "FocusFrame"
 local BLIZZ_PET_FRAME_NAME = "PetFrame"
 local MIN_WIDTH = 50
+local classResourceFramesByClass = {
+	DEATHKNIGHT = { "RuneFrame" },
+	DRUID = { "DruidComboPointBarFrame" },
+	EVOKER = { "EssencePlayerFrame" },
+	MAGE = { "MageArcaneChargesFrame" },
+	MONK = { "MonkHarmonyBarFrame" },
+	PALADIN = { "PaladinPowerBarFrame" },
+	ROGUE = { "RogueComboPointBarFrame" },
+	WARLOCK = { "WarlockPowerFrame" },
+}
+local classResourceOriginalLayouts = {}
+local classResourceManagedFrames = {}
+local classResourceHooks = {}
+local applyClassResourceLayout
 
 local function getFont(path)
 	if path and path ~= "" then return path end
@@ -237,6 +248,22 @@ local defaults = {
 				texCoords = { 0.5, 1, 0, 0.5 }, -- combat icon region
 			},
 		},
+		resting = {
+			enabled = true,
+			size = 20,
+			offset = { x = 0, y = 0 },
+		},
+		classResource = {
+			enabled = true,
+			anchor = "BOTTOM",
+			offset = { x = 0, y = -28 },
+			scale = 1,
+		},
+		raidIcon = {
+			enabled = true,
+			size = 18,
+			offset = { x = 0, y = -2 },
+		},
 	},
 	target = {
 		enabled = false,
@@ -249,7 +276,7 @@ local defaults = {
 			showTooltip = true,
 			hidePermanentAuras = false,
 			anchor = "BOTTOM",
-			offset = { x = 0, y = -5 },
+			offset = { x = 0, y = -24 },
 			separateDebuffAnchor = false,
 			debuffAnchor = nil, -- falls back to anchor
 			debuffOffset = nil, -- falls back to offset
@@ -260,10 +287,10 @@ local defaults = {
 		},
 		cast = {
 			enabled = true,
-			width = 220,
+			width = 200,
 			height = 16,
 			anchor = "BOTTOM", -- or "TOP"
-			offset = { x = 0, y = -40 },
+			offset = { x = 11, y = -4 },
 			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
 			showName = true,
 			nameOffset = { x = 6, y = 0 },
@@ -385,6 +412,167 @@ local function copySettings(fromUnit, toUnit, opts)
 	if keepAnchor then dest.anchor = anchor end
 	if keepEnabled then dest.enabled = enabled end
 	return true
+end
+
+local function applyRaidIconLayout(unit, cfg)
+	local st = states[unit]
+	if not st or not st.raidIcon or not st.frame then return end
+	local def = defaultsFor(unit)
+	local rcfg = (cfg and cfg.raidIcon) or (def and def.raidIcon) or {}
+	local offsetDef = def and def.raidIcon and def.raidIcon.offset or {}
+	local sizeDef = def and def.raidIcon and def.raidIcon.size or 18
+	local enabled = rcfg.enabled ~= false
+	local size = clamp(rcfg.size or sizeDef or 18, 10, 30)
+	local ox = (rcfg.offset and rcfg.offset.x) or offsetDef.x or 0
+	local oy = (rcfg.offset and rcfg.offset.y) or offsetDef.y or -2
+	st.raidIcon:ClearAllPoints()
+	st.raidIcon:SetSize(size, size)
+	st.raidIcon:SetPoint("TOP", st.frame, "TOP", ox, oy)
+	if not enabled then st.raidIcon:Hide() end
+end
+
+local function hardHideBlizzFrame(frameName)
+	local frame = frameName and _G[frameName]
+	if frame and frame.SetAlpha then frame:SetAlpha(0) end
+end
+
+local function checkRaidTargetIcon(unitToken, st)
+	if not st or not st.raidIcon then return end
+	local cfg = st.cfg or ensureDB(unitToken)
+	applyRaidIconLayout(unitToken, cfg)
+	local def = defaultsFor(unitToken)
+	local rcfg = (cfg and cfg.raidIcon) or (def and def.raidIcon) or {}
+	if (cfg and cfg.enabled == false) or rcfg.enabled == false then
+		st.raidIcon:Hide()
+		return
+	end
+	if addon.EditModeLib and addon.EditModeLib:IsInEditMode() then
+		SetRaidTargetIconTexture(st.raidIcon, 8)
+		st.raidIcon:Show()
+		return
+	end
+	local idx = GetRaidTargetIndex(unitToken)
+	if idx then
+		SetRaidTargetIconTexture(st.raidIcon, idx)
+		st.raidIcon:Show()
+	else
+		st.raidIcon:Hide()
+	end
+end
+local function updateAllRaidTargetIcons()
+	checkRaidTargetIcon(PLAYER_UNIT, states[PLAYER_UNIT])
+	checkRaidTargetIcon(TARGET_UNIT, states[TARGET_UNIT])
+	checkRaidTargetIcon(TARGET_TARGET_UNIT, states[TARGET_TARGET_UNIT])
+	checkRaidTargetIcon(PET_UNIT, states[PET_UNIT])
+	checkRaidTargetIcon(FOCUS_UNIT, states[FOCUS_UNIT])
+	for i = 1, maxBossFrames do
+		local u = "boss" .. i
+		if states[u] then checkRaidTargetIcon(u, states[u]) end
+	end
+end
+
+local function getClassResourceFrames()
+	local classKey = addon.variables and addon.variables.unitClass
+	local names = classKey and classResourceFramesByClass[classKey]
+	if not names then return nil end
+	local frames = {}
+	for _, name in ipairs(names) do
+		local frame = _G[name]
+		if frame then frames[#frames + 1] = frame end
+	end
+	return frames
+end
+
+local function storeClassResourceDefaults(frame)
+	if not frame or classResourceOriginalLayouts[frame] then return end
+	local info = {
+		parent = frame:GetParent(),
+		scale = frame:GetScale(),
+		strata = frame:GetFrameStrata(),
+		level = frame:GetFrameLevel(),
+		ignoreFramePositionManager = frame.ignoreFramePositionManager,
+		points = {},
+	}
+	for i = 1, frame:GetNumPoints() do
+		local point, rel, relPoint, x, y = frame:GetPoint(i)
+		info.points[#info.points + 1] = { point = point, relativeTo = rel, relativePoint = relPoint, x = x, y = y }
+	end
+	classResourceOriginalLayouts[frame] = info
+end
+
+local function restoreClassResourceFrame(frame)
+	if not frame then return end
+	local info = classResourceOriginalLayouts[frame]
+	classResourceManagedFrames[frame] = nil
+	if not info then return end
+	if frame.SetParent and info.parent then frame:SetParent(info.parent) end
+	frame:ClearAllPoints()
+	if info.points and #info.points > 0 then
+		for _, pt in ipairs(info.points) do
+			frame:SetPoint(pt.point, pt.relativeTo, pt.relativePoint, pt.x or 0, pt.y or 0)
+		end
+	end
+	if info.scale and frame.SetScale then frame:SetScale(info.scale) end
+	if info.strata and frame.SetFrameStrata then frame:SetFrameStrata(info.strata) end
+	if info.level and frame.SetFrameLevel then frame:SetFrameLevel(info.level) end
+	if info.ignoreFramePositionManager ~= nil then frame.ignoreFramePositionManager = info.ignoreFramePositionManager end
+end
+
+local function restoreClassResourceFrames()
+	for frame in pairs(classResourceManagedFrames) do
+		restoreClassResourceFrame(frame)
+	end
+end
+
+local function onClassResourceShow()
+	if applyClassResourceLayout then applyClassResourceLayout(states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg or ensureDB(PLAYER_UNIT)) end
+end
+
+local function hookClassResourceFrame(frame)
+	if not frame or classResourceHooks[frame] then return end
+	classResourceHooks[frame] = true
+	frame:HookScript("OnShow", onClassResourceShow)
+end
+
+applyClassResourceLayout = function(cfg)
+	local classKey = addon.variables and addon.variables.unitClass
+	if not classKey or not classResourceFramesByClass[classKey] then
+		restoreClassResourceFrames()
+		return
+	end
+	local frames = getClassResourceFrames()
+	if not frames or #frames == 0 then
+		restoreClassResourceFrames()
+		return
+	end
+	local st = states[PLAYER_UNIT]
+	if not st or not st.frame then return end
+	local def = defaultsFor(PLAYER_UNIT)
+	local rcfg = (cfg and cfg.classResource) or (def and def.classResource) or {}
+	if rcfg.enabled == false then
+		restoreClassResourceFrames()
+		return
+	end
+	if InCombatLockdown and InCombatLockdown() then return end
+
+	local anchor = rcfg.anchor or (def.classResource and def.classResource.anchor) or "TOP"
+	local offsetX = (rcfg.offset and rcfg.offset.x) or 0
+	local offsetY = (rcfg.offset and rcfg.offset.y)
+	if offsetY == nil then offsetY = anchor == "TOP" and -5 or 5 end
+	local scale = rcfg.scale or (def.classResource and def.classResource.scale) or 1
+
+	for _, frame in ipairs(frames) do
+		storeClassResourceDefaults(frame)
+		hookClassResourceFrame(frame)
+		classResourceManagedFrames[frame] = true
+		frame.ignoreFramePositionManager = true
+		frame:ClearAllPoints()
+		frame:SetPoint(anchor, st.frame, anchor, offsetX, offsetY)
+		frame:SetParent(st.frame)
+		if frame.SetScale then frame:SetScale(scale) end
+		if frame.SetFrameStrata and st.frame.GetFrameStrata then frame:SetFrameStrata(st.frame:GetFrameStrata()) end
+		if frame.SetFrameLevel and st.frame.GetFrameLevel then frame:SetFrameLevel((st.frame:GetFrameLevel() or 0) + 5) end
+	end
 end
 
 local function trim(str)
@@ -634,6 +822,8 @@ end
 
 local function applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 	if not btn or not aura then return end
+
+	if issecretvalue and issecretvalue(isDebuff) then isDebuff = not C_UnitAuras.IsAuraFilteredOutByInstanceID("target", aura.auraInstanceID, "HARMFUL|PLAYER|INCLUDE_NAME_PLATE_ONLY") end
 	unitToken = unitToken or "target"
 	btn.spellId = aura.spellId
 	btn._showTooltip = ac.showTooltip ~= false
@@ -725,7 +915,7 @@ local function updateTargetAuraIcons(startIndex)
 			else
 				local btn
 				btn, st.auraButtons = ensureAuraButton(st.auraContainer, st.auraButtons, i, ac)
-				applyAuraToButton(btn, aura, ac, aura.isHarmful == true, "target")
+				applyAuraToButton(btn, aura, ac, aura.isHarmful, "target")
 				anchorAuraButton(btn, st.auraContainer, i, ac, perRow, ac.anchor or "BOTTOM")
 				targetAuraIndexById[auraId] = i
 				i = i + 1
@@ -931,6 +1121,13 @@ local function applyFrameRuleOverride(frameName, enabled)
 			return
 		end
 	end
+	local function frameNameFor(unitToken)
+		if unitToken == PLAYER_UNIT then return BLIZZ_PLAYER_FRAME_NAME end
+		if unitToken == TARGET_UNIT then return BLIZZ_TARGET_FRAME_NAME end
+		if unitToken == TARGET_TARGET_UNIT then return BLIZZ_TARGET_TARGET_FRAME_NAME end
+		if unitToken == FOCUS_UNIT then return BLIZZ_FOCUS_FRAME_NAME end
+		if unitToken == PET_UNIT then return BLIZZ_PET_FRAME_NAME end
+	end
 	local NormalizeUnitFrameVisibilityConfig = addon.functions and addon.functions.NormalizeUnitFrameVisibilityConfig
 	local UpdateUnitFrameMouseover = addon.functions and addon.functions.UpdateUnitFrameMouseover
 	if not NormalizeUnitFrameVisibilityConfig or not UpdateUnitFrameMouseover then return end
@@ -965,6 +1162,7 @@ local function applyFrameRuleOverride(frameName, enabled)
 		end
 	end
 	UpdateUnitFrameMouseover(info.name, info)
+	if enabled then hardHideBlizzFrame(info.name or frameNameFor(info.unitToken)) end
 end
 
 local function addTreeNode(path, node, parentPath)
@@ -1402,12 +1600,16 @@ local function updateCastBar(unit)
 	end
 end
 
-shouldShowSampleCast = function(unit) return sampleCast and sampleCast[unit] == true end
+shouldShowSampleCast = function(unit)
+	local key = isBossUnit(unit) and "boss" or unit
+	return sampleCast and sampleCast[key] == true
+end
 
 setSampleCast = function(unit)
+	local key = isBossUnit(unit) and "boss" or unit
 	local st = states[unit]
 	if not st or not st.castBar then return end
-	local cfg = (st and st.cfg) or ensureDB(unit)
+	local cfg = (st and st.cfg) or ensureDB(key or unit)
 	local ccfg = (cfg or {}).cast or {}
 	local def = defaultsFor(unit)
 	local defc = (def and def.cast) or {}
@@ -1436,9 +1638,10 @@ setSampleCast = function(unit)
 end
 
 local function setCastInfoFromUnit(unit)
+	local key = isBossUnit(unit) and "boss" or unit
 	local st = states[unit]
 	if not st or not st.castBar then return end
-	local cfg = (st and st.cfg) or ensureDB(unit)
+	local cfg = (st and st.cfg) or ensureDB(key or unit)
 	local ccfg = (cfg or {}).cast or {}
 	local defc = (defaultsFor(unit) and defaultsFor(unit).cast) or {}
 	if ccfg.enabled == false then
@@ -1481,6 +1684,19 @@ local function setCastInfoFromUnit(unit)
 				st.castIcon:SetShown(showIcon)
 				if showIcon then st.castIcon:SetTexture(texture) end
 			end
+			-- TODO: replace this interruptible-event workaround once C_CurveUtil.EvaluateColorFromBoolean and C_CurveUtil.EvaluateColorValueFromBoolean are available.
+			local np = C_NamePlate.GetNamePlateForUnit(unit)
+
+			if np and np.UnitFrame and np.UnitFrame.castBar and np.UnitFrame.castBar.barType then
+				notInterruptible = np.UnitFrame.castBar.barType ~= "standard" and np.UnitFrame.castBar.barType ~= "channel"
+			end
+			local clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
+			if not issecretvalue(notInterruptible) and notInterruptible then
+				clr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or clr
+			else
+				clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
+			end
+			st.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 		else
 			stopCast(unit)
 		end
@@ -1672,6 +1888,7 @@ local function syncTextFrameLevels(st)
 	setFrameLevelAbove(st.healthTextLayer, st.health, 2)
 	setFrameLevelAbove(st.powerTextLayer, st.power, 2)
 	setFrameLevelAbove(st.statusTextLayer, st.status, 2)
+	if st.restLoop and st.statusTextLayer then setFrameLevelAbove(st.restLoop, st.statusTextLayer, 3) end
 	if st.castTextLayer then setFrameLevelAbove(st.castTextLayer, st.castBar, 2) end
 end
 
@@ -1739,6 +1956,74 @@ local function updateCombatIndicator(cfg)
 		st.combatIcon:Show()
 	else
 		st.combatIcon:Hide()
+	end
+end
+
+local function ensureRestLoop(st)
+	if not st or st.restLoop or not st.frame then return end
+	local loop = CreateFrame("Frame", nil, st.frame)
+	loop:Hide()
+	local tex = loop:CreateTexture(nil, "OVERLAY")
+	if tex.SetAtlas then
+		tex:SetAtlas("UI-HUD-UnitFrame-Player-Rest-Flipbook", true)
+	else
+		tex:SetTexture("Interface\\PlayerFrame\\UI-Player-Status")
+	end
+	tex:SetPoint("CENTER")
+	loop.restTexture = tex
+	local anim = loop:CreateAnimationGroup()
+	anim:SetLooping("REPEAT")
+	anim:SetToFinalAlpha(true)
+	local flip = anim:CreateAnimation("FlipBook")
+	flip:SetTarget(tex)
+	flip:SetDuration(1.5)
+	flip:SetOrder(1)
+	if flip.SetSmoothing then flip:SetSmoothing("NONE") end
+	if flip.SetFlipBookRows then flip:SetFlipBookRows(7) end
+	if flip.SetFlipBookColumns then flip:SetFlipBookColumns(6) end
+	if flip.SetFlipBookFrames then flip:SetFlipBookFrames(42) end
+	if flip.SetFlipBookFrameWidth then flip:SetFlipBookFrameWidth(0) end
+	if flip.SetFlipBookFrameHeight then flip:SetFlipBookFrameHeight(0) end
+	st.restLoop = loop
+	st.restLoopAnim = anim
+end
+
+local function applyRestLoopLayout(cfg)
+	local st = states[PLAYER_UNIT]
+	if not st or not st.restLoop then return end
+	local def = defaultsFor(PLAYER_UNIT)
+	local rdef = def and def.resting or {}
+	local rcfg = (cfg and cfg.resting) or rdef
+	local size = max(10, rcfg.size or rdef.size or 20)
+	local ox = (rcfg.offset and rcfg.offset.x) or (rdef.offset and rdef.offset.x) or 0
+	local oy = (rcfg.offset and rcfg.offset.y) or (rdef.offset and rdef.offset.y) or 0
+	local texSize = max(1, size * 1.5)
+	st.restLoop:ClearAllPoints()
+	st.restLoop:SetPoint("CENTER", st.barGroup or st.frame, "CENTER", ox, oy)
+	st.restLoop:SetSize(size, size)
+	if st.restLoop.restTexture then st.restLoop.restTexture:SetSize(texSize, texSize) end
+	if st.statusTextLayer then setFrameLevelAbove(st.restLoop, st.statusTextLayer, 3) end
+end
+
+local function updateRestingIndicator(cfg)
+	local st = states[PLAYER_UNIT]
+	if not st or not st.restLoop then return end
+	local def = defaultsFor(PLAYER_UNIT)
+	local rdef = def and def.resting or {}
+	local rcfg = (cfg and cfg.resting) or rdef
+	if not cfg or cfg.enabled == false or rcfg.enabled == false then
+		if st.restLoopAnim and st.restLoopAnim:IsPlaying() then st.restLoopAnim:Stop() end
+		st.restLoop:Hide()
+		return
+	end
+	applyRestLoopLayout(cfg)
+	local resting = (IsResting and IsResting()) or (UnitIsResting and UnitIsResting(PLAYER_UNIT))
+	if resting then
+		st.restLoop:Show()
+		if st.restLoopAnim and not st.restLoopAnim:IsPlaying() then st.restLoopAnim:Play() end
+	else
+		if st.restLoopAnim and st.restLoopAnim:IsPlaying() then st.restLoopAnim:Stop() end
+		st.restLoop:Hide()
 	end
 end
 
@@ -1864,6 +2149,7 @@ local function layoutFrame(cfg, unit)
 			end
 		end
 	end
+	if unit == PLAYER_UNIT then applyClassResourceLayout(cfg) end
 	syncTextFrameLevels(st)
 end
 
@@ -1906,6 +2192,7 @@ local function ensureFrames(unit)
 	if st.health.SetStatusBarDesaturated then st.health:SetStatusBarDesaturated(false) end
 	st.power = _G[info.powerName] or CreateFrame("StatusBar", info.powerName, st.barGroup, "BackdropTemplate")
 	if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(false) end
+
 	local allowAbsorb = not (info and info.disableAbsorb)
 	if allowAbsorb then
 		st.absorb = st.absorb or CreateFrame("StatusBar", info.healthName .. "Absorb", st.health, "BackdropTemplate")
@@ -1924,7 +2211,7 @@ local function ensureFrames(unit)
 		st.absorb = nil
 		if st.overAbsorbGlow then st.overAbsorbGlow:Hide() end
 	end
-	if (unit == TARGET_UNIT or unit == FOCUS_UNIT) and not st.castBar then
+	if (unit == TARGET_UNIT or unit == FOCUS_UNIT or isBossUnit(unit)) and not st.castBar then
 		st.castBar = CreateFrame("StatusBar", info.healthName .. "Cast", st.frame, "BackdropTemplate")
 		st.castBar:SetStatusBarDesaturated(true)
 		st.castTextLayer = CreateFrame("Frame", nil, st.castBar)
@@ -1951,7 +2238,15 @@ local function ensureFrames(unit)
 	st.powerTextRight = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.nameText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.levelText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	if unit == PLAYER_UNIT then st.combatIcon = st.statusTextLayer:CreateTexture("EQOLUFPlayerCombatIcon", "OVERLAY") end
+	st.raidIcon = st.statusTextLayer:CreateTexture(nil, "OVERLAY", nil, 7)
+	st.raidIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+	st.raidIcon:SetSize(18, 18)
+	st.raidIcon:SetPoint("TOP", st.frame, "TOP", 0, -2)
+	st.raidIcon:Hide()
+	if unit == PLAYER_UNIT then
+		st.combatIcon = st.statusTextLayer:CreateTexture("EQOLUFPlayerCombatIcon", "OVERLAY")
+		ensureRestLoop(st)
+	end
 
 	if unit == "target" then
 		st.auraContainer = CreateFrame("Frame", nil, st.frame)
@@ -2009,7 +2304,7 @@ local function applyBars(cfg, unit)
 	elseif st.overAbsorbGlow then
 		st.overAbsorbGlow:Hide()
 	end
-	if st.castBar and (unit == TARGET_UNIT or unit == FOCUS_UNIT) then
+	if st.castBar and (unit == TARGET_UNIT or unit == FOCUS_UNIT or isBossUnit(unit)) then
 		local defc = (defaultsFor(unit) and defaultsFor(unit).cast) or {}
 		local ccfg = cfg.cast or defc
 		st.castBar:SetStatusBarTexture(resolveCastTexture((ccfg.texture or defc.texture or "DEFAULT")))
@@ -2095,7 +2390,9 @@ local function applyConfig(unit)
 		if unit == TARGET_TARGET_UNIT then applyFrameRuleOverride(BLIZZ_TARGET_TARGET_FRAME_NAME, false) end
 		if unit == FOCUS_UNIT then applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, false) end
 		if unit == PET_UNIT then applyFrameRuleOverride(BLIZZ_PET_FRAME_NAME, false) end
+		if unit == PLAYER_UNIT then restoreClassResourceFrames() end
 		if unit == "target" then resetTargetAuras() end
+		if unit == PLAYER_UNIT then updateRestingIndicator(cfg) end
 		return
 	end
 	ensureFrames(unit)
@@ -2113,7 +2410,11 @@ local function applyConfig(unit)
 	updateNameAndLevel(cfg, unit)
 	updateHealth(cfg, unit)
 	updatePower(cfg, unit)
-	if unit == PLAYER_UNIT then updateCombatIndicator(cfg) end
+	checkRaidTargetIcon(unit, st)
+	if unit == PLAYER_UNIT then
+		updateCombatIndicator(cfg)
+		updateRestingIndicator(cfg)
+	end
 	-- if unit == "target" then hideBlizzardTargetFrame() end
 	if st and st.frame then
 		if st.barGroup then st.barGroup:Show() end
@@ -2125,6 +2426,14 @@ local function applyConfig(unit)
 			st.castBar:Show()
 		else
 			stopCast(TARGET_UNIT)
+			st.castBar:Hide()
+		end
+	end
+	if isBossUnit(unit) and st.castBar then
+		if cfg.cast and cfg.cast.enabled ~= false and UnitExists(unit) then
+			st.castBar:Show()
+		else
+			stopCast(unit)
 			st.castBar:Hide()
 		end
 	end
@@ -2211,6 +2520,7 @@ local function applyBossEditSample(idx, cfg)
 	local def = defaultsFor("boss")
 	local hc = cfg.health or def.health or {}
 	local pcfg = cfg.power or def.power or {}
+	local cdef = cfg.cast or def.cast or {}
 
 	local cur = UnitHealth("player") or 1
 	local maxv = UnitHealthMax("player") or cur or 1
@@ -2251,6 +2561,7 @@ local function applyBossEditSample(idx, cfg)
 		st.levelText:SetText("??")
 		st.levelText:Show()
 	end
+	if st.castBar and cdef.enabled ~= false then setSampleCast(unit) end
 end
 
 local function updateBossFrames(force)
@@ -2300,9 +2611,22 @@ local function updateBossFrames(force)
 					updateNameAndLevel(cfg, unit)
 					updateHealth(cfg, unit)
 					updatePower(cfg, unit)
+					checkRaidTargetIcon(unit, st)
+					if st.castBar and cfg.cast and cfg.cast.enabled ~= false then
+						setCastInfoFromUnit(unit)
+						if shouldShowSampleCast(unit) and (not st.castInfo or not UnitCastingInfo or (UnitCastingInfo and not UnitCastingInfo(unit))) then setSampleCast(unit) end
+						st.castBar:Show()
+					elseif st.castBar then
+						stopCast(unit)
+						st.castBar:Hide()
+					end
 				else
 					if st.barGroup then st.barGroup:Hide() end
 					if st.status then st.status:Hide() end
+					if st.castBar then
+						stopCast(unit)
+						st.castBar:Hide()
+					end
 				end
 			end
 		end
@@ -2351,11 +2675,13 @@ local generalEvents = {
 	"PLAYER_LOGIN",
 	"PLAYER_REGEN_DISABLED",
 	"PLAYER_REGEN_ENABLED",
+	"PLAYER_UPDATE_RESTING",
 	"UNIT_PET",
 	"PLAYER_FOCUS_CHANGED",
 	"INSTANCE_ENCOUNTER_ENGAGE_UNIT",
 	"ENCOUNTER_START",
 	"ENCOUNTER_END",
+	"RAID_TARGET_UPDATE",
 }
 
 local eventFrame
@@ -2475,6 +2801,7 @@ local function updateTargetTargetFrame(cfg, forceApply)
 				st.power:Hide()
 			end
 			updatePower(cfg, TARGET_TARGET_UNIT)
+			checkRaidTargetIcon(TARGET_TARGET_UNIT, st)
 		end
 	else
 		if st then
@@ -2482,6 +2809,7 @@ local function updateTargetTargetFrame(cfg, forceApply)
 			if st.status then st.status:Hide() end
 		end
 	end
+	checkRaidTargetIcon(TARGET_TARGET_UNIT, st)
 	ensureToTTicker()
 end
 
@@ -2520,6 +2848,7 @@ local function updateFocusFrame(cfg, forceApply)
 			end
 			updatePower(cfg, FOCUS_UNIT)
 			if st.castBar then setCastInfoFromUnit(FOCUS_UNIT) end
+			checkRaidTargetIcon(FOCUS_UNIT, st)
 		end
 	else
 		if st then
@@ -2528,6 +2857,7 @@ local function updateFocusFrame(cfg, forceApply)
 			if st.castBar then stopCast(FOCUS_UNIT) end
 		end
 	end
+	checkRaidTargetIcon(FOCUS_UNIT, st)
 end
 
 local function onEvent(self, event, unit, arg1)
@@ -2546,6 +2876,8 @@ local function onEvent(self, event, unit, arg1)
 		if focusCfg.enabled then updateFocusFrame(focusCfg, true) end
 		if petCfg.enabled then applyConfig(PET_UNIT) end
 		updateCombatIndicator(playerCfg)
+		updateRestingIndicator(playerCfg)
+		updateAllRaidTargetIcons()
 		if bossCfg.enabled then
 			updateBossFrames(true)
 		else
@@ -2559,6 +2891,7 @@ local function onEvent(self, event, unit, arg1)
 		updateHealth(playerCfg, "player")
 		updatePower(playerCfg, "player")
 		updateCombatIndicator(playerCfg)
+		updateRestingIndicator(playerCfg)
 	elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
 		updateCombatIndicator(playerCfg)
 		if event == "PLAYER_REGEN_ENABLED" then
@@ -2601,6 +2934,7 @@ local function onEvent(self, event, unit, arg1)
 			st.status:Hide()
 			stopCast(unitToken)
 		end
+		checkRaidTargetIcon(unitToken, st)
 		if totCfg.enabled then updateTargetTargetFrame(totCfg) end
 		if focusCfg.enabled then updateFocusFrame(focusCfg) end
 	elseif event == "UNIT_AURA" and unit == "target" then
@@ -2760,6 +3094,7 @@ local function onEvent(self, event, unit, arg1)
 	elseif event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_SPELLCAST_CHANNEL_UPDATE" then
 		if unit == TARGET_UNIT then setCastInfoFromUnit(TARGET_UNIT) end
 		if unit == FOCUS_UNIT then setCastInfoFromUnit(FOCUS_UNIT) end
+		if isBossUnit(unit) then setCastInfoFromUnit(unit) end
 	elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" then
 		if unit == TARGET_UNIT then
 			stopCast(TARGET_UNIT)
@@ -2769,6 +3104,7 @@ local function onEvent(self, event, unit, arg1)
 			stopCast(FOCUS_UNIT)
 			if shouldShowSampleCast(unit) then setSampleCast(unit) end
 		end
+		if isBossUnit(unit) then stopCast(unit) end
 	elseif event == "INSTANCE_ENCOUNTER_ENGAGE_UNIT" then
 		updateBossFrames(true)
 	elseif event == "ENCOUNTER_START" then
@@ -2783,7 +3119,14 @@ local function onEvent(self, event, unit, arg1)
 			updatePower(petCfg, PET_UNIT)
 		end
 	elseif event == "PLAYER_FOCUS_CHANGED" then
-		if focusCfg.enabled then updateFocusFrame(focusCfg, true) end
+		if focusCfg.enabled then
+			updateFocusFrame(focusCfg, true)
+			checkRaidTargetIcon(FOCUS_UNIT, states[FOCUS_UNIT])
+		end
+	elseif event == "PLAYER_UPDATE_RESTING" then
+		updateRestingIndicator(playerCfg)
+	elseif event == "RAID_TARGET_UPDATE" then
+		updateAllRaidTargetIcons()
 	end
 end
 
@@ -2811,12 +3154,14 @@ local function ensureEventHandling()
 			updateCombatIndicator(states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg or ensureDB(PLAYER_UNIT))
 			ensureBossFramesReady(ensureDB("boss"))
 			updateBossFrames(true)
+			updateAllRaidTargetIcons()
 		end)
 
 		addon.EditModeLib:RegisterCallback("exit", function()
 			updateCombatIndicator(states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg or ensureDB(PLAYER_UNIT))
 			hideBossFrames(true)
 			if ensureDB("boss").enabled then updateBossFrames(true) end
+			updateAllRaidTargetIcons()
 		end)
 	end
 end
@@ -2844,10 +3189,14 @@ function UF.Disable()
 	local cfg = ensureDB("player")
 	cfg.enabled = false
 	if states.player and states.player.frame then states.player.frame:Hide() end
+	restoreClassResourceFrames()
 	stopToTTicker()
 	addon.variables.requireReload = true
 	if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
-	if _G.PlayerFrame and not InCombatLockdown() then _G.PlayerFrame:Show() end
+	if _G.PlayerFrame and not InCombatLockdown() then
+		_G.PlayerFrame:SetAlpha(1)
+		_G.PlayerFrame:Show()
+	end
 	ensureEventHandling()
 end
 

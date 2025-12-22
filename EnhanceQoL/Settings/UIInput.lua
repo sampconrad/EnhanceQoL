@@ -178,7 +178,9 @@ if classname == "DEATHKNIGHT" then
 		text = L["deathknight_HideRuneFrame"],
 		func = function(value)
 			addon.db["deathknight_HideRuneFrame"] = value
-			if value then
+			local ufCR = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if value and not ufActive and not ufCR then
 				if RuneFrame then RuneFrame:Hide() end
 			else
 				if RuneFrame then RuneFrame:Show() end
@@ -193,7 +195,9 @@ elseif classname == "DRUID" then
 		text = L["druid_HideComboPoint"],
 		func = function(value)
 			addon.db["druid_HideComboPoint"] = value
-			if value then
+			local ufCR = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if value and not ufActive and not ufCR then
 				if DruidComboPointBarFrame then DruidComboPointBarFrame:Hide() end
 			else
 				if DruidComboPointBarFrame then DruidComboPointBarFrame:Show() end
@@ -215,7 +219,9 @@ elseif classname == "EVOKER" then
 		text = L["evoker_HideEssence"],
 		func = function(value)
 			addon.db["evoker_HideEssence"] = value
-			if value then
+			local ufCR = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if value and not ufActive and not ufCR then
 				if EssencePlayerFrame then EssencePlayerFrame:Hide() end
 			else
 				if EssencePlayerFrame then EssencePlayerFrame:Show() end
@@ -230,7 +236,9 @@ elseif classname == "MONK" then
 		text = L["monk_HideHarmonyBar"],
 		func = function(value)
 			addon.db["monk_HideHarmonyBar"] = value
-			if value then
+			local ufCR = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if value and not ufActive and not ufCR then
 				if MonkHarmonyBarFrame then MonkHarmonyBarFrame:Hide() end
 			else
 				if MonkHarmonyBarFrame then MonkHarmonyBarFrame:Show() end
@@ -248,7 +256,9 @@ elseif classname == "ROGUE" then
 		text = L["rogue_HideComboPoint"],
 		func = function(value)
 			addon.db["rogue_HideComboPoint"] = value
-			if value then
+			local ufCR = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if value and not ufActive and not ufCR then
 				if RogueComboPointBarFrame then RogueComboPointBarFrame:Hide() end
 			else
 				if RogueComboPointBarFrame then RogueComboPointBarFrame:Show() end
@@ -262,7 +272,9 @@ elseif classname == "PALADIN" then
 		text = L["paladin_HideHolyPower"],
 		func = function(value)
 			addon.db["paladin_HideHolyPower"] = value
-			if value then
+			local ufCR = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if value and not ufActive and not ufCR then
 				if PaladinPowerBarFrame then PaladinPowerBarFrame:Hide() end
 			else
 				if PaladinPowerBarFrame then PaladinPowerBarFrame:Show() end
@@ -275,7 +287,9 @@ elseif classname == "WARLOCK" then
 		text = L["warlock_HideSoulShardBar"],
 		func = function(value)
 			addon.db["warlock_HideSoulShardBar"] = value
-			if value then
+			local ufCR = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.classResource and addon.db.ufFrames.player.classResource.enabled == true
+			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+			if value and not ufActive and not ufCR then
 				if WarlockPowerFrame then WarlockPowerFrame:Hide() end
 			else
 				if WarlockPowerFrame then WarlockPowerFrame:Show() end
