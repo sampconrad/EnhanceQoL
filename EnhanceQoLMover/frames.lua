@@ -194,7 +194,7 @@ local frames = {
 		label = L["Talents & Spells"] or "Talents & Spells",
 		group = "character",
 		names = { "PlayerSpellsFrame" },
-		handlesRelative = { "TalentsFrame", "SpecFrame" },
+		handlesRelative = { "TalentsFrame", "TalentsFrame.FxModelScene", "SpecFrame" },
 		addon = "Blizzard_PlayerSpells",
 		defaultEnabled = true,
 	},
@@ -612,6 +612,18 @@ local settings = {
 	},
 	{
 		type = "checkbox",
+		var = "moverScaleEnabled",
+		dbKey = "scaleEnabled",
+		text = L["Global Scale Enabled"] or "Enable scaling",
+		default = false,
+		get = function() return db.scaleEnabled end,
+		set = function(value)
+			db.scaleEnabled = value
+			addon.Mover.functions.ApplyAll()
+		end,
+	},
+	{
+		type = "checkbox",
 		var = "moverRequireModifier",
 		dbKey = "requireModifier",
 		text = L["Require Modifier For Move"] or "Require modifier to move",
@@ -631,6 +643,18 @@ local settings = {
 		get = function() return db.modifier or "SHIFT" end,
 		set = function(value) db.modifier = value end,
 		parentCheck = function() return db.enabled and db.requireModifier end,
+	},
+	{
+		type = "dropdown",
+		var = "moverScaleModifier",
+		dbKey = "scaleModifier",
+		text = L["Scale Modifier"] or "Scale modifier key",
+		list = { SHIFT = "SHIFT", CTRL = "CTRL", ALT = "ALT" },
+		order = { "SHIFT", "CTRL", "ALT" },
+		default = "CTRL",
+		get = function() return db.scaleModifier or "CTRL" end,
+		set = function(value) db.scaleModifier = value end,
+		parentCheck = function() return db.scaleEnabled end,
 	},
 }
 

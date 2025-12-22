@@ -10,7 +10,7 @@
 - UF Plus: toggle and adjust raid icon size/offset.
 - UF Plus: show Blizzard class resources and manage them.
 - UF Plus: optional cast bar for boss frames.
-- Mover: new module that lets you move frames and keeps their positions saved
+- Mover: new module that lets you move and scale frames and keeps their positions saved
 
 ### ❌ Removed
 

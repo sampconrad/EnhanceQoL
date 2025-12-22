@@ -21,6 +21,8 @@ end
 initDbValue("enabled", false)
 initDbValue("requireModifier", true)
 initDbValue("modifier", "SHIFT")
+initDbValue("scaleEnabled", false)
+initDbValue("scaleModifier", "CTRL")
 initDbValue("frames", {})
 
 local function normalizeDbVarFromId(id)
@@ -136,6 +138,28 @@ local function modifierPressed()
 	if not db.requireModifier then return true end
 	local mod = db.modifier or "SHIFT"
 	return (mod == "SHIFT" and IsShiftKeyDown()) or (mod == "CTRL" and IsControlKeyDown()) or (mod == "ALT" and IsAltKeyDown())
+end
+
+local SCALE_MIN = 0.5
+local SCALE_MAX = 2
+local SCALE_STEP = 0.05
+
+local function clampScale(value)
+	if type(value) ~= "number" then return 1 end
+	if value < SCALE_MIN then return SCALE_MIN end
+	if value > SCALE_MAX then return SCALE_MAX end
+	return value
+end
+
+local function scaleModifierPressed()
+	local mod = db.scaleModifier or "CTRL"
+	return (mod == "SHIFT" and IsShiftKeyDown()) or (mod == "CTRL" and IsControlKeyDown()) or (mod == "ALT" and IsAltKeyDown())
+end
+
+local function resolveScale(_frame, frameDb)
+	if not db.scaleEnabled then return nil end
+	if frameDb and type(frameDb.scale) == "number" then return clampScale(frameDb.scale) end
+	return nil
 end
 
 function addon.Mover.functions.RegisterGroup(id, label, opts)
@@ -342,18 +366,23 @@ function addon.Mover.functions.applyFrameSettings(frame, entry)
 	if not resolved then return end
 	if not isEntryActive(resolved) then return end
 	local frameDb = ensureFrameDb(resolved)
-	if not frameDb or not frameDb.point or frameDb.x == nil or frameDb.y == nil then return end
+	local hasPoint = frameDb and frameDb.point and frameDb.x ~= nil and frameDb.y ~= nil
+	local targetScale = resolveScale(frame, frameDb)
+	if not hasPoint and not targetScale then return end
 	if InCombatLockdown() and frame:IsProtected() then
 		addon.Mover.functions.deferApply(frame, resolved)
 		return
 	end
 	frame._eqol_isApplying = true
-	if resolved.keepTwoPointSize then
-		MoveKeepTwoPointSize(frame, frameDb.x, frameDb.y, frameDb.point, frameDb.point)
-	else
-		frame:ClearAllPoints()
-		frame:SetPoint(frameDb.point, UIParent, frameDb.point, frameDb.x, frameDb.y)
+	if hasPoint then
+		if resolved.keepTwoPointSize then
+			MoveKeepTwoPointSize(frame, frameDb.x, frameDb.y, frameDb.point, frameDb.point)
+		else
+			frame:ClearAllPoints()
+			frame:SetPoint(frameDb.point, UIParent, frameDb.point, frameDb.x, frameDb.y)
+		end
 	end
+	if targetScale and frame.SetScale then frame:SetScale(targetScale) end
 	frame._eqol_isApplying = nil
 end
 
@@ -406,6 +435,66 @@ function addon.Mover.functions.createHooks(frame, entry)
 		if resolved.keepTwoPointSize then addon.Mover.functions.applyFrameSettings(frame, resolved) end
 	end
 
+	local function setStoredScale(scale)
+		local frameDb = ensureFrameDb(resolved)
+		if frameDb then frameDb.scale = scale end
+		if InCombatLockdown() and frame:IsProtected() then
+			addon.Mover.functions.deferApply(frame, resolved)
+			return
+		end
+		if frame.SetScale then frame:SetScale(scale) end
+	end
+
+	local function onScaleWheel(_, delta)
+		if not isEntryActive(resolved) then return end
+		if not db.scaleEnabled then return end
+		if not scaleModifierPressed() then return end
+		local frameDb = ensureFrameDb(resolved)
+		local current = frameDb and frameDb.scale
+		if type(current) ~= "number" and frame.GetScale then current = frame:GetScale() end
+		current = clampScale(current or 1)
+		local newScale = clampScale(current + (delta * SCALE_STEP))
+		setStoredScale(newScale)
+	end
+
+	local function onScaleReset(_, button)
+		if button ~= "RightButton" then return end
+		if not isEntryActive(resolved) then return end
+		if not db.scaleEnabled then return end
+		if not scaleModifierPressed() then return end
+		setStoredScale(1)
+	end
+
+	local function updateWheelState(handle)
+		if not handle or not handle.EnableMouseWheel then return end
+		local enabled = db.scaleEnabled and isEntryActive(resolved) and scaleModifierPressed()
+		if handle._eqolScaleWheelEnabled ~= enabled then
+			handle._eqolScaleWheelEnabled = enabled
+			handle:EnableMouseWheel(enabled)
+		end
+	end
+
+	local function attachScaleHandlers(handle)
+		if not handle then return end
+		if handle.EnableMouseWheel then handle:EnableMouseWheel(false) end
+		handle:HookScript("OnMouseWheel", onScaleWheel)
+		handle:HookScript("OnMouseUp", onScaleReset)
+		handle:HookScript("OnEnter", function()
+			handle._eqolScaleHover = true
+			handle:SetScript("OnUpdate", function()
+				if not handle._eqolScaleHover then return end
+				updateWheelState(handle)
+			end)
+			updateWheelState(handle)
+		end)
+		handle:HookScript("OnLeave", function()
+			handle._eqolScaleHover = nil
+			handle._eqolScaleWheelEnabled = nil
+			if handle.EnableMouseWheel then handle:EnableMouseWheel(false) end
+			handle:SetScript("OnUpdate", nil)
+		end)
+	end
+
 	local function attachHandle(anchor)
 		if not anchor then return nil end
 		local handle
@@ -424,6 +513,7 @@ function addon.Mover.functions.createHooks(frame, entry)
 		if handle.EnableMouse then handle:EnableMouse(true) end
 		handle:HookScript("OnDragStart", onStartDrag)
 		handle:HookScript("OnDragStop", onStopDrag)
+		attachScaleHandlers(handle)
 		return handle
 	end
 
@@ -454,18 +544,23 @@ function addon.Mover.functions.createHooks(frame, entry)
 		if not isEntryActive(resolved) then return end
 		if self._eqol_isDragging or self._eqol_isApplying then return end
 		local frameDb = ensureFrameDb(resolved)
-		if not frameDb or not frameDb.point or frameDb.x == nil or frameDb.y == nil then return end
+		local hasPoint = frameDb and frameDb.point and frameDb.x ~= nil and frameDb.y ~= nil
+		local targetScale = resolveScale(self, frameDb)
+		if not hasPoint and not targetScale then return end
 		if InCombatLockdown() and self:IsProtected() then
 			addon.Mover.functions.deferApply(self, resolved)
 			return
 		end
 		self._eqol_isApplying = true
-		if resolved.keepTwoPointSize then
-			MoveKeepTwoPointSize(self, frameDb.x, frameDb.y, frameDb.point, frameDb.point)
-		else
-			self:ClearAllPoints()
-			self:SetPoint(frameDb.point, UIParent, frameDb.point, frameDb.x, frameDb.y)
+		if hasPoint then
+			if resolved.keepTwoPointSize then
+				MoveKeepTwoPointSize(self, frameDb.x, frameDb.y, frameDb.point, frameDb.point)
+			else
+				self:ClearAllPoints()
+				self:SetPoint(frameDb.point, UIParent, frameDb.point, frameDb.x, frameDb.y)
+			end
 		end
+		if targetScale and self.SetScale then self:SetScale(targetScale) end
 		self._eqol_isApplying = nil
 	end)
 
@@ -478,6 +573,12 @@ function addon.Mover.functions.createHooks(frame, entry)
 		if not handle then return end
 		if handle.EnableMouse then handle:EnableMouse(enabled) end
 		if handle.SetShown then handle:SetShown(enabled) end
+		if not enabled then
+			handle._eqolScaleHover = nil
+			handle._eqolScaleWheelEnabled = nil
+			if handle.EnableMouseWheel then handle:EnableMouseWheel(false) end
+			if handle.GetScript and handle:GetScript("OnUpdate") then handle:SetScript("OnUpdate", nil) end
+		end
 	end
 
 	local function updateHandleState()
