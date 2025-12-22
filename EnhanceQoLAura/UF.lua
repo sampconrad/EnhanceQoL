@@ -255,8 +255,8 @@ local defaults = {
 		},
 		classResource = {
 			enabled = true,
-			anchor = "TOP",
-			offset = { x = 0, y = -5 },
+			anchor = "BOTTOM",
+			offset = { x = 0, y = -28 },
 			scale = 1,
 		},
 		raidIcon = {
@@ -276,7 +276,7 @@ local defaults = {
 			showTooltip = true,
 			hidePermanentAuras = false,
 			anchor = "BOTTOM",
-			offset = { x = 0, y = -5 },
+			offset = { x = 0, y = -24 },
 			separateDebuffAnchor = false,
 			debuffAnchor = nil, -- falls back to anchor
 			debuffOffset = nil, -- falls back to offset
@@ -287,10 +287,10 @@ local defaults = {
 		},
 		cast = {
 			enabled = true,
-			width = 220,
+			width = 200,
 			height = 16,
 			anchor = "BOTTOM", -- or "TOP"
-			offset = { x = 0, y = -40 },
+			offset = { x = 11, y = -4 },
 			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
 			showName = true,
 			nameOffset = { x = 6, y = 0 },
