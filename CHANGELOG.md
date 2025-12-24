@@ -8,6 +8,7 @@
 - Mover: reset scale and position to defaults with scale modifier + right-click on a handle.
 - UF Plus: per-frame "Show when" visibility rules for custom unit frames in Edit Mode.
 - UF Plus: per-main-power color overrides for power bars (with optional desaturation).
+- UF Plus: portrait options for unit frames (size/side/offset).
 - Data Panels: difficulty stream now opens a difficulty selection menu on click.
 
 ### 🔄 Changed
