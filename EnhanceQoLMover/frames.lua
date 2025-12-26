@@ -611,13 +611,6 @@ local frames = {
 		defaultEnabled = true,
 	},
 	{
-		id = "UIWidgetTopCenterContainerFrame",
-		label = L["Top Center Widgets"] or "Top Center Widgets",
-		group = "system",
-		names = { "UIWidgetTopCenterContainerFrame" },
-		defaultEnabled = true,
-	},
-	{
 		id = "CalendarFrame",
 		label = L["Calendar"] or "Calendar",
 		group = "system",

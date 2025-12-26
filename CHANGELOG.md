@@ -10,6 +10,9 @@
 - UF Plus: per-main-power color overrides for power bars (with optional desaturation).
 - UF Plus: portrait options for unit frames (size/side/offset).
 - UF Plus: border offset control for unit frame textures.
+- UF Plus: new unit frame text modes (Cur/Max + percent combos) with separator dropdown.
+- UF Plus: status line name max width.
+- UF Plus: unit status (AFK/DND/offline) indicator with adjustable offsets.
 - Data Panels: difficulty stream now opens a difficulty selection menu on click.
 - Data Panels: new Mythic+ Key stream with owned-key display.
 - Data Panels: new Loot Spec stream with quick menu for loot spec and active spec.
@@ -30,6 +33,12 @@
 - UF Plus: Focus frame health now updates on unit health events.
 - UF Plus defaults were not used as fallback
 - UF Plus castbar backdrop was shown on reload when nothing casted
+- UF Plus some Auras on target where missing
+- Mover had a bug with some UI elements overlapping the screen
+- UF Plus Aura debuff color fixed in midnight
+- Macro-ID on tooltip was wrong
+- UF Plus non interrupt color wasn't working in midnight
+- UF Plus channeling animation for castbar was in the wrong direction
 
 ---
 

@@ -680,7 +680,9 @@ function addon.Mover.functions.createHooks(frame, entry)
 		if not anchor then return nil end
 		local handle
 		if pcall(function() handle = CreateFrame("Frame", nil, anchor, "PanelDragBarTemplate") end) and handle then
+			-- Prevent PanelDragBarMixin from calling Start/StopMovingOrSizing directly.
 			handle.onDragStartCallback = function() return false end
+			handle.onDragStopCallback = function() return false end
 			handle.target = frame
 		else
 			handle = CreateFrame("Frame", nil, anchor)

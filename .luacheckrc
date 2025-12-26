@@ -35,6 +35,7 @@ exclude_files = {
 	"EnhanceQoL/libs/LibEditMode/**",
 	".git/**",
 	"EnhanceQoL/libs/LibEQOL/**",
+	"EnhanceQoLBags/**",
 	"News/**",
 	"scripts/**",
 }
@@ -91,6 +92,13 @@ globals = {
 	"_G.ITEM_ACCOUNTBOUND_UNTIL_EQUIP",
 	"_G.ITEM_BNETACCOUNTBOUND",
 	"SOUNDKIT",
+	"DebuffTypeColor",
+	"DEBUFF_TYPE_MAGIC_COLOR",
+	"DEBUFF_TYPE_CURSE_COLOR",
+	"DEBUFF_TYPE_DISEASE_COLOR",
+	"DEBUFF_TYPE_POISON_COLOR",
+	"DEBUFF_TYPE_BLEED_COLOR",
+	"DEBUFF_TYPE_NONE_COLOR",
 
 	-- ACE
 	"GameFontDisableSmall",

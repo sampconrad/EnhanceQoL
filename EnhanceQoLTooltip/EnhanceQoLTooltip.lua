@@ -931,8 +931,13 @@ if TooltipDataProcessor then
 			checkSpell(tooltip, id, name, true)
 			return
 		elseif kind == "macro" then
+			local ttInfo = tooltip:GetPrimaryTooltipInfo()
 			id = data.id
-			name = L["MacroID"]
+			if ttInfo and ttInfo.getterArgs then
+				local actionSlot = ttInfo.getterArgs[1]
+				if actionSlot then id = GetActionText(actionSlot) end
+			end
+			name = MACRO
 			checkSpell(tooltip, id, name)
 			return
 		elseif kind == "unit" then

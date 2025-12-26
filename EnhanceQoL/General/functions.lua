@@ -542,7 +542,10 @@ end
 
 local function updateButtonInfo(itemButton, bag, slot, frameName)
 	itemButton:SetAlpha(1)
-	if itemButton.ItemContextOverlay then itemButton.ItemContextOverlay:Hide() end
+	if itemButton.EQOLFilterOverlay then
+		itemButton.EQOLFilterOverlay:SetAlpha(1)
+		itemButton.EQOLFilterOverlay:Hide()
+	end
 
 	if itemButton.ItemLevelText then
 		itemButton.ItemLevelText:SetAlpha(1)
@@ -761,10 +764,12 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 
 		if setVisibility then
 			itemButton:SetAlpha(0.1)
-			if itemButton.ItemContextOverlay then
-				itemButton.ItemContextOverlay:Show()
-				itemButton.ItemContextOverlay:SetColorTexture(0, 0, 0, 0.8)
+			if not itemButton.EQOLFilterOverlay then
+				itemButton.EQOLFilterOverlay = itemButton:CreateTexture(nil, "ARTWORK")
+				itemButton.EQOLFilterOverlay:SetColorTexture(0, 0, 0, 0.8)
+				itemButton.EQOLFilterOverlay:SetAllPoints()
 			end
+			itemButton.EQOLFilterOverlay:Show()
 
 			if itemButton.ItemLevelText then itemButton.ItemLevelText:SetAlpha(0.1) end
 			if itemButton.ItemBoundType then itemButton.ItemBoundType:SetAlpha(0.1) end
@@ -772,7 +777,7 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 			if itemButton.ProfessionQualityOverlay and addon.db["fadeBagQualityIcons"] then itemButton.ProfessionQualityOverlay:SetAlpha(0.1) end
 		else
 			itemButton:SetAlpha(1)
-			if itemButton.ItemContextOverlay then itemButton.ItemContextOverlay:Hide() end
+			if itemButton.EQOLFilterOverlay then itemButton.EQOLFilterOverlay:Hide() end
 			if itemButton.ItemLevelText then itemButton.ItemLevelText:SetAlpha(1) end
 			if itemButton.ItemBoundType then itemButton.ItemBoundType:SetAlpha(1) end
 			if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:SetAlpha(1) end

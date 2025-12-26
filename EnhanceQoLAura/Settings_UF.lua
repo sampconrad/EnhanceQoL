@@ -37,8 +37,31 @@ local textOptions = {
 	{ value = "PERCENT", label = L["PERCENT"] or "Percent" },
 	{ value = "CURMAX", label = L["Current/Max"] or "Current/Max" },
 	{ value = "CURRENT", label = L["Current"] or "Current" },
+	{ value = "CURPERCENT", label = L["Current / Percent"] or "Current / Percent" },
+	{ value = "CURMAXPERCENT", label = L["Current/Max Percent"] or "Current/Max Percent" },
 	{ value = "NONE", label = NONE or "None" },
 }
+
+local delimiterOptions = {
+	{ value = " ", label = L["Space"] or "Space" },
+	{ value = "/", label = "/" },
+	{ value = ":", label = ":" },
+	{ value = "-", label = "-" },
+	{ value = "–", label = "–" },
+	{ value = "|", label = "|" },
+	{ value = "•", label = "•" },
+	{ value = "·", label = "·" },
+}
+
+local function normalizeTextMode(value)
+	if value == "CURPERCENTDASH" then return "CURPERCENT" end
+	return value
+end
+
+local function textModeUsesDelimiter(value)
+	local mode = normalizeTextMode(value)
+	return mode == "CURPERCENT" or mode == "CURMAXPERCENT"
+end
 
 local outlineOptions = {
 	{ value = "NONE", label = L["None"] or "None" },
@@ -488,7 +511,9 @@ local function calcLayout(unit, frame)
 	local showLevel = getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) ~= false
 	local ciDef = statusDef.combatIndicator or {}
 	local showCombat = unit == "player" and getValue(unit, { "status", "combatIndicator", "enabled" }, ciDef.enabled ~= false) ~= false
-	local showStatus = showName or showLevel or showCombat
+	local usDef = statusDef.unitStatus or {}
+	local showUnitStatus = getValue(unit, { "status", "unitStatus", "enabled" }, usDef.enabled == true) == true
+	local showStatus = showName or showLevel or showCombat or showUnitStatus
 	local statusHeight = showStatus and (cfg.statusHeight or def.statusHeight or 18) or 0
 	local portraitDef = def.portrait or {}
 	local portraitCfg = cfg.portrait or {}
@@ -812,15 +837,49 @@ local function buildUnitSettings(unit)
 		isEnabled = function() return getValue(unit, { "health", "useClassColor" }, healthDef.useClassColor == true) ~= true end,
 	})
 
-	list[#list + 1] = radioDropdown(L["TextLeft"] or "Left text", textOptions, function() return getValue(unit, { "health", "textLeft" }, healthDef.textLeft or "PERCENT") end, function(val)
-		setValue(unit, { "health", "textLeft" }, val)
-		refresh()
-	end, healthDef.textLeft or "PERCENT", "health")
+	list[#list + 1] = radioDropdown(
+		L["TextLeft"] or "Left text",
+		textOptions,
+		function() return normalizeTextMode(getValue(unit, { "health", "textLeft" }, healthDef.textLeft or "PERCENT")) end,
+		function(val)
+			setValue(unit, { "health", "textLeft" }, val)
+			refresh()
+			refreshSettingsUI()
+		end,
+		healthDef.textLeft or "PERCENT",
+		"health"
+	)
 
-	list[#list + 1] = radioDropdown(L["TextRight"] or "Right text", textOptions, function() return getValue(unit, { "health", "textRight" }, healthDef.textRight or "CURMAX") end, function(val)
-		setValue(unit, { "health", "textRight" }, val)
-		refresh()
-	end, healthDef.textRight or "CURMAX", "health")
+	list[#list + 1] = radioDropdown(
+		L["TextRight"] or "Right text",
+		textOptions,
+		function() return normalizeTextMode(getValue(unit, { "health", "textRight" }, healthDef.textRight or "CURMAX")) end,
+		function(val)
+			setValue(unit, { "health", "textRight" }, val)
+			refresh()
+			refreshSettingsUI()
+		end,
+		healthDef.textRight or "CURMAX",
+		"health"
+	)
+
+	local healthDelimiterSetting = radioDropdown(
+		L["Delimiter"] or "Delimiter",
+		delimiterOptions,
+		function() return getValue(unit, { "health", "textDelimiter" }, healthDef.textDelimiter or " ") end,
+		function(val)
+			setValue(unit, { "health", "textDelimiter" }, val)
+			refresh()
+		end,
+		healthDef.textDelimiter or " ",
+		"health"
+	)
+	healthDelimiterSetting.isEnabled = function()
+		local leftMode = getValue(unit, { "health", "textLeft" }, healthDef.textLeft or "PERCENT")
+		local rightMode = getValue(unit, { "health", "textRight" }, healthDef.textRight or "CURMAX")
+		return textModeUsesDelimiter(leftMode) or textModeUsesDelimiter(rightMode)
+	end
+	list[#list + 1] = healthDelimiterSetting
 
 	list[#list + 1] = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "health", "fontSize" }, healthDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_healthFontSize", function()
@@ -1031,19 +1090,54 @@ local function buildUnitSettings(unit)
 	powerHeightSetting.isEnabled = isPowerEnabled
 	list[#list + 1] = powerHeightSetting
 
-	local powerTextLeft = radioDropdown(L["TextLeft"] or "Left text", textOptions, function() return getValue(unit, { "power", "textLeft" }, powerDef.textLeft or "PERCENT") end, function(val)
-		setValue(unit, { "power", "textLeft" }, val)
-		refreshSelf()
-	end, powerDef.textLeft or "PERCENT", "power")
+	local powerTextLeft = radioDropdown(
+		L["TextLeft"] or "Left text",
+		textOptions,
+		function() return normalizeTextMode(getValue(unit, { "power", "textLeft" }, powerDef.textLeft or "PERCENT")) end,
+		function(val)
+			setValue(unit, { "power", "textLeft" }, val)
+			refreshSelf()
+			refreshSettingsUI()
+		end,
+		powerDef.textLeft or "PERCENT",
+		"power"
+	)
 	powerTextLeft.isEnabled = isPowerEnabled
 	list[#list + 1] = powerTextLeft
 
-	local powerTextRight = radioDropdown(L["TextRight"] or "Right text", textOptions, function() return getValue(unit, { "power", "textRight" }, powerDef.textRight or "CURMAX") end, function(val)
-		setValue(unit, { "power", "textRight" }, val)
-		refreshSelf()
-	end, powerDef.textRight or "CURMAX", "power")
+	local powerTextRight = radioDropdown(
+		L["TextRight"] or "Right text",
+		textOptions,
+		function() return normalizeTextMode(getValue(unit, { "power", "textRight" }, powerDef.textRight or "CURMAX")) end,
+		function(val)
+			setValue(unit, { "power", "textRight" }, val)
+			refreshSelf()
+			refreshSettingsUI()
+		end,
+		powerDef.textRight or "CURMAX",
+		"power"
+	)
 	powerTextRight.isEnabled = isPowerEnabled
 	list[#list + 1] = powerTextRight
+
+	local powerDelimiter = radioDropdown(
+		L["Delimiter"] or "Delimiter",
+		delimiterOptions,
+		function() return getValue(unit, { "power", "textDelimiter" }, powerDef.textDelimiter or " ") end,
+		function(val)
+			setValue(unit, { "power", "textDelimiter" }, val)
+			refreshSelf()
+		end,
+		powerDef.textDelimiter or " ",
+		"power"
+	)
+	powerDelimiter.isEnabled = function()
+		if not isPowerEnabled() then return false end
+		local leftMode = getValue(unit, { "power", "textLeft" }, powerDef.textLeft or "PERCENT")
+		local rightMode = getValue(unit, { "power", "textRight" }, powerDef.textRight or "CURMAX")
+		return textModeUsesDelimiter(leftMode) or textModeUsesDelimiter(rightMode)
+	end
+	list[#list + 1] = powerDelimiter
 
 	local powerFontSize = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "power", "fontSize" }, powerDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_powerFontSize", function()
@@ -1632,7 +1726,8 @@ local function buildUnitSettings(unit)
 	local statusDef = def.status or {}
 	local function isNameEnabled() return getValue(unit, { "status", "enabled" }, statusDef.enabled ~= false) ~= false end
 	local function isLevelEnabled() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) ~= false end
-	local function isStatusTextEnabled() return isNameEnabled() or isLevelEnabled() end
+	local function isUnitStatusEnabled() return getValue(unit, { "status", "unitStatus", "enabled" }, (statusDef.unitStatus and statusDef.unitStatus.enabled) == true) == true end
+	local function isStatusTextEnabled() return isNameEnabled() or isLevelEnabled() or isUnitStatusEnabled() end
 
 	list[#list + 1] = checkbox(L["UFStatusEnable"] or "Show status line", isNameEnabled, function(val)
 		setValue(unit, { "status", "enabled" }, val and true or false)
@@ -1818,6 +1913,13 @@ local function buildUnitSettings(unit)
 	nameAnchorSetting.isEnabled = isNameEnabled
 	list[#list + 1] = nameAnchorSetting
 
+	local nameMaxCharsSetting = slider(L["UFNameMaxChars"] or "Name max width", 0, 30, 1, function() return getValue(unit, { "status", "nameMaxChars" }, statusDef.nameMaxChars or 0) end, function(val)
+		setValue(unit, { "status", "nameMaxChars" }, val or 0)
+		refresh()
+	end, statusDef.nameMaxChars or 15, "status", true)
+	nameMaxCharsSetting.isEnabled = isNameEnabled
+	list[#list + 1] = nameMaxCharsSetting
+
 	local nameOffsetXSetting = slider(
 		L["UFNameX"] or "Name X offset",
 		-200,
@@ -1954,6 +2056,53 @@ local function buildUnitSettings(unit)
 		)
 		list[#list].isEnabled = isRestEnabled
 	end
+
+	list[#list + 1] = { name = L["UFUnitStatus"] or "Unit status", kind = settingType.Collapsible, id = "unitStatus", defaultCollapsed = true }
+	local usDef = statusDef.unitStatus or {}
+
+	list[#list + 1] = checkbox(L["UFUnitStatusEnable"] or "Show unit status", function() return getValue(unit, { "status", "unitStatus", "enabled" }, usDef.enabled == true) == true end, function(val)
+		setValue(unit, { "status", "unitStatus", "enabled" }, val and true or false)
+		refresh()
+		refreshSettingsUI()
+	end, usDef.enabled == true, "unitStatus")
+
+	local unitStatusOffsetX = slider(
+		L["UFUnitStatusOffsetX"] or "Unit status X offset",
+		-400,
+		400,
+		1,
+		function() return getValue(unit, { "status", "unitStatus", "offset", "x" }, (usDef.offset and usDef.offset.x) or 0) end,
+		function(val)
+			local off = getValue(unit, { "status", "unitStatus", "offset" }, { x = 0, y = 0 }) or {}
+			off.x = val or 0
+			setValue(unit, { "status", "unitStatus", "offset" }, off)
+			refresh()
+		end,
+		(usDef.offset and usDef.offset.x) or 0,
+		"unitStatus",
+		true
+	)
+	unitStatusOffsetX.isEnabled = isUnitStatusEnabled
+	list[#list + 1] = unitStatusOffsetX
+
+	local unitStatusOffsetY = slider(
+		L["UFUnitStatusOffsetY"] or "Unit status Y offset",
+		-400,
+		400,
+		1,
+		function() return getValue(unit, { "status", "unitStatus", "offset", "y" }, (usDef.offset and usDef.offset.y) or 0) end,
+		function(val)
+			local off = getValue(unit, { "status", "unitStatus", "offset" }, { x = 0, y = 0 }) or {}
+			off.y = val or 0
+			setValue(unit, { "status", "unitStatus", "offset" }, off)
+			refresh()
+		end,
+		(usDef.offset and usDef.offset.y) or 0,
+		"unitStatus",
+		true
+	)
+	unitStatusOffsetY.isEnabled = isUnitStatusEnabled
+	list[#list + 1] = unitStatusOffsetY
 
 	if unit == "target" then
 		list[#list + 1] = { name = L["Auras"] or "Auras", kind = settingType.Collapsible, id = "auras", defaultCollapsed = true }

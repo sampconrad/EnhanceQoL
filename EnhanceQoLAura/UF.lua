@@ -229,6 +229,7 @@ local defaults = {
 			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
 			textLeft = "PERCENT",
 			textRight = "CURMAX",
+			textDelimiter = " ",
 			fontSize = 14,
 			font = nil,
 			fontOutline = "OUTLINE", -- fallback to default font
@@ -244,6 +245,7 @@ local defaults = {
 			useCustomColor = false,
 			textLeft = "PERCENT",
 			textRight = "CURMAX",
+			textDelimiter = " ",
 			fontSize = 14,
 			font = nil,
 			offsetLeft = { x = 6, y = 0 },
@@ -255,12 +257,18 @@ local defaults = {
 			enabled = true,
 			fontSize = 14,
 			font = nil,
+			fontOutline = "OUTLINE",
 			nameColorMode = "CLASS", -- CLASS or CUSTOM
 			nameColor = { 0.8, 0.8, 1, 1 },
 			levelColor = { 1, 0.85, 0, 1 },
 			nameOffset = { x = 0, y = 0 },
 			levelOffset = { x = 0, y = 0 },
 			levelEnabled = true,
+			nameMaxChars = 15,
+			unitStatus = {
+				enabled = false,
+				offset = { x = 0, y = 0 },
+			},
 			combatIndicator = {
 				enabled = false,
 				size = 18,
@@ -379,6 +387,22 @@ local bossLayoutDirty
 local bossHidePending
 local bossShowPending
 local bossInitPending
+
+local debuffinfo = {
+	[1] = DEBUFF_TYPE_MAGIC_COLOR,
+	[2] = DEBUFF_TYPE_CURSE_COLOR,
+	[3] = DEBUFF_TYPE_DISEASE_COLOR,
+	[4] = DEBUFF_TYPE_POISON_COLOR,
+	[5] = DEBUFF_TYPE_BLEED_COLOR,
+	[0] = DEBUFF_TYPE_NONE_COLOR,
+}
+local colorcurve = C_CurveUtil and C_CurveUtil.CreateColorCurve() or nil
+if colorcurve and Enum.LuaCurveType and Enum.LuaCurveType.Step then
+	colorcurve:SetType(Enum.LuaCurveType.Step)
+	for dispeltype, v in pairs(debuffinfo) do
+		colorcurve:AddPoint(dispeltype, v)
+	end
+end
 
 local function defaultsFor(unit)
 	if isBossUnit(unit) then return defaults.boss or defaults.target or defaults.player or {} end
@@ -865,8 +889,11 @@ end
 
 local function applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 	if not btn or not aura then return end
-
-	if issecretvalue and issecretvalue(isDebuff) then isDebuff = not C_UnitAuras.IsAuraFilteredOutByInstanceID("target", aura.auraInstanceID, "HARMFUL|PLAYER|INCLUDE_NAME_PLATE_ONLY") end
+	local issecretAura = false
+	if issecretvalue and issecretvalue(isDebuff) then
+		issecretAura = true
+		isDebuff = not C_UnitAuras.IsAuraFilteredOutByInstanceID("target", aura.auraInstanceID, "HARMFUL|PLAYER|INCLUDE_NAME_PLATE_ONLY")
+	end
 	unitToken = unitToken or "target"
 	btn.spellId = aura.spellId
 	btn._showTooltip = ac.showTooltip ~= false
@@ -894,7 +921,17 @@ local function applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 	if btn.border then
 		if isDebuff then
 			btn.border:SetTexture("Interface\\Buttons\\UI-Debuff-Overlays")
-			btn.border:SetVertexColor(1, 0.25, 0.25, 1)
+			local color = { r = 1, g = 0.25, b = 0.25 }
+			if issecretAura then
+				color = C_UnitAuras.GetAuraDispelTypeColor(unitToken, aura.auraInstanceID, colorcurve)
+			elseif _G.DebuffTypeColor then
+				if aura.dispelName then
+					color = DebuffTypeColor[aura.dispelName]
+				else
+					color = DebuffTypeColor["none"]
+				end
+			end
+			btn.border:SetVertexColor(color.r, color.g, color.b, 1)
 			btn.border:Show()
 		else
 			btn.border:SetTexture(nil)
@@ -1045,7 +1082,7 @@ local function fullScanTargetAuras()
 	local ac = cfg.auraIcons or defaults.target.auraIcons or {}
 	local hidePermanent = ac.hidePermanentAuras == true or ac.hidePermanent == true
 	if C_UnitAuras and C_UnitAuras.GetUnitAuras then
-		local helpful = C_UnitAuras.GetUnitAuras("target", "HELPFUL|CANCELABLE")
+		local helpful = C_UnitAuras.GetUnitAuras("target", "HELPFUL|INCLUDE_NAME_PLATE_ONLY")
 		for i = 1, #helpful do
 			local aura = helpful[i]
 			if aura and (not hidePermanent or not isPermanentAura(aura, "target")) then
@@ -1546,32 +1583,105 @@ local function configureSpecialTexture(bar, pType, texKey, cfg)
 	end
 end
 
-local function formatText(mode, cur, maxv, useShort, percentValue)
+local function resolveTextDelimiter(delimiter)
+	if delimiter == nil or delimiter == "" then delimiter = " " end
+	if delimiter == " " then return " " end
+	return " " .. tostring(delimiter) .. " "
+end
+
+local function formatText(mode, cur, maxv, useShort, percentValue, delimiter)
 	if mode == "NONE" then return "" end
+	local join = resolveTextDelimiter(delimiter)
 	if addon.variables and addon.variables.isMidnight and issecretvalue then
 		if (cur and issecretvalue(cur)) or (maxv and issecretvalue(maxv)) then
 			local scur = useShort and shortValue(cur) or BreakUpLargeNumbers(cur)
 			local smax = useShort and shortValue(maxv) or BreakUpLargeNumbers(maxv)
+			local percentText
+			if percentValue ~= nil then percentText = ("%s%%"):format(tostring(AbbreviateLargeNumbers(percentValue))) end
 
 			if mode == "CURRENT" then return tostring(scur) end
-			if mode == "CURMAX" then return ("%s / %s"):format(tostring(scur), tostring(smax)) end
-			if mode == "PERCENT" then
-				if percentValue ~= nil then return ("%s%%"):format(tostring(AbbreviateLargeNumbers(percentValue))) end
-			end
+			if mode == "CURMAX" then return ("%s/%s"):format(tostring(scur), tostring(smax)) end
+			if mode == "PERCENT" then return percentText or "" end
+			if mode == "CURPERCENT" or mode == "CURPERCENTDASH" then return percentText and ("%s%s%s"):format(tostring(scur), join, percentText) or "" end
+			if mode == "CURMAXPERCENT" then return percentText and ("%s/%s%s%s"):format(tostring(scur), tostring(smax), join, percentText) or "" end
 			return ""
 		end
 	end
-	if mode == "PERCENT" then
-		if percentValue ~= nil then return ("%d%%"):format(floor(percentValue + 0.5)) end
-		if not maxv or maxv == 0 then return "0%" end
-		return ("%d%%"):format(floor((cur or 0) / maxv * 100 + 0.5))
+	local percentText
+	if mode == "PERCENT" or mode == "CURPERCENT" or mode == "CURPERCENTDASH" or mode == "CURMAXPERCENT" then
+		if percentValue ~= nil then
+			percentText = ("%d%%"):format(floor(percentValue + 0.5))
+		elseif not maxv or maxv == 0 then
+			percentText = "0%"
+		else
+			percentText = ("%d%%"):format(floor((cur or 0) / maxv * 100 + 0.5))
+		end
 	end
+	if mode == "PERCENT" then return percentText end
 	if mode == "CURMAX" then
-		if useShort == false then return ("%s / %s"):format(tostring(cur or 0), tostring(maxv or 0)) end
-		return ("%s / %s"):format(shortValue(cur or 0), shortValue(maxv or 0))
+		local curText = useShort == false and tostring(cur or 0) or shortValue(cur or 0)
+		local maxText = useShort == false and tostring(maxv or 0) or shortValue(maxv or 0)
+		return ("%s/%s"):format(curText, maxText)
+	end
+	if mode == "CURPERCENT" or mode == "CURPERCENTDASH" then
+		if not percentText then return "" end
+		local curText = useShort == false and tostring(cur or 0) or shortValue(cur or 0)
+		return ("%s%s%s"):format(curText, join, percentText)
+	end
+	if mode == "CURMAXPERCENT" then
+		if not percentText then return "" end
+		local curText = useShort == false and tostring(cur or 0) or shortValue(cur or 0)
+		local maxText = useShort == false and tostring(maxv or 0) or shortValue(maxv or 0)
+		return ("%s/%s%s%s"):format(curText, maxText, join, percentText)
 	end
 	if useShort == false then return tostring(cur or 0) end
 	return shortValue(cur or 0)
+end
+
+local nameWidthCache = {}
+
+local function getNameLimitWidth(fontPath, fontSize, fontOutline, maxChars)
+	if not maxChars or maxChars <= 0 then return nil end
+	local font = getFont(fontPath)
+	local size = fontSize or 14
+	local outline = fontOutline or "OUTLINE"
+	local key = tostring(font) .. "|" .. tostring(size) .. "|" .. tostring(outline) .. "|" .. tostring(maxChars)
+	if nameWidthCache[key] then return nameWidthCache[key] end
+	if not nameWidthCache._measure and UIParent and UIParent.CreateFontString then
+		nameWidthCache._measure = UIParent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		if nameWidthCache._measure then nameWidthCache._measure:Hide() end
+	end
+	local measure = nameWidthCache._measure
+	if not measure then return nil end
+	measure:SetFont(font, size, outline)
+	measure:SetText(string.rep("i", maxChars))
+	local width = measure:GetStringWidth() or 0
+	nameWidthCache[key] = width
+	return width
+end
+
+local function applyNameCharLimit(st, scfg, defStatus)
+	if not st or not st.nameText then return end
+	local maxChars = scfg and scfg.nameMaxChars
+	if maxChars == nil and defStatus then maxChars = defStatus.nameMaxChars end
+	maxChars = tonumber(maxChars) or 0
+	if maxChars <= 0 then
+		if st.nameText.SetMaxLines then st.nameText:SetMaxLines(1) end
+		if st.nameText.SetWordWrap then st.nameText:SetWordWrap(false) end
+		st.nameText:SetWidth(0)
+		return
+	end
+	if st.nameText.SetMaxLines then st.nameText:SetMaxLines(1) end
+	if st.nameText.SetWordWrap then st.nameText:SetWordWrap(false) end
+	local width = getNameLimitWidth(scfg and scfg.font, scfg and scfg.fontSize or 14, scfg and scfg.fontOutline or "OUTLINE", maxChars)
+	if width and width > 0 then st.nameText:SetWidth(width) end
+end
+
+local function getTextDelimiter(cfg, def)
+	local defaultDelim = (def and def.textDelimiter) or " "
+	local delimiter = cfg and cfg.textDelimiter
+	if delimiter == nil or delimiter == "" then delimiter = defaultDelim end
+	return delimiter
 end
 
 local function getAbsorbColor(hc, unit)
@@ -1641,7 +1751,6 @@ local function applyCastLayout(cfg, unit)
 	local texKey = ccfg.texture or defc.texture or "DEFAULT"
 	local castTexture = resolveCastTexture(texKey)
 	st.castBar:SetStatusBarTexture(castTexture)
-	if st.castBar.SetStatusBarDesaturated then st.castBar:SetStatusBarDesaturated(false) end
 	do -- Cast backdrop
 		local bd = (ccfg and ccfg.backdrop) or (defc and defc.backdrop) or { enabled = true, color = { 0, 0, 0, 0.6 } }
 		if st.castBar.SetBackdrop then st.castBar:SetBackdrop(nil) end
@@ -1804,7 +1913,7 @@ local function setCastInfoFromUnit(unit)
 		stopCast(unit)
 		return
 	end
-	local name, text, texture, startTimeMS, endTimeMS, _, _, notInterruptible, _, isEmpowered, numEmpowerStages = UnitChannelInfo(unit)
+	local name, text, texture, startTimeMS, endTimeMS, _, notInterruptible, _, isEmpowered, numEmpowerStages = UnitChannelInfo(unit)
 	local isChannel = true
 	if not name then
 		name, text, texture, startTimeMS, endTimeMS, _, _, notInterruptible = UnitCastingInfo(unit)
@@ -1823,13 +1932,15 @@ local function setCastInfoFromUnit(unit)
 		if type(startTimeMS) ~= "nil" and type(endTimeMS) ~= "nil" then
 			st.castBar:Show()
 
-			local durObj
+			local durObj, direction
 			if isChannel then
 				durObj = UnitChannelDuration(unit)
+				direction = Enum.StatusBarTimerDirection.RemainingTime
 			else
 				durObj = UnitCastingDuration(unit)
+				direction = Enum.StatusBarTimerDirection.ElapsedTime
 			end
-			st.castBar:SetTimerDuration(durObj)
+			st.castBar:SetTimerDuration(durObj, Enum.StatusBarInterpolation.Immediate, direction)
 			if st.castName then
 				local showName = ccfg.showName ~= false
 				st.castName:SetShown(showName)
@@ -1840,22 +1951,14 @@ local function setCastInfoFromUnit(unit)
 				st.castIcon:SetShown(showIcon)
 				if showIcon then st.castIcon:SetTexture(texture) end
 			end
-			-- TODO reverse bar for channeling is missing
-			-- TODO: replace this interruptible-event workaround once C_CurveUtil.EvaluateColorFromBoolean and C_CurveUtil.EvaluateColorValueFromBoolean are available.
-			local np = C_NamePlate.GetNamePlateForUnit(unit)
-
-			if np and np.UnitFrame and np.UnitFrame.castBar and np.UnitFrame.castBar.barType then
-				notInterruptible = np.UnitFrame.castBar.barType ~= "standard" and np.UnitFrame.castBar.barType ~= "channel"
-			end
 			local clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
-			if not issecretvalue(notInterruptible) and notInterruptible then
-				clr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or clr
-			else
-				clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
-			end
-			st.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
-			--! not allowed in tainted code from secret values (waiting for new BETA or API from blizzard)
-			-- st.castBar:SetStatusBarDesaturated(notInterruptible)
+			local nclr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or { 204 / 255, 204 / 255, 204 / 255, 1 }
+			st.castBar:GetStatusBarTexture():SetVertexColorFromBoolean(
+				notInterruptible,
+				CreateColor(nclr[1] or 0.9, nclr[2] or 0.7, nclr[3] or 0.2, nclr[4] or 1),
+				CreateColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+			)
+			st.castBar:SetStatusBarDesaturated(true)
 		else
 			stopCast(unit)
 		end
@@ -1903,6 +2006,8 @@ local function updateHealth(cfg, unit)
 	if not st or not st.health or not st.frame then return end
 	local info = UNITS[unit]
 	local allowAbsorb = not (info and info.disableAbsorb)
+	local def = defaultsFor(unit) or {}
+	local defH = def.health or {}
 	local cur = UnitHealth(unit)
 	local maxv = UnitHealthMax(unit)
 	if issecretvalue and issecretvalue(maxv) then
@@ -1929,8 +2034,6 @@ local function updateHealth(cfg, unit)
 		end
 	end
 	if not hr then
-		local def = defaultsFor(unit) or {}
-		local defH = def.health or {}
 		local color = defH.color or { 0, 0.8, 0, 1 }
 		hr, hg, hb, ha = color[1] or 0, color[2] or 0.8, color[3] or 0, color[4] or 1
 	end
@@ -1959,8 +2062,12 @@ local function updateHealth(cfg, unit)
 			end
 		end
 	end
-	if st.healthTextLeft then st.healthTextLeft:SetText(formatText(hc.textLeft or "PERCENT", cur, maxv, hc.useShortNumbers ~= false, percentVal)) end
-	if st.healthTextRight then st.healthTextRight:SetText(formatText(hc.textRight or "CURMAX", cur, maxv, hc.useShortNumbers ~= false, percentVal)) end
+	local leftMode = hc.textLeft or "PERCENT"
+	local rightMode = hc.textRight or "CURMAX"
+	local leftDelimiter = getTextDelimiter(hc, defH)
+	local rightDelimiter = getTextDelimiter(hc, defH)
+	if st.healthTextLeft then st.healthTextLeft:SetText(formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, leftDelimiter)) end
+	if st.healthTextRight then st.healthTextRight:SetText(formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, rightDelimiter)) end
 end
 
 local function updatePower(cfg, unit)
@@ -1969,6 +2076,8 @@ local function updatePower(cfg, unit)
 	if not st then return end
 	local bar = st.power
 	if not bar then return end
+	local def = defaultsFor(unit) or {}
+	local defP = def.power or {}
 	local pcfg = cfg.power or {}
 	if pcfg.enabled == false then
 		bar:Hide()
@@ -2001,13 +2110,19 @@ local function updatePower(cfg, unit)
 		if (issecretvalue and not issecretvalue(maxv) and maxv == 0) or (not addon.variables.isMidnight and maxv == 0) then
 			st.powerTextLeft:SetText("")
 		else
-			st.powerTextLeft:SetText(formatText(pcfg.textLeft or "PERCENT", cur, maxv, pcfg.useShortNumbers ~= false, percentVal))
+			local leftMode = pcfg.textLeft or "PERCENT"
+			local leftDelimiter = getTextDelimiter(pcfg, defP)
+			st.powerTextLeft:SetText(formatText(leftMode, cur, maxv, pcfg.useShortNumbers ~= false, percentVal, leftDelimiter))
 		end
 	end
 	if (issecretvalue and not issecretvalue(maxv) and maxv == 0) or (not addon.variables.isMidnight and maxv == 0) then
 		st.powerTextRight:SetText("")
 	else
-		if st.powerTextRight then st.powerTextRight:SetText(formatText(pcfg.textRight or "CURMAX", cur, maxv, pcfg.useShortNumbers ~= false, percentVal)) end
+		if st.powerTextRight then
+			local rightMode = pcfg.textRight or "CURMAX"
+			local rightDelimiter = getTextDelimiter(pcfg, defP)
+			st.powerTextRight:SetText(formatText(rightMode, cur, maxv, pcfg.useShortNumbers ~= false, percentVal, rightDelimiter))
+		end
 	end
 end
 
@@ -2066,6 +2181,42 @@ local function hookTextFrameLevels(st)
 	syncTextFrameLevels(st)
 end
 
+local function updateUnitStatusIndicator(cfg, unit)
+	cfg = cfg or (states[unit] and states[unit].cfg) or ensureDB(unit)
+	local st = states[unit]
+	if not st or not st.unitStatusText then return end
+	if cfg.enabled == false then
+		st.unitStatusText:SetText("")
+		st.unitStatusText:Hide()
+		return
+	end
+	local def = defaultsFor(unit) or {}
+	local defStatus = def.status or {}
+	local scfg = cfg.status or {}
+	local usDef = defStatus.unitStatus or {}
+	local usCfg = scfg.unitStatus or usDef or {}
+	if usCfg.enabled ~= true then
+		st.unitStatusText:SetText("")
+		st.unitStatusText:Hide()
+		return
+	end
+	if UnitExists and not UnitExists(unit) then
+		st.unitStatusText:SetText("")
+		st.unitStatusText:Hide()
+		return
+	end
+	local tag
+	if UnitIsConnected and UnitIsConnected(unit) == false then
+		tag = PLAYER_OFFLINE or "Offline"
+	elseif UnitIsAFK and UnitIsAFK(unit) then
+		tag = DEFAULT_AFK_MESSAGE or "AFK"
+	elseif UnitIsDND and UnitIsDND(unit) then
+		tag = DEFAULT_DND_MESSAGE or "DND"
+	end
+	st.unitStatusText:SetText(tag or "")
+	st.unitStatusText:SetShown(tag ~= nil)
+end
+
 local function updateStatus(cfg, unit)
 	cfg = cfg or (states[unit] and states[unit].cfg) or ensureDB(unit)
 	local st = states[unit]
@@ -2074,9 +2225,12 @@ local function updateStatus(cfg, unit)
 	local def = defaultsFor(unit)
 	local defStatus = def.status or {}
 	local ciCfg = scfg.combatIndicator or defStatus.combatIndicator or {}
+	local usDef = defStatus.unitStatus or {}
+	local usCfg = scfg.unitStatus or usDef or {}
 	local showName = scfg.enabled ~= false
 	local showLevel = scfg.levelEnabled ~= false
-	local showStatus = showName or showLevel or (unit == UNIT.PLAYER and ciCfg.enabled ~= false)
+	local showUnitStatus = usCfg.enabled == true
+	local showStatus = showName or showLevel or showUnitStatus or (unit == UNIT.PLAYER and ciCfg.enabled ~= false)
 	local statusHeight = showStatus and (cfg.statusHeight or def.statusHeight) or 0.001
 	st.status:SetHeight(statusHeight)
 	st.status:SetShown(showStatus)
@@ -2085,6 +2239,7 @@ local function updateStatus(cfg, unit)
 		st.nameText:ClearAllPoints()
 		st.nameText:SetPoint(scfg.nameAnchor or "LEFT", st.status, scfg.nameAnchor or "LEFT", (scfg.nameOffset and scfg.nameOffset.x) or 0, (scfg.nameOffset and scfg.nameOffset.y) or 0)
 		st.nameText:SetShown(showName)
+		applyNameCharLimit(st, scfg, defStatus)
 	end
 	if st.levelText then
 		applyFont(st.levelText, scfg.font, scfg.fontSize or 14, scfg.fontOutline)
@@ -2092,6 +2247,16 @@ local function updateStatus(cfg, unit)
 		st.levelText:SetPoint(scfg.levelAnchor or "RIGHT", st.status, scfg.levelAnchor or "RIGHT", (scfg.levelOffset and scfg.levelOffset.x) or 0, (scfg.levelOffset and scfg.levelOffset.y) or 0)
 		st.levelText:SetShown(showStatus and showLevel)
 	end
+	if st.unitStatusText then
+		applyFont(st.unitStatusText, scfg.font, scfg.fontSize or 14, scfg.fontOutline)
+		local off = usCfg.offset or usDef.offset or {}
+		st.unitStatusText:ClearAllPoints()
+		st.unitStatusText:SetPoint("CENTER", st.status, "CENTER", off.x or 0, off.y or 0)
+		if st.unitStatusText.SetJustifyH then st.unitStatusText:SetJustifyH("CENTER") end
+		if st.unitStatusText.SetWordWrap then st.unitStatusText:SetWordWrap(false) end
+		if st.unitStatusText.SetMaxLines then st.unitStatusText:SetMaxLines(1) end
+	end
+	updateUnitStatusIndicator(cfg, unit)
 end
 
 local function updateCombatIndicator(cfg)
@@ -2222,9 +2387,12 @@ local function layoutFrame(cfg, unit)
 	local scfg = cfg.status or {}
 	local defStatus = def.status or {}
 	local ciCfg = scfg.combatIndicator or defStatus.combatIndicator or {}
+	local usDef = defStatus.unitStatus or {}
+	local usCfg = scfg.unitStatus or usDef or {}
 	local showName = scfg.enabled ~= false
 	local showLevel = scfg.levelEnabled ~= false
-	local showStatus = showName or showLevel or (unit == UNIT.PLAYER and ciCfg.enabled ~= false)
+	local showUnitStatus = usCfg.enabled == true
+	local showStatus = showName or showLevel or showUnitStatus or (unit == UNIT.PLAYER and ciCfg.enabled ~= false)
 	local pcfg = cfg.power or {}
 	local powerEnabled = pcfg.enabled ~= false
 	local width = max(MIN_WIDTH, cfg.width or def.width)
@@ -2460,6 +2628,7 @@ local function ensureFrames(unit)
 	st.powerTextRight = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.nameText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.levelText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	st.unitStatusText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.raidIcon = st.statusTextLayer:CreateTexture(nil, "OVERLAY", nil, 7)
 	st.raidIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
 	st.raidIcon:SetSize(18, 18)
@@ -2743,8 +2912,10 @@ local function applyBossEditSample(idx, cfg)
 	local st = states[unit]
 	if not st or not st.frame then return end
 	local def = defaultsFor("boss")
-	local hc = cfg.health or def.health or {}
-	local pcfg = cfg.power or def.power or {}
+	local defH = def.health or {}
+	local defP = def.power or {}
+	local hc = cfg.health or defH or {}
+	local pcfg = cfg.power or defP or {}
 	local cdef = cfg.cast or def.cast or {}
 
 	local cur = UnitHealth("player") or 1
@@ -2753,8 +2924,12 @@ local function applyBossEditSample(idx, cfg)
 	st.health:SetValue(cur)
 	local color = hc.color or (def.health and def.health.color) or { 0, 0.8, 0, 1 }
 	st.health:SetStatusBarColor(color[1] or 0, color[2] or 0.8, color[3] or 0, color[4] or 1)
-	if st.healthTextLeft then st.healthTextLeft:SetText(formatText(hc.textLeft or "PERCENT", cur, maxv, hc.useShortNumbers ~= false)) end
-	if st.healthTextRight then st.healthTextRight:SetText(formatText(hc.textRight or "CURMAX", cur, maxv, hc.useShortNumbers ~= false)) end
+	local leftMode = hc.textLeft or "PERCENT"
+	local rightMode = hc.textRight or "CURMAX"
+	local leftDelimiter = getTextDelimiter(hc, defH)
+	local rightDelimiter = getTextDelimiter(hc, defH)
+	if st.healthTextLeft then st.healthTextLeft:SetText(formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, nil, leftDelimiter)) end
+	if st.healthTextRight then st.healthTextRight:SetText(formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, nil, rightDelimiter)) end
 
 	local powerEnabled = pcfg.enabled ~= false
 	if st.power then
@@ -2767,8 +2942,12 @@ local function applyBossEditSample(idx, cfg)
 			local pr, pg, pb, pa = getPowerColor(token)
 			st.power:SetStatusBarColor(pr or 0.1, pg or 0.45, pb or 1, pa or 1)
 			if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(isPowerDesaturated(token)) end
-			if st.powerTextLeft then st.powerTextLeft:SetText(formatText(pcfg.textLeft or "PERCENT", pCur, pMax, pcfg.useShortNumbers ~= false)) end
-			if st.powerTextRight then st.powerTextRight:SetText(formatText(pcfg.textRight or "CURMAX", pCur, pMax, pcfg.useShortNumbers ~= false)) end
+			local pLeftMode = pcfg.textLeft or "PERCENT"
+			local pRightMode = pcfg.textRight or "CURMAX"
+			local pLeftDelimiter = getTextDelimiter(pcfg, defP)
+			local pRightDelimiter = getTextDelimiter(pcfg, defP)
+			if st.powerTextLeft then st.powerTextLeft:SetText(formatText(pLeftMode, pCur, pMax, pcfg.useShortNumbers ~= false, nil, pLeftDelimiter)) end
+			if st.powerTextRight then st.powerTextRight:SetText(formatText(pRightMode, pCur, pMax, pcfg.useShortNumbers ~= false, nil, pRightDelimiter)) end
 			st.power:Show()
 		else
 			st.power:SetValue(0)
@@ -2874,6 +3053,8 @@ local unitEvents = {
 	"UNIT_MAXPOWER",
 	"UNIT_DISPLAYPOWER",
 	"UNIT_NAME_UPDATE",
+	"UNIT_FLAGS",
+	"UNIT_CONNECTION",
 	"UNIT_AURA",
 	"UNIT_TARGET",
 	"UNIT_SPELLCAST_START",
@@ -2889,7 +3070,6 @@ end
 local portraitEvents = {
 	"UNIT_PORTRAIT_UPDATE",
 	"UNIT_MODEL_CHANGED",
-	"UNIT_CONNECTION",
 	"UNIT_ENTERED_VEHICLE",
 	"UNIT_EXITED_VEHICLE",
 	"UNIT_EXITING_VEHICLE",
@@ -2909,6 +3089,7 @@ local generalEvents = {
 	"PLAYER_LOGIN",
 	"PLAYER_REGEN_DISABLED",
 	"PLAYER_REGEN_ENABLED",
+	"PLAYER_FLAGS_CHANGED",
 	"PLAYER_UPDATE_RESTING",
 	"UNIT_PET",
 	"PLAYER_FOCUS_CHANGED",
@@ -3084,6 +3265,7 @@ local function updateTargetTargetFrame(cfg, forceApply)
 		end
 	end
 	checkRaidTargetIcon(UNIT.TARGET_TARGET, st)
+	updateUnitStatusIndicator(cfg, UNIT.TARGET_TARGET)
 	updatePortrait(cfg, UNIT.TARGET_TARGET)
 	ensureToTTicker()
 	applyVisibilityRules(UNIT.TARGET_TARGET)
@@ -3136,6 +3318,7 @@ local function updateFocusFrame(cfg, forceApply)
 		end
 	end
 	checkRaidTargetIcon(UNIT.FOCUS, st)
+	updateUnitStatusIndicator(cfg, UNIT.FOCUS)
 	updatePortrait(cfg, UNIT.FOCUS)
 	applyVisibilityRules(UNIT.FOCUS)
 end
@@ -3163,6 +3346,11 @@ local function onEvent(self, event, unit, arg1)
 		if petCfg.enabled then applyConfig(UNIT.PET) end
 		updateCombatIndicator(playerCfg)
 		updateRestingIndicator(playerCfg)
+		updateUnitStatusIndicator(playerCfg, UNIT.PLAYER)
+		updateUnitStatusIndicator(targetCfg, UNIT.TARGET)
+		updateUnitStatusIndicator(totCfg, UNIT.TARGET_TARGET)
+		updateUnitStatusIndicator(focusCfg, UNIT.FOCUS)
+		updateUnitStatusIndicator(petCfg, UNIT.PET)
 		updateAllRaidTargetIcons()
 		if bossCfg.enabled then
 			updateBossFrames(true)
@@ -3180,6 +3368,14 @@ local function onEvent(self, event, unit, arg1)
 		updatePower(playerCfg, UNIT.PLAYER)
 		updateCombatIndicator(playerCfg)
 		updateRestingIndicator(playerCfg)
+		updateUnitStatusIndicator(playerCfg, UNIT.PLAYER)
+	elseif event == "PLAYER_FLAGS_CHANGED" then
+		if unit and allowedEventUnit[unit] then
+			updateUnitStatusIndicator(getCfg(unit), unit)
+		else
+			updateUnitStatusIndicator(getCfg(UNIT.PLAYER), UNIT.PLAYER)
+		end
+		if allowedEventUnit[UNIT.TARGET_TARGET] then updateUnitStatusIndicator(getCfg(UNIT.TARGET_TARGET), UNIT.TARGET_TARGET) end
 	elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
 		local playerCfg = getCfg(UNIT.PLAYER)
 		updateCombatIndicator(playerCfg)
@@ -3230,6 +3426,8 @@ local function onEvent(self, event, unit, arg1)
 		updatePortrait(targetCfg, unitToken)
 		if totCfg.enabled then updateTargetTargetFrame(totCfg) end
 		if focusCfg.enabled then updateFocusFrame(focusCfg) end
+		updateUnitStatusIndicator(targetCfg, UNIT.TARGET)
+		updateUnitStatusIndicator(totCfg, UNIT.TARGET_TARGET)
 	elseif event == "UNIT_AURA" and unit == "target" then
 		local targetCfg = getCfg(UNIT.TARGET)
 		local eventInfo = arg1
@@ -3406,6 +3604,21 @@ local function onEvent(self, event, unit, arg1)
 			local bossCfg = getCfg(unit)
 			if bossCfg.enabled then updateNameAndLevel(bossCfg, unit) end
 		end
+	elseif event == "UNIT_FLAGS" then
+		updateUnitStatusIndicator(getCfg(unit), unit)
+		if allowedEventUnit[UNIT.TARGET_TARGET] then updateUnitStatusIndicator(getCfg(UNIT.TARGET_TARGET), UNIT.TARGET_TARGET) end
+	elseif event == "UNIT_CONNECTION" then
+		updateUnitStatusIndicator(getCfg(unit), unit)
+		if allowedEventUnit[UNIT.TARGET_TARGET] then updateUnitStatusIndicator(getCfg(UNIT.TARGET_TARGET), UNIT.TARGET_TARGET) end
+		if unit == UNIT.PLAYER then updatePortrait(getCfg(UNIT.PLAYER), UNIT.PLAYER) end
+		if unit == UNIT.TARGET then updatePortrait(getCfg(UNIT.TARGET), UNIT.TARGET) end
+		if unit == UNIT.TARGET_TARGET then updatePortrait(getCfg(UNIT.TARGET_TARGET), UNIT.TARGET_TARGET) end
+		if unit == UNIT.FOCUS then updatePortrait(getCfg(UNIT.FOCUS), UNIT.FOCUS) end
+		if unit == UNIT.PET then updatePortrait(getCfg(UNIT.PET), UNIT.PET) end
+		if isBossUnit(unit) then
+			local bossCfg = getCfg(unit)
+			if bossCfg.enabled then updatePortrait(bossCfg, unit) end
+		end
 	elseif portraitEventsMap[event] then
 		if unit == UNIT.PLAYER then updatePortrait(getCfg(UNIT.PLAYER), UNIT.PLAYER) end
 		if unit == UNIT.TARGET then updatePortrait(getCfg(UNIT.TARGET), UNIT.TARGET) end
@@ -3453,6 +3666,7 @@ local function onEvent(self, event, unit, arg1)
 			updateFocusFrame(focusCfg, true)
 			checkRaidTargetIcon(UNIT.FOCUS, states[UNIT.FOCUS])
 		end
+		updateUnitStatusIndicator(focusCfg, UNIT.FOCUS)
 	elseif event == "PLAYER_UPDATE_RESTING" then
 		updateRestingIndicator(getCfg(UNIT.PLAYER))
 	elseif event == "RAID_TARGET_UPDATE" then
