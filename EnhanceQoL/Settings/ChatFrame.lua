@@ -19,6 +19,16 @@ local data = {
 		default = false,
 	},
 	{
+		var = "chatFrameMaxLines2000",
+		text = L["chatFrameMaxLines2000"],
+		desc = L["chatFrameMaxLines2000Desc"],
+		func = function(key)
+			addon.db["chatFrameMaxLines2000"] = key
+			if addon.functions.ApplyChatFrameMaxLines then addon.functions.ApplyChatFrameMaxLines() end
+		end,
+		default = false,
+	},
+	{
 		var = "chatShowItemLevelInLinks",
 		text = L["chatItemLevelInLink"],
 		desc = L["chatItemLevelInLinkDesc"],
@@ -479,6 +489,21 @@ data = {
 				parent = true,
 				default = 1000,
 				sType = "slider",
+			},
+			{
+				var = "chatHistoryRestoreOnLogin",
+				text = L["CH_OPTION_RESTORE_LOGIN"],
+				desc = L["CH_OPTION_RESTORE_LOGIN_DESC"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["enableChatHistory"]
+						and addon.SettingsLayout.elements["enableChatHistory"].setting
+						and addon.SettingsLayout.elements["enableChatHistory"].setting:GetValue() == true
+				end,
+				func = function(val) addon.db.chatHistoryRestoreOnLogin = val and true or false end,
+				parent = true,
+				default = false,
+				type = Settings.VarType.Boolean,
+				sType = "checkbox",
 			},
 			{
 				var = "chatChannelHistoryFontSize",

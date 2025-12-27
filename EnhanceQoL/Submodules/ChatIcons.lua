@@ -139,6 +139,7 @@ local function FormatCurrencyLink(link, id)
 end
 
 local function FilterChatMessage(_, event, message, ...)
+	if issecretvalue and issecretvalue(message) then return end
 	if type(message) ~= "string" or message == "" then return false end
 
 	if ChatIcons.enabled and event == "CHAT_MSG_LOOT" then

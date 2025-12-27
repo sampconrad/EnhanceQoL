@@ -1245,10 +1245,11 @@ end
 
 local _formatParts = {}
 
-function formatLine(self, line)
+function formatLine(self, line, opts)
 	if not line then return "" end
+	local disableUrls = opts == true or (type(opts) == "table" and opts.disableUrls)
 	local cache = self.runtime and self.runtime.formattedCache
-	if cache and cache[line] then return cache[line] end
+	if cache and cache[line] and not disableUrls then return cache[line] end
 
 	-- Enrich sender info if it was not stored yet (old lines)
 	local senderNameStored, senderRealmStored = line.senderName, line.senderRealmKey
@@ -1336,7 +1337,8 @@ function formatLine(self, line)
 		end
 	end
 
-	local body = formatURLs(line.message or "")
+	local body = line.message or ""
+	if not disableUrls then body = formatURLs(body) end
 	if body:find("|r", 1, true) then body = body:gsub("|r", "|r" .. chatColorCode) end
 
 	table.wipe(_formatParts)
@@ -1361,7 +1363,7 @@ function formatLine(self, line)
 	parts[n] = "|r"
 
 	local text = table.concat(parts, "", 1, n)
-	if cache then cache[line] = text end
+	if cache and not disableUrls then cache[line] = text end
 	return text
 end
 
@@ -1728,6 +1730,34 @@ local function collectLines(self, scope, realmKey, charKey, factionKey, searchNe
 	end
 
 	return results
+end
+
+function ChannelHistory:RestoreChatHistoryToChatFrame()
+	if not addon.db or not addon.db.chatHistoryRestoreOnLogin then return end
+	self.runtime = self.runtime or {}
+	if self.runtime.chatHistoryRestored then return end
+	if not self.history or not self.keys then self:InitStorage() end
+
+	local chatFrame = DEFAULT_CHAT_FRAME or ChatFrame1
+	if not chatFrame or not chatFrame.AddMessage then return end
+
+	self:LoadFiltersFromDB()
+
+	local frameLimit = chatFrame.GetMaxLines and chatFrame:GetMaxLines() or 0
+	local viewLimit = addon.db and addon.db.chatChannelHistoryMaxViewLines
+	local limit = tonumber(viewLimit) or frameLimit or self.maxLines or 500
+	if frameLimit and frameLimit > 0 then limit = math.min(limit, frameLimit) end
+	if not limit or limit <= 0 then return end
+
+	local lines = collectLines(self, "character", self.keys.realmKey, self.keys.charKey, self.keys.faction, nil, limit)
+	if #lines == 0 then return end
+
+	for i = 1, #lines do
+		local text = formatLine(self, lines[i], true)
+		chatFrame:AddMessage(text, 1, 1, 1)
+	end
+	if chatFrame.ScrollToBottom then chatFrame:ScrollToBottom() end
+	self.runtime.chatHistoryRestored = true
 end
 
 local function setLabelText(label, text)
@@ -2121,6 +2151,7 @@ ChannelHistory.frame:SetScript("OnEvent", function(_, event, ...)
 			ChannelHistory:RegisterEvents()
 			ChannelHistory:CreateDebugFrame()
 			ChannelHistory:RefreshLogView()
+			ChannelHistory:RestoreChatHistoryToChatFrame()
 		end
 		return
 	end

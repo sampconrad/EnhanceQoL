@@ -2599,6 +2599,17 @@ local function initChatFrame()
 			end
 		end
 
+	addon.functions.ApplyChatFrameMaxLines = addon.functions.ApplyChatFrameMaxLines
+		or function()
+			local frame = DEFAULT_CHAT_FRAME or ChatFrame1
+			if not frame or not frame.SetMaxLines then return end
+			if addon.db and addon.db.chatFrameMaxLines2000 then
+				frame:SetMaxLines(2000)
+			else
+				frame:SetMaxLines(128)
+			end
+		end
+
 	if ChatFrame1 then
 		addon.functions.InitDBValue("chatFrameFadeEnabled", ChatFrame1:GetFading())
 		addon.functions.InitDBValue("chatFrameFadeTimeVisible", ChatFrame1:GetTimeVisible())
@@ -2613,6 +2624,7 @@ local function initChatFrame()
 		addon.functions.InitDBValue("chatFrameFadeDuration", 3)
 	end
 
+	addon.functions.InitDBValue("chatFrameMaxLines2000", false)
 	addon.functions.InitDBValue("enableChatIM", false)
 	addon.functions.InitDBValue("enableChatIMFade", false)
 	addon.functions.InitDBValue("chatIMUseCustomSound", false)
@@ -2621,6 +2633,7 @@ local function initChatFrame()
 	addon.functions.InitDBValue("enableChatHistory", false)
 	addon.functions.InitDBValue("chatChannelHistoryMaxLines", 500)
 	addon.functions.InitDBValue("chatChannelHistoryMaxViewLines", 1000)
+	addon.functions.InitDBValue("chatHistoryRestoreOnLogin", false)
 	addon.functions.InitDBValue("chatChannelHistoryFontSize", 12)
 	addon.functions.InitDBValue("chatChannelHistoryLootQualities", {
 		[0] = true,

@@ -18,6 +18,8 @@
 - Data Panels: new Loot Spec stream with quick menu for loot spec and active spec.
 - Data Panels: new Coordinates stream for persistent player coordinates.
 - Bags: new filter toggle to show upgrades only.
+- Chat History: optional restore of recent messages on login.
+- Chat: toggle to bump the default chat window history to 2000 lines.
 - UF Plus now supports Click Casting Addons (like clique)
 - Chat: optional item level (and equip slot) appended to item links.
 
