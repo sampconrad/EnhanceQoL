@@ -9,6 +9,7 @@
 - UF Plus: per-frame "Show when" visibility rules for custom unit frames in Edit Mode.
 - UF Plus: per-main-power color overrides for power bars (with optional desaturation).
 - UF Plus: portrait options for unit frames (size/side/offset).
+- UF Plus: portrait option to force a square background.
 - UF Plus: border offset control for unit frame textures.
 - UF Plus: new unit frame text modes (Cur/Max + percent combos) with separator dropdown.
 - UF Plus: status line name max width.

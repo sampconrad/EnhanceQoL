@@ -749,6 +749,19 @@ local function buildUnitSettings(unit)
 	portraitSide.isEnabled = isPortraitEnabled
 	list[#list + 1] = portraitSide
 
+	local portraitSquareBackground = checkbox(
+		L["UFPortraitSquareBackground"] or "Force square background",
+		function() return getValue(unit, { "portrait", "squareBackground" }, portraitDef.squareBackground == true) == true end,
+		function(val)
+			setValue(unit, { "portrait", "squareBackground" }, val and true or false)
+			refreshSelf()
+		end,
+		portraitDef.squareBackground == true,
+		"portrait"
+	)
+	portraitSquareBackground.isEnabled = isPortraitEnabled
+	list[#list + 1] = portraitSquareBackground
+
 	local portraitOffsetX = slider(
 		L["Offset X"] or "Offset X",
 		-200,

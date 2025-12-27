@@ -298,6 +298,7 @@ local defaults = {
 			size = 32,
 			side = "LEFT",
 			offset = { x = 0, y = 0 },
+			squareBackground = true,
 		},
 	},
 	target = {
@@ -344,6 +345,7 @@ local defaults = {
 			size = 32,
 			side = "LEFT",
 			offset = { x = 0, y = 0 },
+			squareBackground = false,
 		},
 	},
 	targettarget = {
@@ -359,6 +361,7 @@ local defaults = {
 			size = 32,
 			side = "LEFT",
 			offset = { x = 0, y = 0 },
+			squareBackground = false,
 		},
 	},
 }
@@ -2358,26 +2361,37 @@ local function getPortraitConfig(cfg, unit)
 	if side ~= "RIGHT" then side = "LEFT" end
 	local offx = (pcfg.offset and pcfg.offset.x) or (pdef.offset and pdef.offset.x) or 0
 	local offy = (pcfg.offset and pcfg.offset.y) or (pdef.offset and pdef.offset.y) or 0
-	return enabled == true, max(1, size or 1), side, offx, offy
+	local squareBackground = pcfg.squareBackground
+	if squareBackground == nil then squareBackground = pdef.squareBackground end
+	return enabled == true, max(1, size or 1), side, offx, offy, squareBackground == true
 end
 
 local function updatePortrait(cfg, unit)
 	cfg = cfg or (states[unit] and states[unit].cfg) or ensureDB(unit)
 	local st = states[unit]
 	if not st or not st.portrait then return end
-	local enabled = getPortraitConfig(cfg, unit)
+	local enabled, _, _, _, _, squareBackground = getPortraitConfig(cfg, unit)
 	if not enabled or cfg.enabled == false then
 		st.portrait:Hide()
 		st.portrait:SetTexture(nil)
+		if st.portraitBg then st.portraitBg:Hide() end
 		return
 	end
 	if UnitExists and not UnitExists(unit) then
 		st.portrait:Hide()
 		st.portrait:SetTexture(nil)
+		if st.portraitBg then st.portraitBg:Hide() end
 		return
 	end
 	SetPortraitTexture(st.portrait, unit)
 	st.portrait:Show()
+	if st.portraitBg then
+		if squareBackground == true then
+			st.portraitBg:Show()
+		else
+			st.portraitBg:Hide()
+		end
+	end
 end
 
 local function layoutFrame(cfg, unit)
@@ -2406,7 +2420,7 @@ local function layoutFrame(cfg, unit)
 		if borderOffset == nil then borderOffset = cfg.border.edgeSize or 1 end
 		borderOffset = max(0, borderOffset or 0)
 	end
-	local portraitEnabled, portraitSize, portraitSide, portraitOffsetX, portraitOffsetY = getPortraitConfig(cfg, unit)
+	local portraitEnabled, portraitSize, portraitSide, portraitOffsetX, portraitOffsetY, portraitSquareBackground = getPortraitConfig(cfg, unit)
 	local portraitWidth = portraitEnabled and portraitSize or 0
 	local barOffsetLeft = (portraitEnabled and portraitSide == "LEFT") and portraitWidth or 0
 	local barOffsetRight = (portraitEnabled and portraitSide == "RIGHT") and -portraitWidth or 0
@@ -2476,8 +2490,18 @@ local function layoutFrame(cfg, unit)
 			else
 				st.portrait:SetPoint("CENTER", st.barGroup or st.frame, "LEFT", -(portraitSize / 2) + portraitOffsetX, portraitOffsetY)
 			end
+			if st.portraitBg then
+				if portraitSquareBackground == true then
+					st.portraitBg:ClearAllPoints()
+					st.portraitBg:SetAllPoints(st.portrait)
+					st.portraitBg:Show()
+				else
+					st.portraitBg:Hide()
+				end
+			end
 		else
 			st.portrait:Hide()
+			if st.portraitBg then st.portraitBg:Hide() end
 		end
 	end
 
@@ -2581,6 +2605,11 @@ local function ensureFrames(unit)
 		st.portrait = st.frame:CreateTexture(nil, "ARTWORK")
 		st.portrait:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 		st.portrait:Hide()
+	end
+	if not st.portraitBg then
+		st.portraitBg = st.frame:CreateTexture(nil, "BACKGROUND")
+		st.portraitBg:SetColorTexture(0, 0, 0, 1)
+		st.portraitBg:Hide()
 	end
 
 	local allowAbsorb = not (info and info.disableAbsorb)
