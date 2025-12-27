@@ -2645,6 +2645,8 @@ local function initChatFrame()
 	addon.functions.InitDBValue("chatIMHideInCombat", false)
 	addon.functions.InitDBValue("chatIMUseAnimation", true)
 	addon.functions.InitDBValue("chatShowLootCurrencyIcons", false)
+	addon.functions.InitDBValue("chatShowItemLevelInLinks", false)
+	addon.functions.InitDBValue("chatShowItemLevelLocation", false)
 	addon.functions.InitDBValue("chatHideLearnUnlearn", false)
 	addon.functions.InitDBValue("chatBubbleFontOverride", false)
 	addon.functions.InitDBValue("chatBubbleFontSize", DEFAULT_CHAT_BUBBLE_FONT_SIZE)
@@ -2652,6 +2654,7 @@ local function initChatFrame()
 	-- Apply learn/unlearn message filter based on saved setting
 	addon.functions.ApplyChatLearnFilter(addon.db["chatHideLearnUnlearn"])
 	if addon.ChatIcons and addon.ChatIcons.SetEnabled then addon.ChatIcons:SetEnabled(addon.db["chatShowLootCurrencyIcons"]) end
+	if addon.ChatIcons and addon.ChatIcons.SetItemLevelEnabled then addon.ChatIcons:SetItemLevelEnabled(addon.db["chatShowItemLevelInLinks"]) end
 
 	if addon.ChatIM and addon.ChatIM.SetEnabled then addon.ChatIM:SetEnabled(addon.db["enableChatIM"]) end
 end

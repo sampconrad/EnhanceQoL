@@ -19,6 +19,36 @@ local data = {
 		default = false,
 	},
 	{
+		var = "chatShowItemLevelInLinks",
+		text = L["chatItemLevelInLink"],
+		desc = L["chatItemLevelInLinkDesc"],
+		func = function(key)
+			addon.db["chatShowItemLevelInLinks"] = key
+			if addon.ChatIcons and addon.ChatIcons.SetItemLevelEnabled then addon.ChatIcons:SetItemLevelEnabled(key) end
+		end,
+		default = false,
+		children = {
+			{
+				var = "chatShowItemLevelLocation",
+				text = L["chatItemLevelLocation"],
+				desc = L["chatItemLevelLocationDesc"],
+				func = function(key)
+					addon.db["chatShowItemLevelLocation"] = key
+					if addon.ChatIcons and addon.ChatIcons.SetItemLevelLocation then addon.ChatIcons:SetItemLevelLocation(key) end
+				end,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["chatShowItemLevelInLinks"]
+						and addon.SettingsLayout.elements["chatShowItemLevelInLinks"].setting
+						and addon.SettingsLayout.elements["chatShowItemLevelInLinks"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				type = Settings.VarType.Boolean,
+				sType = "checkbox",
+			},
+		},
+	},
+	{
 		var = "chatHideLearnUnlearn",
 		text = L["chatHideLearnUnlearn"],
 		desc = L["chatHideLearnUnlearn"],
