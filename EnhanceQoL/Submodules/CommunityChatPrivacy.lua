@@ -1,3 +1,4 @@
+-- luacheck: globals CommunitiesFrame CommunitiesFrameMixin COMMUNITIES_FRAME_DISPLAY_MODES
 local parentAddonName = "EnhanceQoL"
 local addonName, addon = ...
 if _G[parentAddonName] then
