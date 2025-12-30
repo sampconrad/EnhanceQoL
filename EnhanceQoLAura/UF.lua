@@ -1964,7 +1964,8 @@ end
 local function getNPCHealthColor(unit)
 	if not (UFHelper and UFHelper.getNPCColor) then return nil end
 	local key = getNPCSelectionKey(unit)
-	return key and UFHelper.getNPCColor(key) or nil
+	if not key then return nil end
+	return UFHelper.getNPCColor(key)
 end
 
 local function updateHealth(cfg, unit)
