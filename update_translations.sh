@@ -23,7 +23,7 @@ declare -A locale_files=(
   ["SharedMedia"]="EnhanceQoLSharedMedia/Locales/enUS.lua"
   ["Sound"]="EnhanceQoL/Modules/Sound/Locales/enUS.lua"
   ["Tooltip"]="EnhanceQoL/Modules/Tooltip/Locales/enUS.lua"
-  ["Vendor"]="EnhanceQoLVendor/Locales/enUS.lua"
+  ["Vendor"]="EnhanceQoL/Modules/Vendor/Locales/enUS.lua"
 )
 
 tempfile=$( mktemp )

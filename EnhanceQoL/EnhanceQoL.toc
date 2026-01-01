@@ -93,3 +93,7 @@ Modules\Sound\Sound.xml
 # Tooltip
 Modules\Tooltip\Locales\[TextLocale].lua
 Modules\Tooltip\Tooltip.xml
+
+# Vendor
+Modules\Vendor\Locales\[TextLocale].lua
+Modules\Vendor\Vendor.xml

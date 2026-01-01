@@ -1,5 +1,6 @@
 <Ui>
 	<Script file='SettingsUI.lua'/>
+	<Script file='MainCategory.lua'/>
 	<Script file='CombatDungeon.lua'/>
 	<Script file='ItemInventory.lua'/>
 	<Script file='ContainerAction.lua'/>

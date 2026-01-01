@@ -377,7 +377,7 @@ function addon.functions.SettingsCreateExpandableSection(cat, cbData)
 	return section
 end
 
-local cat, layout = SettingsLib:CreateRootCategory(addonName, true)
+local cat, layout = SettingsLib:CreateRootCategory(addonName, false)
 
 -- Legacy settings hint (old UI likely broken in Midnight)
 addon.functions.SettingsCreateText(cat, "|cff99e599" .. L["SettingsLegacyNotice"] .. "|r")

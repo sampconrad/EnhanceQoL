@@ -1,0 +1,7 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<Script file="Init.lua" />
+	<Script file="Autoscrap.lua" />
+	<Script file="EnhanceQoLVendor.lua" />
+	<Script file="CraftShopper.lua" />
+	<Script file="Settings_Vendor.lua" />
+</Ui>
