@@ -1,6 +1,6 @@
 # Changelog
 
-## [6.6.2] – 2025-12-31
+## [6.7.0] - 2026-01-01
 
 ### ✨ Added
 
@@ -8,6 +8,10 @@
   - Per-frame aura toggle for Player/Target/Boss frames
   - Boss frames can optionally show auras.
   - Player frame can optionally show auras (default off).
+
+---
+
+## [6.6.2] – 2025-12-31
 
 ### 🐛 Fixed
 
