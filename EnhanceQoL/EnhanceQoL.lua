@@ -4572,6 +4572,10 @@ local function setAllHooks()
 		if addon.Mover.functions.InitRegistry then addon.Mover.functions.InitRegistry() end
 		if addon.Mover.functions.InitSettings then addon.Mover.functions.InitSettings() end
 	end
+	if addon.Sounds and addon.Sounds.functions then
+		if addon.Sounds.functions.InitDB then addon.Sounds.functions.InitDB() end
+		if addon.Sounds.functions.InitState then addon.Sounds.functions.InitState() end
+	end
 end
 
 function loadMain()
@@ -4751,7 +4755,6 @@ local eventHandlers = {
 			loadSubAddon("EnhanceQoLQuery")
 			--@end-debug@
 			loadSubAddon("EnhanceQoLSharedMedia")
-			loadSubAddon("EnhanceQoLSound")
 			loadSubAddon("EnhanceQoLMythicPlus")
 			if not addon.variables.isMidnight then loadSubAddon("EnhanceQoLCombatMeter") end
 			loadSubAddon("EnhanceQoLTooltip")

@@ -1,0 +1,5 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<Script file="Init.lua" />
+	<Script file="EnhanceQoLSound.lua" />
+	<Script file="Settings_Sound.lua" />
+</Ui>

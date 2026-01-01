@@ -85,3 +85,7 @@ Modules\Mouse\Mouse.xml
 # Mover
 Modules\Mover\Locales\[TextLocale].lua
 Modules\Mover\Mover.xml
+
+# Sound
+Modules\Sound\Locales\[TextLocale].lua
+Modules\Sound\Sound.xml
