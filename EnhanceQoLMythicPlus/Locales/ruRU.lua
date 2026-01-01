@@ -1,4 +1,0 @@
-local L = LibStub("AceLocale-3.0"):NewLocale("EnhanceQoL_MythicPlus", "ruRU")
-if not L then return end
-
---@localization(locale="ruRU", namespace="MythicPlus", format="lua_additive_table")@
