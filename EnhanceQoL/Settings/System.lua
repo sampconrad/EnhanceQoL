@@ -2,12 +2,25 @@ local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 
+local function applyParentSection(entries, section)
+	for _, entry in ipairs(entries or {}) do
+		entry.parentSection = section
+		if entry.children then applyParentSection(entry.children, section) end
+	end
+end
+
 local function setCVarValue(...)
 	if addon.functions and addon.functions.setCVarValue then return addon.functions.setCVarValue(...) end
 end
 
-local cSystem = addon.functions.SettingsCreateCategory(nil, L["System"], nil, "System")
+local cSystem = addon.SettingsLayout.rootSYSTEM
 addon.SettingsLayout.systemCategory = cSystem
+
+local cvarExpandable = addon.functions.SettingsCreateExpandableSection(cSystem, {
+	name = L["CVar"] or "CVar",
+	expanded = false,
+	colorizeTitle = false,
+})
 
 local data = {
 	{
@@ -23,6 +36,7 @@ local data = {
 }
 
 table.sort(data, function(a, b) return a.text < b.text end)
+applyParentSection(data, cvarExpandable)
 addon.functions.SettingsCreateCheckboxes(cSystem, data)
 
 local categories = {}
@@ -58,7 +72,8 @@ for key, optionData in pairs(addon.variables.cvarOptions) do
 end
 
 for i, v in pairs(categories) do
-	addon.functions.SettingsCreateHeadline(cSystem, L["" .. i] or i)
+	addon.functions.SettingsCreateHeadline(cSystem, L["" .. i] or i, { parentSection = cvarExpandable })
+	applyParentSection(v, cvarExpandable)
 	addon.functions.SettingsCreateCheckboxes(cSystem, v)
 end
 

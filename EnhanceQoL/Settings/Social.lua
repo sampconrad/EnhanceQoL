@@ -2,8 +2,21 @@ local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 
-local cSocial = addon.functions.SettingsCreateCategory(nil, L["Social"], nil, "Social")
+local function applyParentSection(entries, section)
+	for _, entry in ipairs(entries or {}) do
+		entry.parentSection = section
+		if entry.children then applyParentSection(entry.children, section) end
+	end
+end
+
+local cSocial = addon.SettingsLayout.rootSOCIAL
 addon.SettingsLayout.socialCategory = cSocial
+
+local socialExpandable = addon.functions.SettingsCreateExpandableSection(cSocial, {
+	name = L["Social"],
+	expanded = false,
+	colorizeTitle = false,
+})
 
 local data = {
 	{
@@ -286,6 +299,7 @@ local data = {
 	},
 }
 
+applyParentSection(data, socialExpandable)
 addon.functions.SettingsCreateCheckboxes(cSocial, data)
 
 ----- REGION END

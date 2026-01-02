@@ -2,10 +2,23 @@ local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 
-local cChatFrame = addon.functions.SettingsCreateCategory(nil, CHAT, nil, "ChatFrame")
+local function applyParentSection(entries, section)
+	for _, entry in ipairs(entries or {}) do
+		entry.parentSection = section
+		if entry.children then applyParentSection(entry.children, section) end
+	end
+end
+
+local cChatFrame = addon.SettingsLayout.rootSOCIAL
 addon.SettingsLayout.chatframeCategory = cChatFrame
 
-addon.functions.SettingsCreateHeadline(cChatFrame, COMMUNITIES_ADD_TO_CHAT_DROP_DOWN_TITLE)
+local chatExpandable = addon.functions.SettingsCreateExpandableSection(cChatFrame, {
+	name = CHAT,
+	expanded = false,
+	colorizeTitle = false,
+})
+
+addon.functions.SettingsCreateHeadline(cChatFrame, COMMUNITIES_ADD_TO_CHAT_DROP_DOWN_TITLE, { parentSection = chatExpandable })
 
 local data = {
 	{
@@ -122,10 +135,11 @@ local data = {
 	},
 }
 
+applyParentSection(data, chatExpandable)
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cChatFrame, data)
 
-addon.functions.SettingsCreateHeadline(cChatFrame, CHAT_BUBBLES_TEXT)
+addon.functions.SettingsCreateHeadline(cChatFrame, CHAT_BUBBLES_TEXT, { parentSection = chatExpandable })
 
 data = {
 	{
@@ -162,11 +176,12 @@ data = {
 	},
 }
 
+applyParentSection(data, chatExpandable)
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cChatFrame, data)
 
-addon.functions.SettingsCreateHeadline(cChatFrame, L["Instant Chats"])
-addon.functions.SettingsCreateText(cChatFrame, "|cff99e599" .. L["RightClickCloseTab"] .. "|r")
+addon.functions.SettingsCreateHeadline(cChatFrame, L["Instant Chats"], { parentSection = chatExpandable })
+addon.functions.SettingsCreateText(cChatFrame, "|cff99e599" .. L["RightClickCloseTab"] .. "|r", { parentSection = chatExpandable })
 
 data = {
 	{
@@ -314,6 +329,7 @@ data = {
 	},
 }
 
+applyParentSection(data, chatExpandable)
 table.sort(data[1].children, function(a, b) return a.text < b.text end)
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cChatFrame, data)
@@ -350,6 +366,7 @@ data = {
 	end,
 	parent = true,
 	element = addon.SettingsLayout.elements["enableChatIM"].element,
+	parentSection = chatExpandable,
 	default = "",
 	var = "ChatIMHistoryClear",
 	type = Settings.VarType.String,
@@ -362,6 +379,7 @@ data = {
 	parentCheck = function()
 		return addon.SettingsLayout.elements["enableChatIM"] and addon.SettingsLayout.elements["enableChatIM"].setting and addon.SettingsLayout.elements["enableChatIM"].setting:GetValue() == true
 	end,
+	parentSection = chatExpandable,
 	func = function()
 		StaticPopupDialogs["EQOL_CLEAR_IM_HISTORY"] = StaticPopupDialogs["EQOL_CLEAR_IM_HISTORY"]
 			or {
@@ -382,7 +400,7 @@ data = {
 }
 addon.functions.SettingsCreateButton(cChatFrame, data)
 
-addon.functions.SettingsCreateHeadline(cChatFrame, L["CH_TITLE_HISTORY"])
+addon.functions.SettingsCreateHeadline(cChatFrame, L["CH_TITLE_HISTORY"], { parentSection = chatExpandable })
 
 local chatHistoryStrataOptions = {}
 local strataOrder = {
@@ -714,6 +732,7 @@ data = {
 	},
 }
 
+applyParentSection(data, chatExpandable)
 addon.functions.SettingsCreateCheckboxes(cChatFrame, data)
 ----- REGION END
 

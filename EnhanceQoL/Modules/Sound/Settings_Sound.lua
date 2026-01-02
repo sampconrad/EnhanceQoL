@@ -31,10 +31,23 @@ local function AllChildrenArePureNumbers(tbl)
 	return hasEntries and true or false
 end
 
-local cSound = addon.functions.SettingsCreateCategory(nil, SOUND or SOUND_LABEL or "Sound", nil, "Sound")
+local cSound = addon.SettingsLayout.rootSYSTEM
 addon.SettingsLayout.soundCategory = cSound
 
-addon.functions.SettingsCreateHeadline(cSound, L["soundMuteExplained"])
+local soundExpandable = addon.functions.SettingsCreateExpandableSection(cSound, {
+	name = SOUND or SOUND_LABEL or "Sound",
+	expanded = false,
+	colorizeTitle = false,
+})
+
+local function CreateHeadline(text) addon.functions.SettingsCreateHeadline(cSound, text, { parentSection = soundExpandable }) end
+
+local function CreateCheckbox(data)
+	data.parentSection = soundExpandable
+	return addon.functions.SettingsCreateCheckbox(cSound, data)
+end
+
+CreateHeadline(L["soundMuteExplained"])
 
 local headlineCache = {}
 local function EnsureHeadlineForPath(path)
@@ -42,7 +55,7 @@ local function EnsureHeadlineForPath(path)
 	if headlineCache[key] then return end
 	headlineCache[key] = true
 	local label = GetLabel(path[#path])
-	addon.functions.SettingsCreateHeadline(cSound, label)
+	CreateHeadline(label)
 end
 
 local function SortKeys(keys)
@@ -60,7 +73,7 @@ local function AddSoundOptions(path, data)
 		local varName = "sounds_" .. table.concat(path, "_")
 		local label = GetLabel(path[#path])
 		local soundList = data
-		addon.functions.SettingsCreateCheckbox(cSound, {
+		CreateCheckbox({
 			var = varName,
 			text = label,
 			func = function(value)
@@ -113,7 +126,7 @@ local function AddSoundOptions(path, data)
 			local label = GetLabel(key)
 			local soundList = data[key]
 
-			addon.functions.SettingsCreateCheckbox(cSound, {
+			CreateCheckbox({
 				var = varName,
 				text = label,
 				func = function(value)

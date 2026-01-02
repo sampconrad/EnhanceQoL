@@ -11,8 +11,24 @@ local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_SharedMedia")
 addon.SharedMedia = addon.SharedMedia or {}
 addon.SharedMedia.functions = addon.SharedMedia.functions or {}
 
-local cSharedMedia = addon.functions.SettingsCreateCategory(nil, L["SharedMedia"], nil, "SharedMedia")
+local cSharedMedia = addon.SettingsLayout.rootSYSTEM
 addon.SettingsLayout.sharedMediaCategory = cSharedMedia
+
+local sharedMediaExpandable = addon.functions.SettingsCreateExpandableSection(cSharedMedia, {
+	name = L["SharedMedia"],
+	expanded = false,
+	colorizeTitle = false,
+})
+
+local function CreateButton(data)
+	data.parentSection = sharedMediaExpandable
+	return addon.functions.SettingsCreateButton(cSharedMedia, data)
+end
+
+local function CreateCheckbox(data)
+	data.parentSection = sharedMediaExpandable
+	return addon.functions.SettingsCreateCheckbox(cSharedMedia, data)
+end
 
 local soundSettings = {}
 local bulkUpdate = false
@@ -30,13 +46,13 @@ local function SetAllSounds(state)
 	bulkUpdate = false
 end
 
-addon.functions.SettingsCreateButton(cSharedMedia, {
+CreateButton({
 	var = "SharedMediaEnableAll",
 	text = L["Enable All"],
 	func = function() SetAllSounds(true) end,
 })
 
-addon.functions.SettingsCreateButton(cSharedMedia, {
+CreateButton({
 	var = "SharedMediaDisableAll",
 	text = L["Disable All"],
 	func = function() SetAllSounds(false) end,
@@ -45,7 +61,7 @@ addon.functions.SettingsCreateButton(cSharedMedia, {
 local function SanitizeVar(key) return (tostring(key):gsub("[^%w_]", "_")) end
 
 for _, sound in ipairs(addon.SharedMedia.sounds or {}) do
-	local entry = addon.functions.SettingsCreateCheckbox(cSharedMedia, {
+	local entry = CreateCheckbox({
 		var = "SharedMediaSound_" .. SanitizeVar(sound.key),
 		text = sound.label,
 		get = function() return addon.db.sharedMediaSounds[sound.key] and true or false end,
