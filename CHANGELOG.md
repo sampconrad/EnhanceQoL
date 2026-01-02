@@ -1,6 +1,6 @@
 # Changelog
 
-## [6.7.0] - 2026-01-01
+## [7.0.0] - 2026-01-10
 
 ### ✨ Added
 
@@ -15,6 +15,16 @@
   - Auto-accept resurrection requests.
   - Auto-release in PvP/BGs.
   - Quick-skip cinematics option (auto-confirms the skip prompt on Esc/Space/Enter).
+
+### 🔄 Changed
+
+- **Settings UI**
+  - Root categories now use a consistent expandable section layout.
+  - Social now contains Chat settings under the Social root.
+  - System root adds dedicated accordions for CVar, Sound, and Shared Media.
+  - Economy root reorganized into Vendors & Services, Merchant UI, Auction House, Mailbox, and Gold & Tracking.
+  - Vendor module settings moved under Economy with separate Selling & Shopping and Destroy sections.
+  - Quest settings moved to Gameplay with a single Questing accordion.
 
 ### 🐛 Fixed
 
