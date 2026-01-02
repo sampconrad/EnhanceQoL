@@ -244,6 +244,9 @@ local defaults = {
 			nameMaxChars = 15,
 			unitStatus = {
 				enabled = false,
+				fontSize = nil,
+				font = nil,
+				fontOutline = nil,
 				showGroup = true,
 				groupFontSize = nil,
 				groupOffset = { x = 0, y = 0 },
@@ -2394,7 +2397,9 @@ local function updateUnitStatusIndicator(cfg, unit)
 		end
 		return
 	end
-	if UnitExists and not UnitExists(unit) then
+	local inEditMode = addon.EditModeLib and addon.EditModeLib:IsInEditMode()
+	local allowSample = inEditMode and not isBossUnit(unit)
+	if UnitExists and not UnitExists(unit) and not allowSample then
 		if st.unitStatusText then
 			st.unitStatusText:SetText("")
 			st.unitStatusText:Hide()
@@ -2413,6 +2418,7 @@ local function updateUnitStatusIndicator(cfg, unit)
 	elseif UnitIsDND and UnitIsDND(unit) then
 		statusTag = DEFAULT_DND_MESSAGE or "DND"
 	end
+	if not statusTag and allowSample then statusTag = DEFAULT_AFK_MESSAGE or "AFK" end
 	if st.unitStatusText then
 		st.unitStatusText:SetText(statusTag or "")
 		st.unitStatusText:SetShown(statusTag ~= nil)
@@ -2478,7 +2484,10 @@ local function updateStatus(cfg, unit)
 		st.levelText:SetShown(showStatus and showLevel)
 	end
 	if st.unitStatusText then
-		UFHelper.applyFont(st.unitStatusText, scfg.font, statusFontSize, scfg.fontOutline)
+		local unitStatusFont = usCfg.font or scfg.font
+		local unitStatusFontSize = usCfg.fontSize or statusFontSize
+		local unitStatusFontOutline = usCfg.fontOutline or scfg.fontOutline
+		UFHelper.applyFont(st.unitStatusText, unitStatusFont, unitStatusFontSize, unitStatusFontOutline)
 		local off = usCfg.offset or usDef.offset or {}
 		st.unitStatusText:ClearAllPoints()
 		st.unitStatusText:SetPoint("CENTER", st.status, "CENTER", off.x or 0, off.y or 0)
@@ -2487,9 +2496,11 @@ local function updateStatus(cfg, unit)
 		if st.unitStatusText.SetMaxLines then st.unitStatusText:SetMaxLines(1) end
 	end
 	if st.unitGroupText then
-		local groupFontSize = usCfg.groupFontSize or statusFontSize
+		local unitStatusFont = usCfg.font or scfg.font
+		local unitStatusFontOutline = usCfg.fontOutline or scfg.fontOutline
+		local groupFontSize = usCfg.groupFontSize or usCfg.fontSize or statusFontSize
 		local groupOff = usCfg.groupOffset or usDef.groupOffset or {}
-		UFHelper.applyFont(st.unitGroupText, scfg.font, groupFontSize, scfg.fontOutline)
+		UFHelper.applyFont(st.unitGroupText, unitStatusFont, groupFontSize, unitStatusFontOutline)
 		st.unitGroupText:ClearAllPoints()
 		st.unitGroupText:SetPoint("CENTER", st.status, "CENTER", groupOff.x or 0, groupOff.y or 0)
 		if st.unitGroupText.SetJustifyH then st.unitGroupText:SetJustifyH("CENTER") end

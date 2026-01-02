@@ -9,6 +9,8 @@
   - Boss frames can optionally show auras.
   - Player frame can optionally show auras (default off).
   - Player unit status can show group number.
+  - Additional health/mana text modes (percent-first + level combos).
+  - Unit status text now has its own font size/font/outline controls + Edit Mode sample.
   - Edit Mode shows sample auras for frames with auras enabled.
 - **Misc**
   - Auto-accept summons.
@@ -17,6 +19,8 @@
   - Quick-skip cinematics option (auto-confirms the skip prompt on Esc/Space/Enter).
 - **Mailbox**
   - Option to remember the last recipient in the Send Mail field until the mailbox closes.
+- **Character Frame**
+  - Item level display can show equipped/average when enabled.
 
 ### 🔄 Changed
 

@@ -2259,6 +2259,56 @@ local function buildUnitSettings(unit)
 	unitStatusOffsetY.isEnabled = isUnitStatusEnabled
 	list[#list + 1] = unitStatusOffsetY
 
+	local unitStatusFontSizeSetting = slider(
+		L["FontSize"] or "Font size",
+		8,
+		30,
+		1,
+		function() return getValue(unit, { "status", "unitStatus", "fontSize" }, usDef.fontSize or statusDef.fontSize or 14) end,
+		function(val)
+			debounced(unit .. "_unitStatusFontSize", function()
+				setValue(unit, { "status", "unitStatus", "fontSize" }, val or statusDef.fontSize or 14)
+				refreshSelf()
+			end)
+		end,
+		usDef.fontSize or statusDef.fontSize or 14,
+		"unitStatus",
+		true
+	)
+	unitStatusFontSizeSetting.isEnabled = isUnitStatusEnabled
+	list[#list + 1] = unitStatusFontSizeSetting
+
+	local unitStatusFontOpts = fontOptions()
+	if #unitStatusFontOpts > 0 then
+		local unitStatusFontSetting = checkboxDropdown(
+			L["Font"] or "Font",
+			unitStatusFontOpts,
+			function() return getValue(unit, { "status", "unitStatus", "font" }, usDef.font or statusDef.font or defaultFontPath()) end,
+			function(val)
+				setValue(unit, { "status", "unitStatus", "font" }, val)
+				refreshSelf()
+			end,
+			usDef.font or statusDef.font or defaultFontPath(),
+			"unitStatus"
+		)
+		unitStatusFontSetting.isEnabled = isUnitStatusEnabled
+		list[#list + 1] = unitStatusFontSetting
+	end
+
+	local unitStatusFontOutlineSetting = checkboxDropdown(
+		L["Font outline"] or "Font outline",
+		outlineOptions,
+		function() return getValue(unit, { "status", "unitStatus", "fontOutline" }, usDef.fontOutline or statusDef.fontOutline or "OUTLINE") end,
+		function(val)
+			setValue(unit, { "status", "unitStatus", "fontOutline" }, val)
+			refreshSelf()
+		end,
+		usDef.fontOutline or statusDef.fontOutline or "OUTLINE",
+		"unitStatus"
+	)
+	unitStatusFontOutlineSetting.isEnabled = isUnitStatusEnabled
+	list[#list + 1] = unitStatusFontOutlineSetting
+
 	if unit == "player" then
 		local function isGroupEnabled() return isUnitStatusEnabled() and getValue(unit, { "status", "unitStatus", "showGroup" }, usDef.showGroup == true) == true end
 
@@ -2279,12 +2329,12 @@ local function buildUnitSettings(unit)
 			8,
 			30,
 			1,
-			function() return getValue(unit, { "status", "unitStatus", "groupFontSize" }, usDef.groupFontSize or statusDef.fontSize or 14) end,
+			function() return getValue(unit, { "status", "unitStatus", "groupFontSize" }, usDef.groupFontSize or usDef.fontSize or statusDef.fontSize or 14) end,
 			function(val)
-				setValue(unit, { "status", "unitStatus", "groupFontSize" }, val or statusDef.fontSize or 14)
+				setValue(unit, { "status", "unitStatus", "groupFontSize" }, val or usDef.fontSize or statusDef.fontSize or 14)
 				refresh()
 			end,
-			usDef.groupFontSize or statusDef.fontSize or 14,
+			usDef.groupFontSize or usDef.fontSize or statusDef.fontSize or 14,
 			"unitStatus",
 			true
 		)
