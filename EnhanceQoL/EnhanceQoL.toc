@@ -26,6 +26,7 @@
 libs\LibStub\LibStub.lua
 libs\AceLocale-3.0\AceLocale-3.0.xml
 locales\[TextLocale].lua
+Modules\MythicPlus\Locales\[TextLocale].lua
 Init.lua
 NewSettingsTable.lua
 
@@ -96,7 +97,6 @@ Modules\Tooltip\Locales\[TextLocale].lua
 Modules\Tooltip\Tooltip.xml
 
 # MythicPlus
-Modules\MythicPlus\Locales\[TextLocale].lua
 Modules\MythicPlus\MythicPlus.xml
 
 # Vendor

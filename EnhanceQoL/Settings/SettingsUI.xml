@@ -6,7 +6,6 @@
 	<Script file='GearUpgrade.lua'/>
 	<Script file='ItemInventory.lua'/>
 	<Script file='Loot.lua'/>
-	<Script file='GameplayConvenience.lua'/>
 	<Script file='VendorEconomy.lua'/>
 	<Script file='MapNavigation.lua'/>
 	<Script file='Quest.lua'/>
