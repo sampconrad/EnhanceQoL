@@ -2227,8 +2227,10 @@ local function updateHealth(cfg, unit)
 	local leftDelimiter = UFHelper.getTextDelimiter(hc, defH)
 	local rightDelimiter = UFHelper.getTextDelimiter(hc, defH)
 	local hidePercentSymbol = hc.hidePercentSymbol == true
-	if st.healthTextLeft then st.healthTextLeft:SetText(UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, leftDelimiter, hidePercentSymbol)) end
-	if st.healthTextRight then st.healthTextRight:SetText(UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, rightDelimiter, hidePercentSymbol)) end
+	local levelText
+	if UFHelper.textModeUsesLevel(leftMode) or UFHelper.textModeUsesLevel(rightMode) then levelText = UFHelper.getUnitLevelText(unit) end
+	if st.healthTextLeft then st.healthTextLeft:SetText(UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, leftDelimiter, hidePercentSymbol, levelText)) end
+	if st.healthTextRight then st.healthTextRight:SetText(UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, rightDelimiter, hidePercentSymbol, levelText)) end
 end
 
 local function updatePower(cfg, unit)
@@ -2242,6 +2244,10 @@ local function updatePower(cfg, unit)
 	local defP = def.power or {}
 	local pcfg = cfg.power or {}
 	local hidePercentSymbol = pcfg.hidePercentSymbol == true
+	local leftMode = pcfg.textLeft or "PERCENT"
+	local rightMode = pcfg.textRight or "CURMAX"
+	local levelText
+	if UFHelper.textModeUsesLevel(leftMode) or UFHelper.textModeUsesLevel(rightMode) then levelText = UFHelper.getUnitLevelText(unit) end
 	if pcfg.enabled == false then
 		bar:Hide()
 		bar:SetValue(0)
@@ -2273,18 +2279,16 @@ local function updatePower(cfg, unit)
 		if (issecretvalue and not issecretvalue(maxv) and maxv == 0) or (not addon.variables.isMidnight and maxv == 0) then
 			st.powerTextLeft:SetText("")
 		else
-			local leftMode = pcfg.textLeft or "PERCENT"
 			local leftDelimiter = UFHelper.getTextDelimiter(pcfg, defP)
-			st.powerTextLeft:SetText(UFHelper.formatText(leftMode, cur, maxv, pcfg.useShortNumbers ~= false, percentVal, leftDelimiter, hidePercentSymbol))
+			st.powerTextLeft:SetText(UFHelper.formatText(leftMode, cur, maxv, pcfg.useShortNumbers ~= false, percentVal, leftDelimiter, hidePercentSymbol, levelText))
 		end
 	end
 	if (issecretvalue and not issecretvalue(maxv) and maxv == 0) or (not addon.variables.isMidnight and maxv == 0) then
 		st.powerTextRight:SetText("")
 	else
 		if st.powerTextRight then
-			local rightMode = pcfg.textRight or "CURMAX"
 			local rightDelimiter = UFHelper.getTextDelimiter(pcfg, defP)
-			st.powerTextRight:SetText(UFHelper.formatText(rightMode, cur, maxv, pcfg.useShortNumbers ~= false, percentVal, rightDelimiter, hidePercentSymbol))
+			st.powerTextRight:SetText(UFHelper.formatText(rightMode, cur, maxv, pcfg.useShortNumbers ~= false, percentVal, rightDelimiter, hidePercentSymbol, levelText))
 		end
 	end
 end
@@ -3141,20 +3145,7 @@ local function updateNameAndLevel(cfg, unit)
 				lc = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[class]) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[class])
 				if not lc then lc = { 1, 0.85, 0, 1 } end
 			end
-			local rawLevel = UnitLevel(unit) or 0
-			local levelText = rawLevel > 0 and tostring(rawLevel) or "??"
-			local classification = UnitClassification and UnitClassification(unit)
-			if classification == "worldboss" then
-				levelText = "??"
-			elseif classification == "elite" then
-				levelText = levelText .. "+"
-			elseif classification == "rareelite" then
-				levelText = levelText .. " R+"
-			elseif classification == "rare" then
-				levelText = levelText .. " R"
-			elseif classification == "trivial" or classification == "minus" then
-				levelText = levelText .. "-"
-			end
+			local levelText = UFHelper.getUnitLevelText(unit)
 			st.levelText:SetText(levelText)
 			st.levelText:SetTextColor(lc[1] or 1, lc[2] or 0.85, lc[3] or 0, lc[4] or 1)
 		end
@@ -3338,8 +3329,10 @@ local function applyBossEditSample(idx, cfg)
 	local leftDelimiter = UFHelper.getTextDelimiter(hc, defH)
 	local rightDelimiter = UFHelper.getTextDelimiter(hc, defH)
 	local hidePercentSymbol = hc.hidePercentSymbol == true
-	if st.healthTextLeft then st.healthTextLeft:SetText(UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, nil, leftDelimiter, hidePercentSymbol)) end
-	if st.healthTextRight then st.healthTextRight:SetText(UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, nil, rightDelimiter, hidePercentSymbol)) end
+	local levelText
+	if UFHelper.textModeUsesLevel(leftMode) or UFHelper.textModeUsesLevel(rightMode) then levelText = UFHelper.getUnitLevelText("player") end
+	if st.healthTextLeft then st.healthTextLeft:SetText(UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, nil, leftDelimiter, hidePercentSymbol, levelText)) end
+	if st.healthTextRight then st.healthTextRight:SetText(UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, nil, rightDelimiter, hidePercentSymbol, levelText)) end
 
 	local powerEnabled = pcfg.enabled ~= false
 	if st.power then
@@ -3357,8 +3350,10 @@ local function applyBossEditSample(idx, cfg)
 			local pLeftDelimiter = UFHelper.getTextDelimiter(pcfg, defP)
 			local pRightDelimiter = UFHelper.getTextDelimiter(pcfg, defP)
 			local pHidePercentSymbol = pcfg.hidePercentSymbol == true
-			if st.powerTextLeft then st.powerTextLeft:SetText(UFHelper.formatText(pLeftMode, pCur, pMax, pcfg.useShortNumbers ~= false, nil, pLeftDelimiter, pHidePercentSymbol)) end
-			if st.powerTextRight then st.powerTextRight:SetText(UFHelper.formatText(pRightMode, pCur, pMax, pcfg.useShortNumbers ~= false, nil, pRightDelimiter, pHidePercentSymbol)) end
+			local pLevelText = levelText
+			if not pLevelText and (UFHelper.textModeUsesLevel(pLeftMode) or UFHelper.textModeUsesLevel(pRightMode)) then pLevelText = UFHelper.getUnitLevelText("player") end
+			if st.powerTextLeft then st.powerTextLeft:SetText(UFHelper.formatText(pLeftMode, pCur, pMax, pcfg.useShortNumbers ~= false, nil, pLeftDelimiter, pHidePercentSymbol, pLevelText)) end
+			if st.powerTextRight then st.powerTextRight:SetText(UFHelper.formatText(pRightMode, pCur, pMax, pcfg.useShortNumbers ~= false, nil, pRightDelimiter, pHidePercentSymbol, pLevelText)) end
 			st.power:Show()
 		else
 			st.power:SetValue(0)

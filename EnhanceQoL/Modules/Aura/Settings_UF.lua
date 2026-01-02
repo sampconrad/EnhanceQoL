@@ -43,6 +43,13 @@ local textOptions = {
 	{ value = "CURPERCENT", label = L["Current / Percent"] or "Current / Percent" },
 	{ value = "CURMAXPERCENT", label = L["Current/Max Percent"] or "Current/Max Percent" },
 	{ value = "MAXPERCENT", label = L["Max / Percent"] or "Max / Percent" },
+	{ value = "PERCENTMAX", label = L["Percent / Max"] or "Percent / Max" },
+	{ value = "PERCENTCUR", label = L["Percent / Current"] or "Percent / Current" },
+	{ value = "PERCENTCURMAX", label = L["Percent / Current / Max"] or "Percent / Current / Max" },
+	{ value = "LEVELPERCENT", label = L["Level / Percent"] or "Level / Percent" },
+	{ value = "LEVELPERCENTMAX", label = L["Level / Percent / Max"] or "Level / Percent / Max" },
+	{ value = "LEVELPERCENTCUR", label = L["Level / Percent / Current"] or "Level / Percent / Current" },
+	{ value = "LEVELPERCENTCURMAX", label = L["Level / Percent / Current / Max"] or "Level / Percent / Current / Max" },
 	{ value = "NONE", label = NONE or "None" },
 }
 
@@ -64,7 +71,8 @@ end
 
 local function textModeUsesDelimiter(value)
 	local mode = normalizeTextMode(value)
-	return mode == "CURPERCENT" or mode == "CURMAXPERCENT" or mode == "MAXPERCENT"
+	if type(mode) ~= "string" or mode == "PERCENT" then return false end
+	return mode:find("PERCENT", 1, true) ~= nil
 end
 
 local outlineOptions = {

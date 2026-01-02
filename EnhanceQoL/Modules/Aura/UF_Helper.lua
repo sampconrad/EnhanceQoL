@@ -141,10 +141,48 @@ function H.shortValue(val)
 	return tostring(floor(val + 0.5))
 end
 
-function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, hidePercentSymbol)
+function H.textModeUsesLevel(mode) return type(mode) == "string" and mode:find("LEVEL", 1, true) ~= nil end
+
+function H.getUnitLevelText(unit)
+	if not unit then return "??" end
+	local rawLevel = UnitLevel(unit) or 0
+	local levelText = rawLevel > 0 and tostring(rawLevel) or "??"
+	local classification = UnitClassification and UnitClassification(unit)
+	if classification == "worldboss" then
+		levelText = "??"
+	elseif classification == "elite" then
+		levelText = levelText .. "+"
+	elseif classification == "rareelite" then
+		levelText = levelText .. " R+"
+	elseif classification == "rare" then
+		levelText = levelText .. " R"
+	elseif classification == "trivial" or classification == "minus" then
+		levelText = levelText .. "-"
+	end
+	return levelText
+end
+
+function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, hidePercentSymbol, levelText)
 	if mode == "NONE" then return "" end
 	local join = H.resolveTextDelimiter(delimiter)
 	local percentSuffix = hidePercentSymbol and "" or "%"
+	if levelText == nil or levelText == "" then levelText = "??" end
+	local isPercentMode = type(mode) == "string" and mode:find("PERCENT", 1, true) ~= nil
+	local function formatPercentMode(curText, maxText, percentText)
+		if not percentText then return "" end
+		if mode == "PERCENT" then return percentText end
+		if mode == "CURPERCENT" or mode == "CURPERCENTDASH" then return table.concat({ curText, percentText }, join) end
+		if mode == "CURMAXPERCENT" then return table.concat({ curText, maxText, percentText }, join) end
+		if mode == "MAXPERCENT" then return table.concat({ maxText, percentText }, join) end
+		if mode == "PERCENTMAX" then return table.concat({ percentText, maxText }, join) end
+		if mode == "PERCENTCUR" then return table.concat({ percentText, curText }, join) end
+		if mode == "PERCENTCURMAX" then return table.concat({ percentText, curText, maxText }, join) end
+		if mode == "LEVELPERCENT" then return table.concat({ levelText, percentText }, join) end
+		if mode == "LEVELPERCENTMAX" then return table.concat({ levelText, percentText, maxText }, join) end
+		if mode == "LEVELPERCENTCUR" then return table.concat({ levelText, percentText, curText }, join) end
+		if mode == "LEVELPERCENTCURMAX" then return table.concat({ levelText, percentText, curText, maxText }, join) end
+		return ""
+	end
 	if addon.variables and addon.variables.isMidnight and issecretvalue then
 		if (cur and issecretvalue(cur)) or (maxv and issecretvalue(maxv)) then
 			local scur = useShort and H.shortValue(cur) or BreakUpLargeNumbers(cur)
@@ -155,15 +193,12 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, hidePe
 			if mode == "CURRENT" then return tostring(scur) end
 			if mode == "MAX" then return tostring(smax) end
 			if mode == "CURMAX" then return ("%s/%s"):format(tostring(scur), tostring(smax)) end
-			if mode == "PERCENT" then return percentText or "" end
-			if mode == "CURPERCENT" or mode == "CURPERCENTDASH" then return percentText and ("%s%s%s"):format(tostring(scur), join, percentText) or "" end
-			if mode == "CURMAXPERCENT" then return percentText and ("%s/%s%s%s"):format(tostring(scur), tostring(smax), join, percentText) or "" end
-			if mode == "MAXPERCENT" then return percentText and ("%s%s%s"):format(tostring(smax), join, percentText) or "" end
+			if isPercentMode then return formatPercentMode(tostring(scur), tostring(smax), percentText) end
 			return ""
 		end
 	end
 	local percentText
-	if mode == "PERCENT" or mode == "CURPERCENT" or mode == "CURPERCENTDASH" or mode == "CURMAXPERCENT" or mode == "MAXPERCENT" then
+	if isPercentMode then
 		if percentValue ~= nil then
 			percentText = ("%d%s"):format(floor(percentValue + 0.5), percentSuffix)
 		elseif not maxv or maxv == 0 then
@@ -172,7 +207,6 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, hidePe
 			percentText = ("%d%s"):format(floor((cur or 0) / maxv * 100 + 0.5), percentSuffix)
 		end
 	end
-	if mode == "PERCENT" then return percentText end
 	if mode == "MAX" then
 		local maxText = useShort == false and tostring(maxv or 0) or H.shortValue(maxv or 0)
 		return maxText
@@ -182,21 +216,10 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, hidePe
 		local maxText = useShort == false and tostring(maxv or 0) or H.shortValue(maxv or 0)
 		return ("%s/%s"):format(curText, maxText)
 	end
-	if mode == "CURPERCENT" or mode == "CURPERCENTDASH" then
-		if not percentText then return "" end
-		local curText = useShort == false and tostring(cur or 0) or H.shortValue(cur or 0)
-		return ("%s%s%s"):format(curText, join, percentText)
-	end
-	if mode == "CURMAXPERCENT" then
-		if not percentText then return "" end
+	if isPercentMode then
 		local curText = useShort == false and tostring(cur or 0) or H.shortValue(cur or 0)
 		local maxText = useShort == false and tostring(maxv or 0) or H.shortValue(maxv or 0)
-		return ("%s/%s%s%s"):format(curText, maxText, join, percentText)
-	end
-	if mode == "MAXPERCENT" then
-		if not percentText then return "" end
-		local maxText = useShort == false and tostring(maxv or 0) or H.shortValue(maxv or 0)
-		return ("%s%s%s"):format(maxText, join, percentText)
+		return formatPercentMode(curText, maxText, percentText)
 	end
 	if useShort == false then return tostring(cur or 0) end
 	return H.shortValue(cur or 0)

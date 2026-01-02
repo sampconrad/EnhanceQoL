@@ -73,6 +73,13 @@ L["ImportCategoryMissingSounds"] = "The following sound files were not imported:
 L["ImportCategoryPreview"] = "Category: %s (%d auras)"
 L["AnchorLoop"] = "Anchoring to UIParent because %s would create an anchor loop"
 L["PERCENT"] = "Percent"
+L["Percent / Max"] = "Percent / Max"
+L["Percent / Current"] = "Percent / Current"
+L["Percent / Current / Max"] = "Percent / Current / Max"
+L["Level / Percent"] = "Level / Percent"
+L["Level / Percent / Max"] = "Level / Percent / Max"
+L["Level / Percent / Current"] = "Level / Percent / Current"
+L["Level / Percent / Current / Max"] = "Level / Percent / Current / Max"
 -- Resource Bars UI
 L["Profiles"] = "Profiles"
 L["Resource Bars"] = "Resource Bars"
