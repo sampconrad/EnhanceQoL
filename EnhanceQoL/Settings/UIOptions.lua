@@ -94,10 +94,13 @@ local function createActionBarVisibility(category, expandable)
 
 	for _, info in ipairs(bars) do
 		if info.var and info.name then
+			local exp = expandable
+			local ABRule = collectRuleOptions("actionbar")
+
 			addon.functions.SettingsCreateMultiDropdown(category, {
 				var = info.var .. "_visibility",
 				text = info.text or info.name or info.var,
-				options = ACTIONBAR_RULE_OPTIONS,
+				options = ABRule,
 				isSelectedFunc = function(key)
 					local cfg = NormalizeActionBarVisibilityConfig(info.var)
 					return cfg and cfg[key] == true
@@ -113,7 +116,7 @@ local function createActionBarVisibility(category, expandable)
 					local normalized = NormalizeActionBarVisibilityConfig(info.var, working)
 					UpdateActionBarMouseover(info.name, normalized, info.var)
 				end,
-				--parentSection = expandable,
+				parentSection = exp,
 			})
 		end
 	end
@@ -283,6 +286,7 @@ local function createLabelControls(category, expandable)
 			end
 			if ActionBarLabels and ActionBarLabels.RefreshAllMacroNameVisibility then ActionBarLabels.RefreshAllMacroNameVisibility() end
 		end,
+		parentSection = expandable,
 	})
 
 	macroOverride = addon.functions.SettingsCreateCheckbox(category, {
@@ -567,10 +571,10 @@ local function getFrameRuleOptions(info)
 	return options
 end
 
-local function createCooldownViewerDropdowns(category)
+local function createCooldownViewerDropdowns(category, expandable)
 	if not category or #COOLDOWN_VIEWER_FRAMES == 0 then return end
 
-	addon.functions.SettingsCreateHeadline(category, L["cooldownManagerHeader"] or "Show when")
+	addon.functions.SettingsCreateHeadline(category, L["cooldownManagerHeader"] or "Show when", { parentSection = expandable })
 
 	local options = {
 		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.IN_COMBAT, text = L["cooldownManagerShowCombat"] or "In combat" },
@@ -589,6 +593,7 @@ local function createCooldownViewerDropdowns(category)
 	local desc = L["cooldownManagerShowDesc"] or "Requires the Cooldown Viewer to be enabled (cooldownViewerEnabled = 1). Visible while any selected condition is true."
 
 	for _, frameName in ipairs(COOLDOWN_VIEWER_FRAMES) do
+		local exp = expandable
 		local label = labels[frameName] or frameName
 		addon.functions.SettingsCreateMultiDropdown(category, {
 			var = "cooldownViewerVisibility_" .. tostring(frameName),
@@ -610,16 +615,22 @@ local function createCooldownViewerDropdowns(category)
 			end,
 			isEnabled = dropdownEnabled,
 			desc = desc,
+			parentSection = exp,
 		})
 	end
 end
 
 local function createFrameCategory()
-	local category = addon.functions.SettingsCreateCategory(nil, L["visibilityKindFrames"] or UNITFRAME_LABEL, nil, "Frames")
-	addon.SettingsLayout.frameVisibilityCategory = category
+	local category = addon.SettingsLayout.rootUI
 
-	addon.functions.SettingsCreateHeadline(category, L["visibilityScenarioGroupTitle"] or (L["ActionBarVisibilityLabel"] or "Visibility"))
-	if L["visibilityFrameExplain2"] then addon.functions.SettingsCreateText(category, L["visibilityFrameExplain2"]) end
+	local expandable = addon.functions.SettingsCreateExpandableSection(category, {
+		name = L["visibilityKindFrames"],
+		expanded = false,
+		colorizeTitle = false,
+	})
+
+	addon.functions.SettingsCreateHeadline(category, L["visibilityScenarioGroupTitle"] or (L["ActionBarVisibilityLabel"] or "Visibility"), { parentSection = expandable })
+	if L["visibilityFrameExplain2"] then addon.functions.SettingsCreateText(category, L["visibilityFrameExplain2"], { parentSection = expandable }) end
 
 	local frames = {}
 	for _, info in ipairs(addon.variables.unitFrameNames or {}) do
@@ -629,6 +640,7 @@ local function createFrameCategory()
 
 	for _, info in ipairs(frames) do
 		if info.var and info.name then
+			local exp = expandable
 			local options = getFrameRuleOptions(info)
 			if #options > 0 then
 				local init = addon.functions.SettingsCreateMultiDropdown(category, {
@@ -654,12 +666,13 @@ local function createFrameCategory()
 
 						return true
 					end,
+					parentSection = exp,
 				})
 			end
 		end
 	end
 
-	createCooldownViewerDropdowns(category)
+	createCooldownViewerDropdowns(category, expandable)
 end
 
 function addon.functions.initUIOptions() end

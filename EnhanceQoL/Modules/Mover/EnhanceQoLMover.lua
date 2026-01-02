@@ -12,15 +12,21 @@ local db
 
 local function buildSettings()
 	local categoryLabel = L["Move"] or "Mover"
-	local cLayout = addon.functions.SettingsCreateCategory(nil, categoryLabel, nil, "Mover")
-	addon.SettingsLayout.moverCategory = cLayout
+	local cLayout = addon.SettingsLayout.rootUI
+
+	local expandable = addon.functions.SettingsCreateExpandableSection(cLayout, {
+		name = categoryLabel,
+		expanded = false,
+		colorizeTitle = false,
+	})
 
 	local hintText = L["MoverResetHint"]
-	if hintText and hintText ~= "" then addon.functions.SettingsCreateText(cLayout, "|cff99e599" .. hintText .. "|r") end
+	if hintText and hintText ~= "" then addon.functions.SettingsCreateText(cLayout, "|cff99e599" .. hintText .. "|r", { parentSection = expandable }) end
 
-	local sectionGeneral = addon.functions.SettingsCreateExpandableSection(cLayout, {
+	local sectionGeneral = expandable
+	addon.functions.SettingsCreateHeadline(cLayout, {
 		name = L["Global Settings"] or "General",
-		expanded = true,
+		parentSection = expandable,
 	})
 
 	local rootSettingKey = "moverEnabled"
@@ -51,10 +57,11 @@ local function buildSettings()
 	end
 
 	for _, group in ipairs(addon.Mover.functions.GetGroups()) do
+		local parentSection = expandable
 		local enableElement = rootElement
-		local section = addon.functions.SettingsCreateExpandableSection(cLayout, {
+		addon.functions.SettingsCreateHeadline(cLayout, {
 			name = group.label or group.id,
-			expanded = group.expanded,
+			parentSection = parentSection,
 		})
 
 		for _, entry in ipairs(addon.Mover.functions.GetEntriesForGroup(group.id)) do
@@ -70,7 +77,7 @@ local function buildSettings()
 				end,
 				element = enableElement,
 				parent = true,
-				parentSection = section,
+				parentSection = parentSection,
 				parentCheck = function() return db.enabled end,
 			})
 		end
