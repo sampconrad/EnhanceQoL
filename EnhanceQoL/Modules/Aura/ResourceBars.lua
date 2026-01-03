@@ -39,6 +39,7 @@ local createHealthBar
 local updateHealthBar
 local updatePowerBar
 local updateBarSeparators
+local updateBarThresholds
 local forceColorUpdate
 local ensureEditModeRegistration
 local lastBarSelectionPerSpec = {}
@@ -55,6 +56,10 @@ local ResourcebarVars = {
 	DEFAULT_STACK_SPACING = 0,
 	SEPARATOR_THICKNESS = 1,
 	SEP_DEFAULT = { 1, 1, 1, 0.5 },
+	THRESHOLD_THICKNESS = 1,
+	THRESHOLD_DEFAULT = { 1, 1, 1, 0.5 },
+	DEFAULT_THRESHOLDS = { 25, 50, 75, 90 },
+	DEFAULT_THRESHOLD_COUNT = 3,
 	WHITE = { 1, 1, 1, 1 },
 	DEFAULT_RB_TEX = "Interface\\Buttons\\WHITE8x8", -- historical default (Solid)
 	DEFAULT_HEALTH_WIDTH = 200,
@@ -123,6 +128,11 @@ local COSMETIC_BAR_KEYS = {
 	"showSeparator",
 	"separatorColor",
 	"separatorThickness",
+	"showThresholds",
+	"thresholds",
+	"thresholdColor",
+	"thresholdThickness",
+	"thresholdCount",
 	"showCooldownText",
 	"cooldownTextFontSize",
 	"backdrop",
@@ -1237,7 +1247,10 @@ local function applyStatusBarInsets(frame, inset, force)
 	if frame.separatorMarks then
 		frame._sepW, frame._sepH, frame._sepSegments = nil, nil, nil
 	end
-	if frame._rbType then updateBarSeparators(frame._rbType) end
+	if frame._rbType then
+		updateBarSeparators(frame._rbType)
+		updateBarThresholds(frame._rbType)
+	end
 	if frame.runes then layoutRunes(frame) end
 end
 
@@ -2928,6 +2941,130 @@ updateBarSeparators = function(pType)
 	bar._sepVertical = vertical
 end
 
+updateBarThresholds = function(pType)
+	if pType == "HEALTH" then return end
+	local bar = powerbar[pType]
+	if not bar then return end
+	local cfg = getBarSettings(pType)
+	if not (cfg and cfg.showThresholds) then
+		if bar.thresholdMarks then
+			for _, tx in ipairs(bar.thresholdMarks) do
+				tx:Hide()
+			end
+		end
+		return
+	end
+
+	local values = {}
+	local count = tonumber(cfg and cfg.thresholdCount) or RB.DEFAULT_THRESHOLD_COUNT or 3
+	if count < 1 then count = 1 end
+	if count > 4 then count = 4 end
+	local list = cfg and cfg.thresholds
+	if type(list) == "table" then
+		for i = 1, min(#list, count) do
+			local v = tonumber(list[i])
+			if v and v > 0 and v < 100 then values[#values + 1] = v end
+		end
+	else
+		local defaults = RB.DEFAULT_THRESHOLDS
+		if type(defaults) == "table" then
+			for i = 1, min(#defaults, count) do
+				local v = tonumber(defaults[i])
+				if v and v > 0 and v < 100 then values[#values + 1] = v end
+			end
+		end
+	end
+
+	if #values == 0 then
+		if bar.thresholdMarks then
+			for _, tx in ipairs(bar.thresholdMarks) do
+				tx:Hide()
+			end
+		end
+		return
+	end
+
+	tsort(values)
+	local unique = {}
+	local last
+	for i = 1, #values do
+		local v = values[i]
+		if v ~= last then
+			unique[#unique + 1] = v
+			last = v
+		end
+	end
+	values = unique
+	if #values == 0 then
+		if bar.thresholdMarks then
+			for _, tx in ipairs(bar.thresholdMarks) do
+				tx:Hide()
+			end
+		end
+		return
+	end
+
+	local inset = bar._rbContentInset or ZERO_INSETS
+	local inner = bar._rbInner or bar
+	bar.thresholdMarks = bar.thresholdMarks or {}
+
+	local function AcquireMark(index)
+		local tex = bar.thresholdMarks[index]
+		if not tex then
+			tex = bar:CreateTexture(nil, "OVERLAY", nil, 6)
+			bar.thresholdMarks[index] = tex
+		elseif tex.GetParent and tex:GetParent() ~= bar then
+			tex:SetParent(bar)
+		end
+		if tex.SetDrawLayer then tex:SetDrawLayer("OVERLAY", 6) end
+		return tex
+	end
+
+	for _, tx in ipairs(bar.thresholdMarks) do
+		if tx then
+			if tx.GetParent and tx:GetParent() ~= bar then tx:SetParent(bar) end
+			if tx.SetDrawLayer then tx:SetDrawLayer("OVERLAY", 6) end
+		end
+	end
+
+	local w = max(1, (bar:GetWidth() or 0) - (inset.left + inset.right))
+	local h = max(1, (bar:GetHeight() or 0) - (inset.top + inset.bottom))
+	local vertical = cfg and cfg.verticalFill == true
+	local reverse = cfg and cfg.reverseFill == true
+	local desiredThickness = (cfg and cfg.thresholdThickness) or RB.THRESHOLD_THICKNESS or RB.SEPARATOR_THICKNESS
+	local thickness = min(desiredThickness, vertical and h or w)
+	if thickness < 1 then thickness = 1 end
+	local tc = (cfg and cfg.thresholdColor) or RB.THRESHOLD_DEFAULT or RB.SEP_DEFAULT or RB.WHITE
+	local r, g, b, a
+	if tc.r then
+		r, g, b, a = tc.r or 1, tc.g or 1, tc.b or 1, tc.a or 0.5
+	else
+		r, g, b, a = tc[1] or 1, tc[2] or 1, tc[3] or 1, tc[4] or 0.5
+	end
+
+	for i = 1, #values do
+		local tx = AcquireMark(i)
+		tx:ClearAllPoints()
+		local frac = values[i] / 100
+		if reverse then frac = 1 - frac end
+		local half = floor(thickness * 0.5)
+		tx:SetColorTexture(r, g, b, a)
+		if vertical then
+			local y = Snap(bar, h * frac)
+			tx:SetPoint("BOTTOM", inner, "BOTTOM", 0, y - max(0, half))
+			tx:SetSize(w, thickness)
+		else
+			local x = Snap(bar, w * frac)
+			tx:SetPoint("LEFT", inner, "LEFT", x - max(0, half), 0)
+			tx:SetSize(thickness, h)
+		end
+		tx:Show()
+	end
+	for i = #values + 1, #bar.thresholdMarks do
+		bar.thresholdMarks[i]:Hide()
+	end
+end
+
 -- Layout helper for DK RUNES: create or resize 6 child statusbars
 function layoutRunes(bar)
 	if not bar then return end
@@ -3150,6 +3287,7 @@ local function createPowerBar(type, anchor)
 	elseif ResourceBars.separatorEligible[type] then
 		updateBarSeparators(type)
 	end
+	updateBarThresholds(type)
 
 	-- Ensure dependents re-anchor when this bar changes size
 	bar:SetScript("OnSizeChanged", function()
@@ -3160,6 +3298,7 @@ local function createPowerBar(type, anchor)
 		elseif ResourceBars.separatorEligible[type] then
 			updateBarSeparators(type)
 		end
+		updateBarThresholds(type)
 	end)
 
 	if ResourceBars and ResourceBars.SyncRelativeFrameWidths then ResourceBars.SyncRelativeFrameWidths() end
@@ -3982,6 +4121,7 @@ function ResourceBars.Refresh()
 				updatePowerBar(pType)
 			end
 			if ResourceBars.separatorEligible[pType] then updateBarSeparators(pType) end
+			updateBarThresholds(pType)
 		end
 	end
 	-- Apply styling updates without forcing a full rebuild
@@ -4246,6 +4386,10 @@ ResourceBars.DEFAULT_HEALTH_HEIGHT = RB.DEFAULT_HEALTH_HEIGHT
 ResourceBars.DEFAULT_POWER_WIDTH = RB.DEFAULT_POWER_WIDTH
 ResourceBars.DEFAULT_POWER_HEIGHT = RB.DEFAULT_POWER_HEIGHT or RB.DEFAULT_HEALTH_HEIGHT
 ResourceBars.MIN_RESOURCE_BAR_WIDTH = RB.MIN_RESOURCE_BAR_WIDTH
+ResourceBars.THRESHOLD_THICKNESS = RB.THRESHOLD_THICKNESS
+ResourceBars.THRESHOLD_DEFAULT = RB.THRESHOLD_DEFAULT
+ResourceBars.DEFAULT_THRESHOLDS = RB.DEFAULT_THRESHOLDS
+ResourceBars.DEFAULT_THRESHOLD_COUNT = RB.DEFAULT_THRESHOLD_COUNT
 ResourceBars.getBarSettings = getBarSettings
 ResourceBars.getAnchor = getAnchor
 ResourceBars.BehaviorOptionsForType = behaviorOptionsForType

@@ -11,6 +11,7 @@
   - Unit status text now has its own font size/font/outline controls + Edit Mode sample.
   - PvP indicator icon for Player/Target/Focus.
   - Optional reverse-fill absorb bar in UF.
+  - Resource bars can show configurable threshold lines (count/color/thickness).
   - Detached power bar can use its own border (texture/size/offset).
   - Cast bar icon offset slider for Target/Focus/Boss frames.
   - Optional border highlight for mouseover/aggro.

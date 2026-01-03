@@ -14,6 +14,10 @@ local ResourceBars = addon.Aura and addon.Aura.ResourceBars
 if not ResourceBars then return end
 
 local MIN_RESOURCE_BAR_WIDTH = (ResourceBars and ResourceBars.MIN_RESOURCE_BAR_WIDTH) or 50
+local THRESHOLD_THICKNESS = (ResourceBars and ResourceBars.THRESHOLD_THICKNESS) or 1
+local THRESHOLD_DEFAULT = (ResourceBars and ResourceBars.THRESHOLD_DEFAULT) or { 1, 1, 1, 0.5 }
+local DEFAULT_THRESHOLDS = (ResourceBars and ResourceBars.DEFAULT_THRESHOLDS) or { 25, 50, 75, 90 }
+local DEFAULT_THRESHOLD_COUNT = (ResourceBars and ResourceBars.DEFAULT_THRESHOLD_COUNT) or 3
 local SMF = addon.SharedMedia and addon.SharedMedia.functions
 local EQOL_RUNES_BORDER = (ResourceBars and ResourceBars.RUNE_BORDER_ID) or "EQOL_BORDER_RUNES"
 local EQOL_RUNES_BORDER_LABEL = (ResourceBars and ResourceBars.RUNE_BORDER_LABEL) or (SMF and SMF.GetCustomBorder and (SMF.GetCustomBorder(EQOL_RUNES_BORDER) or {}).label) or "EQOL: Runes"
@@ -957,6 +961,155 @@ local function registerEditModeBars()
 					end,
 					parentId = "frame",
 				}
+			end
+
+			-- Threshold controls (all non-health bars)
+			if barType ~= "HEALTH" then
+				settingsList[#settingsList + 1] = {
+					name = L["Show threshold lines"] or "Show threshold lines",
+					kind = settingType.CheckboxColor,
+					field = "showThresholds",
+					default = cfg and cfg.showThresholds == true,
+					get = function()
+						local c = curSpecCfg()
+						return c and c.showThresholds == true
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.showThresholds = value and true or false
+						queueRefresh()
+					end,
+					colorDefault = toUIColor(cfg and cfg.thresholdColor, THRESHOLD_DEFAULT),
+					colorGet = function()
+						local c = curSpecCfg()
+						local col = (c and c.thresholdColor) or (cfg and cfg.thresholdColor) or THRESHOLD_DEFAULT
+						local r, g, b, a = toColorComponents(col, THRESHOLD_DEFAULT)
+						return { r = r, g = g, b = b, a = a }
+					end,
+					colorSet = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.thresholdColor = toColorArray(value, THRESHOLD_DEFAULT)
+						queueRefresh()
+					end,
+					hasOpacity = true,
+					parentId = "frame",
+				}
+
+				settingsList[#settingsList + 1] = {
+					name = L["Number of thresholds"] or "Number of thresholds",
+					kind = settingType.Dropdown,
+					height = 120,
+					field = "thresholdCount",
+					parentId = "frame",
+					values = {
+						{ value = 1, text = "1" },
+						{ value = 2, text = "2" },
+						{ value = 3, text = "3" },
+						{ value = 4, text = "4" },
+					},
+					get = function()
+						local c = curSpecCfg()
+						local count = (c and c.thresholdCount) or DEFAULT_THRESHOLD_COUNT
+						return tostring(count)
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						local new = tonumber(value) or DEFAULT_THRESHOLD_COUNT
+						if new < 1 then new = 1 end
+						if new > 4 then new = 4 end
+						if c.thresholdCount == new then return end
+						c.thresholdCount = new
+						queueRefresh()
+					end,
+					default = tostring(DEFAULT_THRESHOLD_COUNT),
+					isEnabled = function()
+						local c = curSpecCfg()
+						return c and c.showThresholds == true
+					end,
+				}
+
+				settingsList[#settingsList + 1] = {
+					name = L["Threshold line thickness"] or "Threshold line thickness",
+					kind = settingType.Slider,
+					allowInput = true,
+					field = "thresholdThickness",
+					minValue = 1,
+					maxValue = 10,
+					valueStep = 1,
+					get = function()
+						local c = curSpecCfg()
+						return (c and c.thresholdThickness) or THRESHOLD_THICKNESS
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						local new = value or THRESHOLD_THICKNESS
+						if c.thresholdThickness == new then return end
+						c.thresholdThickness = new
+						queueRefresh()
+					end,
+					default = (cfg and cfg.thresholdThickness) or THRESHOLD_THICKNESS,
+					isEnabled = function()
+						local c = curSpecCfg()
+						return c and c.showThresholds == true
+					end,
+					parentId = "frame",
+				}
+
+				local function thresholdValue(index)
+					local c = curSpecCfg()
+					local list = (c and c.thresholds)
+					if type(list) ~= "table" then list = (cfg and cfg.thresholds) end
+					if type(list) == "table" then return tonumber(list[index]) or 0 end
+					return DEFAULT_THRESHOLDS[index] or 0
+				end
+
+				local function thresholdCount()
+					local c = curSpecCfg()
+					local count = tonumber(c and c.thresholdCount) or DEFAULT_THRESHOLD_COUNT
+					if count < 1 then count = 1 end
+					if count > 4 then count = 4 end
+					return count
+				end
+
+				local function setThresholdValue(index, value)
+					local c = curSpecCfg()
+					if not c then return end
+					if type(c.thresholds) ~= "table" then c.thresholds = { DEFAULT_THRESHOLDS[1], DEFAULT_THRESHOLDS[2], DEFAULT_THRESHOLDS[3], DEFAULT_THRESHOLDS[4] } end
+					c.thresholds[index] = value or 0
+					queueRefresh()
+				end
+
+				local thresholdLabels = {
+					L["Threshold 1"] or "Threshold 1",
+					L["Threshold 2"] or "Threshold 2",
+					L["Threshold 3"] or "Threshold 3",
+					L["Threshold 4"] or "Threshold 4",
+				}
+
+				for i = 1, #thresholdLabels do
+					settingsList[#settingsList + 1] = {
+						name = thresholdLabels[i],
+						kind = settingType.Slider,
+						allowInput = true,
+						field = "threshold" .. i,
+						minValue = 0,
+						maxValue = 100,
+						valueStep = 1,
+						get = function() return thresholdValue(i) end,
+						set = function(_, value) setThresholdValue(i, value) end,
+						default = DEFAULT_THRESHOLDS[i] or 0,
+						isEnabled = function()
+							local c = curSpecCfg()
+							return c and c.showThresholds == true
+						end,
+						isShown = function() return i <= thresholdCount() end,
+						parentId = "frame",
+					}
+				end
 			end
 
 			-- Druid: Show in (forms), exclude Health and enforced Cat-only Combo Points
