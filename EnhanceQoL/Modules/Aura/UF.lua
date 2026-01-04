@@ -1826,9 +1826,20 @@ end
 
 local function shouldShowSampleAbsorb(unit) return addon.variables.ufSampleAbsorb and addon.variables.ufSampleAbsorb[unit] == true end
 
+function UF.ClearCastInterruptState(st)
+	if not st then return end
+	if st.castInterruptAnim then st.castInterruptAnim:Stop() end
+	if st.castInterruptGlowAnim then st.castInterruptGlowAnim:Stop() end
+	if st.castInterruptGlow then st.castInterruptGlow:Hide() end
+	if st.castBar then st.castBar:SetAlpha(1) end
+	st.castInterruptActive = nil
+	st.castInterruptToken = (st.castInterruptToken or 0) + 1
+end
+
 local function stopCast(unit)
 	local st = states[unit]
 	if not st or not st.castBar then return end
+	UF.ClearCastInterruptState(st)
 	st.castBar:Hide()
 	if st.castName then st.castName:SetText("") end
 	if st.castDuration then st.castDuration:SetText("") end
@@ -2004,6 +2015,7 @@ setSampleCast = function(unit)
 	local key = isBossUnit(unit) and "boss" or unit
 	local st = states[unit]
 	if not st or not st.castBar then return end
+	UF.ClearCastInterruptState(st)
 	local cfg = (st and st.cfg) or ensureDB(key or unit)
 	local ccfg = (cfg or {}).cast or {}
 	local def = defaultsFor(unit)
@@ -2032,10 +2044,129 @@ setSampleCast = function(unit)
 	updateCastBar(unit)
 end
 
+function UF.ShowCastInterrupt(unit, event)
+	local key = isBossUnit(unit) and "boss" or unit
+	local st = states[unit]
+	if not st or not st.castBar then return end
+	local cfg = (st and st.cfg) or ensureDB(key or unit)
+	if cfg and cfg.enabled == false then return end
+	local ccfg = (cfg or {}).cast or {}
+	local defc = (defaultsFor(unit) and defaultsFor(unit).cast) or {}
+	if ccfg.enabled == false then return end
+	if not st.castBar:IsShown() and not st.castInfo then return end
+
+	UF.ClearCastInterruptState(st)
+	st.castInterruptActive = true
+	local token = st.castInterruptToken or 0
+
+	if castOnUpdateHandlers[unit] then
+		st.castBar:SetScript("OnUpdate", nil)
+		castOnUpdateHandlers[unit] = nil
+	end
+
+	applyCastLayout(cfg, unit)
+
+	local texKey = ccfg.texture or defc.texture or "DEFAULT"
+	local useDefault = not texKey or texKey == "" or texKey == "DEFAULT"
+	local interruptTex = nil
+	if useDefault and CASTING_BAR_TYPES and CASTING_BAR_TYPES.interrupted and CASTING_BAR_TYPES.interrupted.full then
+		interruptTex = CASTING_BAR_TYPES.interrupted.full
+	else
+		interruptTex = UFHelper.resolveCastTexture(texKey)
+	end
+	if interruptTex then st.castBar:SetStatusBarTexture(interruptTex) end
+	if st.castBar.SetStatusBarDesaturated then st.castBar:SetStatusBarDesaturated(false) end
+	if useDefault then
+		st.castBar:SetStatusBarColor(1, 1, 1, 1)
+	else
+		st.castBar:SetStatusBarColor(0.85, 0.12, 0.12, 1)
+	end
+	st.castBar:SetMinMaxValues(0, 1)
+	st.castBar:SetValue(1)
+	if st.castDuration then
+		st.castDuration:SetText("")
+		st.castDuration:Hide()
+	end
+	if st.castName then
+		local label = (event == "UNIT_SPELLCAST_FAILED") and FAILED or INTERRUPTED
+		st.castName:SetText(label)
+		st.castName:SetShown(ccfg.showName ~= false)
+	end
+	if st.castIcon then
+		local showIcon = ccfg.showIcon ~= false and st.castInfo and st.castInfo.texture ~= nil
+		st.castIcon:SetShown(showIcon)
+		if showIcon then st.castIcon:SetTexture(st.castInfo.texture) end
+	end
+
+	local glowAlpha = useDefault and 0.4 or 0.25
+	if not st.castInterruptGlow then
+		st.castInterruptGlow = st.castBar:CreateTexture(nil, "OVERLAY")
+		if st.castInterruptGlow.SetAtlas then
+			st.castInterruptGlow:SetAtlas("cast_interrupt_outerglow", true)
+		else
+			st.castInterruptGlow:SetTexture("Interface\\CastingBar\\UI-CastingBar-Border")
+		end
+		if st.castInterruptGlow.SetBlendMode then st.castInterruptGlow:SetBlendMode("ADD") end
+		st.castInterruptGlow:SetPoint("CENTER", st.castBar, "CENTER", 0, 0)
+		st.castInterruptGlow:SetAlpha(0)
+	end
+	do
+		local w, h = st.castBar:GetSize()
+		if w and h and w > 0 and h > 0 then
+			st.castInterruptGlow:SetSize(w + (h * 0.5), h * 2.2)
+			if st.castInterruptGlow.SetScale then st.castInterruptGlow:SetScale(1) end
+		elseif st.castInterruptGlow.SetScale then
+			st.castInterruptGlow:SetScale(0.5)
+		end
+	end
+	if not st.castInterruptGlowAnim then
+		st.castInterruptGlowAnim = st.castInterruptGlow:CreateAnimationGroup()
+		local fade = st.castInterruptGlowAnim:CreateAnimation("Alpha")
+		fade:SetFromAlpha(glowAlpha)
+		fade:SetToAlpha(0)
+		fade:SetDuration(1.0)
+		st.castInterruptGlowAnim.fade = fade
+		st.castInterruptGlowAnim:SetScript("OnFinished", function() st.castInterruptGlow:Hide() end)
+	elseif st.castInterruptGlowAnim.fade and st.castInterruptGlowAnim.fade.SetFromAlpha then
+		st.castInterruptGlowAnim.fade:SetFromAlpha(glowAlpha)
+	end
+	st.castInterruptGlow:SetAlpha(glowAlpha)
+	st.castInterruptGlow:Show()
+	st.castInterruptGlowAnim:Stop()
+	st.castInterruptGlowAnim:Play()
+
+	if not st.castInterruptAnim then
+		st.castInterruptAnim = st.castBar:CreateAnimationGroup()
+		local hold = st.castInterruptAnim:CreateAnimation("Alpha")
+		hold:SetOrder(1)
+		hold:SetFromAlpha(1)
+		hold:SetToAlpha(1)
+		hold:SetDuration(1.0)
+		st.castInterruptAnim.hold = hold
+		local fade = st.castInterruptAnim:CreateAnimation("Alpha")
+		fade:SetOrder(2)
+		fade:SetFromAlpha(1)
+		fade:SetToAlpha(0)
+		fade:SetDuration(0.3)
+		st.castInterruptAnim.fade = fade
+	end
+	st.castBar:SetAlpha(1)
+	st.castBar:Show()
+	st.castInterruptAnim:Stop()
+	st.castInterruptAnim:SetScript("OnFinished", function()
+		local st2 = states[unit]
+		if not st2 or st2.castInterruptToken ~= token then return end
+		stopCast(unit)
+		if shouldShowSampleCast(unit) then setSampleCast(unit) end
+	end)
+	st.castInterruptAnim:Play()
+end
+
 local function setCastInfoFromUnit(unit)
 	local key = isBossUnit(unit) and "boss" or unit
 	local st = states[unit]
 	if not st or not st.castBar then return end
+	UF.ClearCastInterruptState(st)
 	local cfg = (st and st.cfg) or ensureDB(key or unit)
 	if cfg and cfg.enabled == false then
 		stopCast(unit)
@@ -3604,6 +3735,8 @@ local unitEvents = {
 	"UNIT_TARGET",
 	"UNIT_SPELLCAST_START",
 	"UNIT_SPELLCAST_STOP",
+	"UNIT_SPELLCAST_FAILED",
+	"UNIT_SPELLCAST_INTERRUPTED",
 	"UNIT_SPELLCAST_CHANNEL_START",
 	"UNIT_SPELLCAST_CHANNEL_STOP",
 	"UNIT_SPELLCAST_CHANNEL_UPDATE",
@@ -4248,16 +4381,26 @@ local function onEvent(self, event, unit, arg1)
 		if unit == UNIT.TARGET then setCastInfoFromUnit(UNIT.TARGET) end
 		if unit == UNIT.FOCUS then setCastInfoFromUnit(UNIT.FOCUS) end
 		if isBossUnit(unit) then setCastInfoFromUnit(unit) end
+	elseif event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" then
+		if unit == UNIT.TARGET then UF.ShowCastInterrupt(UNIT.TARGET, event) end
+		if unit == UNIT.FOCUS then UF.ShowCastInterrupt(UNIT.FOCUS, event) end
+		if isBossUnit(unit) then UF.ShowCastInterrupt(unit, event) end
 	elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" then
 		if unit == UNIT.TARGET then
-			stopCast(UNIT.TARGET)
-			if shouldShowSampleCast(unit) then setSampleCast(unit) end
+			if not (states[UNIT.TARGET] and states[UNIT.TARGET].castInterruptActive) then
+				stopCast(UNIT.TARGET)
+				if shouldShowSampleCast(unit) then setSampleCast(unit) end
+			end
 		end
 		if unit == UNIT.FOCUS then
-			stopCast(UNIT.FOCUS)
-			if shouldShowSampleCast(unit) then setSampleCast(unit) end
+			if not (states[UNIT.FOCUS] and states[UNIT.FOCUS].castInterruptActive) then
+				stopCast(UNIT.FOCUS)
+				if shouldShowSampleCast(unit) then setSampleCast(unit) end
+			end
 		end
-		if isBossUnit(unit) then stopCast(unit) end
+		if isBossUnit(unit) then
+			if not (states[unit] and states[unit].castInterruptActive) then stopCast(unit) end
+		end
 	elseif event == "INSTANCE_ENCOUNTER_ENGAGE_UNIT" then
 		updateBossFrames(true)
 	elseif event == "ENCOUNTER_START" then

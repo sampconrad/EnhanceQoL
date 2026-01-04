@@ -3073,6 +3073,190 @@ local function initChatFrame()
 			end
 		end
 
+	local function getChatEditBox(chatFrame)
+		if not chatFrame then return nil end
+		if chatFrame.editBox then return chatFrame.editBox end
+		local name = chatFrame:GetName()
+		return name and _G[name .. "EditBox"]
+	end
+
+	local function forEachChatFrame(callback)
+		local maxFrames = math.max(NUM_CHAT_WINDOWS or 0, 50)
+		for i = 1, maxFrames do
+			local frame = _G["ChatFrame" .. i]
+			if frame then callback(frame, getChatEditBox(frame)) end
+		end
+	end
+
+	local function ensureChatFrameHooks()
+		addon.variables = addon.variables or {}
+		if addon.variables.chatFrameHooksInstalled then return end
+		addon.variables.chatFrameHooksInstalled = true
+
+		hooksecurefunc("FCF_OpenTemporaryWindow", function()
+			if addon.db and addon.db.chatUseArrowKeys and addon.functions.ApplyChatArrowKeys then addon.functions.ApplyChatArrowKeys(true) end
+			if addon.db and addon.db.chatEditBoxOnTop and addon.functions.ApplyChatEditBoxOnTop then addon.functions.ApplyChatEditBoxOnTop(true) end
+			if addon.db and addon.db.chatHideCombatLogTab and addon.functions.ApplyChatHideCombatLogTab then addon.functions.ApplyChatHideCombatLogTab(true) end
+		end)
+
+		hooksecurefunc("FCF_SetTabPosition", function()
+			if not (addon.db and addon.db.chatHideCombatLogTab) then return end
+			if ChatFrame1Tab and ChatFrame2Tab then ChatFrame2Tab:SetPoint("BOTTOMLEFT", ChatFrame1Tab, "BOTTOMRIGHT", 0, 0) end
+		end)
+
+		local frame = CreateFrame("Frame")
+		frame:RegisterEvent("UPDATE_CHAT_WINDOWS")
+		frame:SetScript("OnEvent", function()
+			if addon.db and addon.db.chatUseArrowKeys and addon.functions.ApplyChatArrowKeys then addon.functions.ApplyChatArrowKeys(true) end
+			if addon.db and addon.db.chatEditBoxOnTop and addon.functions.ApplyChatEditBoxOnTop then addon.functions.ApplyChatEditBoxOnTop(true) end
+			if addon.db and addon.db.chatHideCombatLogTab and addon.functions.ApplyChatHideCombatLogTab then addon.functions.ApplyChatHideCombatLogTab(true) end
+		end)
+		addon.variables.chatFrameWatcher = frame
+	end
+
+	addon.functions.ApplyChatArrowKeys = addon.functions.ApplyChatArrowKeys
+		or function(enabled)
+			addon.variables = addon.variables or {}
+			addon.variables.chatArrowKeyModeCache = addon.variables.chatArrowKeyModeCache or {}
+			local cache = addon.variables.chatArrowKeyModeCache
+
+			forEachChatFrame(function(_, editBox)
+				if not (editBox and editBox.SetAltArrowKeyMode) then return end
+				if enabled then
+					if cache[editBox] == nil and editBox.GetAltArrowKeyMode then cache[editBox] = editBox:GetAltArrowKeyMode() end
+					editBox:SetAltArrowKeyMode(false)
+				else
+					if cache[editBox] ~= nil then
+						editBox:SetAltArrowKeyMode(cache[editBox])
+						cache[editBox] = nil
+					end
+				end
+			end)
+
+			ensureChatFrameHooks()
+		end
+
+	local function storeEditBoxPoints(editBox)
+		addon.variables = addon.variables or {}
+		addon.variables.chatEditBoxAnchorCache = addon.variables.chatEditBoxAnchorCache or {}
+		local cache = addon.variables.chatEditBoxAnchorCache
+		if cache[editBox] then return end
+		local points = {}
+		for i = 1, editBox:GetNumPoints() do
+			points[i] = { editBox:GetPoint(i) }
+		end
+		cache[editBox] = { points = points, width = editBox:GetWidth(), height = editBox:GetHeight() }
+	end
+
+	local function restoreEditBoxPoints(editBox)
+		addon.variables = addon.variables or {}
+		local cache = addon.variables.chatEditBoxAnchorCache
+		local state = cache and cache[editBox]
+		if not state then return end
+		editBox:ClearAllPoints()
+		if state.points then
+			for _, point in ipairs(state.points) do
+				editBox:SetPoint(point[1], point[2], point[3], point[4], point[5])
+			end
+		end
+		if not state.points or #state.points == 0 then
+			if state.width then editBox:SetWidth(state.width) end
+			if state.height then editBox:SetHeight(state.height) end
+		end
+		cache[editBox] = nil
+	end
+
+	addon.functions.ApplyChatEditBoxOnTop = addon.functions.ApplyChatEditBoxOnTop
+		or function(enabled)
+			forEachChatFrame(function(frame, editBox)
+				if not (frame and editBox) then return end
+				if enabled then
+					storeEditBoxPoints(editBox)
+					editBox:ClearAllPoints()
+					editBox:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+					editBox:SetWidth(frame:GetWidth())
+					if not frame.eqolEditBoxSizeHooked then
+						frame:HookScript("OnSizeChanged", function(self)
+							if addon.db and addon.db.chatEditBoxOnTop and self.editBox then self.editBox:SetWidth(self:GetWidth()) end
+						end)
+						frame.eqolEditBoxSizeHooked = true
+					end
+				else
+					restoreEditBoxPoints(editBox)
+				end
+			end)
+
+			ensureChatFrameHooks()
+		end
+
+	local function hideCombatLogTab()
+		if not (ChatFrame2 and ChatFrame2Tab) then return end
+		addon.variables = addon.variables or {}
+		local state = addon.variables.chatCombatLogTabState or {}
+		if not state.saved then
+			state.name = ChatFrame2.name or (GetChatWindowInfo(2))
+			state.scale = ChatFrame2Tab:GetScale()
+			state.width = ChatFrame2Tab:GetWidth()
+			state.height = ChatFrame2Tab:GetHeight()
+			state.mouseEnabled = ChatFrame2Tab:IsMouseEnabled()
+			state.saved = true
+			addon.variables.chatCombatLogTabState = state
+		end
+		ChatFrame2Tab:EnableMouse(false)
+		ChatFrame2Tab:SetText(" ")
+		ChatFrame2Tab:SetScale(0.01)
+		ChatFrame2Tab:SetWidth(0.01)
+		ChatFrame2Tab:SetHeight(0.01)
+		addon.variables.chatCombatLogHidden = true
+	end
+
+	local function showCombatLogTab()
+		if not (ChatFrame2 and ChatFrame2Tab) then return end
+		addon.variables = addon.variables or {}
+		local state = addon.variables.chatCombatLogTabState or {}
+		local name = state.name or COMBAT_LOG
+		ChatFrame2Tab:SetScale(state.scale or 1)
+		if state.width then ChatFrame2Tab:SetWidth(state.width) end
+		if state.height then ChatFrame2Tab:SetHeight(state.height) end
+		ChatFrame2Tab:EnableMouse(state.mouseEnabled ~= false)
+		if FCF_SetWindowName then
+			FCF_SetWindowName(ChatFrame2, name, true)
+		else
+			ChatFrame2Tab:SetText(name)
+		end
+		if FCFDock_UpdateTabs and GENERAL_CHAT_DOCK then FCFDock_UpdateTabs(GENERAL_CHAT_DOCK, true) end
+		addon.variables.chatCombatLogHidden = nil
+	end
+
+	addon.functions.ApplyChatHideCombatLogTab = addon.functions.ApplyChatHideCombatLogTab
+		or function(enabled)
+			ensureChatFrameHooks()
+			if not (ChatFrame2 and ChatFrame2Tab) then return end
+			addon.variables = addon.variables or {}
+
+			if enabled then
+				if ChatFrame2.isDocked then
+					hideCombatLogTab()
+					addon.variables.chatCombatLogPending = nil
+				else
+					if addon.variables.chatCombatLogHidden then showCombatLogTab() end
+					if not addon.variables.chatCombatLogWarned then
+						local msg = L and L["chatHideCombatLogTabUndocked"] or "Combat log tab cannot be hidden while undocked."
+						if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+							DEFAULT_CHAT_FRAME:AddMessage(msg)
+						else
+							print(msg)
+						end
+						addon.variables.chatCombatLogWarned = true
+					end
+					addon.variables.chatCombatLogPending = true
+				end
+			else
+				if addon.variables.chatCombatLogHidden then showCombatLogTab() end
+				addon.variables.chatCombatLogPending = nil
+			end
+		end
+
 	if ChatFrame1 then
 		addon.functions.InitDBValue("chatFrameFadeEnabled", ChatFrame1:GetFading())
 		addon.functions.InitDBValue("chatFrameFadeTimeVisible", ChatFrame1:GetTimeVisible())
@@ -3124,6 +3308,9 @@ local function initChatFrame()
 	addon.functions.InitDBValue("chatShowItemLevelInLinks", false)
 	addon.functions.InitDBValue("chatShowItemLevelLocation", false)
 	addon.functions.InitDBValue("chatHideLearnUnlearn", false)
+	addon.functions.InitDBValue("chatUseArrowKeys", false)
+	addon.functions.InitDBValue("chatEditBoxOnTop", false)
+	addon.functions.InitDBValue("chatHideCombatLogTab", false)
 	addon.functions.InitDBValue("chatBubbleFontOverride", false)
 	addon.functions.InitDBValue("chatBubbleFontSize", DEFAULT_CHAT_BUBBLE_FONT_SIZE)
 	addon.functions.ApplyChatBubbleFontSize(addon.db["chatBubbleFontSize"])
@@ -3133,6 +3320,9 @@ local function initChatFrame()
 	if addon.ChatIcons and addon.ChatIcons.SetItemLevelEnabled then addon.ChatIcons:SetItemLevelEnabled(addon.db["chatShowItemLevelInLinks"]) end
 
 	if addon.ChatIM and addon.ChatIM.SetEnabled then addon.ChatIM:SetEnabled(addon.db["enableChatIM"]) end
+	if addon.functions.ApplyChatArrowKeys then addon.functions.ApplyChatArrowKeys(addon.db["chatUseArrowKeys"]) end
+	if addon.functions.ApplyChatEditBoxOnTop then addon.functions.ApplyChatEditBoxOnTop(addon.db["chatEditBoxOnTop"]) end
+	if addon.functions.ApplyChatHideCombatLogTab then addon.functions.ApplyChatHideCombatLogTab(addon.db["chatHideCombatLogTab"]) end
 end
 
 local function initMap()

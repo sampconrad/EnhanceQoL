@@ -11,6 +11,7 @@
   - Unit status text now has its own font size/font/outline controls + Edit Mode sample.
   - PvP indicator icon for Player/Target/Focus.
   - Optional reverse-fill absorb bar in UF.
+  - Cast bars now show interrupted/failed feedback on Target/Focus/Boss.
   - Resource bars can show configurable threshold lines (count/color/thickness).
   - Single opacity slider for UF Plus “Show when” visibility.
   - Brewmaster: Stagger secondary resource bar with native Stagger colors.

@@ -82,6 +82,36 @@ local data = {
 		default = false,
 	},
 	{
+		var = "chatUseArrowKeys",
+		text = L["chatUseArrowKeys"],
+		desc = L["chatUseArrowKeysDesc"],
+		func = function(key)
+			addon.db["chatUseArrowKeys"] = key
+			if addon.functions.ApplyChatArrowKeys then addon.functions.ApplyChatArrowKeys(key) end
+		end,
+		default = false,
+	},
+	{
+		var = "chatEditBoxOnTop",
+		text = L["chatEditBoxOnTop"],
+		desc = L["chatEditBoxOnTopDesc"],
+		func = function(key)
+			addon.db["chatEditBoxOnTop"] = key
+			if addon.functions.ApplyChatEditBoxOnTop then addon.functions.ApplyChatEditBoxOnTop(key) end
+		end,
+		default = false,
+	},
+	{
+		var = "chatHideCombatLogTab",
+		text = L["chatHideCombatLogTab"],
+		desc = L["chatHideCombatLogTabDesc"],
+		func = function(key)
+			addon.db["chatHideCombatLogTab"] = key
+			if addon.functions.ApplyChatHideCombatLogTab then addon.functions.ApplyChatHideCombatLogTab(key) end
+		end,
+		default = false,
+	},
+	{
 		var = "chatFrameFadeEnabled",
 		text = L["chatFrameFadeEnabled"],
 		desc = L["chatFrameFadeEnabled"],
