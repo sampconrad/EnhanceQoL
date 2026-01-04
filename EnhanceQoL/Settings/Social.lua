@@ -14,6 +14,7 @@ addon.SettingsLayout.socialCategory = cSocial
 
 local socialExpandable = addon.functions.SettingsCreateExpandableSection(cSocial, {
 	name = _G["GENERAL"],
+	newTagID = "SocialGeneral",
 	expanded = false,
 	colorizeTitle = false,
 })

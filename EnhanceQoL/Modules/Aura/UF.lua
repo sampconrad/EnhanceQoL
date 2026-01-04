@@ -188,7 +188,6 @@ local defaults = {
 		anchor = { point = "CENTER", relativeTo = "UIParent", relativePoint = "CENTER", x = 0, y = -200 },
 		strata = nil,
 		frameLevel = nil,
-		barGap = 0,
 		border = {
 			enabled = true,
 			texture = "DEFAULT",
@@ -1741,7 +1740,6 @@ do
 	bossDefaults.healthHeight = 20
 	bossDefaults.powerHeight = 10
 	bossDefaults.statusHeight = 16
-	bossDefaults.barGap = 0
 	bossDefaults.spacing = 4
 	bossDefaults.growth = "DOWN"
 	bossDefaults.health.useClassColor = false
@@ -2906,8 +2904,7 @@ local function layoutFrame(cfg, unit)
 	local statusHeight = showStatus and (cfg.statusHeight or def.statusHeight) or 0
 	local healthHeight = cfg.healthHeight or def.healthHeight
 	local powerHeight = powerEnabled and (cfg.powerHeight or def.powerHeight) or 0
-	local barGap = powerEnabled and (cfg.barGap or def.barGap or 0) or 0
-	local stackHeight = healthHeight + (powerDetached and 0 or (powerHeight + barGap))
+	local stackHeight = healthHeight + (powerDetached and 0 or powerHeight)
 	local borderCfg = cfg.border or {}
 	local borderDef = def.border or {}
 	local borderOffset = 0
@@ -3026,18 +3023,18 @@ local function layoutFrame(cfg, unit)
 			if st.power.GetParent and st.power:GetParent() ~= st.powerGroup then st.power:SetParent(st.powerGroup) end
 			st.powerGroup:Show()
 			st.powerGroup:SetSize(powerWidth + detachedPowerOffset * 2, powerHeight + detachedPowerOffset * 2)
-			st.powerGroup:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox - detachedPowerOffset, -barGap + oy + detachedPowerOffset)
+			st.powerGroup:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox - detachedPowerOffset, oy + detachedPowerOffset)
 			st.power:SetPoint("TOPLEFT", st.powerGroup, "TOPLEFT", detachedPowerOffset, -detachedPowerOffset)
 		else
 			if st.powerGroup then st.powerGroup:Hide() end
 			if st.power.GetParent and st.power:GetParent() ~= st.barGroup then st.power:SetParent(st.barGroup) end
-			st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox, -barGap + oy)
+			st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox, oy)
 		end
 	else
 		if st.powerGroup then st.powerGroup:Hide() end
 		if st.power.GetParent and st.power:GetParent() ~= st.barGroup then st.power:SetParent(st.barGroup) end
-		st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", 0, -barGap)
-		st.power:SetPoint("TOPRIGHT", st.health, "BOTTOMRIGHT", 0, -barGap)
+		st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", 0, 0)
+		st.power:SetPoint("TOPRIGHT", st.health, "BOTTOMRIGHT", 0, 0)
 	end
 
 	st._portraitSide = portraitSide

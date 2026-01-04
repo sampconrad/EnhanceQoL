@@ -7,6 +7,7 @@ addon.SettingsLayout.mapNavigationCategory = cMapNav
 
 local mapExpandable = addon.functions.SettingsCreateExpandableSection(cMapNav, {
 	name = L["MapNavigation"],
+	newTagID = "MapNavigation",
 	expanded = false,
 	colorizeTitle = false,
 })

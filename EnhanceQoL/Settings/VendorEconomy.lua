@@ -173,6 +173,7 @@ addon.functions.SettingsCreateCheckboxes(cVendorEconomy, data)
 
 local mailboxExpandable = addon.functions.SettingsCreateExpandableSection(addon.SettingsLayout.rootSOCIAL, {
 	name = MINIMAP_TRACKING_MAILBOX,
+	newTagID = "Mailbox",
 	expanded = false,
 	colorizeTitle = false,
 })

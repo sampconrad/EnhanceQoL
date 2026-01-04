@@ -367,6 +367,7 @@ function addon.functions.SettingsCreateExpandableSection(cat, cbData)
 		colorizeTitle = cbData.colorizeTitle,
 		titleColor = cbData.titleColor,
 		extent = cbData.extent,
+		newTagID = cbData.newTagID,
 		prefix = prefix,
 	})
 	if cbData.var then

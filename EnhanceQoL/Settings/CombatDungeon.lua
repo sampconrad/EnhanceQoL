@@ -874,6 +874,7 @@ local sectionDeathRes = addon.SettingsLayout.gameplayDeathResSection
 if not sectionDeathRes then
 	sectionDeathRes = addon.functions.SettingsCreateExpandableSection(cChar, {
 		name = L["DeathResurrect"],
+		newTagID = "DeathResurrect",
 		expanded = false,
 		colorizeTitle = false,
 	})

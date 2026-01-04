@@ -2231,6 +2231,7 @@ local function buildSettings()
 		name = L["Resource Bars"],
 		expanded = false,
 		colorizeTitle = false,
+		newTagID = "ResourceBars"
 	})
 
 	local data = {

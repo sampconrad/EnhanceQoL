@@ -57,6 +57,7 @@
   - Frame visibility rules now have a global fade amount slider.
 - **UF Plus / Resource Bars**
   - Brewmaster no longer shows the unused Mana bar.
+  - Removed the "Gap between bars" unit frame setting (detached power bar replaces this use case).
 - **Gear & Upgrades**
   - Character/Inspect display options now use a multi-select dropdown with per-option tooltips.
 - **Items & Inventory**

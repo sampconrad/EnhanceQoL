@@ -582,8 +582,7 @@ local function calcLayout(unit, frame)
 
 	local healthHeight = cfg.healthHeight or def.healthHeight or 24
 	local powerHeight = powerEnabled and (cfg.powerHeight or def.powerHeight or 16) or 0
-	local barGap = powerEnabled and (cfg.barGap or def.barGap or 0) or 0
-	local stackHeight = healthHeight + (powerDetached and 0 or (powerHeight + barGap))
+	local stackHeight = healthHeight + (powerDetached and 0 or powerHeight)
 	local portraitInnerHeight = stackHeight
 	local portraitSize = portraitEnabled and math.max(1, portraitInnerHeight) or 0
 
@@ -728,11 +727,6 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "width" }, math.max(MIN_WIDTH, val or MIN_WIDTH))
 		refreshSelf()
 	end, def.width or MIN_WIDTH, "frame", true)
-
-	list[#list + 1] = slider(L["UFBarGap"] or "Gap between bars", 0, 10, 1, function() return getValue(unit, { "barGap" }, def.barGap or 0) end, function(val)
-		setValue(unit, { "barGap" }, val or 0)
-		refreshSelf()
-	end, def.barGap or 0, "frame", true)
 
 	if isBoss then
 		list[#list + 1] = slider(L["UFBossSpacing"] or "Boss spacing", 0, 100, 1, function() return getValue(unit, { "spacing" }, def.spacing or 4) end, function(val)

@@ -627,6 +627,7 @@ local function createFrameCategory()
 
 	local expandable = addon.functions.SettingsCreateExpandableSection(category, {
 		name = L["visibilityKindFrames"],
+		newTagID = "VisibilityFrames",
 		expanded = false,
 		colorizeTitle = false,
 	})
