@@ -12,9 +12,9 @@
 	<Script file='VendorEconomy.lua'/>
 	<Script file='System.lua'/>
 	<Script file='UIOptions.lua'/>
-	<Script file='ActionTracker.lua'/>
 	<Script file='../Modules/Aura/Settings_Ressourcebars.lua'/>
 	<Script file='UIInput.lua'/>
+	<Script file='ActionTracker.lua'/>
 	<Script file='MapNavigation.lua'/>
 	<Script file='DataPanel.lua'/>
 	<Script file='Profiles.lua'/>

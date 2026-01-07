@@ -11,6 +11,10 @@ local expandable = addon.functions.SettingsCreateExpandableSection(cUI, {
 	colorizeTitle = false,
 })
 
+addon.functions.SettingsCreateText(cUI, L["actionTrackerDesc"] or "Shows your most recently cast spells as icons.", {
+	parentSection = expandable,
+})
+
 addon.functions.SettingsCreateCheckbox(cUI, {
 	var = "actionTrackerEnabled",
 	text = L["actionTrackerEnabled"] or "Enable Action Tracker",

@@ -117,6 +117,13 @@ data = {
 		element = addon.SettingsLayout.elements["TooltipItemHideType"].element,
 		parentSection = expandable,
 	},
+}
+table.sort(data, function(a, b) return a.text < b.text end)
+
+addon.functions.SettingsCreateCheckboxes(cTooltip, data)
+
+data = {
+
 	{
 		var = "TooltipShowItemID",
 		text = L["TooltipShowItemID"],

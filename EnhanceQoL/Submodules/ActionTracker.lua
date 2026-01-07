@@ -84,12 +84,13 @@ function ActionTracker:GetFadeDuration()
 	return fade
 end
 
-function ActionTracker:GetEntryAlpha(entry, now)
-	local fade = self:GetFadeDuration()
-	if fade <= 0 then return 1 end
+function ActionTracker:GetEntryAlpha(entry, now, fade)
+	local duration = fade
+	if duration == nil then duration = self:GetFadeDuration() end
+	if duration <= 0 then return 1 end
 	local age = (now or GetTime()) - (entry.time or 0)
-	if age >= fade then return 0 end
-	return 1 - (age / fade)
+	if age >= duration then return 0 end
+	return 1 - (age / duration)
 end
 
 function ActionTracker:TrimEntries()
@@ -207,6 +208,7 @@ function ActionTracker:RefreshIcons()
 	local entries = self.entries
 	local maxIcons = self:GetMaxIcons()
 	local now = GetTime()
+	local fade = self:GetFadeDuration()
 
 	self:TrimEntries()
 
@@ -224,7 +226,7 @@ function ActionTracker:RefreshIcons()
 				icon.cooldown:Clear()
 			end
 
-			icon:SetAlpha(self:GetEntryAlpha(entry, now))
+			icon:SetAlpha(self:GetEntryAlpha(entry, now, fade))
 			icon:Show()
 		else
 			icon.spellID = nil
@@ -237,23 +239,16 @@ function ActionTracker:RefreshIcons()
 end
 
 function ActionTracker:StartFadeUpdate()
-	if self.fadeActive or not self.frame then return end
-	self.fadeActive = true
-	self.frame:SetScript("OnUpdate", function(_, elapsed) ActionTracker:OnUpdate(elapsed) end)
+	if self.fadeTicker or not self.frame then return end
+	local tracker = self
+	self.fadeTicker = C_Timer.NewTicker(FADE_TICK, function() tracker:UpdateFade() end)
 end
 
 function ActionTracker:StopFadeUpdate()
-	if not self.fadeActive then return end
-	self.fadeActive = nil
-	self.fadeElapsed = nil
-	if self.frame then self.frame:SetScript("OnUpdate", nil) end
-end
-
-function ActionTracker:OnUpdate(elapsed)
-	self.fadeElapsed = (self.fadeElapsed or 0) + elapsed
-	if self.fadeElapsed < FADE_TICK then return end
-	self.fadeElapsed = 0
-	self:UpdateFade()
+	if self.fadeTicker then
+		self.fadeTicker:Cancel()
+		self.fadeTicker = nil
+	end
 end
 
 function ActionTracker:UpdateFade()
@@ -277,22 +272,23 @@ function ActionTracker:UpdateFade()
 	else
 		for i, entry in ipairs(self.entries) do
 			local icon = self.frame and self.frame.icons and self.frame.icons[i]
-			if icon then icon:SetAlpha(self:GetEntryAlpha(entry, now)) end
+			if icon then icon:SetAlpha(self:GetEntryAlpha(entry, now, fade)) end
 		end
 	end
 
 	if #self.entries == 0 then self:StopFadeUpdate() end
 end
 
-function ActionTracker:UpdateFadeState()
+function ActionTracker:UpdateFadeState(skipRefresh)
 	local fade = self:GetFadeDuration()
 	self:TrimEntries()
 	if fade <= 0 or #self.entries == 0 then
 		self:StopFadeUpdate()
-		self:RefreshIcons()
+		if not skipRefresh then self:RefreshIcons() end
 		return
 	end
 	self:StartFadeUpdate()
+	if not skipRefresh then self:RefreshIcons() end
 end
 
 function ActionTracker:ClearEntries()
@@ -326,7 +322,7 @@ function ActionTracker:AddEntry(spellID)
 	end
 
 	self:RefreshIcons()
-	self:UpdateFadeState()
+	self:UpdateFadeState(true)
 end
 
 function ActionTracker:OnEvent(event, unit, arg2, arg3, arg4)
@@ -380,7 +376,7 @@ function ActionTracker:ApplyLayoutData(data)
 	self:TrimEntries()
 	self:UpdateLayout()
 	self:RefreshIcons()
-	self:UpdateFadeState()
+	self:UpdateFadeState(true)
 end
 
 local function applySetting(field, value)
@@ -418,7 +414,7 @@ local function applySetting(field, value)
 	ActionTracker:TrimEntries()
 	ActionTracker:UpdateLayout()
 	ActionTracker:RefreshIcons()
-	ActionTracker:UpdateFadeState()
+	ActionTracker:UpdateFadeState(true)
 end
 
 function ActionTracker:RegisterEditMode()
@@ -530,7 +526,7 @@ function ActionTracker:OnSettingChanged(enabled)
 		self:RegisterEvents()
 		self:UpdateLayout()
 		self:RefreshIcons()
-		self:UpdateFadeState()
+		self:UpdateFadeState(true)
 	else
 		self:UnregisterEvents()
 		self:ClearEntries()
