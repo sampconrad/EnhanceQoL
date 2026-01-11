@@ -232,6 +232,7 @@ local function registerEditModePanel(panel)
 		width = panel.info.width or panel.frame:GetWidth() or 200,
 		height = panel.info.height or panel.frame:GetHeight() or 20,
 		hideBorder = panel.info.noBorder or false,
+		clickThrough = panel.info.clickThrough == true,
 		strata = normalizeStrata(panel.info.strata, panel.frame:GetFrameStrata()),
 		streams = copyList(panel.info.streams),
 		fontOutline = panel.info.fontOutline ~= false,
@@ -267,6 +268,12 @@ local function registerEditModePanel(panel)
 				kind = SettingType.Checkbox,
 				field = "hideBorder",
 				default = defaults.hideBorder,
+			},
+			{
+				name = L["DataPanelClickThrough"] or "Click-through",
+				kind = SettingType.Checkbox,
+				field = "clickThrough",
+				default = defaults.clickThrough,
 			},
 			{
 				name = L["DataPanelStrata"],
@@ -429,6 +436,7 @@ local function ensureSettings(id, name)
 			streamSet = {},
 			name = name or ((L["Panel"] or "Panel") .. " " .. id),
 			noBorder = false,
+			clickThrough = false,
 			strata = "MEDIUM",
 			fontOutline = DEFAULT_FONT_OUTLINE,
 			fontShadow = DEFAULT_FONT_SHADOW,
@@ -440,6 +448,7 @@ local function ensureSettings(id, name)
 		info.streamSet = info.streamSet or {}
 		info.name = info.name or name or ((L["Panel"] or "Panel") .. " " .. id)
 		if info.noBorder == nil then info.noBorder = false end
+		if info.clickThrough == nil then info.clickThrough = false end
 		info.strata = normalizeStrata(info.strata, "MEDIUM")
 		if info.fontOutline == nil then info.fontOutline = DEFAULT_FONT_OUTLINE end
 		if info.fontShadow == nil then info.fontShadow = DEFAULT_FONT_SHADOW end
@@ -550,6 +559,25 @@ function DataPanel.Create(id, name, existingOnly)
 		self:SyncEditModeValue("hideBorder", i and i.noBorder or false)
 	end
 
+	function panel:ApplyClickThroughToData(data)
+		local enabled = not (self.info and self.info.clickThrough)
+		if data and data.button and data.button.EnableMouse then data.button:EnableMouse(enabled) end
+		if data and data.parts then
+			for _, child in ipairs(data.parts) do
+				if child and child.EnableMouse then child:EnableMouse(enabled) end
+			end
+		end
+	end
+
+	function panel:ApplyClickThrough()
+		local enabled = not (self.info and self.info.clickThrough)
+		if self.frame and self.frame.EnableMouse then self.frame:EnableMouse(enabled) end
+		for _, data in pairs(self.streams) do
+			self:ApplyClickThroughToData(data)
+		end
+		self:SyncEditModeValue("clickThrough", self.info and self.info.clickThrough or false)
+	end
+
 	function panel:ApplyStrata(strata)
 		local fallback = (self.info and self.info.strata) or (self.frame and self.frame:GetFrameStrata())
 		local normalized = normalizeStrata(strata, fallback)
@@ -657,6 +685,7 @@ function DataPanel.Create(id, name, existingOnly)
 			field == "width"
 			or field == "height"
 			or field == "hideBorder"
+			or field == "clickThrough"
 			or field == "streams"
 			or field == "strata"
 			or field == "fontOutline"
@@ -738,6 +767,13 @@ function DataPanel.Create(id, name, existingOnly)
 		if data.hideBorder ~= nil then
 			info.noBorder = data.hideBorder and true or false
 			self:ApplyBorder()
+		end
+		if data.clickThrough ~= nil then
+			local desired = data.clickThrough and true or false
+			if info.clickThrough ~= desired then
+				info.clickThrough = desired
+				self:ApplyClickThrough()
+			end
 		end
 		if data.strata then self:ApplyStrata(data.strata) end
 		if data.fontOutline ~= nil then
@@ -860,6 +896,8 @@ function DataPanel.Create(id, name, existingOnly)
 			if fn then fn(b, btn, ...) end
 		end)
 
+		self:ApplyClickThroughToData(data)
+
 		self.order[#self.order + 1] = name
 
 		local function cb(payload)
@@ -875,6 +913,7 @@ function DataPanel.Create(id, name, existingOnly)
 			local size = payload.fontSize or data.fontSize or 14
 			local fontFlags = panel:GetFontFlags()
 			local fontShadow = panel.info and panel.info.fontShadow == true
+			local clickEnabled = not (panel.info and panel.info.clickThrough)
 
 			if payload.hidden then
 				data.button:Hide()
@@ -974,6 +1013,7 @@ function DataPanel.Create(id, name, existingOnly)
 							child:RegisterForClicks("AnyUp")
 							child:SetScript("OnClick", partsOnClick)
 						end
+						if child.EnableMouse then child:EnableMouse(clickEnabled) end
 						child.text = child:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 						child.text:SetAllPoints()
 						child.slot = data
@@ -1134,6 +1174,17 @@ function DataPanel.Create(id, name, existingOnly)
 					data.fontShadow = fontShadow
 				end
 			end
+			local textAlpha = payload.textAlpha
+			if textAlpha == nil then textAlpha = 1 end
+			if data.textAlpha ~= textAlpha then
+				data.textAlpha = textAlpha
+				if data.text and data.text.SetAlpha then data.text:SetAlpha(textAlpha) end
+				if data.parts then
+					for _, child in ipairs(data.parts) do
+						if child and child.SetAlpha then child:SetAlpha(textAlpha) end
+					end
+				end
+			end
 			data.tooltip = payload.tooltip
 			data.perCurrency = payload.perCurrency
 			data.showDescription = payload.showDescription
@@ -1204,6 +1255,7 @@ function DataPanel.Create(id, name, existingOnly)
 	panel:SyncEditModeStrata()
 	updateSelectionStrata(panel, info.strata)
 	ensureFadeWatcher()
+	panel:ApplyClickThrough()
 	panel:ApplyAlpha()
 
 	return panel

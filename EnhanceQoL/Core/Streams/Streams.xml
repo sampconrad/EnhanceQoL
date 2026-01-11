@@ -15,6 +15,7 @@
         <Script file="Stream_MythicRating.lua"/>
         <Script file="Stream_EquipmentSets.lua"/>
         <Script file="Stream_MicroBar.lua"/>
+        <Script file="Stream_PetTracker.lua"/>
         <Script file="Stream_Stats.lua"/>
         <Script file="Stream_Talentbuilt.lua"/>
         <Script file="Stream_Volume.lua"/>

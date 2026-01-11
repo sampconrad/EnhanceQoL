@@ -1,5 +1,18 @@
 # Changelog
 
+## [7.1.0] - 2026-01-20
+
+### ✨ Added
+
+- DataPanels: Pet Tracker stream with customizable text color/size and optional blinking when a pet spec has no active pet. Checks for Frost Mage, Hunter, Warlock, Unholy DK and respects needed talents.
+- DataPanels: Edit Mode click-through toggle to make panels ignore mouse input.
+
+### ❌ Removed
+
+- Removed the CombatMeter module and clean up its saved variables on load.
+
+---
+
 ## [7.0.2] - 2026-01-11
 
 ### 🐛 Fixed

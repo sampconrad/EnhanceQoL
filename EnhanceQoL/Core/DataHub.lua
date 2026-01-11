@@ -18,10 +18,58 @@ DataHub.polling = {}
 DataHub.eventsByStream = {}
 DataHub.throttleTimers = {}
 DataHub.driverTicker = DataHub.driverTicker or nil
+DataHub.unitEventMap = DataHub.unitEventMap or {}
+DataHub.unitFrames = DataHub.unitFrames or {}
+DataHub.eventsByStreamUnit = DataHub.eventsByStreamUnit or {}
 
 local ipairs = ipairs
 local pairs = pairs
 local GetTime = GetTime
+
+local function getPlayerClassToken()
+	if DataHub.playerClass ~= nil then return DataHub.playerClass end
+	local class = UnitClass and select(2, UnitClass("player"))
+	DataHub.playerClass = class
+	return class
+end
+
+local function isStreamAllowed(stream)
+	local filter = stream and stream.classFilter
+	if not filter then return true end
+	local class = getPlayerClassToken()
+	if not class then return true end
+	if type(filter) == "function" then
+		local ok, result = pcall(filter, class)
+		if ok then return result and true or false end
+		return true
+	end
+	if type(filter) == "table" then return filter[class] and true or false end
+	if type(filter) == "string" then return filter == class end
+	return true
+end
+
+local function getUnitFrame(unitToken)
+	local frames = DataHub.unitFrames
+	local frame = frames[unitToken]
+	if frame then return frame end
+	frame = CreateFrame("Frame")
+	frame._eqolUnit = unitToken
+	frame:SetScript("OnEvent", function(_, event, ...)
+		local unitMap = DataHub.unitEventMap[unitToken]
+		if not unitMap then return end
+		local streams = unitMap[event]
+		if not streams then return end
+		for stream, handler in pairs(streams) do
+			if handler == true then
+				DataHub:RequestUpdate(stream.name)
+			else
+				pcall(handler, ...)
+			end
+		end
+	end)
+	frames[unitToken] = frame
+	return frame
+end
 
 local function acquireRow(stream)
 	local pool = stream.pool
@@ -156,10 +204,12 @@ function DataHub:RegisterStream(name, opts)
 		nextPoll = GetTime(),
 		meta = provider, -- keep original provider for UI/metadata
 	}
+	if provider and provider.classFilter then stream.classFilter = provider.classFilter end
 	if provider and provider.OnClick then stream.snapshot.OnClick = provider.OnClick end
 	if provider and provider.OnMouseEnter then stream.snapshot.OnMouseEnter = provider.OnMouseEnter end
 	hub.streams[name] = stream
 	hub.eventsByStream[name] = {}
+	hub.eventsByStreamUnit[name] = {}
 
 	if opts and opts.events then
 		for _, event in ipairs(opts.events) do
@@ -173,6 +223,28 @@ function DataHub:RegisterStream(name, opts)
 			local handler = fn
 			-- store handler without registering yet
 			hub:RegisterEvent(stream, ev, function(...) handler(stream, ev, ...) end)
+		end
+	end
+	if provider and provider.eventsUnit then
+		for unitToken, unitEvents in pairs(provider.eventsUnit) do
+			if type(unitEvents) == "table" then
+				if #unitEvents > 0 then
+					for _, event in ipairs(unitEvents) do
+						hub:RegisterUnitEvent(stream, unitToken, event)
+					end
+				else
+					for event, fn in pairs(unitEvents) do
+						local ev = event
+						local handler
+						if type(fn) == "function" then
+							handler = function(...) fn(stream, ev, ...) end
+						else
+							handler = true
+						end
+						hub:RegisterUnitEvent(stream, unitToken, ev, handler)
+					end
+				end
+			end
 		end
 	end
 
@@ -191,6 +263,15 @@ function DataHub:UnregisterStream(name)
 			self:UnregisterEvent(stream, event)
 		end
 		self.eventsByStream[name] = nil
+	end
+	local unitEvents = self.eventsByStreamUnit[name]
+	if unitEvents then
+		for unitToken, byEvent in pairs(unitEvents) do
+			for event in pairs(byEvent) do
+				self:UnregisterUnitEvent(stream, unitToken, event)
+			end
+		end
+		self.eventsByStreamUnit[name] = nil
 	end
 
 	self.polling[name] = nil
@@ -220,6 +301,37 @@ function DataHub:RegisterEvent(stream, event, handler)
 	end
 end
 
+function DataHub:RegisterUnitEvent(stream, unitToken, event, handler)
+	unitToken = tostring(unitToken)
+	self.eventsByStreamUnit[stream.name] = self.eventsByStreamUnit[stream.name] or {}
+	local byUnit = self.eventsByStreamUnit[stream.name][unitToken]
+	if not byUnit then
+		byUnit = {}
+		self.eventsByStreamUnit[stream.name][unitToken] = byUnit
+	end
+	byUnit[event] = handler or true
+
+	if stream.subscribers and next(stream.subscribers) then
+		local unitMap = self.unitEventMap[unitToken]
+		if not unitMap then
+			unitMap = {}
+			self.unitEventMap[unitToken] = unitMap
+		end
+		local streamMap = unitMap[event]
+		if not streamMap then
+			streamMap = {}
+			unitMap[event] = streamMap
+			local frame = getUnitFrame(unitToken)
+			if frame and frame.RegisterUnitEvent then
+				frame:RegisterUnitEvent(event, unitToken)
+			elseif frame then
+				frame:RegisterEvent(event)
+			end
+		end
+		streamMap[stream] = handler or true
+	end
+end
+
 function DataHub:UnregisterEvent(stream, event, keep)
 	-- remove from the live event map
 	local map = self.eventMap[event]
@@ -237,9 +349,39 @@ function DataHub:UnregisterEvent(stream, event, keep)
 	end
 end
 
+function DataHub:UnregisterUnitEvent(stream, unitToken, event, keep)
+	unitToken = tostring(unitToken)
+	local unitMap = self.unitEventMap[unitToken]
+	if unitMap then
+		local streamMap = unitMap[event]
+		if streamMap then
+			streamMap[stream] = nil
+			if not next(streamMap) then
+				unitMap[event] = nil
+				local frame = self.unitFrames[unitToken]
+				if frame then frame:UnregisterEvent(event) end
+			end
+		end
+		if not next(unitMap) then self.unitEventMap[unitToken] = nil end
+	end
+
+	if not keep then
+		local byStream = self.eventsByStreamUnit[stream.name]
+		if byStream then
+			local byUnit = byStream[unitToken]
+			if byUnit then
+				byUnit[event] = nil
+				if not next(byUnit) then byStream[unitToken] = nil end
+			end
+			if not next(byStream) then self.eventsByStreamUnit[stream.name] = nil end
+		end
+	end
+end
+
 function DataHub:RequestUpdate(name, throttleKey)
 	local stream = type(name) == "table" and name or self.streams[name]
 	if not stream then return end
+	if stream.classFiltered then return end
 	if not stream.subscribers or not next(stream.subscribers) then return end
 	local key = throttleKey or stream.throttleKey or stream.name
 	if self.throttleTimers[key] then return end
@@ -286,7 +428,9 @@ function DataHub:Subscribe(name, callback)
 	stream.subscribers = stream.subscribers or {}
 	local isFirst = not next(stream.subscribers)
 	stream.subscribers[callback] = true
-	if isFirst then
+	local allowed = isStreamAllowed(stream)
+	stream.classFiltered = not allowed
+	if isFirst and allowed then
 		-- register stored events now that there's a subscriber
 		local events = self.eventsByStream[name]
 		if events then
@@ -294,12 +438,27 @@ function DataHub:Subscribe(name, callback)
 				self:RegisterEvent(stream, event, handler)
 			end
 		end
+		local unitEvents = self.eventsByStreamUnit[name]
+		if unitEvents then
+			for unitToken, byEvent in pairs(unitEvents) do
+				for event, handler in pairs(byEvent) do
+					self:RegisterUnitEvent(stream, unitToken, event, handler)
+				end
+			end
+		end
 		if stream.interval and stream.interval > 0 then
 			self.polling[name] = stream
 			self:UpdateDriver()
 		end
 	end
-	self:RequestUpdate(name)
+	if allowed then
+		self:RequestUpdate(name)
+	else
+		stream.snapshot.hidden = true
+		stream.snapshot.text = nil
+		stream.snapshot.tooltip = nil
+		pcall(callback, stream.snapshot, stream.name)
+	end
 	return function() self:Unsubscribe(name, callback) end
 end
 
@@ -314,6 +473,14 @@ function DataHub:Unsubscribe(name, callback)
 	if events then
 		for event in pairs(events) do
 			self:UnregisterEvent(stream, event, true)
+		end
+	end
+	local unitEvents = self.eventsByStreamUnit[name]
+	if unitEvents then
+		for unitToken, byEvent in pairs(unitEvents) do
+			for event in pairs(byEvent) do
+				self:UnregisterUnitEvent(stream, unitToken, event, true)
+			end
 		end
 	end
 	if stream.interval and stream.interval > 0 then

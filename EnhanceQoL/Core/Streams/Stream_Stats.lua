@@ -431,18 +431,6 @@ local provider = {
 	title = PET_BATTLE_STATS_LABEL,
 	update = checkStats,
 	events = {
-		UNIT_SPELL_HASTE = function(stream, _, unit)
-			if unit == "player" then addon.DataHub:RequestUpdate(stream) end
-		end,
-		UNIT_ATTACK_SPEED = function(stream, _, unit)
-			if unit == "player" then addon.DataHub:RequestUpdate(stream) end
-		end,
-		UNIT_STATS = function(stream, _, unit)
-			if unit == "player" then addon.DataHub:RequestUpdate(stream) end
-		end,
-		UNIT_AURA = function(stream, _, unit)
-			if unit == "player" then C_Timer.After(0.5, function() addon.DataHub:RequestUpdate(stream) end) end
-		end,
 		COMBAT_RATING_UPDATE = function(stream) addon.DataHub:RequestUpdate(stream) end,
 		MASTERY_UPDATE = function(stream) addon.DataHub:RequestUpdate(stream) end,
 		PLAYER_EQUIPMENT_CHANGED = function(stream) addon.DataHub:RequestUpdate(stream) end,
@@ -462,6 +450,16 @@ local provider = {
 				addon.DataHub:RequestUpdate(stream)
 			end)
 		end,
+	},
+	eventsUnit = {
+		player = {
+			UNIT_SPELL_HASTE = true,
+			UNIT_ATTACK_SPEED = true,
+			UNIT_STATS = true,
+			UNIT_AURA = function(stream)
+				C_Timer.After(0.5, function() addon.DataHub:RequestUpdate(stream) end)
+			end,
+		},
 	},
 	OnClick = function(_, btn)
 		if btn == "RightButton" then createAceWindow() end

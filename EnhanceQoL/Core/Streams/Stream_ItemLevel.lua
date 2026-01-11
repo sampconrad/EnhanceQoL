@@ -2,6 +2,10 @@
 local addonName, addon = ...
 local L = addon.L
 
+local AceGUI = addon.AceGUI
+local db
+local stream
+
 local format = string.format
 local floor = math.floor
 
@@ -9,6 +13,56 @@ local lastAvg, lastEquipped, lastPvp
 
 local slotIDs = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
 local iconString = "|T%s:13:15:0:0:50:50:4:46:4:46|t %s"
+
+local function ensureDB()
+	addon.db.datapanel = addon.db.datapanel or {}
+	addon.db.datapanel.itemlevel = addon.db.datapanel.itemlevel or {}
+	db = addon.db.datapanel.itemlevel
+	db.fontSize = db.fontSize or 14
+end
+
+local function RestorePosition(frame)
+	if not db then return end
+	if db.point and db.x and db.y then
+		frame:ClearAllPoints()
+		frame:SetPoint(db.point, UIParent, db.point, db.x, db.y)
+	end
+end
+
+local aceWindow
+local function createAceWindow()
+	if aceWindow then
+		aceWindow:Show()
+		return
+	end
+	ensureDB()
+	local frame = AceGUI:Create("Window")
+	aceWindow = frame.frame
+	frame:SetTitle(GAMEMENU_OPTIONS)
+	frame:SetWidth(300)
+	frame:SetHeight(200)
+	frame:SetLayout("List")
+
+	frame.frame:SetScript("OnShow", function(self) RestorePosition(self) end)
+	frame.frame:SetScript("OnHide", function(self)
+		local point, _, _, xOfs, yOfs = self:GetPoint()
+		db.point = point
+		db.x = xOfs
+		db.y = yOfs
+	end)
+
+	local fontSize = AceGUI:Create("Slider")
+	fontSize:SetLabel(FONT_SIZE)
+	fontSize:SetSliderValues(8, 32, 1)
+	fontSize:SetValue(db.fontSize)
+	fontSize:SetCallback("OnValueChanged", function(_, _, val)
+		db.fontSize = val
+		addon.DataHub:RequestUpdate(stream)
+	end)
+	frame:AddChild(fontSize)
+
+	frame.frame:Show()
+end
 
 local function getOptionsHint()
 	if addon.DataPanel and addon.DataPanel.GetOptionsHintText then
@@ -58,9 +112,11 @@ local function getDetailedItemLevel(link)
 end
 
 local function updateItemLevel(s)
+	ensureDB()
 	local avg, equipped, pvp = GetAverageItemLevel()
 	if not avg then
 		s.snapshot.text = NOT_APPLICABLE or "N/A"
+		s.snapshot.fontSize = db.fontSize
 		lastAvg, lastEquipped, lastPvp = nil, nil, nil
 		return
 	end
@@ -75,7 +131,7 @@ local function updateItemLevel(s)
 	else
 		s.snapshot.text = format("%s: %s", label, equippedText)
 	end
-	s.snapshot.fontSize = 14
+	s.snapshot.fontSize = db.fontSize
 end
 
 local provider = {
@@ -86,11 +142,16 @@ local provider = {
 	events = {
 		PLAYER_AVG_ITEM_LEVEL_UPDATE = function(s) addon.DataHub:RequestUpdate(s) end,
 		PLAYER_EQUIPMENT_CHANGED = function(s) addon.DataHub:RequestUpdate(s) end,
-		UNIT_INVENTORY_CHANGED = function(s, _, unit)
-			if unit == "player" then addon.DataHub:RequestUpdate(s) end
-		end,
 		PLAYER_ENTERING_WORLD = function(s) addon.DataHub:RequestUpdate(s) end,
 	},
+	eventsUnit = {
+		player = {
+			UNIT_INVENTORY_CHANGED = true,
+		},
+	},
+	OnClick = function(_, btn)
+		if btn == "RightButton" then createAceWindow() end
+	end,
 	OnMouseEnter = function(btn)
 		local tip = GameTooltip
 		tip:ClearLines()
@@ -141,6 +202,6 @@ local provider = {
 	end,
 }
 
-EnhanceQoL.DataHub.RegisterStream(provider)
+stream = EnhanceQoL.DataHub.RegisterStream(provider)
 
 return provider
