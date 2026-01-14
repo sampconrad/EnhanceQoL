@@ -2557,6 +2557,8 @@ local function buildUnitSettings(unit)
 	local function isLevelEnabled() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) ~= false end
 	local function isUnitStatusEnabled() return getValue(unit, { "status", "unitStatus", "enabled" }, (statusDef.unitStatus and statusDef.unitStatus.enabled) == true) == true end
 	local function isStatusTextEnabled() return isNameEnabled() or isLevelEnabled() or isUnitStatusEnabled() end
+	local classIconDef = statusDef.classificationIcon or { enabled = false, size = 16, offset = { x = -4, y = 0 } }
+	local function isClassificationIconEnabled() return getValue(unit, { "status", "classificationIcon", "enabled" }, classIconDef.enabled == true) == true end
 
 	list[#list + 1] = checkbox(L["UFStatusEnable"] or "Show status line", isNameEnabled, function(val)
 		setValue(unit, { "status", "enabled" }, val and true or false)
@@ -2570,6 +2572,14 @@ local function buildUnitSettings(unit)
 		refreshSettingsUI()
 	end, statusDef.levelEnabled ~= false, "status")
 	list[#list + 1] = showLevelToggle
+
+	if not isPlayer then
+		list[#list + 1] = checkbox(L["UFShowClassificationIcon"] or "Show elite/rare icon", isClassificationIconEnabled, function(val)
+			setValue(unit, { "status", "classificationIcon", "enabled" }, val and true or false)
+			refresh()
+			refreshSettingsUI()
+		end, classIconDef.enabled == true, "status")
+	end
 
 	local hideLevelAtMaxToggle = checkbox(
 		L["UFHideLevelAtMax"] or "Hide at max level",
@@ -2682,10 +2692,20 @@ local function buildUnitSettings(unit)
 	nameFontSizeSetting.isEnabled = isNameEnabled
 	list[#list + 1] = nameFontSizeSetting
 
-	local nameMaxCharsSetting = slider(L["UFNameMaxChars"] or "Name max width", 0, 100, 1, function() return getValue(unit, { "status", "nameMaxChars" }, statusDef.nameMaxChars or 0) end, function(val)
-		setValue(unit, { "status", "nameMaxChars" }, val or 0)
-		refresh()
-	end, statusDef.nameMaxChars or 15, "status", true)
+	local nameMaxCharsSetting = slider(
+		L["UFNameMaxChars"] or "Name max width",
+		0,
+		100,
+		1,
+		function() return getValue(unit, { "status", "nameMaxChars" }, statusDef.nameMaxChars or 0) end,
+		function(val)
+			setValue(unit, { "status", "nameMaxChars" }, val or 0)
+			refresh()
+		end,
+		statusDef.nameMaxChars or 15,
+		"status",
+		true
+	)
 	nameMaxCharsSetting.isEnabled = isNameEnabled
 	list[#list + 1] = nameMaxCharsSetting
 
@@ -2789,6 +2809,57 @@ local function buildUnitSettings(unit)
 	)
 	levelOffsetYSetting.isEnabled = isLevelEnabled
 	list[#list + 1] = levelOffsetYSetting
+
+	if not isPlayer then
+		local classIconSize = slider(L["Icon size"] or "Icon size", 8, 40, 1, function() return getValue(unit, { "status", "classificationIcon", "size" }, classIconDef.size or 16) end, function(val)
+			local v = val or classIconDef.size or 16
+			setValue(unit, { "status", "classificationIcon", "size" }, v)
+			refresh()
+		end, classIconDef.size or 16, "status", true)
+		classIconSize.isEnabled = isClassificationIconEnabled
+		classIconSize.isShown = isClassificationIconEnabled
+		list[#list + 1] = classIconSize
+
+		local classIconOffsetX = slider(
+			L["Offset X"] or "Offset X",
+			-OFFSET_RANGE,
+			OFFSET_RANGE,
+			1,
+			function() return getValue(unit, { "status", "classificationIcon", "offset", "x" }, (classIconDef.offset and classIconDef.offset.x) or -4) end,
+			function(val)
+				local off = getValue(unit, { "status", "classificationIcon", "offset" }, { x = -4, y = 0 }) or {}
+				off.x = val or 0
+				setValue(unit, { "status", "classificationIcon", "offset" }, off)
+				refresh()
+			end,
+			(classIconDef.offset and classIconDef.offset.x) or -4,
+			"status",
+			true
+		)
+		classIconOffsetX.isEnabled = isClassificationIconEnabled
+		classIconOffsetX.isShown = isClassificationIconEnabled
+		list[#list + 1] = classIconOffsetX
+
+		local classIconOffsetY = slider(
+			L["Offset Y"] or "Offset Y",
+			-OFFSET_RANGE,
+			OFFSET_RANGE,
+			1,
+			function() return getValue(unit, { "status", "classificationIcon", "offset", "y" }, (classIconDef.offset and classIconDef.offset.y) or 0) end,
+			function(val)
+				local off = getValue(unit, { "status", "classificationIcon", "offset" }, { x = -4, y = 0 }) or {}
+				off.y = val or 0
+				setValue(unit, { "status", "classificationIcon", "offset" }, off)
+				refresh()
+			end,
+			(classIconDef.offset and classIconDef.offset.y) or 0,
+			"status",
+			true
+		)
+		classIconOffsetY.isEnabled = isClassificationIconEnabled
+		classIconOffsetY.isShown = isClassificationIconEnabled
+		list[#list + 1] = classIconOffsetY
+	end
 
 	local usDef = statusDef.unitStatus or {}
 

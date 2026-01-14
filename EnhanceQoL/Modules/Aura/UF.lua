@@ -267,6 +267,11 @@ local defaults = {
 			levelOffset = { x = 0, y = 0 },
 			levelEnabled = true,
 			hideLevelAtMax = false,
+			classificationIcon = {
+				enabled = false,
+				size = 16,
+				offset = { x = -4, y = 0 },
+			},
 			nameMaxChars = 0,
 			unitStatus = {
 				enabled = false,
@@ -2558,7 +2563,9 @@ local function updateHealth(cfg, unit)
 	elseif hc.useClassColor and isPlayerUnit then
 		local class = select(2, UnitClass(unit))
 		local cr, cg, cb, ca = getClassColor(class)
-		if cr then hr, hg, hb, ha = cr, cg, cb, ca end
+		if cr then
+			hr, hg, hb, ha = cr, cg, cb, ca
+		end
 	end
 	if not hr and not useCustom then
 		local nr, ng, nb, na = getNPCHealthColor(unit)
@@ -3516,6 +3523,11 @@ local function ensureFrames(unit)
 		st.roleIcon:SetPoint("TOP", st.frame, "TOP", 24, -2)
 		st.roleIcon:Hide()
 	end
+	if unit ~= UNIT.PLAYER then
+		st.classificationIcon = st.classificationIcon or st.statusTextLayer:CreateTexture(nil, "OVERLAY", nil, 7)
+		st.classificationIcon:SetSize(16, 16)
+		st.classificationIcon:Hide()
+	end
 	if unit == UNIT.PLAYER then
 		st.combatIcon = st.statusTextLayer:CreateTexture("EQOLUFPlayerCombatIcon", "OVERLAY")
 		ensureRestLoop(st)
@@ -3624,7 +3636,9 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 			if isPlayerUnit then
 				local class = select(2, UnitClass(unit))
 				local cr, cg, cb, ca = getClassColor(class)
-				if cr then nr, ng, nb, na = cr, cg, cb, ca end
+				if cr then
+					nr, ng, nb, na = cr, cg, cb, ca
+				end
 			elseif shouldUseNPCColors(unit) then
 				local fallback = NORMAL_FONT_COLOR
 				nr = (fallback and (fallback.r or fallback[1])) or 1
@@ -3661,6 +3675,7 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 			st.levelText:SetTextColor(lc[1] or 1, lc[2] or 0.85, lc[3] or 0, lc[4] or 1)
 		end
 	end
+	if UFHelper and UFHelper.updateClassificationIndicator then UFHelper.updateClassificationIndicator(st, unit, cfg, defaultsFor(unit), false) end
 end
 
 local function applyConfig(unit)
@@ -4052,6 +4067,7 @@ local unitEvents = {
 	"UNIT_MAXPOWER",
 	"UNIT_DISPLAYPOWER",
 	"UNIT_NAME_UPDATE",
+	"UNIT_CLASSIFICATION_CHANGED",
 	"UNIT_FLAGS",
 	"UNIT_CONNECTION",
 	"UNIT_FACTION",
@@ -4674,6 +4690,8 @@ local function onEvent(self, event, unit, ...)
 			local bossCfg = getCfg(unit)
 			if bossCfg.enabled then updateNameAndLevel(bossCfg, unit) end
 		end
+	elseif event == "UNIT_CLASSIFICATION_CHANGED" then
+		if unit and states[unit] then UFHelper.updateClassificationIndicator(states[unit], unit, getCfg(unit), defaultsFor(unit), true) end
 	elseif event == "UNIT_FLAGS" then
 		updateUnitStatusIndicator(getCfg(unit), unit)
 		UFHelper.updatePvPIndicator(states[unit], unit, getCfg(unit), defaultsFor(unit), true)

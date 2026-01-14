@@ -51,9 +51,7 @@ local function normalizeFontOutline(outline)
 	return outline
 end
 
-local function wantsDropShadow(outline)
-	return outline == DROP_SHADOW_FLAG
-end
+local function wantsDropShadow(outline) return outline == DROP_SHADOW_FLAG end
 
 function H.clamp(value, minV, maxV)
 	if value < minV then return minV end
@@ -1226,6 +1224,17 @@ local function resolveRoleAtlas(role)
 	return nil
 end
 
+local function resolveClassificationAtlas(classification)
+	if classification == "elite" or classification == "worldboss" then
+		return "nameplates-icon-elite-gold"
+	elseif classification == "rare" then
+		return "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Star"
+	elseif classification == "rareelite" then
+		return "nameplates-icon-elite-silver"
+	end
+	return nil
+end
+
 function H.updatePvPIndicator(st, unit, cfg, def, skipDisabled)
 	if unit ~= "player" and unit ~= "target" and unit ~= "focus" then return end
 	if not st or not st.pvpIcon then return end
@@ -1302,6 +1311,50 @@ function H.updateRoleIndicator(st, unit, cfg, def, skipDisabled)
 		st.roleIcon:Show()
 	else
 		st.roleIcon:Hide()
+	end
+end
+
+function H.updateClassificationIndicator(st, unit, cfg, def, skipDisabled)
+	if unit == "player" then
+		if st and st.classificationIcon then st.classificationIcon:Hide() end
+		return
+	end
+	if not st or not st.classificationIcon then return end
+	def = def or {}
+	local scfg = (cfg and cfg.status) or {}
+	local defStatus = def.status or {}
+	local icfg = scfg.classificationIcon or defStatus.classificationIcon or {}
+	local enabled = icfg.enabled == true and not (cfg and cfg.enabled == false)
+	if not enabled and skipDisabled then return end
+
+	local sizeDef = defStatus.classificationIcon and defStatus.classificationIcon.size or 16
+	local offsetDef = (defStatus.classificationIcon and defStatus.classificationIcon.offset) or { x = -4, y = 0 }
+	local size = H.clamp(icfg.size or sizeDef or 16, 8, 40)
+	local ox = (icfg.offset and icfg.offset.x) or offsetDef.x or 0
+	local oy = (icfg.offset and icfg.offset.y) or offsetDef.y or 0
+
+	st.classificationIcon:ClearAllPoints()
+	if st.levelText then
+		st.classificationIcon:SetPoint("RIGHT", st.levelText, "LEFT", ox, oy)
+	elseif st.status then
+		st.classificationIcon:SetPoint("RIGHT", st.status, "RIGHT", ox, oy)
+	end
+	st.classificationIcon:SetSize(size, size)
+
+	if not enabled then
+		st.classificationIcon:Hide()
+		return
+	end
+
+	local classification = UnitClassification and UnitClassification(unit)
+	local atlas = resolveClassificationAtlas(classification)
+	local inEditMode = addon.EditModeLib and addon.EditModeLib:IsInEditMode()
+	if not atlas and inEditMode then atlas = resolveClassificationAtlas("rareelite") end
+	if atlas then
+		st.classificationIcon:SetAtlas(atlas)
+		st.classificationIcon:Show()
+	else
+		st.classificationIcon:Hide()
 	end
 end
 
