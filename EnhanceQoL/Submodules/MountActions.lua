@@ -14,6 +14,70 @@ addon.MountActions = MountActions
 local RANDOM_FAVORITE_SPELL_ID = 150544
 local REPAIR_MOUNT_SPELLS = { 457485, 122708, 61425, 61447 }
 local AH_MOUNT_SPELLS = { 264058, 465235 }
+local MOUNT_TYPE_CATEGORIES = {
+	water = { 231, 254, 232, 407 },
+	flying = { 247, 248, 398, 407, 424, 402 },
+	ground = { 230, 241, 269, 284, 408, 412, 231 },
+}
+local MOUNT_TYPE_KNOWN = {}
+for _, ids in pairs(MOUNT_TYPE_CATEGORIES) do
+	for _, id in ipairs(ids) do
+		MOUNT_TYPE_KNOWN[id] = true
+	end
+end
+
+local function isFlyableArea()
+	local isFlyable = _G.IsFlyableArea
+	if isFlyable and isFlyable() then return true end
+	local isAdvanced = _G.IsAdvancedFlyableArea
+	if isAdvanced and isAdvanced() then return true end
+	return false
+end
+
+local function isSwimming()
+	if IsSubmerged and IsSubmerged() then return true end
+	if IsSwimming and IsSwimming() then return true end
+	return false
+end
+
+local function entryMatchesCategory(entry, category)
+	if not category then return true end
+	if category == "flying" and entry.isSteadyFlight then return true end
+	local mountTypeID = entry.mountTypeID
+	if not mountTypeID or not MOUNT_TYPE_KNOWN[mountTypeID] then
+		return category == "ground"
+	end
+	local ids = MOUNT_TYPE_CATEGORIES[category]
+	if not ids then return false end
+	for i = 1, #ids do
+		if ids[i] == mountTypeID then return true end
+	end
+	return false
+end
+
+local function isEntryUsable(entry)
+	if not entry or not entry.mountID then return false end
+	if C_MountJournal and C_MountJournal.GetMountUsabilityByID then
+		local usable = C_MountJournal.GetMountUsabilityByID(entry.mountID, true)
+		if usable ~= nil then return usable == true end
+	end
+	return entry.isUsable == true
+end
+
+local function pickRandomMount(entries, category)
+	local count = 0
+	local chosen
+	for i = 1, #entries do
+		local entry = entries[i]
+		if entryMatchesCategory(entry, category) and isEntryUsable(entry) then
+			count = count + 1
+			if math.random(count) == 1 then
+				chosen = entry.spellID
+			end
+		end
+	end
+	return chosen
+end
 
 _G["BINDING_NAME_CLICK EQOLRandomMountButton:LeftButton"] = L["Random Mount"] or "Random Mount"
 _G["BINDING_NAME_CLICK EQOLRepairMountButton:LeftButton"] = L["Repair Mount"] or "Repair Mount"
@@ -81,27 +145,6 @@ local function getMountDebugInfo(spellID)
 	return sourceName, mountID, mountName, isCollected, isUsable, isHidden, sourceType
 end
 
-local function debugRepairMountSelection(selectedSpellID)
-	local parts = {}
-	for _, spellID in ipairs(REPAIR_MOUNT_SPELLS) do
-		local sourceName, mountID, mountName, collected, usable, hidden, sourceType = getMountDebugInfo(spellID)
-		parts[#parts + 1] = string.format(
-			"%s (%s) source=%s mountID=%s mount=%s collected=%s usable=%s hidden=%s",
-			tostring(spellID),
-			sourceName or "?",
-			sourceType or "?",
-			mountID and tostring(mountID) or "?",
-			mountName or "?",
-			tostring(collected),
-			tostring(usable),
-			tostring(hidden)
-		)
-	end
-	local message = "Repair Mount candidates: " .. table.concat(parts, " | ")
-	if selectedSpellID then message = message .. " | selected=" .. tostring(selectedSpellID) end
-	print("|cff00ff98Enhance QoL|r: " .. message)
-end
-
 local function summonMountBySource(sourceID)
 	if not sourceID then return false end
 	if C_MountJournal and C_MountJournal.SummonByID then
@@ -123,51 +166,71 @@ function MountActions:IsRandomAllEnabled()
 end
 
 function MountActions:MarkRandomCacheDirty()
-	self.randomAllDirty = true
+	self.randomMountDirty = true
 end
 
-function MountActions:BuildRandomAllCache()
+function MountActions:BuildRandomMountCache(useAll)
 	local list = {}
 	if not C_MountJournal or not C_MountJournal.GetMountIDs then return list end
 	local mountIDs = C_MountJournal.GetMountIDs()
 	if type(mountIDs) ~= "table" then return list end
 	for _, mountID in ipairs(mountIDs) do
-		local _, spellID, _, _, isUsable, _, _, _, _, shouldHideOnChar, isCollected = C_MountJournal.GetMountInfoByID(mountID)
-		if isCollected and not shouldHideOnChar and spellID then
-			if C_MountJournal.GetMountUsabilityByID then
-				local usable = C_MountJournal.GetMountUsabilityByID(mountID, true)
-				if usable ~= nil then isUsable = usable end
-			end
-			if isUsable then list[#list + 1] = spellID end
+		local _, spellID, _, _, isUsable, _, isFavorite, _, _, shouldHideOnChar, isCollected, _, isSteadyFlight = C_MountJournal.GetMountInfoByID(mountID)
+		if isCollected and not shouldHideOnChar and spellID and (useAll or isFavorite) then
+			local _, _, _, _, mountTypeID = C_MountJournal.GetMountInfoExtraByID(mountID)
+			list[#list + 1] = {
+				mountID = mountID,
+				spellID = spellID,
+				mountTypeID = mountTypeID,
+				isSteadyFlight = isSteadyFlight == true,
+				isUsable = isUsable == true,
+			}
 		end
 	end
 	return list
 end
 
-function MountActions:GetRandomAllSpell()
-	if self.randomAllDirty or not self.randomAllCache then
-		self.randomAllCache = self:BuildRandomAllCache()
-		self.randomAllDirty = false
+function MountActions:GetRandomMountSpell()
+	local useAll = self:IsRandomAllEnabled()
+	local cacheMode = useAll and "all" or "favorites"
+	if self.randomMountDirty or not self.randomMountCache or self.randomMountCacheMode ~= cacheMode then
+		self.randomMountCache = self:BuildRandomMountCache(useAll)
+		self.randomMountCacheMode = cacheMode
+		self.randomMountDirty = false
 	end
-	local list = self.randomAllCache
+	local list = self.randomMountCache
 	if not list or #list == 0 then return nil end
-	local idx = math.random(#list)
-	return list[idx]
+	local spellID
+	if isSwimming() then
+		spellID = pickRandomMount(list, "water")
+		if not spellID and isFlyableArea() then
+			spellID = pickRandomMount(list, "flying")
+		end
+		if not spellID then
+			spellID = pickRandomMount(list, "ground")
+		end
+	elseif isFlyableArea() then
+		spellID = pickRandomMount(list, "flying")
+		if not spellID then
+			spellID = pickRandomMount(list, "ground")
+		end
+	else
+		spellID = pickRandomMount(list, "ground")
+	end
+	if not spellID then
+		spellID = pickRandomMount(list)
+	end
+	return spellID
 end
 
 function MountActions:PrepareActionButton(btn)
 	if InCombatLockdown and InCombatLockdown() then return end
 	if not btn or not btn._eqolAction then return end
 	if btn._eqolAction == "random" then
-		if self:IsRandomAllEnabled() then
-			local spellID = self:GetRandomAllSpell()
-			if spellID then
-				btn:SetAttribute("spell1", spellID)
-				btn:SetAttribute("spell", spellID)
-			else
-				btn:SetAttribute("spell1", RANDOM_FAVORITE_SPELL_ID)
-				btn:SetAttribute("spell", RANDOM_FAVORITE_SPELL_ID)
-			end
+		local spellID = self:GetRandomMountSpell()
+		if spellID then
+			btn:SetAttribute("spell1", spellID)
+			btn:SetAttribute("spell", spellID)
 		else
 			btn:SetAttribute("spell1", RANDOM_FAVORITE_SPELL_ID)
 			btn:SetAttribute("spell", RANDOM_FAVORITE_SPELL_ID)
@@ -190,15 +253,14 @@ function MountActions:HandleClick(btn, button, down)
 	if not btn or not btn._eqolAction then return end
 
 	if btn._eqolAction == "random" then
-		if self:IsRandomAllEnabled() then
-			local spellID = self:GetRandomAllSpell()
-			if spellID then summonMountBySource(spellID) end
+		local spellID = self:GetRandomMountSpell()
+		if spellID then
+			summonMountBySource(spellID)
 		else
 			summonMountBySource(RANDOM_FAVORITE_SPELL_ID)
 		end
 	elseif btn._eqolAction == "repair" then
 		local spellID = pickFirstUsable(REPAIR_MOUNT_SPELLS)
-		debugRepairMountSelection(spellID)
 		if spellID then summonMountBySource(spellID) end
 	elseif btn._eqolAction == "ah" then
 		local spellID = pickFirstUsable(AH_MOUNT_SPELLS)
@@ -241,6 +303,7 @@ end
 
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+eventFrame:RegisterEvent("MOUNT_JOURNAL_SEARCH_UPDATED")
 eventFrame:RegisterEvent("MOUNT_JOURNAL_USABILITY_CHANGED")
 eventFrame:RegisterEvent("COMPANION_LEARNED")
 eventFrame:RegisterEvent("COMPANION_UNLEARNED")

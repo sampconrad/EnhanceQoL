@@ -25,6 +25,7 @@
 - DataPanels: Talents stream defaults to a grey "Talents:" prefix.
 - Resource Bars: Bar/Absorb texture dropdowns now show previews.
 - Vendors: Auto-repair now prints a message when repairs are paid from the guild bank.
+- Mounts: Random mount keybind now picks a usable random mount based on swimming/flyable/ground conditions.
 
 ### 🐛 Fixed
 
