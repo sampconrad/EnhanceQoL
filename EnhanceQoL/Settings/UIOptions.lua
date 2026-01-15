@@ -37,6 +37,8 @@ local COOLDOWN_VIEWER_VISIBILITY_MODES = constants.COOLDOWN_VIEWER_VISIBILITY_MO
 	}
 local wipe = wipe
 local fontOrder = {}
+local borderOrder = {}
+local QUICK_SLOT_BORDER = "Interface\\Buttons\\UI-Quickslot2"
 
 addon.db = addon.db or {}
 addon.db.actionBarHiddenHotkeys = type(addon.db.actionBarHiddenHotkeys) == "table" and addon.db.actionBarHiddenHotkeys or {}
@@ -108,6 +110,39 @@ local function buildFontDropdown()
 		fontOrder[i] = key
 	end
 	return list
+end
+
+local function buildBorderDropdown()
+	local map = {}
+	local order = {}
+	local function add(key, label)
+		if not key or key == "" or map[key] then return end
+		map[key] = label
+		order[#order + 1] = key
+	end
+
+	add("DEFAULT", L["actionBarBorderDefault"] or "Default (Blizzard)")
+	add(QUICK_SLOT_BORDER, L["actionBarBorderQuickslot"] or "Quickslot (Bartender-style)")
+
+	local LSM = LibStub("LibSharedMedia-3.0", true)
+	if LSM and LSM.HashTable then
+		local entries = {}
+		for name, path in pairs(LSM:HashTable("border") or {}) do
+			if type(path) == "string" and path ~= "" then
+				entries[#entries + 1] = { name = tostring(name), path = path }
+			end
+		end
+		table.sort(entries, function(a, b) return a.name < b.name end)
+		for _, entry in ipairs(entries) do
+			add(entry.path, entry.name)
+		end
+	end
+
+	wipe(borderOrder)
+	for i, key in ipairs(order) do
+		borderOrder[i] = key
+	end
+	return map
 end
 
 local function createActionBarVisibility(category, expandable)
@@ -266,12 +301,94 @@ end
 local function createButtonAppearanceControls(category, expandable)
 	addon.functions.SettingsCreateHeadline(category, L["actionBarAppearanceHeader"] or "Button appearance", { parentSection = expandable })
 
-	addon.functions.SettingsCreateCheckbox(category, {
+	local hideBorders = addon.functions.SettingsCreateCheckbox(category, {
 		var = "actionBarHideBorders",
 		text = L["actionBarHideBorders"] or "Hide button borders",
 		desc = L["actionBarHideBordersDesc"] or "Remove the default border texture around action buttons.",
 		func = function(value)
 			addon.db.actionBarHideBorders = value and true or false
+			addon.db.actionBarHideBordersAuto = nil
+			if ActionBarLabels and ActionBarLabels.RefreshActionButtonBorders then ActionBarLabels.RefreshActionButtonBorders() end
+		end,
+		parentSection = expandable,
+	})
+
+	addon.functions.SettingsCreateScrollDropdown(category, {
+		var = "actionBarBorderStyle",
+		text = L["actionBarBorderStyle"] or "Action button border",
+		desc = L["actionBarBorderStyleDesc"] or "Pick a custom border for action buttons. Selecting a custom border hides the Blizzard border.",
+		listFunc = buildBorderDropdown,
+		order = borderOrder,
+		default = "DEFAULT",
+		get = function()
+			local current = addon.db.actionBarBorderStyle or "DEFAULT"
+			local list = buildBorderDropdown()
+			if not list[current] then current = "DEFAULT" end
+			return current
+		end,
+		set = function(key)
+			local list = buildBorderDropdown()
+			if not list[key] then key = "DEFAULT" end
+			addon.db.actionBarBorderStyle = key
+			if key ~= "DEFAULT" then
+				if not addon.db.actionBarHideBorders then
+					addon.db.actionBarHideBorders = true
+					addon.db.actionBarHideBordersAuto = true
+					if hideBorders and hideBorders.setting then hideBorders.setting:SetValue(true) end
+				end
+			elseif addon.db.actionBarHideBordersAuto then
+				addon.db.actionBarHideBordersAuto = nil
+				addon.db.actionBarHideBorders = false
+				if hideBorders and hideBorders.setting then hideBorders.setting:SetValue(false) end
+			end
+			if ActionBarLabels and ActionBarLabels.RefreshActionButtonBorders then ActionBarLabels.RefreshActionButtonBorders() end
+		end,
+		parentSection = expandable,
+	})
+
+	addon.functions.SettingsCreateSlider(category, {
+		var = "actionBarBorderEdgeSize",
+		text = L["actionBarBorderEdgeSize"] or "Border size",
+		desc = L["actionBarBorderEdgeSizeDesc"] or "Edge size for SharedMedia borders (e.g., Blizzard Tooltip).",
+		min = 1,
+		max = 32,
+		step = 1,
+		default = 16,
+		get = function()
+			local value = tonumber(addon.db.actionBarBorderEdgeSize) or 16
+			if value < 1 then value = 1 end
+			if value > 32 then value = 32 end
+			return value
+		end,
+		set = function(val)
+			val = math.floor(val + 0.5)
+			if val < 1 then val = 1 end
+			if val > 32 then val = 32 end
+			addon.db.actionBarBorderEdgeSize = val
+			if ActionBarLabels and ActionBarLabels.RefreshActionButtonBorders then ActionBarLabels.RefreshActionButtonBorders() end
+		end,
+		parentSection = expandable,
+	})
+
+	addon.functions.SettingsCreateSlider(category, {
+		var = "actionBarBorderPadding",
+		text = L["actionBarBorderPadding"] or "Border padding",
+		desc = L["actionBarBorderPaddingDesc"] or "Adjust border padding (positive grows, negative shrinks).",
+		min = -8,
+		max = 12,
+		step = 1,
+		default = 0,
+		get = function()
+			local value = tonumber(addon.db.actionBarBorderPadding) or 0
+			if value < -8 then value = -8 end
+			if value > 12 then value = 12 end
+			return value
+		end,
+		set = function(val)
+			val = math.floor(val + 0.5)
+			if val < -8 then val = -8 end
+			if val > 12 then val = 12 end
+			addon.db.actionBarBorderPadding = val
 			if ActionBarLabels and ActionBarLabels.RefreshActionButtonBorders then ActionBarLabels.RefreshActionButtonBorders() end
 		end,
 		parentSection = expandable,

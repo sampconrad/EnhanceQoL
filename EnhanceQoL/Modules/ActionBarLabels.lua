@@ -6,6 +6,11 @@ local Labels = addon.ActionBarLabels
 local DEFAULT_ACTION_BUTTON_COUNT = _G.NUM_ACTIONBAR_BUTTONS or 12
 local PET_ACTION_BUTTON_COUNT = _G.NUM_PET_ACTION_SLOTS or 10
 local STANCE_ACTION_BUTTON_COUNT = _G.NUM_STANCE_SLOTS or _G.NUM_SHAPESHIFT_SLOTS or 10
+local DEFAULT_BORDER_STYLE = "DEFAULT"
+local QUICK_SLOT_BORDER = "Interface\\Buttons\\UI-Quickslot2"
+local DEFAULT_BORDER_EDGE_SIZE = 16
+local DEFAULT_BORDER_PADDING = 0
+local LSM = LibStub("LibSharedMedia-3.0", true)
 
 local function GetActionBarButtonPrefix(barName)
 	if not barName then return nil, 0 end
@@ -72,6 +77,153 @@ local function GetNormalTexture(button)
 	return nil
 end
 
+local function GetBorderEdgeSize()
+	if not addon.db then return DEFAULT_BORDER_EDGE_SIZE end
+	local value = tonumber(addon.db.actionBarBorderEdgeSize)
+	if value == nil then value = DEFAULT_BORDER_EDGE_SIZE end
+	if value < 1 then value = 1 end
+	if value > 64 then value = 64 end
+	return value
+end
+
+local function GetBorderPadding()
+	if not addon.db then return DEFAULT_BORDER_PADDING end
+	local value = tonumber(addon.db.actionBarBorderPadding)
+	if value == nil then value = DEFAULT_BORDER_PADDING end
+	if value < -32 then value = -32 end
+	if value > 32 then value = 32 end
+	return value
+end
+
+local function BuildLSMBorderCache()
+	local cache = {}
+	if LSM and LSM.HashTable then
+		for _, path in pairs(LSM:HashTable("border") or {}) do
+			if type(path) == "string" and path ~= "" then cache[path] = true end
+		end
+	end
+	Labels._lsmBorderCache = cache
+end
+
+local function IsLSMBorderPath(path)
+	if not path or path == "" then return false end
+	if not Labels._lsmBorderCache then BuildLSMBorderCache() end
+	return Labels._lsmBorderCache and Labels._lsmBorderCache[path] == true
+end
+
+function Labels.ResetBorderCache()
+	Labels._lsmBorderCache = nil
+end
+
+local function GetCustomBorderStyle()
+	if not addon.db then return DEFAULT_BORDER_STYLE end
+	local style = addon.db.actionBarBorderStyle
+	if type(style) ~= "string" or style == "" then return DEFAULT_BORDER_STYLE end
+	return style
+end
+
+local function IsCustomBorderStyle(style)
+	return type(style) == "string" and style ~= "" and style ~= DEFAULT_BORDER_STYLE
+end
+
+local function EnsureCustomBorderTexture(button)
+	if not button then return nil end
+	local border = button.EQOL_CustomBorder
+	if border then return border end
+	border = button:CreateTexture(nil, "BORDER")
+	border:SetBlendMode("BLEND")
+	border:Hide()
+	button.EQOL_CustomBorder = border
+	return border
+end
+
+local function UpdateCustomBorderSizing(border, button)
+	if not border or not button then return end
+	local padding = GetBorderPadding()
+	border:ClearAllPoints()
+	border:SetPoint("CENTER", button, "CENTER", 0, 0)
+	local normalTexture = GetNormalTexture(button)
+	if normalTexture then
+		local width, height = normalTexture:GetSize()
+		if width and width > 0 and height and height > 0 then
+			local newWidth = width + padding * 2
+			local newHeight = height + padding * 2
+			if newWidth < 1 then newWidth = 1 end
+			if newHeight < 1 then newHeight = 1 end
+			border:SetSize(newWidth, newHeight)
+			return
+		end
+	end
+	border:SetAllPoints()
+end
+
+local function EnsureCustomBorderFrame(button)
+	if not button then return nil end
+	local frame = button.EQOL_CustomBorderFrame
+	if frame then return frame end
+	frame = CreateFrame("Frame", nil, button, "BackdropTemplate")
+	frame:SetFrameStrata(button:GetFrameStrata())
+	frame:SetFrameLevel((button:GetFrameLevel() or 0) + 1)
+	frame:EnableMouse(false)
+	frame:Hide()
+	button.EQOL_CustomBorderFrame = frame
+	return frame
+end
+
+local function UpdateCustomBorderFrame(frame, button)
+	if not frame or not button then return end
+	local padding = GetBorderPadding()
+	frame:ClearAllPoints()
+	frame:SetPoint("TOPLEFT", button, "TOPLEFT", -padding, padding)
+	frame:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", padding, -padding)
+end
+
+local function ApplyBackdropBorder(button, style)
+	local frame = EnsureCustomBorderFrame(button)
+	if not frame then return end
+	UpdateCustomBorderFrame(frame, button)
+	local edgeSize = GetBorderEdgeSize()
+	if frame.EQOL_BorderStyle ~= style or frame.EQOL_BorderEdgeSize ~= edgeSize then
+		frame:SetBackdrop({ edgeFile = style, edgeSize = edgeSize })
+		frame.EQOL_BorderStyle = style
+		frame.EQOL_BorderEdgeSize = edgeSize
+	end
+	frame:SetBackdropBorderColor(1, 1, 1, 1)
+	frame:Show()
+end
+
+local function ApplyCustomBorder(button, style)
+	local border = button and button.EQOL_CustomBorder
+	local borderFrame = button and button.EQOL_CustomBorderFrame
+	if not IsCustomBorderStyle(style) then
+		if border then border:Hide() end
+		if borderFrame then borderFrame:Hide() end
+		return
+	end
+
+	if IsLSMBorderPath(style) then
+		if border then border:Hide() end
+		ApplyBackdropBorder(button, style)
+		return
+	end
+
+	if borderFrame then borderFrame:Hide() end
+	border = EnsureCustomBorderTexture(button)
+	if not border then return end
+	UpdateCustomBorderSizing(border, button)
+	if border.EQOL_BorderStyle ~= style then
+		border:SetTexture(style)
+		border.EQOL_BorderStyle = style
+	end
+	if style == QUICK_SLOT_BORDER then
+		border:SetTexCoord(0.2, 0.8, 0.2, 0.8)
+	else
+		border:SetTexCoord(0, 1, 0, 1)
+	end
+	border:SetVertexColor(1, 1, 1, 1)
+	border:Show()
+end
+
 local function ApplyBorderVisibility(button, hide)
 	local normalTexture = GetNormalTexture(button)
 	if not normalTexture then return end
@@ -99,12 +251,26 @@ end
 
 local function RefreshButtonBorder(button)
 	if not addon.db then return end
-	local hide = addon.db.actionBarHideBorders and DetermineButtonBarName(button) ~= nil
+	local isActionButton = DetermineButtonBarName(button) ~= nil
+	if not isActionButton then
+		ApplyBorderVisibility(button, false)
+		ApplyCustomBorder(button, nil)
+		return
+	end
+	local style = GetCustomBorderStyle()
+	local hasCustom = IsCustomBorderStyle(style)
+	local hide = addon.db.actionBarHideBorders or hasCustom
 	ApplyBorderVisibility(button, hide)
+	ApplyCustomBorder(button, hasCustom and style or nil)
 end
 
 function Labels.RefreshActionButtonBorders()
+	if Labels.EnsureActionButtonArtHook then Labels.EnsureActionButtonArtHook() end
 	ForEachActionButton(function(button) RefreshButtonBorder(button) end)
+end
+
+function Labels.RefreshActionButtonBorder(button)
+	RefreshButtonBorder(button)
 end
 
 local function ShowRangeOverlay(btn, show)
@@ -457,6 +623,7 @@ end
 
 local function OnPlayerLogin(self, event)
 	if event ~= "PLAYER_LOGIN" then return end
+	if Labels.EnsureActionButtonArtHook then Labels.EnsureActionButtonArtHook() end
 	if Labels.RefreshAllMacroNameVisibility then Labels.RefreshAllMacroNameVisibility() end
 	if Labels.RefreshAllHotkeyStyles then Labels.RefreshAllHotkeyStyles() end
 	if Labels.RefreshAllRangeOverlays then Labels.RefreshAllRangeOverlays() end
@@ -466,6 +633,16 @@ local function OnPlayerLogin(self, event)
 		self:UnregisterEvent("PLAYER_LOGIN")
 		self:SetScript("OnEvent", nil)
 	end
+end
+
+function Labels.EnsureActionButtonArtHook()
+	if Labels._actionBarArtHooked then return end
+	local mixin = _G.BaseActionButtonMixin
+	if not mixin or not mixin.UpdateButtonArt then return end
+	hooksecurefunc(mixin, "UpdateButtonArt", function(button)
+		if Labels.RefreshActionButtonBorder then Labels.RefreshActionButtonBorder(button) end
+	end)
+	Labels._actionBarArtHooked = true
 end
 
 local initFrame = CreateFrame("Frame")

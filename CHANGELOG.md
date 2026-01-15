@@ -13,6 +13,7 @@
 - Inventory: Bag sort and loot order controls (left-to-right or right-to-left).
 - Inventory: Enhanced rarity glow for bags and the character frame.
 - Mounts: New keybind actions for Random, Repair, and Auction House mounts with an option to use all mounts for Random.
+- Action Bars: Custom action button border selection (including SharedMedia) with edge size + padding controls.
 - UF Plus: Custom class colors for unit frames.
 - UF Plus: Secondary/tertiary delimiter options for health/power texts.
 - UF Plus: Status line option to show elite/rare/rareelite icons on non-player frames.

@@ -2285,6 +2285,10 @@ local function initActionBars()
 	addon.functions.InitDBValue("actionBarFullRangeColoring", false)
 	addon.functions.InitDBValue("actionBarFullRangeColor", { r = 1, g = 0.1, b = 0.1 })
 	addon.functions.InitDBValue("actionBarHideBorders", false)
+	addon.functions.InitDBValue("actionBarHideBordersAuto", false)
+	addon.functions.InitDBValue("actionBarBorderStyle", "DEFAULT")
+	addon.functions.InitDBValue("actionBarBorderEdgeSize", 16)
+	addon.functions.InitDBValue("actionBarBorderPadding", 0)
 	addon.functions.InitDBValue("actionBarHideAssistedRotation", false)
 	addon.functions.InitDBValue("hideExtraActionArtwork", false)
 	addon.functions.InitDBValue("hideMacroNames", false)
@@ -2561,6 +2565,7 @@ local function initMisc()
 	addon.functions.InitDBValue("hideRaidTools", false)
 	addon.functions.InitDBValue("autoRepair", false)
 	addon.functions.InitDBValue("autoRepairGuildBank", false)
+	addon.functions.InitDBValue("autoRepairGuildBankMessage", false)
 	addon.functions.InitDBValue("sellAllJunk", false)
 	addon.functions.InitDBValue("autoCancelCinematic", false)
 	addon.functions.InitDBValue("quickSkipCinematic", false)
@@ -2655,13 +2660,17 @@ local function initMisc()
 		if addon.db["autoRepair"] and CanMerchantRepair() then
 			local repairAllCost = GetRepairAllCost()
 			if repairAllCost and repairAllCost > 0 then
-				if addon.db["autoRepairGuildBank"] and CanGuildBankRepair() then
+				local usedGuildBank = addon.db["autoRepairGuildBank"] and CanGuildBankRepair()
+				if usedGuildBank then
 					RepairAllItems(true)
 				else
 					RepairAllItems()
 				end
 				PlaySound(SOUNDKIT.ITEM_REPAIR)
 				print(L["repairCost"] .. addon.functions.formatMoney(repairAllCost))
+				if usedGuildBank and addon.db["autoRepairGuildBankMessage"] then
+					print(L["repairFromGuildBank"] or "Repaired from guild bank.")
+				end
 			end
 		end
 		if addon.db["sellAllJunk"] and C_MerchantFrame.IsSellAllJunkEnabled() then C_MerchantFrame.SellAllJunkItems() end
@@ -5083,6 +5092,8 @@ local function setAllHooks()
 				addon.Aura.CastTracker.functions.RefreshTextureDropdown()
 			end
 			if addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.RefreshTextureDropdown then addon.Aura.ResourceBars.RefreshTextureDropdown() end
+		elseif mediaType == "border" then
+			if ActionBarLabels and ActionBarLabels.ResetBorderCache then ActionBarLabels.ResetBorderCache() end
 		end
 	end)
 
