@@ -26,18 +26,6 @@ function addon.Aura.functions.InitDB()
 	init("personalResourceBarSettings", {})
 	init("personalResourceBarAnchors", {})
 
-	-- defaults for new cast tracker categories
-	init("castTrackerBarWidth", 200)
-	init("castTrackerBarHeight", 20)
-	init("castTrackerBarColor", { 1, 0.5, 0, 1 })
-	init("castTrackerBarSound", SOUNDKIT.ALARM_CLOCK_WARNING_3)
-	init("castTrackerBarDirection", "DOWN")
-	init("castTrackerSounds", {})
-	init("castTrackerSoundsEnabled", {})
-	init("castTrackerTextSize", 12)
-	init("castTrackerTextColor", { 1, 1, 1, 1 })
-	init("castTrackerUseAltSpellIcon", false)
-
 	init("buffTrackerCategories", {
 		[1] = {
 			name = string.format("%s", L["Example"]),
@@ -100,112 +88,6 @@ function addon.Aura.functions.InitDB()
 		end
 	end
 
-	init("castTrackerCategories", {
-		[1] = {
-			name = string.format("%s", L["Example"]),
-			anchor = { point = "CENTER", x = 0, y = 0 },
-			width = addon.db.castTrackerBarWidth,
-			height = addon.db.castTrackerBarHeight,
-			color = addon.db.castTrackerBarColor,
-			textSize = addon.db.castTrackerTextSize,
-			textColor = addon.db.castTrackerTextColor,
-			direction = addon.db.castTrackerBarDirection,
-			barTexture = "DEFAULT",
-			spells = {},
-		},
-	})
-	init("castTrackerEnabled", {})
-	init("castTrackerLocked", {})
-	init("castTrackerOrder", {})
-	init("castTrackerSelectedCategory", 1)
-
-	if addon.db["castTracker"] and not addon.db["castTrackerCategories"] then
-		local old = addon.db["castTracker"]
-		addon.db["castTrackerCategories"] = {
-			[1] = {
-				name = string.format("%s", L["Example"]),
-				anchor = old.anchor or { point = "CENTER", x = 0, y = 0 },
-				width = old.width or addon.db.castTrackerBarWidth,
-				height = old.height or addon.db.castTrackerBarHeight,
-				color = old.color or addon.db.castTrackerBarColor,
-				textSize = addon.db.castTrackerTextSize,
-				textColor = addon.db.castTrackerTextColor,
-				direction = old.direction or addon.db.castTrackerBarDirection,
-				spells = old.spells or {},
-			},
-		}
-		addon.db["castTracker"] = nil
-	end
-
-	for id, cat in pairs(addon.db["castTrackerCategories"] or {}) do
-		cat.anchor = cat.anchor or { point = "CENTER", x = 0, y = 0 }
-		cat.width = cat.width or addon.db.castTrackerBarWidth
-		cat.height = cat.height or addon.db.castTrackerBarHeight
-		cat.color = cat.color or addon.db.castTrackerBarColor
-		cat.textSize = cat.textSize or addon.db.castTrackerTextSize
-		cat.textColor = cat.textColor or addon.db.castTrackerTextColor
-		cat.direction = cat.direction or addon.db.castTrackerBarDirection
-		if cat.barTexture == nil then cat.barTexture = "DEFAULT" end
-		cat.spells = cat.spells or {}
-		addon.db.castTrackerSounds[id] = addon.db.castTrackerSounds[id] or {}
-		addon.db.castTrackerSoundsEnabled[id] = addon.db.castTrackerSoundsEnabled[id] or {}
-		for sid, spell in pairs(cat.spells) do
-			if type(spell) ~= "table" then
-				cat.spells[sid] = { altIDs = {} }
-				spell = cat.spells[sid]
-			else
-				spell.altIDs = spell.altIDs or {}
-			end
-			if spell.sound then
-				addon.db.castTrackerSounds[id][sid] = spell.sound
-				addon.db.castTrackerSoundsEnabled[id][sid] = true
-				spell.sound = nil
-			elseif cat.sound then
-				addon.db.castTrackerSounds[id][sid] = cat.sound
-				addon.db.castTrackerSoundsEnabled[id][sid] = true
-			end
-			if spell.customTextEnabled == nil then spell.customTextEnabled = false end
-			if spell.customText == nil then spell.customText = "" end
-		end
-		cat.sound = nil
-		if addon.db["castTrackerEnabled"][id] == nil then addon.db["castTrackerEnabled"][id] = false end
-		if addon.db["castTrackerLocked"][id] == nil then addon.db["castTrackerLocked"][id] = false end
-		addon.db["castTrackerOrder"][id] = addon.db["castTrackerOrder"][id] or {}
-	end
-
-	if type(addon.db["castTrackerSelectedCategory"]) ~= "number" then addon.db["castTrackerSelectedCategory"] = 1 end
-
-	-- defaults for cooldown notify
-	init("cooldownNotifyCategories", {
-		[1] = {
-			name = string.format("%s", L["Example"]),
-			anchor = { point = "CENTER", x = 0, y = 0 },
-			iconSize = 75,
-			fadeInTime = 0.3,
-			fadeOutTime = 0.7,
-			holdTime = 0,
-			animScale = 1.5,
-			showName = true,
-			useAdvancedTracking = true,
-			spells = {},
-			ignoredSpells = {},
-			items = {},
-			pets = {},
-		},
-	})
-	init("cooldownNotifyEnabled", {})
-	init("cooldownNotifyLocked", {})
-	init("cooldownNotifyOrder", {})
-	init("cooldownNotifySounds", {})
-	init("cooldownNotifySoundsEnabled", {})
-	init("cooldownNotifyDefaultSound", SOUNDKIT.ALARM_CLOCK_WARNING_3)
-	init("cooldownNotifySelectedCategory", 1)
-
-	for _, cat in pairs(addon.db.cooldownNotifyCategories or {}) do
-		if cat.useAdvancedTracking == nil then cat.useAdvancedTracking = true end
-		cat.spells = cat.spells or {}
-		cat.ignoredSpells = cat.ignoredSpells or {}
-	end
 end
 
 function addon.Aura.functions.BuildSoundTable()

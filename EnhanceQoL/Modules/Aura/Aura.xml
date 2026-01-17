@@ -2,8 +2,6 @@
 	<Script file="widgets\DragTreeGroup.lua" />
 	<Script file="Aura.lua" />
 	<Script file="BuffTracker.lua" />
-	<Script file="CastTracker.lua" />
-	<Script file="CooldownNotify.lua" />
 	<Script file="UF_Helper.lua" />
 	<Script file="UF.lua" />
 	<Script file="ShamanMaelstromWeaponBar.lua" />

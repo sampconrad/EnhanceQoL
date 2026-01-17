@@ -1047,67 +1047,6 @@ local function addVendorFrame(container, type)
 	scroll:DoLayout()
 end
 
-local function addRemixFrame(container)
-	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-	scroll:SetFullWidth(true)
-	scroll:SetFullHeight(true)
-	container:AddChild(scroll)
-
-	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	scroll:AddChild(wrapper)
-
-	local autoscrap = addon.Vendor.Autoscrap
-	if not autoscrap then
-		local info = addon.functions.createLabelAce(L["vendorRemixUnavailable"], nil, nil, 12)
-		info:SetFullWidth(true)
-		wrapper:AddChild(info)
-		scroll:DoLayout()
-		return
-	end
-
-	local groupScrap = addon.functions.createContainer("InlineGroup", "List")
-	groupScrap:SetTitle(L["vendorScrapHeader"])
-	wrapper:AddChild(groupScrap)
-
-	local cbScrap = addon.functions.createCheckboxAce(L["vendorScrapAuto"], addon.db["vendorScrapAuto"], function(_, _, checked)
-		if autoscrap.SetAutoScrap then autoscrap:SetAutoScrap(checked) end
-	end, L["vendorScrapAutoDesc"])
-	groupScrap:AddChild(cbScrap)
-
-	local qualityList, qualityOrder = {}, {}
-	for quality = Enum.ItemQuality.Common, Enum.ItemQuality.Epic do
-		local key = tostring(quality)
-		local qualityColor = ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].hex or ""
-		qualityList[key] = string.format("%s%s|r", qualityColor, _G["ITEM_QUALITY" .. quality .. "_DESC"] or quality)
-		table.insert(qualityOrder, key)
-	end
-
-	local dropdownQuality = addon.functions.createDropdownAce(L["vendorScrapMaxQuality"], qualityList, qualityOrder, function(widget, _, key)
-		local quality = tonumber(key)
-		if quality and autoscrap.SetMaxScrapQuality then
-			autoscrap:SetMaxScrapQuality(quality)
-			widget:SetValue(key)
-		end
-	end)
-	dropdownQuality:SetValue(tostring(addon.db["vendorScrapMaxQuality"] or Enum.ItemQuality.Rare))
-	groupScrap:AddChild(dropdownQuality)
-
-	local dropdownQualityDesc = addon.functions.createLabelAce(L["vendorScrapMaxQualityDesc"], nil, nil, 11)
-	dropdownQualityDesc:SetFullWidth(true)
-	groupScrap:AddChild(dropdownQualityDesc)
-
-	local sliderDiff = addon.functions.createSliderAce(L["vendorScrapMinLevelDiff"], addon.db["vendorScrapMinLevelDiff"], 0, 400, 1, function(_, _, value)
-		if autoscrap.SetMinLevelDifference then autoscrap:SetMinLevelDifference(value) end
-	end)
-	groupScrap:AddChild(sliderDiff)
-
-	local labelDiffDesc = addon.functions.createLabelAce(L["vendorScrapMinLevelDiffDesc"], nil, nil, 11)
-	labelDiffDesc:SetFullWidth(true)
-	groupScrap:AddChild(labelDiffDesc)
-
-	scroll:DoLayout()
-end
-
 local function addInExcludeFrame(container, type)
 	local headText
 	local dbValue

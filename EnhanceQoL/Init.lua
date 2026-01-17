@@ -31,33 +31,6 @@ addon.general.variables.autoOpen = {
 	[147361] = true, -- Legionsfall Chest (Paragon)
 	[152923] = true, -- Gleaming Footlocker (Paragon)
 	[152922] = true, -- Brittle Krokul Chest (Paragon)
-
-	-- Legion Remix exclusive
-	[245925] = true, -- Artifactium Sand (Remix)
-	[249891] = true, -- Mound of Artifactium Sand (Remix)
-	[152102] = true, -- Farondis Chest Remix (Paragon)
-	[152103] = true, -- Dreamweaver Cache (Paragon)
-	[152104] = true, -- Highmountain Supplies (Paragon)
-	[152105] = true, -- Nightfallen Cache Remix (Paragon)
-	[152106] = true, -- Valarjar Strongbox (Paragon)
-	[152107] = true, -- Warden's Supply Kit (Paragon)
-	[152108] = true, -- Legionsfall Chest (Paragon)
-	[246937] = true, -- Perfected Epoch Memento
-	[246936] = true, -- Resonant Epoch Memento
-	[249784] = true, -- Legionfall Champions Insignia (2k Rep)
-	[253227] = {
-		minStack = 10,
-		chunk = 10,
-	}, -- Flawless Thread of Time (usable in bundles of 10)
-
-	[253224] = {
-		minStack = 10,
-		chunk = 10,
-	}, -- Remix: Chromatic Essence (usable in bundles of 10)
-	[254267] = {
-		minStack = 100,
-		chunk = 100,
-	}, -- Remix: Fragmented Memento of Epoch Challenges
 }
 
 local AceLocale = LibStub("AceLocale-3.0")
@@ -610,7 +583,11 @@ function addon.functions.PatchTS(y, m, dUS, dEU, h)
 	local day = (addon.variables.regionCode == 3) and dEU or dUS
 	return time({ year = y, month = m, day = day, hour = h })
 end
-function addon.functions.IsPatchLive(key) return GetServerTime() >= addon.variables.patchInformations[key] end
+function addon.functions.IsPatchLive(key)
+	local ts = addon.variables.patchInformations and addon.variables.patchInformations[key]
+	if not ts then return false end
+	return GetServerTime() >= ts
+end
 
 addon.variables.isMidnight = select(4, GetBuildInfo()) >= 120000
 
@@ -620,22 +597,16 @@ else
 	addon.variables.shouldEnchanted = { [15] = true, [5] = true, [9] = true, [7] = true, [8] = true, [11] = true, [12] = true, [16] = true, [17] = true }
 end
 addon.variables.patchInformations = {
-	horrificVisions = addon.functions.PatchTS(2025, 5, 20, 21, 6),
-	whispersOfKaresh = addon.functions.PatchTS(2025, 8, 5, 6, 6),
-	legionRemixPhase1 = addon.functions.PatchTS(2025, 10, 7, 8, 6),
-	legionRemixPhase2 = addon.functions.PatchTS(2025, 10, 21, 22, 6),
-	legionRemixPhase3 = addon.functions.PatchTS(2025, 11, 4, 5, 6),
-	legionRemixPhase4 = addon.functions.PatchTS(2025, 11, 18, 19, 6),
-	legionRemixPhase5 = addon.functions.PatchTS(2025, 12, 9, 10, 6),
+	-- Add patch timestamps here when you need time-based fallbacks.
+	-- Example: examplePatch = addon.functions.PatchTS(2025, 8, 5, 6, 6),
 }
 
 addon.variables.shouldEnchantedChecks = {
 	-- Head
 	-- [1] = {
 	-- 	func = function(ilvl)
-	-- 		-- if ilvl >= 350 and addon.functions.IsPatchLive("horrificVisions") and not GetBuildInfo() == "11.2.0" and not addon.functions.IsPatchLive("whispersOfKaresh") then
-	-- 		-- 	-- Horrific vision enchant - Only usable during Season 2 of TWW and after Patchday in the Week of 20.05.2025
-	-- 		-- 	-- and before the Patchday on 12/13.08.2025
+	-- 		-- Example: gate a seasonal enchant to a patch window.
+	-- 		-- if ilvl >= 350 and addon.functions.IsPatchLive("examplePatchStart") and not addon.functions.IsPatchLive("examplePatchEnd") then
 	-- 		-- 	return true
 	-- 		-- end
 	-- 		return false

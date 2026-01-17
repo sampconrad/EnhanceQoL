@@ -1394,20 +1394,18 @@ function addon.functions.catalystChecks()
 		return
 	end
 	if not mId or mId < 0 then
-		-- calculate by time of Patch release
-		if addon.functions.IsPatchLive("horrificVisions") and not addon.functions.IsPatchLive("whispersOfKaresh") then
-			mId = 14
-		elseif addon.functions.IsPatchLive("whispersOfKaresh") then
-			mId = 15
-		end
+		-- Patch fallback (if the season ID is unavailable):
+		-- 1) Add timestamps in addon.variables.patchInformations (Init.lua).
+		-- 2) Use addon.functions.IsPatchLive(...) here to map to a season ID.
+		addon.variables.catalystID = nil
+		return
 	end
 
-	if mId == 14 then
-		-- TWW Season 2 - Essence of Kaja’mite
-		addon.variables.catalystID = 3116
-	elseif mId == 15 then
+	if mId == 15 then
 		-- TWW Season 3 - Ethereal Voidsplinter
 		addon.variables.catalystID = 3269
+	elseif mId == 17 then
+		addon.variables.catalystID = 3378
 	end
 	addon.functions.createCatalystFrame()
 end

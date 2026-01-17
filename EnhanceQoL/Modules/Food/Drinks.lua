@@ -571,12 +571,36 @@ addon.Drinks.drinkList = { -- Special Food
 	{ key = "CrunchyRockCandy", id = 228494, requiredLevel = 1, mana = 3700000, isBuffFood = false, isEarthenFood = true, earthenOnly = true }, -- Tooltip is wrong on this with "Buff Food"
 	{ key = "SpicyRubies", id = 228492, requiredLevel = 1, mana = 3700000, isBuffFood = true, isEarthenFood = true, earthenOnly = true },
 	{ key = "SourTopazBites", id = 228493, requiredLevel = 1, mana = 3700000, isBuffFood = true, isEarthenFood = true, earthenOnly = true },
+	-- Midnight
+	{ key = "PurifiedCordial", id = 260258, requiredLevel = 80, mana = 0, manaPercent = 6, manaDuration = 20, isBuffFood = false },
+	{ key = "EverspringWater", id = 260259, requiredLevel = 80, mana = 0, manaPercent = 6, manaDuration = 20, isBuffFood = false },
+	{ key = "ManagiRoll", id = 260255, requiredLevel = 80, mana = 0, manaPercent = 5, manaDuration = 20, isBuffFood = false },
+	{ key = "SpringrunnerSparkling", id = 260260, requiredLevel = 85, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = false },
+	{ key = "FairbreezeFeast", id = 260262, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = false },
+	{ key = "SilvermoonSoireeSpread", id = 260263, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = false },
+	{ key = "BloomNectar", id = 260261, requiredLevel = 85, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = false },
+	{ key = "QuelDanasRations", id = 260264, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = false },
+	{ key = "SurvivalistsPurifiedWater", id = 224010, requiredLevel = 0, mana = 0, manaPercent = 100, isBuffFood = false },
+	{ key = "Mana-InfusedStew", id = 242303, requiredLevel = 80, mana = 0, manaPercent = 6, manaDuration = 20, isBuffFood = true },
+	{ key = "SpellfireFilet", id = 242289, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = true },
+	{ key = "TwilightAnglersMedley", id = 242288, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = true },
+	{ key = "ChampionsBento", id = 242274, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = true },
+	{ key = "FloraFrenzy", id = 255848, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = true },
+	{ key = "ImpossiblyRoyalRoast", id = 255847, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = true },
+	{ key = "RoyalRoast", id = 242275, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = true },
+	{ key = "BloomingFeast", id = 242273, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = true },
+	{ key = "QueldoreiMedley", id = 242272, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = true },
+	{ key = "RootlandCelebration", id = 255846, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = true },
+	{ key = "SilvermoonParade", id = 255845, requiredLevel = 90, mana = 0, manaPercent = 7, manaDuration = 20, isBuffFood = true },
+	{ key = "ArgentleafTea", id = 242298, requiredLevel = 80, mana = 0, manaPercent = 8, manaDuration = 20, isBuffFood = false },
+	{ key = "AzerootTea", id = 242301, requiredLevel = 80, mana = 0, manaPercent = 8, manaDuration = 20, isBuffFood = false },
+	{ key = "ManaLilyTea", id = 242297, requiredLevel = 80, mana = 0, manaPercent = 8, manaDuration = 20, isBuffFood = false },
+	{ key = "SanguithornTea", id = 242299, requiredLevel = 80, mana = 0, manaPercent = 8, manaDuration = 20, isBuffFood = false },
+	{ key = "TranquilityBloomTea", id = 242300, requiredLevel = 80, mana = 0, manaPercent = 8, manaDuration = 20, isBuffFood = false },
 	-- Mana of this spell is adjusted per level
 	{ key = "QuietContemplation", id = 461063, requiredLevel = 1, mana = 3700000, isBuffFood = false, isEarthenFood = true, earthenOnly = true, isSpell = true },
 	{ key = "Recuperate", id = 1231411, requiredLevel = 5, mana = 0, isBuffFood = false, isSpell = true, isHealthOnly = true },
 }
-
-table.sort(addon.Drinks.drinkList, function(a, b) return a.mana > b.mana end)
 
 -- Curated list of mana potions for use in the Drink macro (combat only)
 -- Order reflects preference (highest first)
@@ -585,6 +609,7 @@ addon.Drinks.manaPotions = {
 	{ key = "AlgariManaPotion3", id = 212241, requiredLevel = 71, mana = 270000 },
 	{ key = "AlgariManaPotion2", id = 212240, requiredLevel = 71, mana = 234782 },
 	{ key = "AlgariManaPotion1", id = 212239, requiredLevel = 71, mana = 204158 },
+	{ key = "SurvivalistsManaPotion", id = 224022, requiredLevel = 0, mana = 0, manaPercent = 20 },
 	{ key = "AeratedManaPotion", id = 191384, requiredLevel = 61, mana = 20857 },
 	{ key = "AeratedManaPotion", id = 191385, requiredLevel = 61, mana = 23986 },
 	{ key = "AeratedManaPotion", id = 191386, requiredLevel = 61, mana = 27584 },
@@ -650,6 +675,22 @@ addon.Drinks.manaPotions = {
 	{ key = "WildvinePotion", id = 9144, requiredLevel = 15, mana = 462 },
 }
 
+local function getDrinkManaValue(drink, maxMana)
+	if not drink then return 0 end
+	if drink.isMageFood then return maxMana end
+	local percent = tonumber(drink.manaPercent)
+	if percent and percent > 0 then
+		local duration = tonumber(drink.manaDuration)
+		if duration and duration > 0 then return maxMana * (percent * duration / 100) end
+		return maxMana * (percent / 100)
+	end
+	return tonumber(drink.mana) or 0
+end
+
+local function sortDrinkList(maxMana)
+	table.sort(addon.Drinks.drinkList, function(a, b) return getDrinkManaValue(a, maxMana) > getDrinkManaValue(b, maxMana) end)
+end
+
 function addon.functions.updateAllowedDrinks()
 	-- cache globals as locals
 	local db = addon.db
@@ -658,6 +699,7 @@ function addon.functions.updateAllowedDrinks()
 	local playerLevel = UnitLevel("player")
 	local mana = UnitPowerMax("player", 0)
 	if mana <= 0 then return end
+	sortDrinkList(mana)
 
 	local minManaValue = mana * ((db.minManaFoodValue or 50) / 100)
 
@@ -678,7 +720,7 @@ function addon.functions.updateAllowedDrinks()
 		if drink.isMageFood then mageFoodMap[drink.id] = true end
 
 		local req = drink.requiredLevel
-		local dMana = drink.isMageFood and mana or drink.mana
+		local dMana = getDrinkManaValue(drink, mana)
 		if
 			req <= playerLevel
 			and (dMana >= minManaValue or (allowRecuperate and drink.id == 1231411 and addon.variables.unitClass ~= "MAGE") or (drink.id == 190336 and addon.variables.unitClass == "MAGE"))

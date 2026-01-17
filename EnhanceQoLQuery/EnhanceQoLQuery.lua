@@ -86,30 +86,55 @@ local function extractManaFromTooltip(itemLink)
 	tooltip:SetOwner(UIParent, "ANCHOR_NONE")
 	tooltip:SetHyperlink(itemLink)
 	local mana = 0
+	local manaPercent = nil
+	local manaDuration = nil
 
 	for i = 1, tooltip:NumLines() do
 		local text = _G["EnhanceQoLQueryTooltipTextLeft" .. i]:GetText()
-		if text and text:lower():find("mana") then
-			-- Prefer explicit "million mana" match to avoid picking up unrelated "million" (e.g., health)
-			local millionStr = text:lower():match("([%d%.,]+)%s*million%s*mana")
-			if millionStr then
-				local clean = (millionStr:gsub(",", "")) -- keep decimal dot for fractional millions
-				local v = tonumber(clean) or 0
-				mana = math.floor(v * 1000000 + 0.5)
-				break
+		if text then
+			local lower = text:lower()
+			local combined = lower
+			if i < tooltip:NumLines() then
+				local nextLine = _G["EnhanceQoLQueryTooltipTextLeft" .. (i + 1)]
+				if nextLine then
+					local nextText = nextLine:GetText()
+					if nextText then combined = combined .. " " .. nextText:lower() end
+				end
 			end
-			-- Fallback: plain numeric before "mana" (supports thousands separators)
-			local plainStr = text:match("([%d%.,]+)%s*mana")
-			if plainStr then
-				local clean = plainStr:gsub("[,%.]", "")
-				mana = tonumber(clean) or 0
-				break
+			if combined:find("mana") then
+				local percentStr = combined:match("([%d%.,]+)%s*%%")
+				if percentStr then
+					local cleanPercent = (percentStr:gsub(",", "."))
+					local percent = tonumber(cleanPercent)
+					if percent then
+						manaPercent = percent
+						local duration = tonumber(combined:match("over%s+(%d+)%s*sec")) or tonumber(combined:match("for%s+(%d+)%s*sec"))
+						local perSecond = combined:find("every second") or combined:find("per second") or combined:find("each second")
+						if perSecond and duration then manaDuration = duration end
+						break
+					end
+				end
+				-- Prefer explicit "million mana" match to avoid picking up unrelated "million" (e.g., health)
+				local millionStr = combined:match("([%d%.,]+)%s*million%s*mana")
+				if millionStr then
+					local clean = (millionStr:gsub(",", "")) -- keep decimal dot for fractional millions
+					local v = tonumber(clean) or 0
+					mana = math.floor(v * 1000000 + 0.5)
+					break
+				end
+				-- Fallback: plain numeric before "mana" (supports thousands separators)
+				local plainStr = combined:match("([%d%.,]+)%s*mana")
+				if plainStr then
+					local clean = plainStr:gsub("[,%.]", "")
+					mana = tonumber(clean) or 0
+					break
+				end
 			end
 		end
 	end
 
 	tooltip:Hide()
-	return mana
+	return mana, manaPercent, manaDuration
 end
 
 local function extractWellFedFromTooltip(itemLink)
@@ -265,44 +290,111 @@ function addon.Query.showItem(itemLink)
 	if addon.Query.ui and addon.Query.ui.inspectorOutput then addon.Query.ui.inspectorOutput:SetText(table.concat(lines, "\n")) end
 end
 
-local function formatDrinkString(name, itemID, minLevel, mana, isBuffFood)
+local function formatDrinkString(name, itemID, minLevel, mana, isBuffFood, manaPercent, manaDuration)
 	local formattedKey = sanitizeKey(name) ~= "" and sanitizeKey(name) or ("item" .. tostring(itemID))
-	return string.format('{ key = "%s", id = %d, requiredLevel = %d, mana = %d, isBuffFood = %s }', formattedKey, itemID, minLevel or 1, mana or 0, tostring(isBuffFood))
+	local manaValue = tonumber(mana) or 0
+	if manaPercent and manaPercent > 0 then
+		local durationValue = tonumber(manaDuration)
+		if durationValue and durationValue > 0 then
+			return string.format(
+				'{ key = "%s", id = %d, requiredLevel = %d, mana = %d, manaPercent = %s, manaDuration = %d, isBuffFood = %s }',
+				formattedKey,
+				itemID,
+				minLevel or 1,
+				manaValue,
+				tostring(manaPercent),
+				durationValue,
+				tostring(isBuffFood)
+			)
+		end
+		return string.format(
+			'{ key = "%s", id = %d, requiredLevel = %d, mana = %d, manaPercent = %s, isBuffFood = %s }',
+			formattedKey,
+			itemID,
+			minLevel or 1,
+			manaValue,
+			tostring(manaPercent),
+			tostring(isBuffFood)
+		)
+	end
+	return string.format('{ key = "%s", id = %d, requiredLevel = %d, mana = %d, isBuffFood = %s }', formattedKey, itemID, minLevel or 1, manaValue, tostring(isBuffFood))
 end
 
-local function formatGemDrinkString(name, itemID, minLevel, mana, isBuffFood)
+local function formatGemDrinkString(name, itemID, minLevel, mana, isBuffFood, manaPercent, manaDuration)
 	local formattedKey = sanitizeKey(name) ~= "" and sanitizeKey(name) or ("item" .. tostring(itemID))
+	local manaValue = tonumber(mana) or 0
+	if manaPercent and manaPercent > 0 then
+		local durationValue = tonumber(manaDuration)
+		if durationValue and durationValue > 0 then
+			return string.format(
+				'{ key = "%s", id = %d, requiredLevel = %d, mana = %d, manaPercent = %s, manaDuration = %d, isBuffFood = %s, isEarthenFood = true, earthenOnly = true }',
+				formattedKey,
+				itemID,
+				minLevel or 1,
+				manaValue,
+				tostring(manaPercent),
+				durationValue,
+				tostring(isBuffFood)
+			)
+		end
+		return string.format(
+			'{ key = "%s", id = %d, requiredLevel = %d, mana = %d, manaPercent = %s, isBuffFood = %s, isEarthenFood = true, earthenOnly = true }',
+			formattedKey,
+			itemID,
+			minLevel or 1,
+			manaValue,
+			tostring(manaPercent),
+			tostring(isBuffFood)
+		)
+	end
 	return string.format(
 		'{ key = "%s", id = %d, requiredLevel = %d, mana = %d, isBuffFood = %s, isEarthenFood = true, earthenOnly = true }',
 		formattedKey,
 		itemID,
 		minLevel or 1,
-		mana or 0,
+		manaValue,
 		tostring(isBuffFood)
 	)
 end
 
-local function formatPotionString(name, itemID, minLevel, mana)
+local function formatPotionString(name, itemID, minLevel, mana, manaPercent, manaDuration)
 	local formattedKey = sanitizeKey(name) ~= "" and sanitizeKey(name) or ("item" .. tostring(itemID))
-	return string.format('{ key = "%s", id = %d, requiredLevel = %d, mana = %d }', formattedKey, itemID, minLevel or 1, mana or 0)
+	local manaValue = tonumber(mana) or 0
+	if manaPercent and manaPercent > 0 then
+		local durationValue = tonumber(manaDuration)
+		if durationValue and durationValue > 0 then
+			return string.format(
+				'{ key = "%s", id = %d, requiredLevel = %d, mana = %d, manaPercent = %s, manaDuration = %d }',
+				formattedKey,
+				itemID,
+				minLevel or 1,
+				manaValue,
+				tostring(manaPercent),
+				durationValue
+			)
+		end
+		return string.format('{ key = "%s", id = %d, requiredLevel = %d, mana = %d, manaPercent = %s }', formattedKey, itemID, minLevel or 1, manaValue, tostring(manaPercent))
+	end
+	return string.format('{ key = "%s", id = %d, requiredLevel = %d, mana = %d }', formattedKey, itemID, minLevel or 1, manaValue)
 end
 
 local function updateItemInfo(itemLink)
 	if not itemLink then return end
 	local name, link, quality, level, minLevel, type, subType, stackCount, equipLoc, texture = C_Item.GetItemInfo(itemLink)
-	local mana = extractManaFromTooltip(itemLink)
-	if name and type and subType and minLevel and mana > 0 then
+	local mana, manaPercent, manaDuration = extractManaFromTooltip(itemLink)
+	local hasMana = (mana and mana > 0) or (manaPercent and manaPercent > 0)
+	if name and type and subType and minLevel and hasMana then
 		local itemID = tonumber(itemLink:match("item:(%d+)"))
 		local kind = currentMode
 		if kind == "auto" then kind = classifyItemByIDs(itemID) or "drink" end
 		if kind == "potion" then
-			return formatPotionString(name, itemID, minLevel, mana)
+			return formatPotionString(name, itemID, minLevel, mana, manaPercent, manaDuration)
 		else
 			local buffFood = extractWellFedFromTooltip(itemLink)
 			if type == "Gem" then
-				return formatGemDrinkString(name, itemID, minLevel, mana, buffFood)
+				return formatGemDrinkString(name, itemID, minLevel, mana, buffFood, manaPercent, manaDuration)
 			else
-				return formatDrinkString(name, itemID, minLevel, mana, buffFood)
+				return formatDrinkString(name, itemID, minLevel, mana, buffFood, manaPercent, manaDuration)
 			end
 		end
 	end

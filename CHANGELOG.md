@@ -19,6 +19,8 @@
 - UF Plus: Secondary/tertiary delimiter options for health/power texts.
 - UF Plus: Status line option to show elite/rare/rareelite icons on non-player frames.
 - UF Plus: Shaman Maelstrom Weapon class resource bar with animated swirl/proc visuals (respects UF Player + Class Resource settings).
+- Inventory: Midnight Season 1 catalyst charge display on the character frame.
+- Food: Added Midnight drinks and mana potions.
 
 ### 🔄 Changed
 
@@ -37,6 +39,9 @@
 ### ❌ Removed
 
 - Removed the CombatMeter module and clean up its saved variables on load.
+- Removed Legion Remix event modules and vendor remnants.
+- Removed Aura: Cast Tracker and Cooldown Notify modules.
+- Removed the Combat & Dungeons/Combat Assist options tree nodes (Aura Tracker is now the root).
 
 ---
 

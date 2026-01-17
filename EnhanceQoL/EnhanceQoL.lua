@@ -4693,8 +4693,7 @@ local function CreateUI()
 	addon.treeGroup = AceGUI:Create("TreeGroup")
 	addon.treeGroup.enabletooltips = false
 
-	-- Top: Combat & Dungeons (children added by sub-addons like Aura, Mythic+, Drink)
-	addon.functions.addToTree(nil, { value = "combat", text = L["CombatDungeons"] })
+	-- Top-level tree nodes are registered by modules (e.g., Aura).
 
 	addon.treeGroup:SetLayout("Fill")
 	addon.treeGroup:SetTree(addon.treeGroupData)
@@ -4703,50 +4702,14 @@ local function CreateUI()
 		-- Prüfen, welche Gruppe ausgewählt wurde
 		if addon.functions.ShowOptionsPage and addon.functions.ShowOptionsPage(container, group) then return end
 
-		-- Vendors & Economy sub-pages handled by vendor module
-		if group == "ui" then
-			if addon.SettingsLayout.uiInputCategory then Settings.OpenToCategory(addon.SettingsLayout.uiInputCategory:GetID()) end
-		elseif string.sub(group, 1, string.len("items\001economy\001selling")) == "items\001economy\001selling" then
-			-- Forward Selling (Auto-Sell) pages to Vendor UI
-			addon.Vendor.functions.treeCallback(container, group)
-			-- CraftShopper is integrated into the Selling root; no standalone panel
-			-- Combat & Dungeons
-		elseif group == "combat" then
-			Settings.OpenToCategory(addon.SettingsLayout.characterInspectCategory:GetID())
-		-- Forward Combat subtree for modules (Mythic+, Aura, Drink)
-		elseif group == "items" then
-			Settings.OpenToCategory(addon.SettingsLayout.inventoryCategory:GetID())
-		elseif group == "items\001economy" then
-			Settings.OpenToCategory(addon.SettingsLayout.vendorEconomyCategory:GetID())
-		-- Forward Combat subtree for modules (Mythic+, Aura, Drink)
-		elseif string.sub(group, 1, string.len("combat\001")) == "combat\001" then
-			-- Normalize and dispatch for known combat modules
-			if
-				group:find("combat\001resourcebar", 1, true)
-				or group:find("combat\001bufftracker", 1, true)
-				or group:find("combat\001casttracker", 1, true)
-				or group:find("combat\001cooldownnotify", 1, true)
-				or group:find("combat\001combatassist", 1, true)
-			then
-				addon.Aura.functions.treeCallback(container, group)
-			elseif string.find(group, "\001drink", 1, true) or string.sub(group, 1, 5) == "drink" or group:find("combat\001drink", 1, true) then
-				local pos = group:find("drink", 1, true)
-				addon.Drinks.functions.treeCallback(container, group:sub(pos))
-			end
-		-- UF Plus
-		elseif string.match(group, "^ufplus") then
-			if addon.Aura and addon.Aura.UF and addon.Aura.UF.treeCallback then addon.Aura.UF.treeCallback(container, group) end
-		-- Quests under Map & Navigation
-		elseif group == "events" or group == "events\001legionremix" then
-			if addon.Events and addon.Events.LegionRemix and addon.Events.LegionRemix.functions and addon.Events.LegionRemix.functions.treeCallback then
-				addon.Events.LegionRemix.functions.treeCallback(container, group)
-			end
-		elseif string.match(group, "^aura") then
-			addon.Aura.functions.treeCallback(container, group)
-		elseif string.match(group, "^move") then
-			addon.Mover.functions.treeCallback(container, group)
-		elseif string.sub(group, 1, string.len("ui\001move")) == "ui\001move" then
-			addon.Mover.functions.treeCallback(container, group:sub(4))
+		if type(group) ~= "string" then return end
+		if
+			group == "bufftracker"
+			or group == "combat"
+			or group:sub(1, #"combat\001") == "combat\001"
+			or group:sub(1, #"aura\001") == "aura\001"
+		then
+			if addon.Aura and addon.Aura.functions and addon.Aura.functions.treeCallback then addon.Aura.functions.treeCallback(container, group) end
 		end
 	end)
 	addon.treeGroup:SetStatusTable(addon.variables.statusTable)
@@ -5093,9 +5056,6 @@ local function setAllHooks()
 			if addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.MarkTextureListDirty then addon.Aura.ResourceBars.MarkTextureListDirty() end
 			if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.RefreshPotionTextureDropdown then addon.MythicPlus.functions.RefreshPotionTextureDropdown() end
 			if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.applyPotionBarTexture then addon.MythicPlus.functions.applyPotionBarTexture() end
-			if addon.Aura and addon.Aura.CastTracker and addon.Aura.CastTracker.functions and addon.Aura.CastTracker.functions.RefreshTextureDropdown then
-				addon.Aura.CastTracker.functions.RefreshTextureDropdown()
-			end
 			if addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.RefreshTextureDropdown then addon.Aura.ResourceBars.RefreshTextureDropdown() end
 		elseif mediaType == "border" then
 			if ActionBarLabels and ActionBarLabels.ResetBorderCache then ActionBarLabels.ResetBorderCache() end
@@ -5107,8 +5067,6 @@ local function setAllHooks()
 		if addon.Aura.functions.InitDB then addon.Aura.functions.InitDB() end
 		if addon.Aura.functions.init then addon.Aura.functions.init() end
 		if addon.Aura.functions.InitBuffTracker then addon.Aura.functions.InitBuffTracker() end
-		if addon.Aura.functions.InitCastTracker then addon.Aura.functions.InitCastTracker() end
-		if addon.Aura.functions.InitCooldownNotify then addon.Aura.functions.InitCooldownNotify() end
 		if addon.Aura.functions.InitResourceBars then addon.Aura.functions.InitResourceBars() end
 	end
 	if addon.Drinks and addon.Drinks.functions then
@@ -5323,8 +5281,6 @@ local eventHandlers = {
 			loadSubAddon("EnhanceQoLQuery")
 			--@end-debug@
 			loadSubAddon("EnhanceQoLSharedMedia")
-
-			if addon.Events and addon.Events.LegionRemix and addon.Events.LegionRemix.Init then addon.Events.LegionRemix:Init() end
 
 			checkBagIgnoreJunk()
 		end
@@ -5584,10 +5540,6 @@ local eventHandlers = {
 				end
 			end
 		end
-		if addon.functions.IsTimerunner() then addon.functions.addToTree(nil, {
-			value = "events",
-			text = EVENTS_LABEL or L["Events"] or "Events",
-		}) end
 	end,
 	["PLAYER_MONEY"] = function()
 		if addon.db["moneyTracker"] and addon.db["moneyTracker"][UnitGUID("player")] and addon.db["moneyTracker"][UnitGUID("player")]["money"] then

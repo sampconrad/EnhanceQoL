@@ -45,8 +45,6 @@ Sounds\sounds.lua
 General\functions.lua
 Core\EditModeLib.lua
 Core\EditMode.lua
-Events\LegionRemixPhaseData.lua
-Events\LegionRemix.lua
 Modules\ActionBarLabels.lua
 Core\Cleanup.lua
 EnhanceQoL.lua

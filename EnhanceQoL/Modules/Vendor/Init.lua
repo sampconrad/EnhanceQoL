@@ -46,9 +46,6 @@ function addon.Vendor.functions.InitDB()
 	init("vendorShowDestroyOverlay", true)
 	init("vendorDestroyShowMessages", true)
 	init("vendorCraftShopperEnable", false)
-	init("vendorScrapAuto", false)
-	init("vendorScrapMaxQuality", Enum.ItemQuality.Rare)
-	init("vendorScrapMinLevelDiff", 0)
 
 	for key, value in pairs(addon.Vendor.variables.tabNames) do
 		init("vendor" .. value .. "Enable", false)
