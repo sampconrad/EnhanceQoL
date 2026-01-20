@@ -25,7 +25,7 @@ local function getCritRating()
 	-- Mirror PaperDollFrame_SetCritChance selection to match the displayed crit type.
 	if not (GetCombatRating and GetSpellCritChance and GetRangedCritChance and GetCritChance) then return nil end
 	local spellCrit = GetSpellCritChance(2)
-	if type(spellCrit) ~= "number" then return GetCombatRating(CR_CRIT_MELEE) end
+	if type(spellCrit) ~= "number" then return GetCombatRating(_G.CR_CRIT_MELEE) end
 
 	if MAX_SPELL_SCHOOLS then
 		for i = 3, MAX_SPELL_SCHOOLS do
@@ -37,19 +37,19 @@ local function getCritRating()
 	local rangedCrit = GetRangedCritChance()
 	local meleeCrit = GetCritChance()
 
-	if spellCrit >= rangedCrit and spellCrit >= meleeCrit then return GetCombatRating(CR_CRIT_SPELL) end
-	if rangedCrit >= meleeCrit then return GetCombatRating(CR_CRIT_RANGED) end
-	return GetCombatRating(CR_CRIT_MELEE)
+	if spellCrit >= rangedCrit and spellCrit >= meleeCrit then return GetCombatRating(_G.CR_CRIT_SPELL) end
+	if rangedCrit >= meleeCrit then return GetCombatRating(_G.CR_CRIT_RANGED) end
+	return GetCombatRating(_G.CR_CRIT_MELEE)
 end
 
 local function getStatRating(label)
 	if label == STAT_CRITICAL_STRIKE then return getCritRating() end
-	if label == STAT_HASTE then return GetCombatRating(CR_HASTE_MELEE) end
-	if label == STAT_MASTERY then return GetCombatRating(CR_MASTERY) end
-	if label == STAT_SPEED then return GetCombatRating(CR_SPEED) end
-	if label == STAT_LIFESTEAL then return GetCombatRating(CR_LIFESTEAL) end
-	if label == STAT_AVOIDANCE then return GetCombatRating(CR_AVOIDANCE) end
-	if label == STAT_VERSATILITY then return GetCombatRating(CR_VERSATILITY_DAMAGE_DONE) end
+	if label == STAT_HASTE then return GetCombatRating(_G.CR_HASTE_MELEE) end
+	if label == STAT_MASTERY then return GetCombatRating(_G.CR_MASTERY) end
+	if label == STAT_SPEED then return GetCombatRating(_G.CR_SPEED) end
+	if label == STAT_LIFESTEAL then return GetCombatRating(_G.CR_LIFESTEAL) end
+	if label == STAT_AVOIDANCE then return GetCombatRating(_G.CR_AVOIDANCE) end
+	if label == STAT_VERSATILITY then return GetCombatRating(_G.CR_VERSATILITY_DAMAGE_DONE) end
 	return nil
 end
 
@@ -68,7 +68,7 @@ local function updateStatDisplay(statFrame, label, text, isPercentage, numericVa
 end
 
 local function refreshStats()
-	if PaperDollFrame_UpdateStats then PaperDollFrame_UpdateStats() end
+	if _G.PaperDollFrame_UpdateStats then _G.PaperDollFrame_UpdateStats() end
 end
 
 function CharacterStatsFormatting.Enable()
@@ -76,7 +76,7 @@ function CharacterStatsFormatting.Enable()
 		refreshStats()
 		return
 	end
-	if type(PaperDollFrame_SetLabelAndText) ~= "function" then return end
+	if type(_G.PaperDollFrame_SetLabelAndText) ~= "function" then return end
 	hooksecurefunc("PaperDollFrame_SetLabelAndText", updateStatDisplay)
 	hooked = true
 	refreshStats()
