@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.2.0] - 2026-01-21
+
+### ✨ Added
+
+- Quest Tracker: Option to remember collapsed/expanded state across login/reload.
+
+---
+
 ## [7.1.3] - 2026-01-20
 
 ### 🐛 Fixed

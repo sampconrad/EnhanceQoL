@@ -27,6 +27,7 @@ local questTrackerQuestCountText
 local questTrackerQuestCountWatcher
 local objectiveTrackerMinimizeWatcher
 local objectiveTrackerMinimizeHooked
+local objectiveTrackerCollapseHooked
 
 local function GetQuestTrackerQuestCountText()
 	if not C_QuestLog or not C_QuestLog.GetNumQuestLogEntries then return "" end
@@ -141,13 +142,50 @@ local function ApplyObjectiveTrackerMinimizeStyle()
 end
 addon.functions.UpdateObjectiveTrackerMinimizeStyle = ApplyObjectiveTrackerMinimizeStyle
 
-local function EnsureObjectiveTrackerMinimizeHook()
-	if objectiveTrackerMinimizeHooked then return end
+local function ApplyQuestTrackerCollapsedState()
+	if not addon or not addon.db or not addon.db.questTrackerRememberState then return end
 	local tracker = _G.ObjectiveTrackerFrame
-	local header = tracker and tracker.Header
+	if not tracker or not tracker.IsCollapsed or not tracker.SetCollapsed then return end
+	local saved = addon.db.questTrackerCollapsed
+	if saved == nil then
+		addon.db.questTrackerCollapsed = tracker:IsCollapsed() and true or false
+		return
+	end
+	if tracker:IsCollapsed() ~= saved then
+		tracker:SetCollapsed(saved)
+	end
+end
+
+local function CaptureQuestTrackerCollapsedState()
+	if not addon or not addon.db or not addon.db.questTrackerRememberState then return end
+	local tracker = _G.ObjectiveTrackerFrame
+	if not tracker or not tracker.IsCollapsed then return end
+	addon.db.questTrackerCollapsed = tracker:IsCollapsed() and true or false
+end
+
+local function EnsureObjectiveTrackerCollapseHook()
+	if objectiveTrackerCollapseHooked then return end
+	local tracker = _G.ObjectiveTrackerFrame
+	if not tracker or not hooksecurefunc then return end
+	objectiveTrackerCollapseHooked = true
+	hooksecurefunc(tracker, "SetCollapsed", function(_, collapsed)
+		if addon and addon.db and addon.db.questTrackerRememberState then
+			addon.db.questTrackerCollapsed = collapsed and true or false
+		end
+	end)
+end
+
+local function EnsureObjectiveTrackerMinimizeHook()
+	local tracker = _G.ObjectiveTrackerFrame
+	if not tracker then return end
+	EnsureObjectiveTrackerCollapseHook()
+	local header = tracker.Header
 	if not header then return end
-	objectiveTrackerMinimizeHooked = true
-	if hooksecurefunc then hooksecurefunc(header, "SetCollapsed", function() ApplyObjectiveTrackerMinimizeStyle() end) end
+	if not objectiveTrackerMinimizeHooked then
+		objectiveTrackerMinimizeHooked = true
+		if hooksecurefunc then hooksecurefunc(header, "SetCollapsed", function() ApplyObjectiveTrackerMinimizeStyle() end) end
+	end
+	ApplyQuestTrackerCollapsedState()
 	ApplyObjectiveTrackerMinimizeStyle()
 end
 
@@ -383,6 +421,19 @@ local trackerData = {
 		end,
 		default = false,
 	},
+	{
+		var = "questTrackerRememberState",
+		text = L["questTrackerRememberState"],
+		desc = L["questTrackerRememberState_desc"],
+		func = function(value)
+			addon.db["questTrackerRememberState"] = value and true or false
+			if value then
+				CaptureQuestTrackerCollapsedState()
+				EnsureObjectiveTrackerCollapseHook()
+			end
+		end,
+		default = false,
+	},
 }
 
 addon.functions.SettingsCreateHeadline(cQuest, L["Questing"], { parentSection = questingExpandable })
@@ -407,6 +458,7 @@ function addon.functions.initQuest()
 	addon.functions.InitDBValue("questTrackerQuestCountOffsetX", 0)
 	addon.functions.InitDBValue("questTrackerQuestCountOffsetY", 0)
 	addon.functions.InitDBValue("questTrackerMinimizeButtonOnly", false)
+	addon.functions.InitDBValue("questTrackerRememberState", false)
 	addon.functions.InitDBValue("questWowheadLink", false)
 	addon.functions.InitDBValue("ignoredQuestNPC", {})
 	addon.functions.InitDBValue("autogossipID", {})

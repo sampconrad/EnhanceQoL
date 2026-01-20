@@ -548,6 +548,8 @@ L["questTrackerQuestCountOffsetX"] = "Horizontal offset"
 L["questTrackerQuestCountOffsetY"] = "Vertical offset"
 L["questTrackerMinimizeButtonOnly"] = "Minimize to '+' only"
 L["questTrackerMinimizeButtonOnly_desc"] = "When the Objective Tracker is collapsed, hide the header bar and show only the (+) button."
+L["questTrackerRememberState"] = "Remember Quest Tracker state"
+L["questTrackerRememberState_desc"] = "Restores the Objective Tracker's collapsed/expanded state after login or reload."
 
 L["autoQuickLoot"] = "Quick loot items"
 L["autoQuickLootDesc"] = "Fixes a default-UI bug that sometimes prevents you from looting. For best results, turn off WoW’s built-in Auto Loot option."
