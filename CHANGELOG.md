@@ -23,6 +23,7 @@
 - UF Plus: Shaman Maelstrom Weapon class resource bar with animated swirl/proc visuals (respects UF Player + Class Resource settings).
 - Inventory: Midnight Season 1 catalyst charge display on the character frame.
 - Gear & Upgrades: Gem Helper tracker under the character frame (shows equipped gem types and missing highlights).
+- Gear & Upgrades: Character stat formatting option to show rating + percent for secondary stats.
 - Food: Added Midnight drinks and mana potions.
 
 ### ⚠️ Warning
