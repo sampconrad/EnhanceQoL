@@ -1,5 +1,15 @@
 # Changelog
 
+## [7.1.3] - 2026-01-20
+
+### 🐛 Fixed
+
+- DataPanels: Background and border now respect in/out-of-combat opacity.
+- Resource Bars: Demon Hunter spec 3 now uses Void Metamorphosis as the main resource.
+- Resource Bars: Void Metamorphosis default color now matches Blizzard UI.
+
+---
+
 ## [7.1.2] - 2026-01-20
 
 ### 🐛 Fixed

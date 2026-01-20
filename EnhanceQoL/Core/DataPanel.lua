@@ -8,6 +8,8 @@ local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
 local LSM = LibStub("LibSharedMedia-3.0", true)
 
 local DEFAULT_TEXT_ALPHA = 100
+local DEFAULT_BACKDROP_ALPHA = 0.5
+local DEFAULT_BORDER_ALPHA = 1
 local DEFAULT_FONT_OUTLINE = true
 local DEFAULT_FONT_SHADOW = false
 local SHADOW_OFFSET_X = 1
@@ -662,7 +664,7 @@ function DataPanel.Create(id, name, existingOnly)
 			edgeSize = 16,
 			insets = { left = 4, right = 4, top = 4, bottom = 4 },
 		})
-		frame:SetBackdropColor(0, 0, 0, 0.5)
+		frame:SetBackdropColor(0, 0, 0, DEFAULT_BACKDROP_ALPHA)
 	end
 
 	function panel:ApplyBorder()
@@ -678,8 +680,9 @@ function DataPanel.Create(id, name, existingOnly)
 				edgeSize = 16,
 				insets = { left = 4, right = 4, top = 4, bottom = 4 },
 			})
-			self.frame:SetBackdropColor(0, 0, 0, 0.5)
+			self.frame:SetBackdropColor(0, 0, 0, DEFAULT_BACKDROP_ALPHA)
 		end
+		self:ApplyBackdropAlpha(InCombatLockdown and InCombatLockdown() or false)
 		self:SyncEditModeValue("hideBorder", i and i.noBorder or false)
 	end
 
@@ -738,11 +741,20 @@ function DataPanel.Create(id, name, existingOnly)
 		return normalizePercent(value, DEFAULT_TEXT_ALPHA) / 100
 	end
 
+	function panel:ApplyBackdropAlpha(inCombat)
+		if not self.frame then return end
+		if self.info and self.info.noBorder then return end
+		local alpha = self:GetTextAlpha(inCombat)
+		self.frame:SetBackdropColor(0, 0, 0, DEFAULT_BACKDROP_ALPHA * alpha)
+		self.frame:SetBackdropBorderColor(1, 1, 1, DEFAULT_BORDER_ALPHA * alpha)
+	end
+
 	function panel:ApplyAlpha(inCombat)
 		local alpha = self:GetTextAlpha(inCombat)
 		for _, data in pairs(self.streams) do
 			if data and data.button and data.button.SetAlpha then data.button:SetAlpha(alpha) end
 		end
+		self:ApplyBackdropAlpha(inCombat)
 	end
 
 	function panel:ApplyTextStyle()

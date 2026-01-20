@@ -216,7 +216,7 @@ RB.AURA_POWER_CONFIG = {
 		spellIds = { RB.VOID_METAMORPHOSIS_SPELL_ID },
 		maxStacks = 50,
 		visualSegments = 0,
-		defaultColor = { 0.67, 0.37, 0.97, 1 }, -- #AC5FF8
+		defaultColor = { 0.35, 0.25, 0.73, 1 }, -- #5940BA (Blizzard voidMetamorphosisProgess)
 		useMaxColorDefault = true,
 		defaultShowSeparator = false,
 	},
@@ -372,9 +372,9 @@ local function setBarDesaturated(bar, flag)
 	if bar and bar.SetStatusBarDesaturated then bar:SetStatusBarDesaturated(flag and true or false) end
 end
 
-local STAGGER_YELLOW_THRESHOLD = 0.30
-local STAGGER_RED_THRESHOLD = 0.60
-local STAGGER_FALLBACK_COLORS = {
+RB.STAGGER_YELLOW_THRESHOLD = 0.30
+RB.STAGGER_RED_THRESHOLD = 0.60
+RB.STAGGER_FALLBACK_COLORS = {
 	green = { r = 0.52, g = 1.0, b = 0.52 },
 	yellow = { r = 1.0, g = 0.98, b = 0.72 },
 	red = { r = 1.0, g = 0.42, b = 0.42 },
@@ -383,14 +383,14 @@ local STAGGER_FALLBACK_COLORS = {
 local function getStaggerStateColor(percent)
 	local info = (GetPowerBarColor and GetPowerBarColor("STAGGER")) or (PowerBarColor and PowerBarColor["STAGGER"])
 	local key
-	if percent >= STAGGER_RED_THRESHOLD then
+	if percent >= RB.STAGGER_RED_THRESHOLD then
 		key = "red"
-	elseif percent >= STAGGER_YELLOW_THRESHOLD then
+	elseif percent >= RB.STAGGER_YELLOW_THRESHOLD then
 		key = "yellow"
 	else
 		key = "green"
 	end
-	return (info and info[key]) or STAGGER_FALLBACK_COLORS[key] or STAGGER_FALLBACK_COLORS.green
+	return (info and info[key]) or RB.STAGGER_FALLBACK_COLORS[key] or RB.STAGGER_FALLBACK_COLORS.green
 end
 
 local function getPowerBarColor(type)
@@ -508,11 +508,11 @@ local function deactivateRuneTicker(bar)
 	bar._runeUpdateInterval = nil
 end
 
-local textureListCache = {
+RB.TEXTURE_LIST_CACHE = {
 	dirty = true,
 }
 
-local function markTextureListDirty() textureListCache.dirty = true end
+local function markTextureListDirty() RB.TEXTURE_LIST_CACHE.dirty = true end
 
 ResourceBars.MarkTextureListDirty = markTextureListDirty
 
@@ -1140,28 +1140,29 @@ local function rebuildTextureCache()
 	for i = 1, #orderNoDefault do
 		orderWithDefault[#orderWithDefault + 1] = orderNoDefault[i]
 	end
-	textureListCache.noDefaultList = sortedNoDefault
-	textureListCache.noDefaultOrder = orderNoDefault
-	textureListCache.fullList = sortedWithDefault
-	textureListCache.fullOrder = orderWithDefault
-	textureListCache.dirty = false
+	RB.TEXTURE_LIST_CACHE.noDefaultList = sortedNoDefault
+	RB.TEXTURE_LIST_CACHE.noDefaultOrder = orderNoDefault
+	RB.TEXTURE_LIST_CACHE.fullList = sortedWithDefault
+	RB.TEXTURE_LIST_CACHE.fullOrder = orderWithDefault
+	RB.TEXTURE_LIST_CACHE.dirty = false
 end
 
 getStatusbarDropdownLists = function(includeDefault)
-	if textureListCache.dirty or not textureListCache.fullList then rebuildTextureCache() end
-	if includeDefault then return cloneMap(textureListCache.fullList), cloneArray(textureListCache.fullOrder) end
-	return cloneMap(textureListCache.noDefaultList), cloneArray(textureListCache.noDefaultOrder)
+	if RB.TEXTURE_LIST_CACHE.dirty or not RB.TEXTURE_LIST_CACHE.fullList then rebuildTextureCache() end
+	if includeDefault then return cloneMap(RB.TEXTURE_LIST_CACHE.fullList), cloneArray(RB.TEXTURE_LIST_CACHE.fullOrder) end
+	return cloneMap(RB.TEXTURE_LIST_CACHE.noDefaultList), cloneArray(RB.TEXTURE_LIST_CACHE.noDefaultOrder)
 end
 addon.Aura.functions.getStatusbarDropdownLists = getStatusbarDropdownLists
 
 -- Detect Atlas: /run local t=PlayerFrame_GetManaBar():GetStatusBarTexture(); print("tex:", t:GetTexture(), "atlas:", t:GetAtlas()); local a,b,c,d,e,f,g,h=t:GetTexCoord(); print("tc:",a,b,c,d,e,f,g,h)
 -- Healthbar: /run local t=PlayerFrame_GetHealthBar():GetStatusBarTexture(); print("tex:", t:GetTexture(), "atlas:", t:GetAtlas()); local a,b,c,d,e,f,g,h=t:GetTexCoord(); print("tc:",a,b,c,d,e,f,g,h)
 
-local atlasByPower = {
+RB.ATLAS_BY_POWER = {
 	LUNAR_POWER = "Unit_Druid_AstralPower_Fill",
 	MAELSTROM = "Unit_Shaman_Maelstrom_Fill",
 	INSANITY = "Unit_Priest_Insanity_Fill",
 	FURY = "Unit_DemonHunter_Fury_Fill",
+	VOID_METAMORPHOSIS = "UF-DDH-VoidMeta-Bar",
 	RUNIC_POWER = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-RunicPower",
 	ENERGY = "UI-HUD-UnitFrame-Player-PortraitOn-ClassResource-Bar-Energy",
 	FOCUS = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Focus",
@@ -1170,24 +1171,38 @@ local atlasByPower = {
 	HEALTH = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Health",
 }
 
+local function isDefaultTextureSelection(cfg, pType)
+	local sel = cfg and cfg.barTexture
+	if sel == nil or sel == "" or sel == "DEFAULT" then return true end
+	if pType == "VOID_METAMORPHOSIS" and sel == RB.DEFAULT_RB_TEX then return true end
+	return false
+end
+
+local function shouldNormalizeAtlasColor(cfg, pType, bar)
+	if cfg then
+		if cfg.useBarColor == true then return false end
+		if cfg.useClassColor == true then return false end
+		if cfg.useMaxColor == true and bar and bar._usingMaxColor then return false end
+	end
+	local auraDef = RB.AURA_POWER_CONFIG and RB.AURA_POWER_CONFIG[pType]
+	if auraDef and auraDef.defaultColor then return false end
+	return true
+end
+
 local function configureSpecialTexture(bar, pType, cfg)
 	if not bar then return end
-	local atlas = atlasByPower[pType]
+	local atlas = RB.ATLAS_BY_POWER[pType]
 	if not atlas then return end
 	cfg = cfg or bar._cfg
-	if cfg and cfg.barTexture and cfg.barTexture ~= "" and cfg.barTexture ~= "DEFAULT" then return end
+	if not isDefaultTextureSelection(cfg, pType) then return end
+	if bar.SetStatusBarTexture then bar:SetStatusBarTexture(atlas) end
 	local tex = bar:GetStatusBarTexture()
 	if tex and tex.SetAtlas then
 		local currentAtlas = tex.GetAtlas and tex:GetAtlas()
 		if currentAtlas ~= atlas then tex:SetAtlas(atlas, true) end
 		if tex.SetHorizTile then tex:SetHorizTile(false) end
 		if tex.SetVertTile then tex:SetVertTile(false) end
-		local shouldNormalize = true
-		if cfg then
-			if cfg.useBarColor == true then shouldNormalize = false end
-			if cfg.useClassColor == true then shouldNormalize = false end
-			if cfg.useMaxColor == true and bar._usingMaxColor then shouldNormalize = false end
-		end
+		local shouldNormalize = shouldNormalizeAtlasColor(cfg, pType, bar)
 		if shouldNormalize then
 			bar:SetStatusBarColor(1, 1, 1, 1)
 			bar._baseColor = bar._baseColor or {}
@@ -1282,7 +1297,7 @@ local function ensureBackdropFrames(frame)
 	return bg, border
 end
 
-local LEGACY_CUSTOM_BORDER_IDS = {
+RB.LEGACY_CUSTOM_BORDER_IDS = {
 	EQOL_BORDER_RUNES = true,
 	EQOL_BORDER_GOLDEN = true,
 	EQOL_BORDER_MODERN = true,
@@ -1292,7 +1307,7 @@ local LEGACY_CUSTOM_BORDER_IDS = {
 local function normalizeBorderTexture(bd)
 	if not bd then return nil end
 	local borderTexture = bd.borderTexture
-	if borderTexture and LEGACY_CUSTOM_BORDER_IDS[borderTexture] then
+	if borderTexture and RB.LEGACY_CUSTOM_BORDER_IDS[borderTexture] then
 		borderTexture = "Interface\\Tooltips\\UI-Tooltip-Border"
 		bd.borderTexture = borderTexture
 	end
@@ -1300,7 +1315,7 @@ local function normalizeBorderTexture(bd)
 end
 
 -- Statusbar content inset controller
-local ZERO_INSETS = { left = 0, right = 0, top = 0, bottom = 0 }
+RB.ZERO_INSETS = { left = 0, right = 0, top = 0, bottom = 0 }
 
 local function copyInsetValues(src, dest)
 	dest = dest or {}
@@ -1311,7 +1326,7 @@ local function copyInsetValues(src, dest)
 	return dest
 end
 
-local function resolveInnerInset(bd) return ZERO_INSETS end
+local function resolveInnerInset(bd) return RB.ZERO_INSETS end
 
 local function ensureInnerFrame(frame)
 	local inner = frame._rbInner
@@ -1342,7 +1357,7 @@ end
 
 local function applyStatusBarInsets(frame, inset, force)
 	if not frame then return end
-	inset = inset or ZERO_INSETS
+	inset = inset or RB.ZERO_INSETS
 	local l = inset.left or 0
 	local r = inset.right or 0
 	local t = inset.top or 0
@@ -1471,7 +1486,7 @@ local function applyBackdrop(frame, cfg)
 	if not bgFrame or not borderFrame then return end
 	frame._rbBackdropState = frame._rbBackdropState or {}
 	local state = frame._rbBackdropState
-	local contentInset = ZERO_INSETS
+	local contentInset = RB.ZERO_INSETS
 	state.insets = copyInsetValues(contentInset, state.insets)
 	applyStatusBarInsets(frame, state.insets, true)
 
@@ -1607,14 +1622,14 @@ local function applyBarFillColor(bar, cfg, pType)
 	configureSpecialTexture(bar, pType, cfg)
 end
 
-local DK_SPEC_COLOR = {
+RB.DK_SPEC_COLOR = {
 	[1] = { 0.8, 0.1, 0.1 },
 	[2] = { 0.2, 0.6, 1.0 },
 	[3] = { 0.0, 0.9, 0.3 },
 }
 local function dkSpecColor()
 	-- addon.variables.unitSpec uses spec index (1 Blood, 2 Frost, 3 Unholy)
-	return DK_SPEC_COLOR[addon.variables.unitSpec] or DK_SPEC_COLOR[1]
+	return RB.DK_SPEC_COLOR[addon.variables.unitSpec] or RB.DK_SPEC_COLOR[1]
 end
 
 local function resolveRuneReadyColor(cfg)
@@ -1790,7 +1805,7 @@ local function backfillAnchorFromLayout(anchor, barType)
 	anchor.y = data.y
 end
 
-local FREQUENT = { ENERGY = true, FOCUS = true, RAGE = true, RUNIC_POWER = true, LUNAR_POWER = true }
+RB.FREQUENT_POWER_TYPES = { ENERGY = true, FOCUS = true, RAGE = true, RUNIC_POWER = true, LUNAR_POWER = true }
 local formIndexToKey = {
 	[0] = "HUMANOID",
 	[1] = "BEAR",
@@ -2289,7 +2304,8 @@ powertypeClasses = {
 	DEMONHUNTER = {
 		[1] = { MAIN = "FURY" },
 		[2] = { MAIN = "FURY" },
-		[3] = { --MAIN = "VOID_METAMORPHOSIS", -- TODO When declassified uncomment
+		[3] = {
+			MAIN = "VOID_METAMORPHOSIS",
 			FURY = true,
 		},
 	},
@@ -2963,6 +2979,9 @@ function updatePowerBar(type, runeSlot)
 		elseif cfg.useClassColor == true then
 			local cr, cg, cb, ca = getPlayerClassColor()
 			bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = cr, cg, cb, ca or (cfg.barColor and cfg.barColor[4]) or 1
+		elseif cfgDef and cfgDef.defaultColor then
+			local c = cfgDef.defaultColor
+			bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = c[1] or 1, c[2] or 1, c[3] or 1, c[4] or 1
 		end
 
 		local targetR, targetG, targetB, targetA = bar._baseColor[1] or 1, bar._baseColor[2] or 1, bar._baseColor[3] or 1, bar._baseColor[4] or 1
@@ -3204,7 +3223,7 @@ updateBarSeparators = function(pType)
 		return
 	end
 
-	local inset = bar._rbContentInset or ZERO_INSETS
+	local inset = bar._rbContentInset or RB.ZERO_INSETS
 	local inner = bar._rbInner or bar
 
 	-- Legacy overlay cleanup: no longer needed
@@ -3357,7 +3376,7 @@ updateBarThresholds = function(pType)
 		return
 	end
 
-	local inset = bar._rbContentInset or ZERO_INSETS
+	local inset = bar._rbContentInset or RB.ZERO_INSETS
 	local inner = bar._rbInner or bar
 	bar.thresholdMarks = bar.thresholdMarks or {}
 
@@ -3676,7 +3695,7 @@ local function createPowerBar(type, anchor)
 	if ensureEditModeRegistration then ensureEditModeRegistration() end
 end
 
-local eventsToRegister = {
+RB.EVENTS_TO_REGISTER = {
 	"UNIT_HEALTH",
 	"UNIT_MAXHEALTH",
 	"UNIT_ABSORB_AMOUNT_CHANGED",
@@ -3702,7 +3721,7 @@ end
 
 local function classNeedsUnitAura(class) return classUsesAuraPowers(class) or class == "MONK" end
 
-if classNeedsUnitAura(addon.variables.unitClass) then table.insert(eventsToRegister, "UNIT_AURA") end
+if classNeedsUnitAura(addon.variables.unitClass) then table.insert(RB.EVENTS_TO_REGISTER, "UNIT_AURA") end
 local function setPowerbars(opts)
 	local _, powerToken = UnitPowerType("player")
 	powerfrequent = {}
@@ -3776,7 +3795,7 @@ local function setPowerbars(opts)
 			end
 			if forceAllDruidBars then formAllowed = true end
 			if formAllowed and addon.variables.unitClass == "DRUID" then
-				if FREQUENT[pType] then powerfrequent[pType] = true end
+				if RB.FREQUENT_POWER_TYPES[pType] then powerfrequent[pType] = true end
 				if forceAllDruidBars then
 					if mainPowerBar ~= pType then
 						createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
@@ -3799,7 +3818,7 @@ local function setPowerbars(opts)
 					showBar = true
 				end
 			elseif formAllowed then
-				if FREQUENT[pType] then powerfrequent[pType] = true end
+				if RB.FREQUENT_POWER_TYPES[pType] then powerfrequent[pType] = true end
 				if mainPowerBar ~= pType then
 					createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
 					lastBar = pType
@@ -4167,7 +4186,7 @@ function ResourceBars.EnableResourceBars()
 		frameAnchor = CreateFrame("Frame")
 		addon.Aura.anchorFrame = frameAnchor
 	end
-	for _, event in ipairs(eventsToRegister) do
+	for _, event in ipairs(RB.EVENTS_TO_REGISTER) do
 		-- Register unit vs non-unit events correctly
 		if event == "UPDATE_SHAPESHIFT_FORM" then
 			frameAnchor:RegisterEvent(event)
