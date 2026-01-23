@@ -17,6 +17,8 @@ UF.AuraUtil = UF.AuraUtil or {}
 local AuraUtil = UF.AuraUtil
 UF.ClassResourceUtil = UF.ClassResourceUtil or {}
 local ClassResourceUtil = UF.ClassResourceUtil
+UF.TotemFrameUtil = UF.TotemFrameUtil or {}
+local TotemFrameUtil = UF.TotemFrameUtil
 addon.variables = addon.variables or {}
 addon.variables.ufSampleAbsorb = addon.variables.ufSampleAbsorb or {}
 addon.variables.ufSampleHealAbsorb = addon.variables.ufSampleHealAbsorb or {}
@@ -121,10 +123,24 @@ local classResourceFramesByClass = {
 	SHAMAN = { "ShamanMaelstromWeaponBarFrame" },
 	WARLOCK = { "WarlockPowerFrame" },
 }
+local totemFrameClasses = {
+	DEATHKNIGHT = true,
+	DRUID = true,
+	MAGE = true,
+	MONK = true,
+	PALADIN = true,
+	PRIEST = true,
+	SHAMAN = true,
+	WARLOCK = true,
+}
 local classResourceOriginalLayouts = {}
 local classResourceManagedFrames = {}
 local classResourceHooks = {}
 local applyClassResourceLayout
+local totemFrameOriginalLayout
+local totemFrameManaged
+local totemFrameHooked
+local applyTotemFrameLayout
 
 local bossUnitLookup = { boss = true }
 for i = 1, maxBossFrames do
@@ -344,6 +360,13 @@ local defaults = {
 			anchor = "BOTTOM",
 			offset = { x = 0, y = -28 },
 			scale = 1,
+			totemFrame = {
+				enabled = false,
+				anchor = "BOTTOMRIGHT",
+				offset = { x = 0, y = 20 },
+				scale = 1,
+				showSample = false,
+			},
 		},
 		raidIcon = {
 			enabled = true,
@@ -503,12 +526,8 @@ local function getDebuffColorFromName(name)
 	local idx = dispelIndexByName[name] or 0
 	local col = debuffinfo[idx] or debuffinfo[0]
 	if not col then return nil end
-	if col.GetRGBA then
-		return col:GetRGBA()
-	end
-	if col.GetRGB then
-		return col:GetRGB()
-	end
+	if col.GetRGBA then return col:GetRGBA() end
+	if col.GetRGB then return col:GetRGB() end
 	if col.r then return col.r, col.g, col.b, col.a end
 	return col[1], col[2], col[3], col[4]
 end
@@ -784,6 +803,174 @@ applyClassResourceLayout = function(cfg)
 		if frame.SetFrameStrata and st.frame.GetFrameStrata then frame:SetFrameStrata(st.frame:GetFrameStrata()) end
 		if frame.SetFrameLevel and st.frame.GetFrameLevel then frame:SetFrameLevel((st.frame:GetFrameLevel() or 0) + 5) end
 	end
+end
+
+function TotemFrameUtil.storeTotemFrameDefaults(frame)
+	if not frame or totemFrameOriginalLayout then return end
+	local info = {
+		parent = frame:GetParent(),
+		scale = frame:GetScale(),
+		strata = frame:GetFrameStrata(),
+		level = frame:GetFrameLevel(),
+		ignoreFramePositionManager = frame.ignoreFramePositionManager,
+		points = {},
+	}
+	for i = 1, frame:GetNumPoints() do
+		local point, rel, relPoint, x, y = frame:GetPoint(i)
+		info.points[#info.points + 1] = { point = point, relativeTo = rel, relativePoint = relPoint, x = x, y = y }
+	end
+	totemFrameOriginalLayout = info
+end
+
+local function normalizeTotemFrameConfig(value)
+	if value == true then return { enabled = true } end
+	if type(value) == "table" then return value end
+	return {}
+end
+
+local function hasActiveTotems()
+	if not GetTotemInfo then return false end
+	for i = 1, (MAX_TOTEMS or 4) do
+		local haveTotem = GetTotemInfo(i)
+		if haveTotem then return true end
+	end
+	return false
+end
+
+function TotemFrameUtil.restoreTotemFrame()
+	if not totemFrameManaged then return end
+	local frame = _G.TotemFrame
+	if not frame then return end
+	local info = totemFrameOriginalLayout
+	totemFrameManaged = nil
+	if not info then return end
+	if frame._eqolSampleButton then frame._eqolSampleButton:Hide() end
+	if frame.SetParent and info.parent then frame:SetParent(info.parent) end
+	frame:ClearAllPoints()
+	if info.points and #info.points > 0 then
+		for _, pt in ipairs(info.points) do
+			frame:SetPoint(pt.point, pt.relativeTo, pt.relativePoint, pt.x or 0, pt.y or 0)
+		end
+	end
+	if info.scale and frame.SetScale then frame:SetScale(info.scale) end
+	if info.strata and frame.SetFrameStrata then frame:SetFrameStrata(info.strata) end
+	if info.level and frame.SetFrameLevel then frame:SetFrameLevel(info.level) end
+	if info.ignoreFramePositionManager ~= nil then frame.ignoreFramePositionManager = info.ignoreFramePositionManager end
+end
+
+function TotemFrameUtil.onTotemFrameShow()
+	if applyTotemFrameLayout then applyTotemFrameLayout(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER)) end
+end
+
+function TotemFrameUtil.hookTotemFrame(frame)
+	if not frame or totemFrameHooked then return end
+	totemFrameHooked = true
+	frame:HookScript("OnShow", TotemFrameUtil.onTotemFrameShow)
+	if hooksecurefunc and frame.SetFrameLevel then hooksecurefunc(frame, "SetFrameLevel", function(self)
+		if frame:GetFrameLevel() < 7 then frame:SetFrameLevel(7) end
+	end) end
+end
+
+function TotemFrameUtil.updateSample(frame, shouldShow)
+	if not frame then return end
+	if not shouldShow then
+		if frame._eqolSampleButton then frame._eqolSampleButton:Hide() end
+		if not hasActiveTotems() and (frame.activeTotems == nil or frame.activeTotems == 0) then frame:Hide() end
+		return
+	end
+	if (frame.activeTotems and frame.activeTotems > 0) or hasActiveTotems() then
+		if frame._eqolSampleButton then frame._eqolSampleButton:Hide() end
+		return
+	end
+	local button = frame._eqolSampleButton
+	if not button then
+		button = CreateFrame("Button", nil, frame, "TotemButtonTemplate")
+		frame._eqolSampleButton = button
+	end
+	button.layoutIndex = 1
+	button.slot = 0
+	if button.Icon and button.Icon.Texture then
+		button.Icon.Texture:SetTexture(136099)
+		button.Icon.Texture:Show()
+	end
+	if button.Icon and button.Icon.Cooldown then button.Icon.Cooldown:Hide() end
+	if button.Duration then
+		button.Duration:SetText("")
+		button.Duration:Hide()
+	end
+	button:SetScript("OnUpdate", nil)
+	button:EnableMouse(false)
+	button:Show()
+	frame:Show()
+	if frame.Layout then frame:Layout() end
+end
+
+applyTotemFrameLayout = function(cfg)
+	local frame = _G.TotemFrame
+	if not frame then
+		TotemFrameUtil.restoreTotemFrame()
+		return
+	end
+	local classKey = addon.variables and addon.variables.unitClass
+	if not classKey or not totemFrameClasses[classKey] then
+		TotemFrameUtil.restoreTotemFrame()
+		return
+	end
+	local st = states[UNIT.PLAYER]
+	if not st or not st.frame then return end
+	local def = defaultsFor(UNIT.PLAYER)
+	local rcfg = (cfg and cfg.classResource) or (def and def.classResource) or {}
+	local tcfg = normalizeTotemFrameConfig(rcfg.totemFrame)
+	local tdef = normalizeTotemFrameConfig(def and def.classResource and def.classResource.totemFrame)
+	local enabled = tcfg.enabled
+	if enabled == nil then enabled = tdef.enabled end
+	if enabled ~= true then
+		TotemFrameUtil.restoreTotemFrame()
+		return
+	end
+	if InCombatLockdown and InCombatLockdown() then return end
+
+	TotemFrameUtil.storeTotemFrameDefaults(frame)
+	TotemFrameUtil.hookTotemFrame(frame)
+	totemFrameManaged = true
+	frame.ignoreFramePositionManager = true
+	frame:ClearAllPoints()
+	local anchor = tcfg.anchor or tdef.anchor
+	local offsetX = (tcfg.offset and tcfg.offset.x)
+	if offsetX == nil then offsetX = (tdef.offset and tdef.offset.x) end
+	if offsetX == nil then offsetX = 0 end
+	local offsetY = (tcfg.offset and tcfg.offset.y)
+	if offsetY == nil then offsetY = (tdef.offset and tdef.offset.y) end
+	if offsetY == nil then offsetY = 0 end
+	if anchor then
+		local info = totemFrameOriginalLayout
+		local selfPoint = (info and info.points and info.points[1] and info.points[1].point) or anchor
+		frame:SetPoint(selfPoint, st.frame, anchor, offsetX, offsetY)
+	else
+		local info = totemFrameOriginalLayout
+		if info and info.points and #info.points > 0 then
+			for _, pt in ipairs(info.points) do
+				local rel = pt.relativeTo
+				if rel == info.parent or rel == _G.PlayerFrame then rel = st.frame end
+				frame:SetPoint(pt.point, rel, pt.relativePoint, pt.x or 0, pt.y or 0)
+			end
+		else
+			frame:SetPoint("TOPRIGHT", st.frame, "BOTTOMRIGHT", offsetX, offsetY)
+		end
+	end
+	frame:SetParent(st.frame)
+	local scale = tcfg.scale
+	if scale == nil then scale = tdef.scale end
+	if scale == nil then scale = (totemFrameOriginalLayout and totemFrameOriginalLayout.scale) end
+	if scale == nil then scale = 1 end
+	if frame.SetScale then frame:SetScale(scale) end
+	if frame.SetFrameStrata and st.frame.GetFrameStrata then frame:SetFrameStrata(st.frame:GetFrameStrata()) end
+	if frame.SetFrameLevel and st.frame.GetFrameLevel then frame:SetFrameLevel((st.frame:GetFrameLevel() or 0) + 5) end
+	local inEditMode = addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode()
+	local showSample = tcfg.showSample
+	if showSample == nil then showSample = tdef.showSample end
+	showSample = inEditMode and showSample == true
+	TotemFrameUtil.updateSample(frame, showSample)
 end
 
 local function resolveProfileDB(profileName)
@@ -1218,7 +1405,9 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 			end
 			if not usedApiColor then
 				local fr, fg, fb = getDebuffColorFromName(aura.dispelName or "None")
-				if fr then r, g, b = fr, fg, fb end
+				if fr then
+					r, g, b = fr, fg, fb
+				end
 			end
 			btn.border:SetVertexColor(r, g, b, 1)
 			btn.border:Show()
@@ -3666,7 +3855,10 @@ local function layoutFrame(cfg, unit)
 			end
 		end
 	end
-	if unit == UNIT.PLAYER then applyClassResourceLayout(cfg) end
+	if unit == UNIT.PLAYER then
+		applyClassResourceLayout(cfg)
+		if applyTotemFrameLayout then applyTotemFrameLayout(cfg) end
+	end
 	syncTextFrameLevels(st)
 end
 
@@ -4026,7 +4218,10 @@ local function applyConfig(unit)
 		if unit == UNIT.TARGET_TARGET then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.targettarget, false) end
 		if unit == UNIT.FOCUS then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.focus, false) end
 		if unit == UNIT.PET then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.pet, false) end
-		if unit == UNIT.PLAYER then ClassResourceUtil.restoreClassResourceFrames() end
+		if unit == UNIT.PLAYER then
+			ClassResourceUtil.restoreClassResourceFrames()
+			TotemFrameUtil.restoreTotemFrame()
+		end
 		if unit == UNIT.PLAYER or unit == "target" or isBossUnit(unit) then AuraUtil.resetTargetAuras(unit) end
 		if unit == UNIT.PLAYER then updateRestingIndicator(cfg) end
 		if not isBossUnit(unit) then applyVisibilityRules(unit) end
@@ -5244,6 +5439,7 @@ function UF.Disable()
 	cfg.enabled = false
 	if states.player and states.player.frame then states.player.frame:Hide() end
 	ClassResourceUtil.restoreClassResourceFrames()
+	TotemFrameUtil.restoreTotemFrame()
 	stopToTTicker()
 	applyVisibilityRules("player")
 	addon.variables.requireReload = true

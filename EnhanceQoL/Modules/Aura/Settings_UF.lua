@@ -125,6 +125,16 @@ local classResourceClasses = {
 	SHAMAN = true,
 	WARLOCK = true,
 }
+local totemFrameClasses = {
+	DEATHKNIGHT = true,
+	DRUID = true,
+	MAGE = true,
+	MONK = true,
+	PALADIN = true,
+	PRIEST = true,
+	SHAMAN = true,
+	WARLOCK = true,
+}
 
 local bossUnitLookup = { boss = true }
 for i = 1, (MAX_BOSS_FRAMES or 5) do
@@ -664,6 +674,7 @@ local function buildUnitSettings(unit)
 	local isPlayer = unit == "player"
 	local isPet = unit == "pet"
 	local classHasResource = isPlayer and classResourceClasses[addon.variables and addon.variables.unitClass]
+	local classHasTotemFrame = isPlayer and totemFrameClasses[addon.variables and addon.variables.unitClass]
 	local copyOptions = availableCopySources(unit)
 	local visibilityOptions = getVisibilityRuleOptions(unit)
 	local function getVisibilityConfig()
@@ -2076,6 +2087,21 @@ local function buildUnitSettings(unit)
 		end
 	end
 
+	local function SnapToStep(value, step, minV, maxV)
+		value = tonumber(value)
+		if not value then return nil end
+
+		if minV then value = math.max(minV, value) end
+		if maxV then value = math.min(maxV, value) end
+
+		local inv = 1 / (step or 1)
+		local ticks = math.floor(value * inv + 0.5)
+		local snapped = ticks / inv
+
+		snapped = math.floor(snapped * 100 + 0.5) / 100
+		return snapped
+	end
+
 	if isPlayer and classHasResource then
 		local crDef = def.classResource or {}
 		list[#list + 1] = { name = L["ClassResource"] or "Class Resource", kind = settingType.Collapsible, id = "classResource", defaultCollapsed = true }
@@ -2139,21 +2165,6 @@ local function buildUnitSettings(unit)
 		classOffsetY.isEnabled = isClassResourceEnabled
 		list[#list + 1] = classOffsetY
 
-		local function SnapToStep(value, step, minV, maxV)
-			value = tonumber(value)
-			if not value then return nil end
-
-			if minV then value = math.max(minV, value) end
-			if maxV then value = math.min(maxV, value) end
-
-			local inv = 1 / (step or 1)
-			local ticks = math.floor(value * inv + 0.5)
-			local snapped = ticks / inv
-
-			snapped = math.floor(snapped * 100 + 0.5) / 100
-			return snapped
-		end
-
 		local classScale = slider(
 			L["Scale"] or "Scale",
 			0.5,
@@ -2183,6 +2194,136 @@ local function buildUnitSettings(unit)
 		)
 		classScale.isEnabled = isClassResourceEnabled
 		list[#list + 1] = classScale
+	end
+
+	if isPlayer and classHasTotemFrame then
+		local crDef = def.classResource or {}
+		local totemDef = type(crDef.totemFrame) == "table" and crDef.totemFrame or {}
+		local function normalizeTotemValue(value)
+			if value == true then return { enabled = true } end
+			if type(value) == "table" then return value end
+			return {}
+		end
+		local function getTotemConfig() return normalizeTotemValue(getValue(unit, { "classResource", "totemFrame" }, crDef.totemFrame)) end
+		local function updateTotemConfig(handler)
+			local current = getTotemConfig()
+			local nextCfg = {}
+			for key, val in pairs(current) do
+				nextCfg[key] = val
+			end
+			handler(nextCfg)
+			setValue(unit, { "classResource", "totemFrame" }, nextCfg)
+		end
+		local function isTotemFrameEnabled()
+			local cfg = getTotemConfig()
+			local enabled = cfg.enabled
+			if enabled == nil then enabled = totemDef.enabled end
+			return enabled == true
+		end
+
+		list[#list + 1] = { name = L["Totem Frame"] or "Totem Frame", kind = settingType.Collapsible, id = "totemFrame", defaultCollapsed = true }
+
+		list[#list + 1] = checkbox(L["Re-anchor Totem Frame"] or "Re-anchor Totem Frame", isTotemFrameEnabled, function(val)
+			updateTotemConfig(function(cfg) cfg.enabled = val and true or false end)
+			refreshSelf()
+		end, totemDef.enabled == true, "totemFrame")
+
+		local totemAnchorOptions = {
+			{ value = "TOPLEFT", label = L["Top left"] or "Top left" },
+			{ value = "TOP", label = L["Top"] or "Top" },
+			{ value = "TOPRIGHT", label = L["Top right"] or "Top right" },
+			{ value = "LEFT", label = L["Left"] or "Left" },
+			{ value = "CENTER", label = L["Center"] or "Center" },
+			{ value = "RIGHT", label = L["Right"] or "Right" },
+			{ value = "BOTTOMLEFT", label = L["Bottom left"] or "Bottom left" },
+			{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+			{ value = "BOTTOMRIGHT", label = L["Bottom right"] or "Bottom right" },
+		}
+		local totemAnchor = radioDropdown(L["Anchor"] or "Anchor", totemAnchorOptions, function()
+			local cfg = getTotemConfig()
+			return cfg.anchor or totemDef.anchor or "BOTTOMRIGHT"
+		end, function(val)
+			updateTotemConfig(function(cfg) cfg.anchor = val or "BOTTOMRIGHT" end)
+			refreshSelf()
+		end, totemDef.anchor or "BOTTOMRIGHT", "totemFrame")
+		totemAnchor.isEnabled = isTotemFrameEnabled
+		list[#list + 1] = totemAnchor
+
+		local totemOffsetX = slider(L["Offset X"] or "Offset X", -OFFSET_RANGE, OFFSET_RANGE, 1, function()
+			local cfg = getTotemConfig()
+			local offset = cfg.offset or {}
+			if offset.x == nil and totemDef.offset then return totemDef.offset.x or 0 end
+			return offset.x or 0
+		end, function(val)
+			debounced(unit .. "_totemFrameOffsetX", function()
+				updateTotemConfig(function(cfg)
+					cfg.offset = cfg.offset or {}
+					cfg.offset.x = val or 0
+				end)
+				refreshSelf()
+			end)
+		end, (totemDef.offset and totemDef.offset.x) or 0, "totemFrame", true)
+		totemOffsetX.isEnabled = isTotemFrameEnabled
+		list[#list + 1] = totemOffsetX
+
+		local totemOffsetY = slider(L["Offset Y"] or "Offset Y", -OFFSET_RANGE, OFFSET_RANGE, 1, function()
+			local cfg = getTotemConfig()
+			local offset = cfg.offset or {}
+			if offset.y == nil and totemDef.offset then return totemDef.offset.y or 0 end
+			return offset.y or 0
+		end, function(val)
+			debounced(unit .. "_totemFrameOffsetY", function()
+				updateTotemConfig(function(cfg)
+					cfg.offset = cfg.offset or {}
+					cfg.offset.y = val or 0
+				end)
+				refreshSelf()
+			end)
+		end, (totemDef.offset and totemDef.offset.y) or 0, "totemFrame", true)
+		totemOffsetY.isEnabled = isTotemFrameEnabled
+		list[#list + 1] = totemOffsetY
+
+		local totemScale = slider(
+			L["Scale"] or "Scale",
+			0.5,
+			2,
+			0.05,
+			function()
+				local cfg = getTotemConfig()
+				local v = cfg.scale
+				if v == nil then v = totemDef.scale or 1 end
+				return SnapToStep(v, 0.05, 0.5, 2) or 1
+			end,
+			function(val)
+				debounced(unit .. "_totemFrameScale", function()
+					val = SnapToStep(val, 0.05, 0.5, 2) or 1
+					updateTotemConfig(function(cfg) cfg.scale = val end)
+					refreshSelf()
+					refreshSettingsUI()
+				end)
+			end,
+			SnapToStep(totemDef.scale or 1, 0.05, 0.5, 2) or 1,
+			"totemFrame",
+			true,
+			function(value)
+				value = SnapToStep(value, 0.05, 0.5, 2) or 1
+				return string.format("%.2f", value)
+			end
+		)
+		totemScale.isEnabled = isTotemFrameEnabled
+		list[#list + 1] = totemScale
+
+		local totemSample = checkbox(L["Show sample in Edit Mode"] or "Show sample in Edit Mode", function()
+			local cfg = getTotemConfig()
+			local val = cfg.showSample
+			if val == nil then val = totemDef.showSample end
+			return val == true
+		end, function(val)
+			updateTotemConfig(function(cfg) cfg.showSample = val and true or false end)
+			refreshSelf()
+		end, totemDef.showSample == true, "totemFrame")
+		totemSample.isEnabled = isTotemFrameEnabled
+		list[#list + 1] = totemSample
 	end
 
 	local raidIconDef = def.raidIcon or { enabled = true, size = 18, offset = { x = 0, y = -2 } }

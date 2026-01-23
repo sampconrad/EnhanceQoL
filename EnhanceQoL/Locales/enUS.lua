@@ -711,6 +711,9 @@ L["unitFrameScaleEnable"] = "Enable frame scale adjustment"
 L["unitFrameScale"] = "Frame scale"
 L["UnitFrameUFExplain"] = "Applies to %s, %s and %s Frames"
 L["BossHealthText"] = "Boss health text"
+L["Totem Frame"] = "Totem Frame"
+L["Re-anchor Totem Frame"] = "Re-anchor Totem Frame"
+L["Show sample in Edit Mode"] = "Show sample in Edit Mode"
 
 -- Unit Frames: Resting visuals
 L["hideRestingGlow"] = "Hide resting animation and glow"
