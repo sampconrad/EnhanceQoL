@@ -511,7 +511,7 @@ function addon.functions.initDungeonFrame()
 
 	local btn = CreateFrame("Button", "EQOLWorldMarkerCycler", UIParent, "SecureActionButtonTemplate")
 	btn:SetAttribute("type", "macro")
-	btn:RegisterForClicks("AnyDown")
+	btn:RegisterForClicks("AnyUp", "AnyDown")
 	local body = "i = 0;order = newtable()"
 	for i = 1, 8 do
 		body = body .. format("\ntinsert(order, %s)", i)
@@ -529,7 +529,7 @@ function addon.functions.initDungeonFrame()
 		if not down or not next(order) then return end
 		if button == "RightButton" then
 			i = 0
-			self:SetAttribute("macrotext", "/cwm 1\n/cwm 2\n/cwm 3\n/cwm 4\n/cwm 5\n/cwm 6\n/cwm 7\n/cwm 8")
+			self:SetAttribute("macrotext", "/cwm all")
 		else
 			i = i%#order + 1
 			self:SetAttribute("macrotext", "/wm [@cursor]"..order[i])
