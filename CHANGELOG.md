@@ -1,6 +1,10 @@
 # Changelog
 
-## [7.4.1] - 2026-01-23
+## [7.5.0] - 2026-01-23
+
+### ✨ Added
+
+- Cooldown Panels: Slot entries can be shown even without cooldowns (equipped items).
 
 ### 🐛 Fixed
 
@@ -10,6 +14,7 @@
 - Cooldown Panels: Masque icons now size correctly when adding new entries (no reload needed).
 - XP/Rep Bar: Resizing no longer flips the bar or distorts textures (rested overlay/tick aligned).
 - Mount keybinds now auto-cancel Druid shapeshift forms before summoning auction/repair/random mounts.
+- Action Bars: Full out-of-range overlay no longer disappears on button mouseover.
 - Resource Bars: Maelstrom Weapon separator was missing
 - Resource Bars: Maelstrom Weapon bar was fixed to 5 and overcap now either 5 stack bar with overcap or 10 stack bar
 

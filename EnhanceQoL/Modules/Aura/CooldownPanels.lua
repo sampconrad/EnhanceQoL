@@ -1646,6 +1646,9 @@ local function ensureEditor()
 	local cbShowWhenEmpty = createCheck(right, L["CooldownPanelShowWhenEmpty"] or "Show when empty")
 	cbShowWhenEmpty:SetPoint("TOPLEFT", cbItemCount, "BOTTOMLEFT", 0, -4)
 
+	local cbShowWhenNoCooldown = createCheck(right, L["CooldownPanelShowWhenNoCooldown"] or "Show even without cooldown")
+	cbShowWhenNoCooldown:SetPoint("TOPLEFT", cbShowWhenEmpty, "BOTTOMLEFT", 0, -4)
+
 	local cbGlow = createCheck(right, L["CooldownPanelGlowReady"] or "Glow when ready")
 	cbGlow:SetPoint("TOPLEFT", cbStacks, "BOTTOMLEFT", 0, -4)
 
@@ -1816,6 +1819,7 @@ local function ensureEditor()
 			cbStacks = cbStacks,
 			cbItemCount = cbItemCount,
 			cbShowWhenEmpty = cbShowWhenEmpty,
+			cbShowWhenNoCooldown = cbShowWhenNoCooldown,
 			cbGlow = cbGlow,
 			cbSound = cbSound,
 			glowDuration = glowDuration,
@@ -1962,6 +1966,7 @@ local function ensureEditor()
 	bindEntryToggle(cbCooldownText, "showCooldownText")
 	bindEntryToggle(cbItemCount, "showItemCount")
 	bindEntryToggle(cbShowWhenEmpty, "showWhenEmpty")
+	bindEntryToggle(cbShowWhenNoCooldown, "showWhenNoCooldown")
 	bindEntryToggle(cbGlow, "glowReady")
 	bindEntryToggle(cbSound, "soundReady")
 	bindEntrySlider(glowDuration, "glowDuration", 0, 30)
@@ -2283,6 +2288,7 @@ local function layoutInspectorToggles(inspector, entry)
 		hideToggle(inspector.cbStacks)
 		hideToggle(inspector.cbItemCount)
 		hideToggle(inspector.cbShowWhenEmpty)
+		hideToggle(inspector.cbShowWhenNoCooldown)
 		hideToggle(inspector.cbGlow)
 		hideToggle(inspector.cbSound)
 		hideControl(inspector.glowDuration)
@@ -2311,16 +2317,25 @@ local function layoutInspectorToggles(inspector, entry)
 		place(inspector.cbStacks, true)
 		place(inspector.cbItemCount, false)
 		place(inspector.cbShowWhenEmpty, false)
+		place(inspector.cbShowWhenNoCooldown, false)
 	elseif entry.type == "ITEM" then
 		place(inspector.cbCharges, false)
 		place(inspector.cbStacks, false)
 		place(inspector.cbItemCount, true)
 		place(inspector.cbShowWhenEmpty, true)
+		place(inspector.cbShowWhenNoCooldown, false)
+	elseif entry.type == "SLOT" then
+		place(inspector.cbCharges, false)
+		place(inspector.cbStacks, false)
+		place(inspector.cbItemCount, false)
+		place(inspector.cbShowWhenEmpty, false)
+		place(inspector.cbShowWhenNoCooldown, true)
 	else
 		place(inspector.cbCharges, false)
 		place(inspector.cbStacks, false)
 		place(inspector.cbItemCount, false)
 		place(inspector.cbShowWhenEmpty, false)
+		place(inspector.cbShowWhenNoCooldown, false)
 	end
 	place(inspector.cbGlow, true)
 	if inspector.glowDuration then
@@ -2379,6 +2394,7 @@ local function refreshInspector(editor, panel, entry)
 		inspector.cbStacks:SetChecked(entry.showStacks and true or false)
 		inspector.cbItemCount:SetChecked(entry.type == "ITEM" and entry.showItemCount ~= false)
 		inspector.cbShowWhenEmpty:SetChecked(entry.type == "ITEM" and entry.showWhenEmpty == true)
+		inspector.cbShowWhenNoCooldown:SetChecked(entry.type == "SLOT" and entry.showWhenNoCooldown == true)
 		inspector.cbGlow:SetChecked(entry.glowReady and true or false)
 		inspector.cbSound:SetChecked(entry.soundReady and true or false)
 		if inspector.soundButton then inspector.soundButton:SetText(getSoundButtonText(entry.soundReadyFile)) end
@@ -2624,6 +2640,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local showStacks = entry.showStacks == true
 			local showItemCount = entry.type == "ITEM" and entry.showItemCount ~= false
 			local showWhenEmpty = entry.type == "ITEM" and entry.showWhenEmpty == true
+			local showWhenNoCooldown = entry.type == "SLOT" and entry.showWhenNoCooldown == true
 			local alwaysShow = entry.alwaysShow ~= false
 			local glowReady = entry.glowReady ~= false
 			local glowDuration = clampInt(entry.glowDuration, 0, 30, 0)
@@ -2706,16 +2723,18 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			elseif entry.type == "SLOT" and entry.slotID then
 				local itemId = GetInventoryItemID and GetInventoryItemID("player", entry.slotID) or nil
 				if itemId then
+					iconTexture = GetItemIconByID and GetItemIconByID(itemId) or iconTexture
 					if itemHasUseSpell(itemId) then
-						iconTexture = GetItemIconByID and GetItemIconByID(itemId) or iconTexture
 						if showCooldown then
 							cooldownStart, cooldownDuration, cooldownEnabled = getItemCooldownInfo(itemId, entry.slotID)
 						end
 						cooldownEnabledOk = isSafeNotFalse(cooldownEnabled)
 						cooldownActive = showCooldown and cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration)
 						readyNow = showCooldown and not cooldownActive
-						show = alwaysShow
+						show = alwaysShow or showWhenNoCooldown
 						if not show and showCooldown and cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration) then show = true end
+					elseif showWhenNoCooldown then
+						show = true
 					end
 				end
 			end

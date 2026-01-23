@@ -1070,13 +1070,29 @@ function AuraUtil.ensureAuraButton(container, icons, index, ac)
 		end
 	end
 
-	if MSQ then MSQgroup:AddButton(btn, {
+	if MSQgroup then
+		btn._eqolMasqueRegions = btn._eqolMasqueRegions or {
+			Icon = btn.icon,
+			Cooldown = btn.cd,
+			Border = btn.border,
+		}
+	end
+
+	return btn, icons
+end
+
+local function syncAuraMasqueButton(btn, isDebuff)
+	if not (MSQgroup and btn) then return end
+	btn._eqolMasqueRegions = btn._eqolMasqueRegions or {
 		Icon = btn.icon,
 		Cooldown = btn.cd,
 		Border = btn.border,
-	}) end
-
-	return btn, icons
+	}
+	local desiredType = (isDebuff == true) and "Debuff" or "Buff"
+	if btn._eqolMasqueType ~= desiredType then
+		MSQgroup:AddButton(btn, btn._eqolMasqueRegions, desiredType, true)
+		btn._eqolMasqueType = desiredType
+	end
 end
 
 function AuraUtil.styleAuraCount(btn, ac)
@@ -1127,6 +1143,7 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 	btn.auraInstanceID = aura.auraInstanceID
 	btn.unitToken = unitToken
 	btn.isDebuff = isDebuff
+	syncAuraMasqueButton(btn, isDebuff)
 	btn._showTooltip = ac.showTooltip ~= false
 	btn.icon:SetTexture(aura.icon or "")
 	btn.cd:Clear()
@@ -1151,8 +1168,13 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 		btn.count:Hide()
 	end
 	if btn.border then
+		local useMasqueBorder = btn._eqolMasqueType ~= nil
 		if isDebuff then
-			btn.border:SetTexture("Interface\\Buttons\\UI-Debuff-Overlays")
+			if not useMasqueBorder then
+				btn.border:SetTexture("Interface\\Buttons\\UI-Debuff-Overlays")
+				btn.border:SetTexCoord(0.296875, 0.5703125, 0, 0.515625)
+				btn.border:SetAllPoints(btn)
+			end
 			local r, g, b = 1, 0.25, 0.25
 			if issecretAura then
 				local color = C_UnitAuras.GetAuraDispelTypeColor(unitToken, aura.auraInstanceID, colorcurve)
@@ -1173,7 +1195,7 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 			btn.border:SetVertexColor(r, g, b, 1)
 			btn.border:Show()
 		else
-			btn.border:SetTexture(nil)
+			if not useMasqueBorder then btn.border:SetTexture(nil) end
 			btn.border:Hide()
 		end
 	end

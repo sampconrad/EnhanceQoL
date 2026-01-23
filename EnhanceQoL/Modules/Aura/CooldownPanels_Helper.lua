@@ -46,6 +46,7 @@ Helper.ENTRY_DEFAULTS = {
 	showCharges = false,
 	showStacks = false,
 	showWhenEmpty = false,
+	showWhenNoCooldown = false,
 	glowReady = false,
 	glowDuration = 0,
 	soundReady = false,

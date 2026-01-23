@@ -289,25 +289,31 @@ function Labels.RefreshActionButtonBorder(button)
 	RefreshButtonBorder(button)
 end
 
+local function EnsureRangeOverlay(btn, icon)
+	local overlay = btn and btn.EQOL_RangeOverlay
+	if overlay or not (btn and icon and btn.CreateTexture) then return overlay end
+	overlay = btn:CreateTexture(nil, "OVERLAY")
+	overlay:SetPoint("TOPLEFT", icon, "TOPLEFT", 0, 0)
+	overlay:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 0, 0)
+	overlay:Hide()
+	btn.EQOL_RangeOverlay = overlay
+	return overlay
+end
+
 local function ShowRangeOverlay(btn, show)
 	local icon = btn and (btn.icon or btn.Icon)
-	if not icon then return end
+	if not icon or not btn then return end
+	btn.EQOL_RangeOverlayActive = show
+	local overlay = EnsureRangeOverlay(btn, icon)
+	if not overlay then return end
 	if show and addon.db and addon.db.actionBarFullRangeColoring then
 		local col = addon.db.actionBarFullRangeColor or { r = 1, g = 0.1, b = 0.1 }
-		if not icon.EQOL_OriginalVertexColor then
-			local r, g, b, a = icon:GetVertexColor()
-			icon.EQOL_OriginalVertexColor = { r = r, g = g, b = b, a = a }
-		end
-		local cr, cg, cb, ca = icon:GetVertexColor()
-		if math.abs((cr or 0) - col.r) > 0.001 or math.abs((cg or 0) - col.g) > 0.001 or math.abs((cb or 0) - col.b) > 0.001 or math.abs((ca or 0) - 1) > 0.001 then
-			icon:SetVertexColor(col.r, col.g, col.b, 1)
-		end
+		local alpha = col.a
+		if alpha == nil then alpha = 0.45 end
+		overlay:SetColorTexture(col.r or 1, col.g or 0.1, col.b or 0.1, alpha)
+		overlay:Show()
 	else
-		if icon.EQOL_OriginalVertexColor then
-			local c = icon.EQOL_OriginalVertexColor
-			icon:SetVertexColor(c.r or 1, c.g or 1, c.b or 1, c.a or 1)
-			icon.EQOL_OriginalVertexColor = nil
-		end
+		overlay:Hide()
 	end
 end
 
@@ -658,12 +664,29 @@ end
 
 hooksecurefunc("ActionButton_UpdateRangeIndicator", function(self, checksRange, inRange)
 	if not self or not self.action then return end
+	self.EQOL_RangeOutOfRange = checksRange and inRange == false
 	if checksRange and inRange == false then
 		ShowRangeOverlay(self, true)
 	else
 		ShowRangeOverlay(self, false)
 	end
 end)
+
+local function EnsureRangeUsableHook()
+	if Labels._rangeUsableHooked then return end
+	local mixin = _G.ActionBarActionButtonMixin
+	if not (mixin and mixin.UpdateUsable) then return end
+	hooksecurefunc(mixin, "UpdateUsable", function(self)
+		if not addon.db or not addon.db.actionBarFullRangeColoring then return end
+		if not self or not self.action then return end
+		if self.EQOL_RangeOutOfRange then
+			ShowRangeOverlay(self, true)
+		else
+			ShowRangeOverlay(self, false)
+		end
+	end)
+	Labels._rangeUsableHooked = true
+end
 
 -- Refresh range overlays when the bar changes (mount/vehicle/override/stance swaps)
 do
@@ -707,6 +730,7 @@ end
 local function OnPlayerLogin(self, event)
 	if event ~= "PLAYER_LOGIN" then return end
 	if Labels.EnsureActionButtonArtHook then Labels.EnsureActionButtonArtHook() end
+	EnsureRangeUsableHook()
 	if Labels.RefreshAllMacroNameVisibility then Labels.RefreshAllMacroNameVisibility() end
 	if Labels.RefreshAllHotkeyStyles then Labels.RefreshAllHotkeyStyles() end
 	if Labels.RefreshAllCountStyles then Labels.RefreshAllCountStyles() end
