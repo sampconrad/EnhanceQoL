@@ -33,6 +33,9 @@ local COOLDOWN_VIEWER_VISIBILITY_MODES = constants.COOLDOWN_VIEWER_VISIBILITY_MO
 		WHILE_NOT_MOUNTED = "WHILE_NOT_MOUNTED",
 		MOUSEOVER = "MOUSEOVER",
 		PLAYER_HAS_TARGET = "PLAYER_HAS_TARGET",
+		PLAYER_CASTING = "PLAYER_CASTING",
+		PLAYER_IN_GROUP = "PLAYER_IN_GROUP",
+		PLAYER_HEALTH_NOT_FULL = "PLAYER_HEALTH_NOT_FULL",
 		NONE = "NONE",
 		HIDE_WHILE_MOUNTED = "HIDE_WHILE_MOUNTED",
 	}
@@ -851,6 +854,12 @@ local function createCooldownViewerDropdowns(category, expandable)
 		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.IN_COMBAT, text = L["cooldownManagerShowCombat"] or "In combat" },
 		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.WHILE_MOUNTED, text = L["cooldownManagerShowMounted"] or "Mounted" },
 		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.WHILE_NOT_MOUNTED, text = L["cooldownManagerShowNotMounted"] or "Not mounted" },
+		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_CASTING, text = L["cooldownManagerShowCasting"] or "Player is casting" },
+		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_IN_GROUP, text = L["cooldownManagerShowGrouped"] or "In party/raid" },
+		{
+			value = COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_HEALTH_NOT_FULL,
+			text = L["cooldownManagerShowHealthMissing"] or (L["visibilityRule_playerHealth"] or "Player health below 100%"),
+		},
 		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.MOUSEOVER, text = L["cooldownManagerShowMouseover"] or "On mouseover" },
 		{
 			value = COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_HAS_TARGET,
@@ -1015,6 +1024,12 @@ function addon.functions.initUIOptions()
 	addon.functions.InitDBValue("gcdBarBorderOffset", defaults.borderOffset or 0)
 	addon.functions.InitDBValue("gcdBarProgressMode", defaults.progressMode or "REMAINING")
 	addon.functions.InitDBValue("gcdBarFillDirection", defaults.fillDirection or "LEFT")
+	addon.functions.InitDBValue("gcdBarAnchorTarget", defaults.anchorRelativeFrame or defaults.anchorTarget or "UIParent")
+	addon.functions.InitDBValue("gcdBarAnchorPoint", defaults.anchorPoint or "CENTER")
+	addon.functions.InitDBValue("gcdBarAnchorRelativePoint", defaults.anchorRelativePoint or defaults.anchorPoint or "CENTER")
+	addon.functions.InitDBValue("gcdBarAnchorOffsetX", defaults.anchorOffsetX or 0)
+	addon.functions.InitDBValue("gcdBarAnchorOffsetY", defaults.anchorOffsetY or -120)
+	addon.functions.InitDBValue("gcdBarAnchorMatchWidth", defaults.anchorMatchRelativeWidth == true)
 
 	if addon.GCDBar and addon.GCDBar.OnSettingChanged then addon.GCDBar:OnSettingChanged(addon.db["gcdBarEnabled"]) end
 

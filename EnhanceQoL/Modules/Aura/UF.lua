@@ -405,6 +405,8 @@ local defaults = {
 			max = 16,
 			perRow = 0,
 			showCooldown = true,
+			showCooldownBuffs = nil,
+			showCooldownDebuffs = nil,
 			showBuffs = true,
 			showDebuffs = true,
 			blizzardDispelBorder = false,
@@ -420,8 +422,12 @@ local defaults = {
 			countAnchor = "BOTTOMRIGHT",
 			countOffset = { x = -2, y = 2 },
 			countFontSize = nil,
+			countFontSizeBuff = nil,
+			countFontSizeDebuff = nil,
 			countFontOutline = nil,
 			cooldownFontSize = 0,
+			cooldownFontSizeBuff = nil,
+			cooldownFontSizeDebuff = nil,
 		},
 		cast = {
 			enabled = true,
@@ -1330,7 +1336,7 @@ local function syncAuraMasqueButton(btn, isDebuff)
 	end
 end
 
-function AuraUtil.styleAuraCount(btn, ac)
+function AuraUtil.styleAuraCount(btn, ac, countFontSizeOverride)
 	if not btn or not btn.count then return end
 	ac = ac or {}
 	local anchor = ac.countAnchor or "BOTTOMRIGHT"
@@ -1343,7 +1349,8 @@ function AuraUtil.styleAuraCount(btn, ac)
 		ox = -2
 		oy = 2
 	end
-	local size = ac.countFontSize
+	local size = countFontSizeOverride
+	if size == nil then size = ac.countFontSize end
 	local flags = ac.countFontOutline
 	local fontKey = ac.countFont or (addon.variables and addon.variables.defaultFont) or (LSM and LSM.DefaultMedia and LSM.DefaultMedia.font) or STANDARD_TEXT_FONT
 	local key = anchor .. "|" .. ox .. "|" .. oy .. "|" .. tostring(fontKey) .. "|" .. tostring(size) .. "|" .. tostring(flags)
@@ -1359,10 +1366,12 @@ function AuraUtil.styleAuraCount(btn, ac)
 	btn.count:SetFont(UFHelper.getFont(ac.countFont), size, flags)
 end
 
-function AuraUtil.styleAuraCooldownText(btn, ac)
+function AuraUtil.styleAuraCooldownText(btn, ac, cooldownFontSizeOverride)
 	if not btn or not btn.cd or not UFHelper or not UFHelper.applyCooldownTextStyle then return end
 	ac = ac or {}
-	UFHelper.applyCooldownTextStyle(btn.cd, ac.cooldownFontSize)
+	local size = cooldownFontSizeOverride
+	if size == nil then size = ac.cooldownFontSize end
+	UFHelper.applyCooldownTextStyle(btn.cd, size)
 end
 
 function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
@@ -1385,9 +1394,19 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 	elseif aura.duration and aura.duration > 0 and aura.expirationTime then
 		btn.cd:SetCooldown(aura.expirationTime - aura.duration, aura.duration, aura.timeMod)
 	end
-	btn.cd:SetHideCountdownNumbers(ac.showCooldown == false)
-	AuraUtil.styleAuraCount(btn, ac)
-	AuraUtil.styleAuraCooldownText(btn, ac)
+	local showCooldown = ac.showCooldown ~= false
+	if isDebuff then
+		if ac.showCooldownDebuffs ~= nil then showCooldown = ac.showCooldownDebuffs end
+	else
+		if ac.showCooldownBuffs ~= nil then showCooldown = ac.showCooldownBuffs end
+	end
+	local cooldownFontSize = isDebuff and ac.cooldownFontSizeDebuff or ac.cooldownFontSizeBuff
+	if cooldownFontSize == nil then cooldownFontSize = ac.cooldownFontSize end
+	local countFontSize = isDebuff and ac.countFontSizeDebuff or ac.countFontSizeBuff
+	if countFontSize == nil then countFontSize = ac.countFontSize end
+	btn.cd:SetHideCountdownNumbers(showCooldown == false)
+	AuraUtil.styleAuraCount(btn, ac, countFontSize)
+	AuraUtil.styleAuraCooldownText(btn, ac, cooldownFontSize)
 	if issecretvalue and issecretvalue(aura.applications) or aura.applications and aura.applications > 1 then
 		local appStacks = aura.applications
 		if not aura.isSample and C_UnitAuras.GetAuraApplicationDisplayCount then
@@ -2168,6 +2187,8 @@ do
 		max = 16,
 		perRow = 0,
 		showCooldown = true,
+		showCooldownBuffs = nil,
+		showCooldownDebuffs = nil,
 		showTooltip = true,
 		hidePermanentAuras = false,
 		blizzardDispelBorder = false,
@@ -2183,7 +2204,12 @@ do
 		countAnchor = "BOTTOMRIGHT",
 		countOffset = { x = -2, y = 2 },
 		countFontSize = nil,
+		countFontSizeBuff = nil,
+		countFontSizeDebuff = nil,
 		countFontOutline = nil,
+		cooldownFontSize = 0,
+		cooldownFontSizeBuff = nil,
+		cooldownFontSizeDebuff = nil,
 	}
 	defaults.target = targetDefaults
 

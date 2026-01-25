@@ -118,6 +118,9 @@ local COOLDOWN_VIEWER_VISIBILITY_MODES = {
 	WHILE_NOT_MOUNTED = "WHILE_NOT_MOUNTED",
 	MOUSEOVER = "MOUSEOVER",
 	PLAYER_HAS_TARGET = "PLAYER_HAS_TARGET",
+	PLAYER_CASTING = "PLAYER_CASTING",
+	PLAYER_IN_GROUP = "PLAYER_IN_GROUP",
+	PLAYER_HEALTH_NOT_FULL = "PLAYER_HEALTH_NOT_FULL",
 }
 addon.constants.COOLDOWN_VIEWER_VISIBILITY_MODES = COOLDOWN_VIEWER_VISIBILITY_MODES
 
@@ -455,11 +458,35 @@ local visibilityRuleMetadata = {
 		contextKey = "outOfCombat",
 		order = 30,
 	},
+	PLAYER_CASTING = {
+		key = "PLAYER_CASTING",
+		label = L["visibilityRule_playerCasting"] or "Player is casting",
+		description = L["visibilityRule_playerCasting_desc"],
+		appliesTo = { actionbar = true, frame = true },
+		unitRequirement = "player",
+		order = 35,
+	},
+	PLAYER_MOUNTED = {
+		key = "PLAYER_MOUNTED",
+		label = L["visibilityRule_playerMounted"] or "Mounted",
+		description = L["visibilityRule_playerMounted_desc"],
+		appliesTo = { actionbar = true, frame = true },
+		unitRequirement = "player",
+		order = 36,
+	},
+	PLAYER_NOT_MOUNTED = {
+		key = "PLAYER_NOT_MOUNTED",
+		label = L["visibilityRule_playerNotMounted"] or "Not mounted",
+		description = L["visibilityRule_playerNotMounted_desc"],
+		appliesTo = { actionbar = true, frame = true },
+		unitRequirement = "player",
+		order = 37,
+	},
 	PLAYER_HEALTH_NOT_FULL = {
 		key = "PLAYER_HEALTH_NOT_FULL",
 		label = L["visibilityRule_playerHealth"] or "Player health below 100%",
 		description = L["visibilityRule_playerHealth_desc"],
-		appliesTo = { frame = true },
+		appliesTo = { actionbar = true },
 		unitRequirement = "player",
 		order = 40,
 	},
@@ -470,6 +497,14 @@ local visibilityRuleMetadata = {
 		appliesTo = { frame = true },
 		unitRequirement = "player",
 		order = 45,
+	},
+	PLAYER_IN_GROUP = {
+		key = "PLAYER_IN_GROUP",
+		label = L["visibilityRule_inGroup"] or "In party/raid",
+		description = L["visibilityRule_inGroup_desc"],
+		appliesTo = { actionbar = true, frame = true },
+		unitRequirement = "player",
+		order = 46,
 	},
 	ALWAYS_HIDE_IN_GROUP = {
 		key = "ALWAYS_HIDE_IN_GROUP",
@@ -761,9 +796,10 @@ local UpdateUnitFrameMouseover -- forward declaration
 local frameVisibilityContext = {
 	inCombat = false,
 	playerHealthMissing = false,
-	playerHealthAlpha = 0,
 	hasTarget = false,
 	inGroup = false,
+	isCasting = false,
+	isMounted = false,
 }
 local frameVisibilityStates = {}
 local hookedUnitFrames = {}
@@ -771,26 +807,52 @@ local frameVisibilityHealthEnabled = false
 local FRAME_VISIBILITY_HEALTH_THROTTLE = 0.1
 local ApplyFrameVisibilityState -- forward declaration
 local midnightPlayerHealthCurve
+local midnightPlayerHealthCurveAlpha
+local IsInDruidTravelForm
 
-local function GetMidnightPlayerHealthAlpha()
-	if not addon or not addon.variables or not addon.variables.isMidnight then return nil end
-	if not UnitHealthPercentColor or not C_CurveUtil or not C_CurveUtil.CreateColorCurve or not CreateColor then return nil end
+local function GetMidnightPlayerHealthAlpha(fadedAlpha)
+	if type(fadedAlpha) ~= "number" then fadedAlpha = 0 end
+	if fadedAlpha < 0 then fadedAlpha = 0 end
+	if fadedAlpha > 1 then fadedAlpha = 1 end
 
-	if not midnightPlayerHealthCurve then
+	if not midnightPlayerHealthCurve or midnightPlayerHealthCurveAlpha ~= fadedAlpha then
 		local curve = C_CurveUtil.CreateColorCurve()
 		if not curve then return nil end
 		if curve.SetType and Enum and Enum.LuaCurveType and Enum.LuaCurveType.Step then curve:SetType(Enum.LuaCurveType.Step) end
 		if curve.AddPoint then
 			curve:AddPoint(0, CreateColor(1, 1, 1, 1))
-			curve:AddPoint(1, CreateColor(1, 1, 1, 0))
+			curve:AddPoint(1, CreateColor(1, 1, 1, fadedAlpha))
 			midnightPlayerHealthCurve = curve
+			midnightPlayerHealthCurveAlpha = fadedAlpha
 		end
 	end
 
-	local ok, color = pcall(UnitHealthPercentColor, "player", midnightPlayerHealthCurve)
+	local ok, color = pcall(UnitHealthPercent, "player", true, midnightPlayerHealthCurve)
 	if not ok or not color or not color.GetRGBA then return nil end
 	local _, _, _, alpha = color:GetRGBA()
 	return alpha
+end
+
+local function IsPlayerCasting()
+	if UnitCastingInfo and UnitCastingInfo("player") then return true end
+	if UnitChannelInfo and UnitChannelInfo("player") then return true end
+	return false
+end
+
+local function GetPlayerHealthVisibilityAlpha(fadedAlpha)
+	if type(fadedAlpha) ~= "number" then fadedAlpha = 0 end
+	if fadedAlpha < 0 then fadedAlpha = 0 end
+	if fadedAlpha > 1 then fadedAlpha = 1 end
+
+	local alpha = GetMidnightPlayerHealthAlpha(fadedAlpha)
+	if type(alpha) ~= "number" then return fadedAlpha end
+	return alpha
+end
+
+local function IsPlayerMounted()
+	if IsMounted and IsMounted() then return true end
+	if IsInDruidTravelForm and IsInDruidTravelForm() then return true end
+	return false
 end
 
 local function UpdateFrameVisibilityContext()
@@ -805,24 +867,21 @@ local function UpdateFrameVisibilityContext()
 	local hasTarget = UnitExists and UnitExists("target") and true or false
 	frameVisibilityContext.hasTarget = hasTarget
 	frameVisibilityContext.inGroup = (IsInGroup and IsInGroup()) and true or false
+	frameVisibilityContext.isCasting = IsPlayerCasting()
+	frameVisibilityContext.isMounted = IsPlayerMounted()
 
 	if frameVisibilityHealthEnabled then
 		local isMidnight = addon and addon.variables and addon.variables.isMidnight
 		if isMidnight then
-			local alpha = GetMidnightPlayerHealthAlpha()
-			if type(alpha) ~= "number" then alpha = 0 end
-			frameVisibilityContext.playerHealthAlpha = alpha
 			frameVisibilityContext.playerHealthMissing = true
 		else
 			local maxHP = UnitHealthMax and UnitHealthMax("player") or 0
 			local currentHP = UnitHealth and UnitHealth("player") or 0
 			local missing = maxHP > 0 and currentHP < maxHP
 			frameVisibilityContext.playerHealthMissing = missing
-			frameVisibilityContext.playerHealthAlpha = missing and 1 or 0
 		end
 	else
 		frameVisibilityContext.playerHealthMissing = false
-		frameVisibilityContext.playerHealthAlpha = 0
 	end
 end
 
@@ -944,7 +1003,15 @@ local function EnsureFrameVisibilityWatcher()
 	watcher:RegisterEvent("PLAYER_REGEN_DISABLED")
 	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
 	watcher:RegisterEvent("PLAYER_TARGET_CHANGED")
+	watcher:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+	watcher:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
 	watcher:RegisterEvent("GROUP_ROSTER_UPDATE")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_START", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_STOP", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_FAILED", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_INTERRUPTED", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_START", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_STOP", "player")
 	addon.variables.frameVisibilityWatcher = watcher
 	UpdateFrameVisibilityContext()
 	UpdateFrameVisibilityHealthRegistration()
@@ -977,6 +1044,10 @@ local function EvaluateFrameVisibility(state)
 	if cfg.ALWAYS_IN_COMBAT and context.inCombat then return true, "ALWAYS_IN_COMBAT" end
 	if cfg.ALWAYS_OUT_OF_COMBAT and not context.inCombat then return true, "ALWAYS_OUT_OF_COMBAT" end
 	if cfg.PLAYER_HAS_TARGET and state.supportsPlayerTargetRule and context.hasTarget then return true, "PLAYER_HAS_TARGET" end
+	if cfg.PLAYER_CASTING and state.supportsPlayerCastingRule and context.isCasting then return true, "PLAYER_CASTING" end
+	if cfg.PLAYER_MOUNTED and state.supportsPlayerMountedRule and context.isMounted then return true, "PLAYER_MOUNTED" end
+	if cfg.PLAYER_NOT_MOUNTED and state.supportsPlayerMountedRule and not context.isMounted then return true, "PLAYER_NOT_MOUNTED" end
+	if cfg.PLAYER_IN_GROUP and state.supportsGroupRule and context.inGroup then return true, "PLAYER_IN_GROUP" end
 	if cfg.MOUSEOVER and state.isMouseOver then return true, "MOUSEOVER" end
 	if cfg.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule and context.playerHealthMissing then return true, "PLAYER_HEALTH_NOT_FULL" end
 
@@ -1062,32 +1133,34 @@ ApplyFrameVisibilityState = function(state)
 	local shouldShow, activeRule = EvaluateFrameVisibility(state)
 	local forcedHidden = activeRule == "ALWAYS_HIDDEN" or activeRule == "ALWAYS_HIDE_IN_GROUP"
 	local fadeAlpha = getVisibilityFadeAlpha(state)
-	local targetAlpha = shouldShow and 1 or (fadeAlpha ~= nil and fadeAlpha or addon.functions.GetFrameFadedAlpha())
-	if forcedHidden then targetAlpha = 0 end
-	local isMidnightPlayerFrame = addon and addon.variables and addon.variables.isMidnight and state.frame == _G.PlayerFrame
-	local applyMidnightAlpha = shouldShow and activeRule == "PLAYER_HEALTH_NOT_FULL" and isMidnightPlayerFrame
-
-	if applyMidnightAlpha then
-		local midnightAlpha = context.playerHealthAlpha
-		if midnightAlpha == nil then midnightAlpha = 0 end
-		targetAlpha = midnightAlpha
+	if fadeAlpha == nil and addon.functions and addon.functions.GetFrameFadedAlpha then fadeAlpha = addon.functions.GetFrameFadedAlpha() end
+	if fadeAlpha == nil then fadeAlpha = 0 end
+	local healthAlpha
+	if cfg.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule then healthAlpha = GetPlayerHealthVisibilityAlpha(fadeAlpha) end
+	local targetAlpha
+	if activeRule == "PLAYER_HEALTH_NOT_FULL" and healthAlpha ~= nil then
+		targetAlpha = healthAlpha
+	elseif shouldShow then
+		targetAlpha = 1
+	else
+		targetAlpha = fadeAlpha
 	end
+	if forcedHidden then targetAlpha = 0 end
 
 	local lastAlpha = state.lastAlpha
 	if shouldShow then
-		if state.visible == true and not applyMidnightAlpha and lastAlpha == targetAlpha then
+		if state.visible == true then
 			UpdateFrameVisibilityHealthRegistration()
-			if addon.variables.isMidnight then ApplyToFrameAndChildren(state, targetAlpha, not applyMidnightAlpha) end
 			return
 		end
 	else
-		if state.visible == false and lastAlpha == targetAlpha then
+		if state.visible == false then
 			UpdateFrameVisibilityHealthRegistration()
 			return
 		end
 	end
 
-	ApplyToFrameAndChildren(state, targetAlpha, not applyMidnightAlpha)
+	ApplyToFrameAndChildren(state, targetAlpha, true)
 	state.visible = shouldShow
 	state.lastAlpha = targetAlpha
 	UpdateFrameVisibilityHealthRegistration()
@@ -1185,12 +1258,15 @@ local function ApplyVisibilityToUnitFrame(frameName, cbData, config, opts)
 	local isPlayerUnit = (cbData.unitToken == "player")
 	state.supportsPlayerHealthRule = isPlayerUnit
 	state.supportsPlayerTargetRule = isPlayerUnit
+	state.supportsPlayerCastingRule = isPlayerUnit
+	state.supportsPlayerMountedRule = isPlayerUnit
 	state.supportsGroupRule = isPlayerUnit
 
 	local driverExpression = BuildUnitFrameDriverExpression(config)
 	local needsHealth = config and config.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule
+	local usesManualRules = config and (config.MOUSEOVER or config.PLAYER_HAS_TARGET or config.PLAYER_CASTING or config.PLAYER_MOUNTED or config.PLAYER_NOT_MOUNTED or config.PLAYER_IN_GROUP)
 	local hasFadeAlpha = type(state.fadeAlpha) == "number"
-	local useDriver = driverExpression and not config.MOUSEOVER and not needsHealth and not (opts and opts.noStateDriver) and not state.isBossFrame and not hasFadeAlpha
+	local useDriver = driverExpression and not needsHealth and not usesManualRules and not (opts and opts.noStateDriver) and not state.isBossFrame and not hasFadeAlpha
 
 	if useDriver then
 		state.driverActive = true
@@ -1320,6 +1396,9 @@ local function normalizeCooldownViewerConfigValue(val, acc)
 	if val == COOLDOWN_VIEWER_VISIBILITY_MODES.WHILE_NOT_MOUNTED then acc[COOLDOWN_VIEWER_VISIBILITY_MODES.WHILE_NOT_MOUNTED] = true end
 	if val == COOLDOWN_VIEWER_VISIBILITY_MODES.MOUSEOVER then acc[COOLDOWN_VIEWER_VISIBILITY_MODES.MOUSEOVER] = true end
 	if val == COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_HAS_TARGET then acc[COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_HAS_TARGET] = true end
+	if val == COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_CASTING then acc[COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_CASTING] = true end
+	if val == COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_IN_GROUP then acc[COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_IN_GROUP] = true end
+	if val == COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_HEALTH_NOT_FULL then acc[COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_HEALTH_NOT_FULL] = true end
 	-- Legacy mapping: "hide while mounted" -> show while not mounted
 	if val == "HIDE_WHILE_MOUNTED" then acc[COOLDOWN_VIEWER_VISIBILITY_MODES.WHILE_NOT_MOUNTED] = true end
 	if val == "HIDE_IN_COMBAT" then acc[COOLDOWN_VIEWER_VISIBILITY_MODES.IN_COMBAT] = nil end
@@ -1346,7 +1425,7 @@ local DRUID_TRAVEL_FORM_SPELL_IDS = {
 	[210053] = true, -- Mount Form (Stag)
 }
 
-local function IsInDruidTravelForm()
+IsInDruidTravelForm = function()
 	local class = addon.variables and addon.variables.unitClass
 	if not class and UnitClass then
 		local _, eng = UnitClass("player")
@@ -1366,13 +1445,18 @@ local function IsInDruidTravelForm()
 	return form == 3
 end
 
-local function computeCooldownViewerHidden(cfg, state)
-	if not cfg or not next(cfg) then return false end
+local function computeCooldownViewerTargetAlpha(cfg, state)
+	if not cfg or not next(cfg) then return 1 end
 
 	local mounted = (IsMounted and IsMounted()) or IsInDruidTravelForm()
 	local inCombat = (InCombatLockdown and InCombatLockdown()) or (UnitAffectingCombat and UnitAffectingCombat("player"))
 	local hovered = state and state.hovered
 	local hasTarget = UnitExists and UnitExists("target")
+	local isCasting = IsPlayerCasting()
+	local inGroup = IsInGroup and IsInGroup() and true or false
+	local fadedAlpha = (addon.functions and addon.functions.GetCooldownViewerFadedAlpha and addon.functions.GetCooldownViewerFadedAlpha()) or 0
+	local healthAlpha
+	if cfg[COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_HEALTH_NOT_FULL] then healthAlpha = GetPlayerHealthVisibilityAlpha(fadedAlpha) end
 
 	local shouldShow = false
 	if cfg[COOLDOWN_VIEWER_VISIBILITY_MODES.IN_COMBAT] and inCombat then shouldShow = true end
@@ -1380,8 +1464,12 @@ local function computeCooldownViewerHidden(cfg, state)
 	if cfg[COOLDOWN_VIEWER_VISIBILITY_MODES.WHILE_NOT_MOUNTED] and not mounted then shouldShow = true end
 	if cfg[COOLDOWN_VIEWER_VISIBILITY_MODES.MOUSEOVER] and hovered then shouldShow = true end
 	if cfg[COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_HAS_TARGET] and hasTarget then shouldShow = true end
+	if cfg[COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_CASTING] and isCasting then shouldShow = true end
+	if cfg[COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_IN_GROUP] and inGroup then shouldShow = true end
 
-	return not shouldShow
+	if shouldShow then return 1 end
+	if healthAlpha ~= nil then return healthAlpha end
+	return fadedAlpha
 end
 
 local function IsCooldownViewerInEditMode()
@@ -1516,16 +1604,15 @@ local function applyCooldownViewerMode(frameName, cfg)
 	end
 
 	-- Ab hier: aktive Config -> normales Verhalten
-	local shouldHide = computeCooldownViewerHidden(cfg, state)
-	if IsCooldownViewerInEditMode() then shouldHide = false end
-
-	local targetAlpha
-	if shouldHide then
-		targetAlpha = (addon.functions and addon.functions.GetCooldownViewerFadedAlpha and addon.functions.GetCooldownViewerFadedAlpha()) or 0
-	else
-		targetAlpha = 1
+	local targetAlpha = computeCooldownViewerTargetAlpha(cfg, state)
+	if IsCooldownViewerInEditMode() then targetAlpha = 1 end
+	if frame.GetAlpha and frame.SetAlpha then
+		if issecretvalue(targetAlpha) or issecretvalue(frame:GetAlpha()) then
+			frame:SetAlpha(targetAlpha)
+		elseif frame:GetAlpha() ~= targetAlpha then
+			frame:SetAlpha(targetAlpha)
+		end
 	end
-	if frame.GetAlpha and frame.SetAlpha and frame:GetAlpha() ~= targetAlpha then frame:SetAlpha(targetAlpha) end
 
 	state.applied = true
 	return true
@@ -1612,6 +1699,15 @@ local function EnsureCooldownViewerWatcher()
 	watcher:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
 	watcher:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
 	watcher:RegisterEvent("PLAYER_TARGET_CHANGED")
+	watcher:RegisterEvent("GROUP_ROSTER_UPDATE")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_START", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_STOP", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_FAILED", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_INTERRUPTED", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_START", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_STOP", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_HEALTH", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_MAXHEALTH", "player")
 	watcher:SetScript("OnEvent", function(_, event, name)
 		if event == "CVAR_UPDATE" and name ~= "cooldownViewerEnabled" then return end
 		if addon.variables then addon.variables.cooldownViewerRetryCount = nil end
@@ -1731,6 +1827,11 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			ALWAYS_IN_COMBAT = source.ALWAYS_IN_COMBAT == true,
 			ALWAYS_OUT_OF_COMBAT = source.ALWAYS_OUT_OF_COMBAT == true,
 			SKYRIDING_ACTIVE = source.SKYRIDING_ACTIVE == true,
+			PLAYER_CASTING = source.PLAYER_CASTING == true,
+			PLAYER_MOUNTED = source.PLAYER_MOUNTED == true,
+			PLAYER_NOT_MOUNTED = source.PLAYER_NOT_MOUNTED == true,
+			PLAYER_IN_GROUP = source.PLAYER_IN_GROUP == true,
+			PLAYER_HEALTH_NOT_FULL = source.PLAYER_HEALTH_NOT_FULL == true,
 		}
 	elseif source == true then
 		config = {
@@ -1738,12 +1839,32 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			ALWAYS_IN_COMBAT = false,
 			ALWAYS_OUT_OF_COMBAT = false,
 			SKYRIDING_ACTIVE = false,
+			PLAYER_CASTING = false,
+			PLAYER_MOUNTED = false,
+			PLAYER_NOT_MOUNTED = false,
+			PLAYER_IN_GROUP = false,
+			PLAYER_HEALTH_NOT_FULL = false,
 		}
 	else
 		config = nil
 	end
 
-	if config and not (config.MOUSEOVER or config.ALWAYS_IN_COMBAT or config.ALWAYS_OUT_OF_COMBAT or config.SKYRIDING_ACTIVE) then config = nil end
+	if
+		config
+		and not (
+			config.MOUSEOVER
+			or config.ALWAYS_IN_COMBAT
+			or config.ALWAYS_OUT_OF_COMBAT
+			or config.SKYRIDING_ACTIVE
+			or config.PLAYER_CASTING
+			or config.PLAYER_MOUNTED
+			or config.PLAYER_NOT_MOUNTED
+			or config.PLAYER_IN_GROUP
+			or config.PLAYER_HEALTH_NOT_FULL
+		)
+	then
+		config = nil
+	end
 
 	if persistLegacy and addon.db then
 		if not config then
@@ -1754,6 +1875,11 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			if config.ALWAYS_IN_COMBAT then stored.ALWAYS_IN_COMBAT = true end
 			if config.ALWAYS_OUT_OF_COMBAT then stored.ALWAYS_OUT_OF_COMBAT = true end
 			if config.SKYRIDING_ACTIVE then stored.SKYRIDING_ACTIVE = true end
+			if config.PLAYER_CASTING then stored.PLAYER_CASTING = true end
+			if config.PLAYER_MOUNTED then stored.PLAYER_MOUNTED = true end
+			if config.PLAYER_NOT_MOUNTED then stored.PLAYER_NOT_MOUNTED = true end
+			if config.PLAYER_IN_GROUP then stored.PLAYER_IN_GROUP = true end
+			if config.PLAYER_HEALTH_NOT_FULL then stored.PLAYER_HEALTH_NOT_FULL = true end
 			addon.db[variable] = stored
 		end
 	end
@@ -1764,13 +1890,38 @@ end
 local function NormalizeActionBarVisibilityConfig(variable, incoming) return GetActionBarVisibilityConfig(variable, incoming, true) end
 addon.functions.NormalizeActionBarVisibilityConfig = NormalizeActionBarVisibilityConfig
 
-local function ActionBarShouldForceShowByConfig(config, combatOverride)
+local function GetActionBarVisibilityContext(combatOverride)
+	local inCombat = combatOverride
+	if inCombat == nil then
+		if InCombatLockdown and InCombatLockdown() then
+			inCombat = true
+		elseif UnitAffectingCombat then
+			inCombat = UnitAffectingCombat("player") and true or false
+		else
+			inCombat = false
+		end
+	end
+
+	return {
+		inCombat = inCombat,
+		hasTarget = UnitExists and UnitExists("target") and true or false,
+		inGroup = IsInGroup and IsInGroup() and true or false,
+		mounted = IsPlayerMounted(),
+		isCasting = IsPlayerCasting(),
+	}
+end
+
+local function ActionBarShouldForceShowByConfig(config, context, combatOverride)
 	if not config then return false end
 	if config.SKYRIDING_ACTIVE and addon.variables and addon.variables.isPlayerSkyriding then return true end
-	local inCombat = combatOverride
-	if inCombat == nil then inCombat = InCombatLockdown and InCombatLockdown() end
-	if inCombat then return config.ALWAYS_IN_COMBAT == true end
-	return config.ALWAYS_OUT_OF_COMBAT == true
+	local ctx = context or GetActionBarVisibilityContext(combatOverride)
+	if config.ALWAYS_IN_COMBAT and ctx.inCombat then return true end
+	if config.ALWAYS_OUT_OF_COMBAT and not ctx.inCombat then return true end
+	if config.PLAYER_CASTING and ctx.isCasting then return true end
+	if config.PLAYER_MOUNTED and ctx.mounted then return true end
+	if config.PLAYER_NOT_MOUNTED and not ctx.mounted then return true end
+	if config.PLAYER_IN_GROUP and ctx.inGroup then return true end
+	return false
 end
 
 local function IsActionBarMouseoverEnabled(variable)
@@ -1789,6 +1940,12 @@ end
 addon.functions.GetActionBarFadeStrength = GetActionBarFadeStrength
 
 local function GetActionBarFadedAlpha() return 1 - GetActionBarFadeStrength() end
+
+local function GetActionBarBaseAlpha(cfg, fadeAlpha)
+	if type(fadeAlpha) ~= "number" then fadeAlpha = GetActionBarFadedAlpha() end
+	if cfg and cfg.PLAYER_HEALTH_NOT_FULL then return GetPlayerHealthVisibilityAlpha(fadeAlpha) end
+	return fadeAlpha
+end
 
 local function GetFrameFadeStrength()
 	if not addon.db then return 1 end
@@ -1816,8 +1973,12 @@ addon.functions.GetCooldownViewerFadeStrength = GetCooldownViewerFadeStrength
 local function GetCooldownViewerFadedAlpha() return 1 - GetCooldownViewerFadeStrength() end
 addon.functions.GetCooldownViewerFadedAlpha = GetCooldownViewerFadedAlpha
 
-local function ApplyActionBarAlpha(bar, variable, config, combatOverride, skipFade)
+local function ApplyActionBarAlpha(bar, variable, config, combatOverride, skipFade, context)
 	if not bar then return end
+	if addon.variables and addon.variables.actionBarShowGrid then
+		ApplyAlphaToRegion(bar, 1, false)
+		return
+	end
 	local cfg
 	if type(config) == "table" then
 		cfg = NormalizeActionBarVisibilityConfig(variable, config)
@@ -1828,7 +1989,9 @@ local function ApplyActionBarAlpha(bar, variable, config, combatOverride, skipFa
 	end
 	if not cfg then return end
 	local useFade = ShouldFadeActionBar(skipFade)
-	if ActionBarShouldForceShowByConfig(cfg, combatOverride) then
+	local fadedAlpha = GetActionBarFadedAlpha()
+	local baseAlpha = GetActionBarBaseAlpha(cfg, fadedAlpha)
+	if ActionBarShouldForceShowByConfig(cfg, context, combatOverride) then
 		ApplyAlphaToRegion(bar, 1, useFade)
 		return
 	end
@@ -1836,10 +1999,10 @@ local function ApplyActionBarAlpha(bar, variable, config, combatOverride, skipFa
 		if ShouldShowActionBarOnMouseover(bar) then
 			ApplyAlphaToRegion(bar, 1, useFade)
 		else
-			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
+			ApplyAlphaToRegion(bar, baseAlpha, useFade)
 		end
 	else
-		ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
+		ApplyAlphaToRegion(bar, baseAlpha, useFade)
 	end
 end
 
@@ -1847,20 +2010,27 @@ local function EQOL_HideBarIfNotHovered(bar, variable)
 	local cfg = GetActionBarVisibilityConfig(variable)
 	if not cfg then return end
 	C_Timer.After(0, function()
+		if addon.variables and addon.variables.actionBarShowGrid then
+			ApplyAlphaToRegion(bar, 1, false)
+			return
+		end
 		local current = GetActionBarVisibilityConfig(variable)
 		if not current then return end
 		local useFade = ShouldFadeActionBar()
-		if ActionBarShouldForceShowByConfig(current) then
+		local context = GetActionBarVisibilityContext()
+		local fadedAlpha = GetActionBarFadedAlpha()
+		local baseAlpha = GetActionBarBaseAlpha(current, fadedAlpha)
+		if ActionBarShouldForceShowByConfig(current, context) then
 			ApplyAlphaToRegion(bar, 1, useFade)
 			return
 		end
 		if not current.MOUSEOVER then
-			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
+			ApplyAlphaToRegion(bar, baseAlpha, useFade)
 			return
 		end
 		-- Only hide if neither the bar nor other hover targets are under the mouse
 		if not ShouldShowActionBarOnMouseover(bar) then
-			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
+			ApplyAlphaToRegion(bar, baseAlpha, useFade)
 		else
 			ApplyAlphaToRegion(bar, 1, useFade)
 		end
@@ -2113,9 +2283,10 @@ local function ApplyActionBarVisibilityAlpha(skipFade, event)
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		combatOverride = false
 	end
+	local context = GetActionBarVisibilityContext(combatOverride)
 	for _, info in ipairs(addon.variables.actionBarNames or {}) do
 		local bar = _G[info.name]
-		if bar then ApplyActionBarAlpha(bar, info.var, nil, combatOverride, skipFade) end
+		if bar then ApplyActionBarAlpha(bar, info.var, nil, combatOverride, skipFade, context) end
 	end
 end
 local function RefreshAllActionBarVisibilityAlpha(skipFade, event)
@@ -2195,8 +2366,19 @@ local function EnsureActionBarVisibilityWatcher()
 	watcher:RegisterEvent("PLAYER_REGEN_DISABLED")
 	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
 	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+	watcher:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+	watcher:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+	watcher:RegisterEvent("GROUP_ROSTER_UPDATE")
 	watcher:RegisterEvent("ACTIONBAR_SHOWGRID")
 	watcher:RegisterEvent("ACTIONBAR_HIDEGRID")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_START", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_STOP", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_FAILED", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_INTERRUPTED", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_START", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_STOP", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_HEALTH", "player")
+	SafeRegisterUnitEvent(watcher, "UNIT_MAXHEALTH", "player")
 	watcher:SetScript("OnEvent", function(_, event)
 		if event == "ACTIONBAR_SHOWGRID" then
 			addon.variables = addon.variables or {}
@@ -5301,9 +5483,7 @@ end
 local function shouldAutoChooseQuest()
 	if not addon.db or not addon.db["autoChooseQuest"] then return false end
 	local modifier = addon.db["autoChooseQuestModifier"]
-	if modifier == "SHIFT" or modifier == "CTRL" or modifier == "ALT" then
-		return isQuestAutomationModifierHeld(modifier)
-	end
+	if modifier == "SHIFT" or modifier == "CTRL" or modifier == "ALT" then return isQuestAutomationModifierHeld(modifier) end
 	-- Legacy behavior: allow auto questing unless Shift is held
 	return not IsShiftKeyDown()
 end

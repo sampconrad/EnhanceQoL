@@ -17,6 +17,14 @@ local LSM = LibStub("LibSharedMedia-3.0", true)
 
 local EDITMODE_ID = "gcdBar"
 local GCD_SPELL_ID = 61304
+local ANCHOR_TARGET_UI = "UIParent"
+local ANCHOR_TARGET_PLAYER_CASTBAR = "PLAYER_CASTBAR"
+local EQOL_PLAYER_CASTBAR = "EQOLUFPlayerHealthCast"
+local ANCHOR_POINTS = { "TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" }
+local VALID_ANCHOR_POINTS = {}
+for _, point in ipairs(ANCHOR_POINTS) do
+	VALID_ANCHOR_POINTS[point] = true
+end
 
 GCDBar.defaults = GCDBar.defaults
 	or {
@@ -34,6 +42,11 @@ GCDBar.defaults = GCDBar.defaults
 		borderOffset = 0,
 		progressMode = "REMAINING",
 		fillDirection = "LEFT",
+		anchorRelativeFrame = ANCHOR_TARGET_UI,
+		anchorPoint = "CENTER",
+		anchorRelativePoint = "CENTER",
+		anchorOffsetX = 0,
+		anchorOffsetY = -120,
 	}
 
 local defaults = GCDBar.defaults
@@ -53,6 +66,11 @@ local DB_BORDER_SIZE = "gcdBarBorderSize"
 local DB_BORDER_OFFSET = "gcdBarBorderOffset"
 local DB_PROGRESS_MODE = "gcdBarProgressMode"
 local DB_FILL_DIRECTION = "gcdBarFillDirection"
+local DB_ANCHOR_RELATIVE_FRAME = "gcdBarAnchorTarget"
+local DB_ANCHOR_POINT = "gcdBarAnchorPoint"
+local DB_ANCHOR_RELATIVE_POINT = "gcdBarAnchorRelativePoint"
+local DB_ANCHOR_OFFSET_X = "gcdBarAnchorOffsetX"
+local DB_ANCHOR_OFFSET_Y = "gcdBarAnchorOffsetY"
 
 local DEFAULT_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
 local GetSpellCooldownInfo = (C_Spell and C_Spell.GetSpellCooldown) or GetSpellCooldown
@@ -156,6 +174,56 @@ local function normalizeFillDirection(value)
 	return "LEFT"
 end
 
+local function normalizeAnchorPoint(value, fallback)
+	if value and VALID_ANCHOR_POINTS[value] then return value end
+	if fallback and VALID_ANCHOR_POINTS[fallback] then return fallback end
+	return "CENTER"
+end
+
+local function normalizeAnchorRelativeFrame(value)
+	if value == ANCHOR_TARGET_PLAYER_CASTBAR or value == "PlayerCastingBarFrame" or value == EQOL_PLAYER_CASTBAR then return ANCHOR_TARGET_PLAYER_CASTBAR end
+	if type(value) == "string" and value ~= "" then return value end
+	return ANCHOR_TARGET_UI
+end
+
+local function normalizeAnchorOffset(value, fallback)
+	local num = tonumber(value)
+	if num == nil then num = fallback end
+	if num == nil then num = 0 end
+	return clamp(num, -1000, 1000)
+end
+
+local function refreshSettingsUI()
+	local lib = addon.EditModeLib
+	if not (lib and lib.internal) then return end
+	if lib.internal.RefreshSettings then lib.internal:RefreshSettings() end
+	if lib.internal.RefreshSettingValues then lib.internal:RefreshSettingValues() end
+end
+
+local function isCustomPlayerCastbarEnabled()
+	local cfg = addon.db and addon.db.ufFrames and addon.db.ufFrames.player
+	if not (cfg and cfg.enabled == true) then return false end
+	local castCfg = cfg.cast
+	if not castCfg then
+		local uf = addon.Aura and addon.Aura.UF
+		local defaults = uf and uf.defaults and uf.defaults.player
+		castCfg = defaults and defaults.cast
+	end
+	if not castCfg then return false end
+	return castCfg.enabled ~= false
+end
+
+local function resolvePlayerCastbarFrame()
+	local wantsCustom = isCustomPlayerCastbarEnabled()
+	if wantsCustom then
+		local custom = _G and _G[EQOL_PLAYER_CASTBAR]
+		if custom then return custom, true, true end
+	end
+	local blizz = _G and _G.PlayerCastingBarFrame
+	if blizz then return blizz, false, wantsCustom end
+	return UIParent, false, wantsCustom
+end
+
 function GCDBar:GetWidth() return clamp(getValue(DB_WIDTH, defaults.width), 50, 800) end
 
 function GCDBar:GetHeight() return clamp(getValue(DB_HEIGHT, defaults.height), 6, 200) end
@@ -195,6 +263,136 @@ function GCDBar:GetBorderOffset() return clamp(getValue(DB_BORDER_OFFSET, defaul
 function GCDBar:GetProgressMode() return normalizeProgressMode(getValue(DB_PROGRESS_MODE, defaults.progressMode)) end
 
 function GCDBar:GetFillDirection() return normalizeFillDirection(getValue(DB_FILL_DIRECTION, defaults.fillDirection)) end
+
+function GCDBar:GetAnchorRelativeFrame()
+	local target = getValue(DB_ANCHOR_RELATIVE_FRAME, defaults.anchorRelativeFrame or ANCHOR_TARGET_UI)
+	return normalizeAnchorRelativeFrame(target)
+end
+
+function GCDBar:GetAnchorPoint() return normalizeAnchorPoint(getValue(DB_ANCHOR_POINT, defaults.anchorPoint), defaults.anchorPoint) end
+
+function GCDBar:GetAnchorRelativePoint()
+	local point = normalizeAnchorPoint(getValue(DB_ANCHOR_RELATIVE_POINT, defaults.anchorRelativePoint), self:GetAnchorPoint())
+	return point
+end
+
+function GCDBar:GetAnchorOffsetX() return normalizeAnchorOffset(getValue(DB_ANCHOR_OFFSET_X, defaults.anchorOffsetX), defaults.anchorOffsetX) end
+
+function GCDBar:GetAnchorOffsetY() return normalizeAnchorOffset(getValue(DB_ANCHOR_OFFSET_Y, defaults.anchorOffsetY), defaults.anchorOffsetY) end
+
+function GCDBar:AnchorUsesUIParent() return self:GetAnchorRelativeFrame() == ANCHOR_TARGET_UI end
+
+local function anchorDefaultsFor(target)
+	if target == ANCHOR_TARGET_UI then
+		local point = defaults.anchorPoint or "CENTER"
+		local relPoint = defaults.anchorRelativePoint or point
+		return point, relPoint, defaults.anchorOffsetX or 0, defaults.anchorOffsetY or 0
+	end
+	return "TOPLEFT", "BOTTOMLEFT", 0, 0
+end
+
+function GCDBar:ResolveAnchorFrame()
+	local target = self:GetAnchorRelativeFrame()
+	self._anchorUsingCustom = nil
+	self._anchorWantsCustom = nil
+
+	if target == ANCHOR_TARGET_UI then return UIParent end
+
+	if target == ANCHOR_TARGET_PLAYER_CASTBAR then
+		local frame, usingCustom, wantsCustom = resolvePlayerCastbarFrame()
+		self._anchorUsingCustom = usingCustom
+		self._anchorWantsCustom = wantsCustom
+		if wantsCustom and not usingCustom then self:ScheduleAnchorRefresh(target) end
+		return frame or UIParent
+	end
+
+	local frame = _G and _G[target]
+	if frame then return frame end
+	self:ScheduleAnchorRefresh(target)
+	return UIParent
+end
+
+function GCDBar:ScheduleAnchorRefresh(target)
+	if not (C_Timer and C_Timer.NewTicker) then return end
+	local desired = normalizeAnchorRelativeFrame(target or self:GetAnchorRelativeFrame())
+	if desired == ANCHOR_TARGET_UI then return end
+
+	if self._anchorRefreshTicker then
+		if self._anchorRefreshTarget == desired then return end
+		self._anchorRefreshTicker:Cancel()
+		self._anchorRefreshTicker = nil
+	end
+
+	self._anchorRefreshTarget = desired
+	local tries = 0
+	self._anchorRefreshTicker = C_Timer.NewTicker(0.2, function()
+		tries = tries + 1
+		if self:GetAnchorRelativeFrame() ~= desired then
+			if self._anchorRefreshTicker then self._anchorRefreshTicker:Cancel() end
+			self._anchorRefreshTicker = nil
+			self._anchorRefreshTarget = nil
+			return
+		end
+
+		if desired == ANCHOR_TARGET_PLAYER_CASTBAR then
+			local frame, usingCustom, wantsCustom = resolvePlayerCastbarFrame()
+			if frame and (not wantsCustom or usingCustom) then
+				if self._anchorRefreshTicker then self._anchorRefreshTicker:Cancel() end
+				self._anchorRefreshTicker = nil
+				self._anchorRefreshTarget = nil
+				self:RefreshAnchor()
+				return
+			end
+		elseif _G and _G[desired] then
+			if self._anchorRefreshTicker then self._anchorRefreshTicker:Cancel() end
+			self._anchorRefreshTicker = nil
+			self._anchorRefreshTarget = nil
+			self:RefreshAnchor()
+			return
+		end
+
+		if tries >= 25 then
+			if self._anchorRefreshTicker then self._anchorRefreshTicker:Cancel() end
+			self._anchorRefreshTicker = nil
+			self._anchorRefreshTarget = nil
+		end
+	end)
+end
+
+function GCDBar:RefreshAnchor()
+	if self._refreshingAnchor then return end
+	local target = self:GetAnchorRelativeFrame()
+	if self._anchorRefreshTicker and (target == ANCHOR_TARGET_UI or self._anchorRefreshTarget ~= target) then
+		self._anchorRefreshTicker:Cancel()
+		self._anchorRefreshTicker = nil
+		self._anchorRefreshTarget = nil
+	end
+	self._refreshingAnchor = true
+	if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(EDITMODE_ID) end
+	self._refreshingAnchor = nil
+	if target == ANCHOR_TARGET_PLAYER_CASTBAR then
+		if isCustomPlayerCastbarEnabled() and not (_G and _G[EQOL_PLAYER_CASTBAR]) then self:ScheduleAnchorRefresh(target) end
+	elseif target ~= ANCHOR_TARGET_UI then
+		if not (_G and _G[target]) then self:ScheduleAnchorRefresh(target) end
+	end
+end
+
+function GCDBar:MaybeUpdateAnchor()
+	local target = self:GetAnchorRelativeFrame()
+	if target == ANCHOR_TARGET_PLAYER_CASTBAR then
+		if isCustomPlayerCastbarEnabled() then
+			if _G and _G[EQOL_PLAYER_CASTBAR] and not self._anchorUsingCustom then
+				self:RefreshAnchor()
+			elseif not (_G and _G[EQOL_PLAYER_CASTBAR]) then
+				self:ScheduleAnchorRefresh(target)
+			end
+		elseif self._anchorUsingCustom then
+			self:RefreshAnchor()
+		end
+	elseif target ~= ANCHOR_TARGET_UI then
+		if not (_G and _G[target]) then self:ScheduleAnchorRefresh(target) end
+	end
+end
 
 function GCDBar:ApplyAppearance()
 	if not self.frame then return end
@@ -244,7 +442,9 @@ end
 
 function GCDBar:ApplySize()
 	if not self.frame then return end
-	self.frame:SetSize(self:GetWidth(), self:GetHeight())
+	local width = self:GetWidth()
+	local height = self:GetHeight()
+	self.frame:SetSize(width, height)
 	if self.frame.bg then self.frame.bg:SetAllPoints(self.frame) end
 	if self.frame.editBg then self.frame.editBg:SetAllPoints(self.frame) end
 	if self.frame.border then self.frame.border:SetAllPoints(self.frame) end
@@ -343,6 +543,7 @@ end
 function GCDBar:UpdateGCD()
 	if self.previewing then return end
 	if not self.frame then return end
+	self:MaybeUpdateAnchor()
 	if not GetSpellCooldownInfo then return end
 
 	local start, duration, enabled, modRate
@@ -406,6 +607,11 @@ function GCDBar:ApplyLayoutData(data)
 	local borderOffset = clamp(data.borderOffset or defaults.borderOffset, -20, 20)
 	local progressMode = normalizeProgressMode(data.progressMode or defaults.progressMode)
 	local fillDirection = normalizeFillDirection(data.fillDirection or defaults.fillDirection)
+	local anchorRelativeFrame = normalizeAnchorRelativeFrame(data.anchorRelativeFrame or data.anchorTarget or addon.db[DB_ANCHOR_RELATIVE_FRAME] or defaults.anchorRelativeFrame)
+	local anchorPoint = normalizeAnchorPoint(data.point or addon.db[DB_ANCHOR_POINT], defaults.anchorPoint)
+	local anchorRelativePoint = normalizeAnchorPoint(data.relativePoint or addon.db[DB_ANCHOR_RELATIVE_POINT], anchorPoint)
+	local anchorOffsetX = normalizeAnchorOffset(data.x ~= nil and data.x or addon.db[DB_ANCHOR_OFFSET_X], defaults.anchorOffsetX)
+	local anchorOffsetY = normalizeAnchorOffset(data.y ~= nil and data.y or addon.db[DB_ANCHOR_OFFSET_Y], defaults.anchorOffsetY)
 
 	addon.db[DB_WIDTH] = width
 	addon.db[DB_HEIGHT] = height
@@ -421,14 +627,23 @@ function GCDBar:ApplyLayoutData(data)
 	addon.db[DB_BORDER_OFFSET] = borderOffset
 	addon.db[DB_PROGRESS_MODE] = progressMode
 	addon.db[DB_FILL_DIRECTION] = fillDirection
+	local prevAnchorRelativeFrame = addon.db[DB_ANCHOR_RELATIVE_FRAME]
+	addon.db[DB_ANCHOR_RELATIVE_FRAME] = anchorRelativeFrame
+	addon.db[DB_ANCHOR_POINT] = anchorPoint
+	addon.db[DB_ANCHOR_RELATIVE_POINT] = anchorRelativePoint
+	addon.db[DB_ANCHOR_OFFSET_X] = anchorOffsetX
+	addon.db[DB_ANCHOR_OFFSET_Y] = anchorOffsetY
 
 	self:ApplySize()
 	self:ApplyAppearance()
+	if prevAnchorRelativeFrame ~= anchorRelativeFrame then self:RefreshAnchor() end
 	self:UpdateGCD()
 end
 
 local function applySetting(field, value)
 	if not addon.db then return end
+	local editField = field
+	local skipEditValue
 
 	if field == "width" then
 		local width = clamp(value, 50, 800)
@@ -486,11 +701,59 @@ local function applySetting(field, value)
 		local dir = normalizeFillDirection(value)
 		addon.db[DB_FILL_DIRECTION] = dir
 		value = dir
+	elseif field == "anchorRelativeFrame" then
+		local target = normalizeAnchorRelativeFrame(value)
+		local prev = addon.db[DB_ANCHOR_RELATIVE_FRAME]
+		addon.db[DB_ANCHOR_RELATIVE_FRAME] = target
+		editField = "anchorRelativeFrame"
+		if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_ID, editField, target, nil, true) end
+		if prev ~= target then
+			local point, relPoint, x, y = anchorDefaultsFor(target)
+			addon.db[DB_ANCHOR_POINT] = point
+			addon.db[DB_ANCHOR_RELATIVE_POINT] = relPoint
+			addon.db[DB_ANCHOR_OFFSET_X] = x
+			addon.db[DB_ANCHOR_OFFSET_Y] = y
+			if EditMode and EditMode.SetValue then
+				EditMode:SetValue(EDITMODE_ID, "point", point, nil, true)
+				EditMode:SetValue(EDITMODE_ID, "relativePoint", relPoint, nil, true)
+				EditMode:SetValue(EDITMODE_ID, "x", x, nil, true)
+				EditMode:SetValue(EDITMODE_ID, "y", y, nil, true)
+			end
+			refreshSettingsUI()
+		end
+		value = target
+		skipEditValue = true
+	elseif field == "anchorPoint" then
+		local point = normalizeAnchorPoint(value, defaults.anchorPoint)
+		addon.db[DB_ANCHOR_POINT] = point
+		editField = "point"
+		value = point
+		local rel = normalizeAnchorPoint(addon.db[DB_ANCHOR_RELATIVE_POINT], point)
+		if addon.db[DB_ANCHOR_RELATIVE_POINT] ~= rel then
+			addon.db[DB_ANCHOR_RELATIVE_POINT] = rel
+			if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_ID, "relativePoint", rel, nil, true) end
+		end
+	elseif field == "anchorRelativePoint" then
+		local rel = normalizeAnchorPoint(value, defaults.anchorRelativePoint)
+		addon.db[DB_ANCHOR_RELATIVE_POINT] = rel
+		editField = "relativePoint"
+		value = rel
+	elseif field == "anchorOffsetX" then
+		local offset = normalizeAnchorOffset(value, defaults.anchorOffsetX)
+		addon.db[DB_ANCHOR_OFFSET_X] = offset
+		editField = "x"
+		value = offset
+	elseif field == "anchorOffsetY" then
+		local offset = normalizeAnchorOffset(value, defaults.anchorOffsetY)
+		addon.db[DB_ANCHOR_OFFSET_Y] = offset
+		editField = "y"
+		value = offset
 	end
 
-	if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_ID, field, value, nil, true) end
+	if not skipEditValue and EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_ID, editField, value, nil, true) end
 	GCDBar:ApplySize()
 	GCDBar:ApplyAppearance()
+	GCDBar:RefreshAnchor()
 	GCDBar:UpdateGCD()
 end
 
@@ -499,7 +762,110 @@ function GCDBar:RegisterEditMode()
 
 	local settings
 	if SettingType then
+		local function anchorFrameEntries()
+			local entries = {}
+			local seen = {}
+			local function add(key, label)
+				if not key or key == "" or seen[key] then return end
+				seen[key] = true
+				entries[#entries + 1] = { key = key, label = label or key }
+			end
+
+			add(ANCHOR_TARGET_UI, L["gcdBarAnchorScreen"] or "Screen (UIParent)")
+			add(ANCHOR_TARGET_PLAYER_CASTBAR, L["gcdBarAnchorPlayerCastbar"] or "Player Castbar")
+
+			add("PlayerFrame", _G.HUD_EDIT_MODE_PLAYER_FRAME_LABEL or PLAYER or "Player Frame")
+			add("TargetFrame", _G.HUD_EDIT_MODE_TARGET_FRAME_LABEL or TARGET or "Target Frame")
+
+			add("EssentialCooldownViewer", L["cooldownViewerEssential"] or "Essential Cooldown Viewer")
+			add("UtilityCooldownViewer", L["cooldownViewerUtility"] or "Utility Cooldown Viewer")
+			add("BuffBarCooldownViewer", L["cooldownViewerBuffBar"] or "Buff Bar Cooldowns")
+			add("BuffIconCooldownViewer", L["cooldownViewerBuffIcon"] or "Buff Icon Cooldowns")
+
+			if addon.variables and addon.variables.actionBarNames then
+				for _, info in ipairs(addon.variables.actionBarNames) do
+					if info and info.name then add(info.name, info.text or info.name) end
+				end
+			end
+
+			local rb = addon.Aura and addon.Aura.ResourceBars
+			add("EQOLHealthBar", HEALTH or "Health")
+			if rb and rb.classPowerTypes then
+				for _, pType in ipairs(rb.classPowerTypes) do
+					local frameName = "EQOL" .. tostring(pType) .. "Bar"
+					local label = (rb.PowerLabels and rb.PowerLabels[pType]) or _G["POWER_TYPE_" .. tostring(pType)] or tostring(pType)
+					add(frameName, label)
+				end
+			end
+
+			local current = GCDBar:GetAnchorRelativeFrame()
+			if current and not seen[current] then add(current, current) end
+
+			return entries
+		end
+
 		settings = {
+			{
+				name = L["gcdBarAnchor"] or "Anchor to",
+				kind = SettingType.Dropdown,
+				field = "anchorRelativeFrame",
+				height = 180,
+				get = function() return GCDBar:GetAnchorRelativeFrame() end,
+				set = function(_, value) applySetting("anchorRelativeFrame", value) end,
+				generator = function(_, root)
+					for _, option in ipairs(anchorFrameEntries()) do
+						root:CreateRadio(option.label, function() return GCDBar:GetAnchorRelativeFrame() == option.key end, function() applySetting("anchorRelativeFrame", option.key) end)
+					end
+				end,
+			},
+			{
+				name = L["gcdBarAnchorPoint"] or "Anchor point",
+				kind = SettingType.Dropdown,
+				field = "anchorPoint",
+				height = 180,
+				get = function() return GCDBar:GetAnchorPoint() end,
+				set = function(_, value) applySetting("anchorPoint", value) end,
+				generator = function(_, root)
+					for _, point in ipairs(ANCHOR_POINTS) do
+						root:CreateRadio(point, function() return GCDBar:GetAnchorPoint() == point end, function() applySetting("anchorPoint", point) end)
+					end
+				end,
+			},
+			{
+				name = L["gcdBarAnchorRelativePoint"] or "Relative point",
+				kind = SettingType.Dropdown,
+				field = "anchorRelativePoint",
+				height = 180,
+				get = function() return GCDBar:GetAnchorRelativePoint() end,
+				set = function(_, value) applySetting("anchorRelativePoint", value) end,
+				generator = function(_, root)
+					for _, point in ipairs(ANCHOR_POINTS) do
+						root:CreateRadio(point, function() return GCDBar:GetAnchorRelativePoint() == point end, function() applySetting("anchorRelativePoint", point) end)
+					end
+				end,
+			},
+			{
+				name = L["gcdBarAnchorOffsetX"] or "X Offset",
+				kind = SettingType.Slider,
+				field = "anchorOffsetX",
+				minValue = -1000,
+				maxValue = 1000,
+				valueStep = 1,
+				allowInput = true,
+				get = function() return GCDBar:GetAnchorOffsetX() end,
+				set = function(_, value) applySetting("anchorOffsetX", value) end,
+			},
+			{
+				name = L["gcdBarAnchorOffsetY"] or "Y Offset",
+				kind = SettingType.Slider,
+				field = "anchorOffsetY",
+				minValue = -1000,
+				maxValue = 1000,
+				valueStep = 1,
+				allowInput = true,
+				get = function() return GCDBar:GetAnchorOffsetY() end,
+				set = function(_, value) applySetting("anchorOffsetY", value) end,
+			},
 			{
 				name = L["gcdBarWidth"] or "Bar width",
 				kind = SettingType.Slider,
@@ -686,10 +1052,10 @@ function GCDBar:RegisterEditMode()
 		frame = self:EnsureFrame(),
 		title = L["GCDBar"] or "GCD Bar",
 		layoutDefaults = {
-			point = "CENTER",
-			relativePoint = "CENTER",
-			x = 0,
-			y = -120,
+			point = self:GetAnchorPoint(),
+			relativePoint = self:GetAnchorRelativePoint(),
+			x = self:GetAnchorOffsetX(),
+			y = self:GetAnchorOffsetY(),
 			width = self:GetWidth(),
 			height = self:GetHeight(),
 			texture = self:GetTextureKey(),
@@ -709,6 +1075,7 @@ function GCDBar:RegisterEditMode()
 			borderOffset = self:GetBorderOffset(),
 			progressMode = self:GetProgressMode(),
 			fillDirection = self:GetFillDirection(),
+			anchorRelativeFrame = self:GetAnchorRelativeFrame(),
 			color = (function()
 				local r, g, b, a = self:GetColor()
 				return { r = r, g = g, b = b, a = a }
@@ -719,6 +1086,8 @@ function GCDBar:RegisterEditMode()
 		onExit = function() GCDBar:ShowEditModeHint(false) end,
 		isEnabled = function() return addon.db and addon.db[DB_ENABLED] end,
 		settings = settings,
+		relativeTo = function() return GCDBar:ResolveAnchorFrame() end,
+		allowDrag = function() return GCDBar:AnchorUsesUIParent() end,
 		showOutsideEditMode = false,
 		showReset = false,
 		showSettingsReset = false,
@@ -740,6 +1109,10 @@ function GCDBar:OnSettingChanged(enabled)
 		self:UnregisterEvents()
 		self:StopTimer()
 		if self.frame then self.frame:Hide() end
+		if self._anchorRefreshTicker then
+			self._anchorRefreshTicker:Cancel()
+			self._anchorRefreshTicker = nil
+		end
 	end
 
 	if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(EDITMODE_ID) end

@@ -3595,8 +3595,22 @@ local function buildUnitSettings(unit)
 		)
 		list[#list].isEnabled = isAuraEnabled
 
-		list[#list + 1] = checkbox(L["Show cooldown text"] or "Show cooldown text", function() return getValue(unit, { "auraIcons", "showCooldown" }, auraDef.showCooldown ~= false) end, function(val)
-			setValue(unit, { "auraIcons", "showCooldown" }, val and true or false)
+		list[#list + 1] = checkbox(L["Show cooldown text (buffs)"] or "Show cooldown text (buffs)", function()
+			local val = getValue(unit, { "auraIcons", "showCooldownBuffs" })
+			if val == nil then val = getValue(unit, { "auraIcons", "showCooldown" }, auraDef.showCooldown ~= false) end
+			return val ~= false
+		end, function(val)
+			setValue(unit, { "auraIcons", "showCooldownBuffs" }, val and true or false)
+			refresh()
+		end, auraDef.showCooldown ~= false, "auras")
+		list[#list].isEnabled = isAuraEnabled
+
+		list[#list + 1] = checkbox(L["Show cooldown text (debuffs)"] or "Show cooldown text (debuffs)", function()
+			local val = getValue(unit, { "auraIcons", "showCooldownDebuffs" })
+			if val == nil then val = getValue(unit, { "auraIcons", "showCooldown" }, auraDef.showCooldown ~= false) end
+			return val ~= false
+		end, function(val)
+			setValue(unit, { "auraIcons", "showCooldownDebuffs" }, val and true or false)
 			refresh()
 		end, auraDef.showCooldown ~= false, "auras")
 		list[#list].isEnabled = isAuraEnabled
@@ -3629,18 +3643,18 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isAuraEnabled
 
 		list[#list + 1] = slider(
-			L["Cooldown Text Size"] or "Cooldown text size",
+			L["Cooldown text size (buffs)"] or "Cooldown text size (buffs)",
 			0,
 			32,
 			1,
-			function() return getValue(unit, { "auraIcons", "cooldownFontSize" }, auraDef.cooldownFontSize or 0) end,
+			function() return getValue(unit, { "auraIcons", "cooldownFontSizeBuff" }, auraDef.cooldownFontSizeBuff or auraDef.cooldownFontSize or 0) end,
 			function(val)
 				val = tonumber(val) or 0
 				if val < 0 then val = 0 end
-				setValue(unit, { "auraIcons", "cooldownFontSize" }, val)
+				setValue(unit, { "auraIcons", "cooldownFontSizeBuff" }, val)
 				refresh()
 			end,
-			auraDef.cooldownFontSize or 0,
+			auraDef.cooldownFontSizeBuff or auraDef.cooldownFontSize or 0,
 			"auras",
 			true,
 			function(value)
@@ -3651,10 +3665,59 @@ local function buildUnitSettings(unit)
 		)
 		list[#list].isEnabled = isAuraEnabled
 
-		list[#list + 1] = slider(L["Aura stack size"] or "Aura stack size", 8, 32, 1, function() return getValue(unit, { "auraIcons", "countFontSize" }, auraDef.countFontSize or 14) end, function(val)
-			setValue(unit, { "auraIcons", "countFontSize" }, val or 14)
-			refresh()
-		end, auraDef.countFontSize or 14, "auras", true)
+		list[#list + 1] = slider(
+			L["Cooldown text size (debuffs)"] or "Cooldown text size (debuffs)",
+			0,
+			32,
+			1,
+			function() return getValue(unit, { "auraIcons", "cooldownFontSizeDebuff" }, auraDef.cooldownFontSizeDebuff or auraDef.cooldownFontSize or 0) end,
+			function(val)
+				val = tonumber(val) or 0
+				if val < 0 then val = 0 end
+				setValue(unit, { "auraIcons", "cooldownFontSizeDebuff" }, val)
+				refresh()
+			end,
+			auraDef.cooldownFontSizeDebuff or auraDef.cooldownFontSize or 0,
+			"auras",
+			true,
+			function(value)
+				value = tonumber(value) or 0
+				if value <= 0 then return L["Auto"] or "Auto" end
+				return tostring(math.floor(value + 0.5))
+			end
+		)
+		list[#list].isEnabled = isAuraEnabled
+
+		list[#list + 1] = slider(
+			L["Aura stack size (buffs)"] or "Aura stack size (buffs)",
+			8,
+			32,
+			1,
+			function() return getValue(unit, { "auraIcons", "countFontSizeBuff" }, auraDef.countFontSizeBuff or auraDef.countFontSize or 14) end,
+			function(val)
+				setValue(unit, { "auraIcons", "countFontSizeBuff" }, val or 14)
+				refresh()
+			end,
+			auraDef.countFontSizeBuff or auraDef.countFontSize or 14,
+			"auras",
+			true
+		)
+		list[#list].isEnabled = isAuraEnabled
+
+		list[#list + 1] = slider(
+			L["Aura stack size (debuffs)"] or "Aura stack size (debuffs)",
+			8,
+			32,
+			1,
+			function() return getValue(unit, { "auraIcons", "countFontSizeDebuff" }, auraDef.countFontSizeDebuff or auraDef.countFontSize or 14) end,
+			function(val)
+				setValue(unit, { "auraIcons", "countFontSizeDebuff" }, val or 14)
+				refresh()
+			end,
+			auraDef.countFontSizeDebuff or auraDef.countFontSize or 14,
+			"auras",
+			true
+		)
 		list[#list].isEnabled = isAuraEnabled
 
 		local stackOutlineOptions = {

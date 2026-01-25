@@ -10,6 +10,9 @@
 - GCD Bar: Styling options (background, border, progress mode, fill direction, border offset; reverse fill fix).
 - UF Plus: Absorb and heal absorb overlay height option capping at max health height
 - UF Plus: Highlight dispellable debuffs option for aura icons.
+- UF Plus: Aura cooldown text can be toggled separately for buffs and debuffs.
+- UF Plus: Aura cooldown text size can be set separately for buffs and debuffs.
+- UF Plus: Aura stack size can be set separately for buffs and debuffs.
 - Resource Bars: Gradient tint controls (start/end) for bar fills.
 - Resource Bars: Rune cooldown text font/size controls and customizable cooldown color.
 - Resource Bars: Percent rounding option for percent text (round to nearest/down).
