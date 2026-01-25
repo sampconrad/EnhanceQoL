@@ -56,7 +56,7 @@ local data = {
 				get = function() return addon.db and addon.db.mouseRingSize or 70 end,
 				set = function(v)
 					addon.db["mouseRingSize"] = v
-					if addon.mousePointer and addon.mousePointer.texture1 then addon.mousePointer.texture1:SetSize(v, v) end
+					if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
 				end,
 				parentCheck = function()
 					return addon.SettingsLayout.elements["mouseRingEnabled"]
@@ -140,21 +140,136 @@ local data = {
 				parentSection = expandable,
 			},
 			{
+				var = "mouseRingCombatOverride",
+				text = L["mouseRingCombatOverride"],
+				func = function(v)
+					addon.db["mouseRingCombatOverride"] = v
+					if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+				end,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["mouseRingEnabled"]
+						and addon.SettingsLayout.elements["mouseRingEnabled"].setting
+						and addon.SettingsLayout.elements["mouseRingEnabled"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				type = Settings.VarType.Boolean,
+				sType = "checkbox",
+				parentSection = expandable,
+				children = {
+					{
+						var = "mouseRingCombatOverrideSize",
+						text = L["mouseRingCombatOverrideSize"],
+						get = function() return addon.db and addon.db.mouseRingCombatOverrideSize or 70 end,
+						set = function(v)
+							addon.db["mouseRingCombatOverrideSize"] = v
+							if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+						end,
+						parentCheck = function()
+							return addon.SettingsLayout.elements["mouseRingEnabled"]
+								and addon.SettingsLayout.elements["mouseRingEnabled"].setting
+								and addon.SettingsLayout.elements["mouseRingEnabled"].setting:GetValue() == true
+								and addon.SettingsLayout.elements["mouseRingCombatOverride"]
+								and addon.SettingsLayout.elements["mouseRingCombatOverride"].setting
+								and addon.SettingsLayout.elements["mouseRingCombatOverride"].setting:GetValue() == true
+						end,
+						min = 20,
+						max = 200,
+						step = 1,
+						parent = true,
+						default = 70,
+						sType = "slider",
+						parentSection = expandable,
+					},
+					{
+						var = "mouseRingCombatOverrideColor",
+						text = L["mouseRingCombatOverrideColor"],
+						parentCheck = function()
+							return addon.SettingsLayout.elements["mouseRingEnabled"]
+								and addon.SettingsLayout.elements["mouseRingEnabled"].setting
+								and addon.SettingsLayout.elements["mouseRingEnabled"].setting:GetValue() == true
+								and addon.SettingsLayout.elements["mouseRingCombatOverride"]
+								and addon.SettingsLayout.elements["mouseRingCombatOverride"].setting
+								and addon.SettingsLayout.elements["mouseRingCombatOverride"].setting:GetValue() == true
+						end,
+						callback = function(r, g, b, a)
+							if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+						end,
+						parent = true,
+						sType = "colorpicker",
+						parentSection = expandable,
+					},
+				},
+			},
+			{
+				var = "mouseRingCombatOverlay",
+				text = L["mouseRingCombatOverlay"],
+				func = function(v)
+					addon.db["mouseRingCombatOverlay"] = v
+					if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+				end,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["mouseRingEnabled"]
+						and addon.SettingsLayout.elements["mouseRingEnabled"].setting
+						and addon.SettingsLayout.elements["mouseRingEnabled"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				type = Settings.VarType.Boolean,
+				sType = "checkbox",
+				parentSection = expandable,
+				children = {
+					{
+						var = "mouseRingCombatOverlaySize",
+						text = L["mouseRingCombatOverlaySize"],
+						get = function() return addon.db and addon.db.mouseRingCombatOverlaySize or 90 end,
+						set = function(v)
+							addon.db["mouseRingCombatOverlaySize"] = v
+							if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+						end,
+						parentCheck = function()
+							return addon.SettingsLayout.elements["mouseRingEnabled"]
+								and addon.SettingsLayout.elements["mouseRingEnabled"].setting
+								and addon.SettingsLayout.elements["mouseRingEnabled"].setting:GetValue() == true
+								and addon.SettingsLayout.elements["mouseRingCombatOverlay"]
+								and addon.SettingsLayout.elements["mouseRingCombatOverlay"].setting
+								and addon.SettingsLayout.elements["mouseRingCombatOverlay"].setting:GetValue() == true
+						end,
+						min = 20,
+						max = 240,
+						step = 1,
+						parent = true,
+						default = 90,
+						sType = "slider",
+						parentSection = expandable,
+					},
+					{
+						var = "mouseRingCombatOverlayColor",
+						text = L["mouseRingCombatOverlayColor"],
+						parentCheck = function()
+							return addon.SettingsLayout.elements["mouseRingEnabled"]
+								and addon.SettingsLayout.elements["mouseRingEnabled"].setting
+								and addon.SettingsLayout.elements["mouseRingEnabled"].setting:GetValue() == true
+								and addon.SettingsLayout.elements["mouseRingCombatOverlay"]
+								and addon.SettingsLayout.elements["mouseRingCombatOverlay"].setting
+								and addon.SettingsLayout.elements["mouseRingCombatOverlay"].setting:GetValue() == true
+						end,
+						callback = function(r, g, b, a)
+							if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+						end,
+						parent = true,
+						sType = "colorpicker",
+						parentSection = expandable,
+					},
+				},
+			},
+			{
 
 				var = "mouseRingUseClassColor",
 				text = L["mouseRingUseClassColor"],
 				func = function(v)
 					addon.db["mouseRingUseClassColor"] = v
-					if addon.mousePointer and addon.mousePointer.texture1 then
-						local _, class = UnitClass("player")
-						if v then
-							local r, g, b = GetClassColor(class)
-							addon.mousePointer.texture1:SetVertexColor(r or 1, g or 1, b or 1, 1)
-						else
-							local c = addon.db["mouseRingColor"] or { r = 1, g = 1, b = 1, a = 1 }
-							addon.mousePointer.texture1:SetVertexColor(c.r, c.g, c.b, c.a or 1)
-						end
-					end
+					if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
 				end,
 				parentCheck = function()
 					return addon.SettingsLayout.elements["mouseRingEnabled"]
@@ -180,7 +295,7 @@ local data = {
 						and addon.SettingsLayout.elements["mouseRingUseClassColor"].setting:GetValue() == false
 				end,
 				callback = function(r, g, b, a)
-					if addon.mousePointer and addon.mousePointer.texture1 then addon.mousePointer.texture1:SetVertexColor(r, g, b, a) end
+					if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
 				end,
 				parent = true,
 				default = false,

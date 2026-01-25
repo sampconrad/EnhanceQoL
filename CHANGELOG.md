@@ -18,6 +18,7 @@
 - Settings: Optional slash commands for Edit Mode (/em, /edit, /editmode) and Quick Keybind Mode (/kb).
 - Settings: Moved slash command toggles to General → UI Utilities.
 - Questing: Optional modifier requirement for quest automation (accept/complete).
+- Mouse Ring: Combat-only color/size override and optional extra combat ring overlay.
 
 ### 🐛 Fixed
 

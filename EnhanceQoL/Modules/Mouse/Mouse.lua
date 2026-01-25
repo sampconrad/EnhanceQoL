@@ -38,6 +38,8 @@ if playerClass and GetClassColor then
 end
 local currentPreset = nil
 local lastTrailWanted = false
+local lastRingCombat = nil
+local ringStyleDirty = true
 
 local trailPresets = {
 	[1] = { -- LOW
@@ -162,6 +164,73 @@ local function getRingColor()
 	return 1, 1, 1, 1
 end
 
+local function getCombatOverrideColor()
+	local c = addon.db["mouseRingCombatOverrideColor"]
+	if c then return c.r, c.g, c.b, c.a or 1 end
+	return 1, 0.2, 0.2, 1
+end
+
+local function getCombatOverlayColor()
+	local c = addon.db["mouseRingCombatOverlayColor"]
+	if c then return c.r, c.g, c.b, c.a or 1 end
+	return 1, 0.2, 0.2, 0.6
+end
+
+local function ensureCombatOverlay(frame)
+	local overlay = frame.combatOverlay
+	if overlay then return overlay end
+	overlay = frame:CreateTexture(nil, "BACKGROUND")
+	overlay:SetTexture(TEX_MOUSE)
+	overlay:SetBlendMode("ADD")
+	overlay:SetPoint("CENTER", frame, "CENTER", 0, 0)
+	overlay:SetDrawLayer("BACKGROUND", -1)
+	frame.combatOverlay = overlay
+	return overlay
+end
+
+local function markRingStyleDirty() ringStyleDirty = true end
+addon.Mouse.functions.markRingStyleDirty = markRingStyleDirty
+
+local function applyRingStyle(inCombat)
+	if not addon.db or not addon.mousePointer or not addon.mousePointer.texture1 then return end
+	local db = addon.db
+	local ringFrame = addon.mousePointer
+	local combatActive = inCombat and true or false
+
+	local size = db["mouseRingSize"] or 70
+	local r, g, b, a = getRingColor()
+
+	if combatActive and db["mouseRingCombatOverride"] then
+		size = db["mouseRingCombatOverrideSize"] or size
+		r, g, b, a = getCombatOverrideColor()
+	end
+
+	ringFrame.texture1:SetSize(size, size)
+	ringFrame.texture1:SetVertexColor(r, g, b, a)
+
+	if combatActive and db["mouseRingCombatOverlay"] then
+		local overlay = ensureCombatOverlay(ringFrame)
+		local overlaySize = db["mouseRingCombatOverlaySize"] or size
+		local orr, org, orb, ora = getCombatOverlayColor()
+		overlay:SetSize(overlaySize, overlaySize)
+		overlay:SetVertexColor(orr, org, orb, ora)
+		overlay:Show()
+	elseif ringFrame.combatOverlay then
+		ringFrame.combatOverlay:Hide()
+	end
+end
+addon.Mouse.functions.applyRingStyle = applyRingStyle
+
+local function refreshRingStyle(inCombat)
+	ringStyleDirty = true
+	if not addon.mousePointer then return end
+	if inCombat == nil and UnitAffectingCombat then inCombat = UnitAffectingCombat("player") and true or false end
+	applyRingStyle(inCombat)
+	ringStyleDirty = false
+	lastRingCombat = inCombat and true or false
+end
+addon.Mouse.functions.refreshRingStyle = refreshRingStyle
+
 local function UpdateMouseTrail(delta, cursorX, cursorY, effectiveScale)
 	-- Delta = Zeit seit letztem Frame
 
@@ -204,9 +273,10 @@ local function UpdateMouseTrail(delta, cursorX, cursorY, effectiveScale)
 	end
 end
 
-local function createMouseRing()
+local function createMouseRing(inCombat)
 	if addon.mousePointer then
 		addon.mousePointer:Show()
+		if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle(inCombat) end
 		return
 	end
 
@@ -225,9 +295,6 @@ local function createMouseRing()
 		texture1:SetPoint("CENTER", imageFrame, "CENTER", 0, 0)
 		imageFrame.texture1 = texture1
 	end
-	texture1:SetSize(addon.db["mouseRingSize"], addon.db["mouseRingSize"])
-	local rr, rg, rb, ra = getRingColor()
-	texture1:SetVertexColor(rr, rg, rb, ra)
 
 	if addon.db["mouseRingHideDot"] then
 		if imageFrame.dot then imageFrame.dot:Hide() end
@@ -243,8 +310,9 @@ local function createMouseRing()
 		dot:Show()
 	end
 
-	imageFrame:Show()
 	addon.mousePointer = imageFrame
+	if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle(inCombat) end
+	imageFrame:Show()
 end
 addon.Mouse.functions.createMouseRing = createMouseRing
 
@@ -258,9 +326,7 @@ local function updateRunnerState()
 	local db = addon.db
 	local shouldRun = db and (db["mouseRingEnabled"] or db["mouseTrailEnabled"])
 	if shouldRun then
-		if addon.mouseTrailRunner:GetScript("OnUpdate") == nil then
-			addon.mouseTrailRunner:SetScript("OnUpdate", addon.Mouse.functions.runMouseRunner)
-		end
+		if addon.mouseTrailRunner:GetScript("OnUpdate") == nil then addon.mouseTrailRunner:SetScript("OnUpdate", addon.Mouse.functions.runMouseRunner) end
 	elseif addon.mouseTrailRunner:GetScript("OnUpdate") ~= nil then
 		addon.mouseTrailRunner:SetScript("OnUpdate", nil)
 	end
@@ -271,13 +337,21 @@ local function refreshRingVisibility()
 	local db = addon.db
 	if not db then return false end
 	local ringOnly = db["mouseRingOnlyInCombat"]
-	local inCombat = ringOnly and UnitAffectingCombat and UnitAffectingCombat("player") or nil
+	local combatOverride = db["mouseRingCombatOverride"]
+	local combatOverlay = db["mouseRingCombatOverlay"]
+	local inCombat = false
+	if ringOnly or combatOverride or combatOverlay then inCombat = UnitAffectingCombat and UnitAffectingCombat("player") and true or false end
 	local rightClickActive = db["mouseRingOnlyOnRightClick"] and IsMouseButtonDown and IsMouseButtonDown("RightButton")
 	local ringWanted = isRingWanted(db, inCombat, rightClickActive)
 
 	if ringWanted then
-		if not addon.mousePointer then createMouseRing() end
+		if not addon.mousePointer then createMouseRing(inCombat) end
 		if addon.mousePointer and not addon.mousePointer:IsShown() then addon.mousePointer:Show() end
+		if ringStyleDirty or lastRingCombat ~= inCombat then
+			applyRingStyle(inCombat)
+			ringStyleDirty = false
+			lastRingCombat = inCombat
+		end
 	elseif addon.mousePointer and addon.mousePointer:IsShown() then
 		addon.mousePointer:Hide()
 	end
@@ -320,8 +394,10 @@ if not addon.mouseTrailRunner then
 		local ringOnly = db["mouseRingOnlyInCombat"]
 		local trailOnly = db["mouseTrailOnlyInCombat"]
 		local rightClickOnly = db["mouseRingOnlyOnRightClick"]
-		local inCombat
-		if ringOnly or trailOnly then inCombat = UnitAffectingCombat and UnitAffectingCombat("player") end
+		local combatOverride = db["mouseRingCombatOverride"]
+		local combatOverlay = db["mouseRingCombatOverlay"]
+		local inCombat = false
+		if ringOnly or trailOnly or combatOverride or combatOverlay then inCombat = UnitAffectingCombat and UnitAffectingCombat("player") and true or false end
 		local rightClickActive = rightClickOnly and IsMouseButtonDown and IsMouseButtonDown("RightButton")
 		local ringWanted = isRingWanted(db, inCombat, rightClickActive)
 		local trailWanted = db["mouseTrailEnabled"] and (not trailOnly or inCombat)
@@ -334,8 +410,13 @@ if not addon.mouseTrailRunner then
 		lastTrailWanted = trailWanted
 
 		if ringWanted then
-			if not addon.mousePointer then createMouseRing() end
+			if not addon.mousePointer then createMouseRing(inCombat) end
 			if addon.mousePointer and not addon.mousePointer:IsShown() then addon.mousePointer:Show() end
+			if ringStyleDirty or lastRingCombat ~= inCombat then
+				applyRingStyle(inCombat)
+				ringStyleDirty = false
+				lastRingCombat = inCombat
+			end
 		elseif addon.mousePointer and addon.mousePointer:IsShown() then
 			addon.mousePointer:Hide()
 		end
