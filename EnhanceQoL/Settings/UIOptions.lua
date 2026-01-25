@@ -12,6 +12,7 @@ local RefreshAllActionBarAnchors = addon.functions.RefreshAllActionBarAnchors or
 local RefreshAllActionBarVisibilityAlpha = addon.functions.RefreshAllActionBarVisibilityAlpha or function() end
 local GetActionBarFadeStrength = addon.functions.GetActionBarFadeStrength or function() return 1 end
 local GetFrameFadeStrength = addon.functions.GetFrameFadeStrength or function() return 1 end
+local GetCooldownViewerFadeStrength = addon.functions.GetCooldownViewerFadeStrength or function() return 1 end
 local RefreshAllFrameVisibilityAlpha = addon.functions.RefreshAllFrameVisibilityAlpha or function() end
 local GetVisibilityRuleMetadata = addon.functions.GetVisibilityRuleMetadata or function() return {} end
 local HasFrameVisibilityOverride = addon.functions.HasFrameVisibilityOverride or function() return false end
@@ -892,6 +893,33 @@ local function createCooldownViewerDropdowns(category, expandable)
 			parentSection = exp,
 		})
 	end
+
+	local function getCooldownViewerFadePercent()
+		local value = GetCooldownViewerFadeStrength()
+		if value < 0 then value = 0 end
+		if value > 1 then value = 1 end
+		return math.floor((value * 100) + 0.5)
+	end
+
+	addon.functions.SettingsCreateSlider(category, {
+		var = "cooldownViewerFadeStrength",
+		text = L["cooldownViewerFadeStrength"] or "Fade amount",
+		desc = L["cooldownViewerFadeStrengthDesc"],
+		min = 0,
+		max = 100,
+		step = 1,
+		default = 100,
+		get = getCooldownViewerFadePercent,
+		set = function(val)
+			local pct = tonumber(val) or 0
+			if pct < 0 then pct = 0 end
+			if pct > 100 then pct = 100 end
+			addon.db.cooldownViewerFadeStrength = pct / 100
+			if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
+		end,
+		parentCheck = dropdownEnabled,
+		parentSection = expandable,
+	})
 end
 
 local function createFrameCategory()
@@ -964,6 +992,7 @@ local function createFrameCategory()
 			if pct > 100 then pct = 100 end
 			addon.db.frameVisibilityFadeStrength = pct / 100
 			RefreshAllFrameVisibilityAlpha()
+			if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
 		end,
 		parentSection = expandable,
 	})
@@ -1148,21 +1177,6 @@ local function createCastbarCategory()
 		text = L["cooldownViewerEnabled"],
 		get = function() return getCVarOptionState("cooldownViewerEnabled") end,
 		func = function(value) setCVarOptionState("cooldownViewerEnabled", value) end,
-		default = false,
-		parentSection = expandable,
-	})
-	addon.functions.SettingsCreateCheckbox(category, {
-		var = "enableCooldownManagerSlashCommand",
-		text = L["enableCooldownManagerSlashCommand"],
-		desc = L["enableCooldownManagerSlashCommandDesc"],
-		func = function(value)
-			addon.db["enableCooldownManagerSlashCommand"] = value
-			if value then
-				addon.functions.registerCooldownManagerSlashCommand()
-			else
-				addon.variables.requireReload = true
-			end
-		end,
 		default = false,
 		parentSection = expandable,
 	})

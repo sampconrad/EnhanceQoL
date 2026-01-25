@@ -172,6 +172,52 @@ addon.functions.SettingsCreateCheckbox(cGeneral, {
 	parentSection = utilitiesExpandable,
 })
 
+addon.functions.SettingsCreateCheckbox(cGeneral, {
+	var = "enableCooldownManagerSlashCommand",
+	text = L["enableCooldownManagerSlashCommand"],
+	desc = L["enableCooldownManagerSlashCommandDesc"],
+	func = function(value)
+		addon.db["enableCooldownManagerSlashCommand"] = value
+		if value then
+			addon.functions.registerCooldownManagerSlashCommand()
+		else
+			addon.variables.requireReload = true
+		end
+	end,
+	default = false,
+	parentSection = utilitiesExpandable,
+})
+addon.functions.SettingsCreateCheckbox(cGeneral, {
+	var = "enableEditModeSlashCommand",
+	text = L["enableEditModeSlashCommand"],
+	desc = L["enableEditModeSlashCommandDesc"],
+	func = function(value)
+		addon.db["enableEditModeSlashCommand"] = value
+		if value then
+			addon.functions.registerEditModeSlashCommand()
+		else
+			addon.variables.requireReload = true
+		end
+	end,
+	default = false,
+	parentSection = utilitiesExpandable,
+})
+addon.functions.SettingsCreateCheckbox(cGeneral, {
+	var = "enableQuickKeybindSlashCommand",
+	text = L["enableQuickKeybindSlashCommand"],
+	desc = L["enableQuickKeybindSlashCommandDesc"],
+	func = function(value)
+		addon.db["enableQuickKeybindSlashCommand"] = value
+		if value then
+			addon.functions.registerQuickKeybindSlashCommand()
+		else
+			addon.variables.requireReload = true
+		end
+	end,
+	default = false,
+	parentSection = utilitiesExpandable,
+})
+
 local systemExpandable = addon.functions.SettingsCreateExpandableSection(cGeneral, {
 	name = L["SystemAndDebug"] or "System & Debug",
 	expanded = false,

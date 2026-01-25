@@ -1390,13 +1390,16 @@ local function isSlashCommandRegistered(command)
 	return false
 end
 
-local function isSlashCommandOwnedByEQOL(command)
-	if not SlashCmdList or not SlashCmdList["EQOLCDMSC"] then return false end
+local function isSlashCommandOwnedByEQOL(command, listName, prefix, maxIndex)
+	if not SlashCmdList or not listName or not prefix then return false end
+	if not SlashCmdList[listName] then return false end
 	local cmd = command and command:lower()
 	if not cmd then return false end
-	local c1 = _G.SLASH_EQOLCDMSC1
-	local c2 = _G.SLASH_EQOLCDMSC2
-	return (type(c1) == "string" and c1:lower() == cmd) or (type(c2) == "string" and c2:lower() == cmd)
+	for i = 1, maxIndex or 1 do
+		local val = _G["SLASH_" .. prefix .. i]
+		if type(val) == "string" and val:lower() == cmd then return true end
+	end
+	return false
 end
 
 local function toggleCooldownViewerSettings()
@@ -1423,13 +1426,54 @@ local function toggleCooldownViewerSettings()
 	end
 end
 
+local function toggleEditMode()
+	if InCombatLockdown and InCombatLockdown() then return end
+	local frame = _G.EditModeManagerFrame
+	if not frame then
+		local loader = (C_AddOns and C_AddOns.LoadAddOn) or _G.UIParentLoadAddOn
+		if loader then
+			loader("Blizzard_EditMode")
+			frame = _G.EditModeManagerFrame
+		end
+	end
+	if not frame then return end
+	if frame.CanEnterEditMode and not frame:CanEnterEditMode() then return end
+	if frame:IsShown() then
+		if HideUIPanel then
+			HideUIPanel(frame)
+		else
+			frame:Hide()
+		end
+	else
+		if ShowUIPanel then
+			ShowUIPanel(frame)
+		else
+			frame:Show()
+		end
+	end
+end
+
+local function toggleQuickKeybindMode()
+	if InCombatLockdown and InCombatLockdown() then return end
+	local frame = _G.QuickKeybindFrame
+	if not frame then
+		local loader = (C_AddOns and C_AddOns.LoadAddOn) or _G.UIParentLoadAddOn
+		if loader then
+			loader("Blizzard_QuickKeybind")
+			frame = _G.QuickKeybindFrame
+		end
+	end
+	if not frame then return end
+	frame:SetShown(not frame:IsShown())
+end
+
 function addon.functions.registerCooldownManagerSlashCommand()
 	if not SlashCmdList then return end
 	local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or _G.IsAddOnLoaded
 	local waLoaded = isLoaded and isLoaded("WeakAuras") or false
 
 	local commands = {}
-	local function canClaim(command) return isSlashCommandOwnedByEQOL(command) or not isSlashCommandRegistered(command) end
+	local function canClaim(command) return isSlashCommandOwnedByEQOL(command, "EQOLCDMSC", "EQOLCDMSC", 2) or not isSlashCommandRegistered(command) end
 	if canClaim("/cdm") then commands[#commands + 1] = "/cdm" end
 	if not waLoaded and canClaim("/wa") then commands[#commands + 1] = "/wa" end
 
@@ -1437,6 +1481,28 @@ function addon.functions.registerCooldownManagerSlashCommand()
 	_G.SLASH_EQOLCDMSC1 = commands[1]
 	_G.SLASH_EQOLCDMSC2 = commands[2]
 	SlashCmdList["EQOLCDMSC"] = function() toggleCooldownViewerSettings() end
+end
+
+function addon.functions.registerEditModeSlashCommand()
+	if not SlashCmdList then return end
+	local commands = {}
+	local function canClaim(command) return isSlashCommandOwnedByEQOL(command, "EQOLEM", "EQOLEM", 3) or not isSlashCommandRegistered(command) end
+	if canClaim("/em") then commands[#commands + 1] = "/em" end
+	if canClaim("/edit") then commands[#commands + 1] = "/edit" end
+	if canClaim("/editmode") then commands[#commands + 1] = "/editmode" end
+	if #commands == 0 then return end
+	_G.SLASH_EQOLEM1 = commands[1]
+	_G.SLASH_EQOLEM2 = commands[2]
+	_G.SLASH_EQOLEM3 = commands[3]
+	SlashCmdList["EQOLEM"] = function() toggleEditMode() end
+end
+
+function addon.functions.registerQuickKeybindSlashCommand()
+	if not SlashCmdList then return end
+	local function canClaim(command) return isSlashCommandOwnedByEQOL(command, "EQOLKB", "EQOLKB", 1) or not isSlashCommandRegistered(command) end
+	if not canClaim("/kb") then return end
+	_G.SLASH_EQOLKB1 = "/kb"
+	SlashCmdList["EQOLKB"] = function() toggleQuickKeybindMode() end
 end
 
 function addon.functions.catalystChecks()

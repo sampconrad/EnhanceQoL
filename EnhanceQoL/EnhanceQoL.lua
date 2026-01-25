@@ -1519,7 +1519,12 @@ local function applyCooldownViewerMode(frameName, cfg)
 	local shouldHide = computeCooldownViewerHidden(cfg, state)
 	if IsCooldownViewerInEditMode() then shouldHide = false end
 
-	local targetAlpha = shouldHide and 0 or 1
+	local targetAlpha
+	if shouldHide then
+		targetAlpha = (addon.functions and addon.functions.GetCooldownViewerFadedAlpha and addon.functions.GetCooldownViewerFadedAlpha()) or 0
+	else
+		targetAlpha = 1
+	end
 	if frame.GetAlpha and frame.SetAlpha and frame:GetAlpha() ~= targetAlpha then frame:SetAlpha(targetAlpha) end
 
 	state.applied = true
@@ -1797,6 +1802,19 @@ addon.functions.GetFrameFadeStrength = GetFrameFadeStrength
 
 local function GetFrameFadedAlpha() return 1 - GetFrameFadeStrength() end
 addon.functions.GetFrameFadedAlpha = GetFrameFadedAlpha
+
+local function GetCooldownViewerFadeStrength()
+	if not addon.db then return 1 end
+	local strength = tonumber(addon.db.cooldownViewerFadeStrength)
+	if not strength then strength = 1 end
+	if strength < 0 then strength = 0 end
+	if strength > 1 then strength = 1 end
+	return strength
+end
+addon.functions.GetCooldownViewerFadeStrength = GetCooldownViewerFadeStrength
+
+local function GetCooldownViewerFadedAlpha() return 1 - GetCooldownViewerFadeStrength() end
+addon.functions.GetCooldownViewerFadedAlpha = GetCooldownViewerFadedAlpha
 
 local function ApplyActionBarAlpha(bar, variable, config, combatOverride, skipFade)
 	if not bar then return end
@@ -3434,6 +3452,10 @@ local function initMap()
 	if addon.db["enableWayCommand"] then addon.functions.registerWayCommand() end
 	addon.functions.InitDBValue("enableCooldownManagerSlashCommand", false)
 	if addon.db["enableCooldownManagerSlashCommand"] then addon.functions.registerCooldownManagerSlashCommand() end
+	addon.functions.InitDBValue("enableEditModeSlashCommand", false)
+	if addon.db["enableEditModeSlashCommand"] then addon.functions.registerEditModeSlashCommand() end
+	addon.functions.InitDBValue("enableQuickKeybindSlashCommand", false)
+	if addon.db["enableQuickKeybindSlashCommand"] then addon.functions.registerQuickKeybindSlashCommand() end
 end
 
 local function initSocial()
@@ -3490,6 +3512,7 @@ local function initUI()
 	addon.functions.InitDBValue("showTrainAllButton", false)
 	addon.functions.InitDBValue("autoCancelDruidFlightForm", false)
 	addon.functions.InitDBValue("randomMountDruidNoShiftWhileMounted", false)
+	addon.functions.InitDBValue("cooldownViewerFadeStrength", 1)
 	addon.functions.InitDBValue("enableSquareMinimap", false)
 	addon.functions.InitDBValue("enableSquareMinimapBorder", false)
 	addon.functions.InitDBValue("enableSquareMinimapLayout", false)

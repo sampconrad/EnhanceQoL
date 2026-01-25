@@ -340,6 +340,14 @@ local function normalizeFontStyleChoice(style, fallback)
 	return "NONE"
 end
 
+local function normalizeOpacity(value, fallback)
+	local resolvedFallback = fallback
+	if resolvedFallback == nil then resolvedFallback = 1 end
+	local num = clampNumber(value, 0, 1, resolvedFallback)
+	if num == nil then return resolvedFallback end
+	return num
+end
+
 local function resolveFontPath(value, fallback)
 	if type(value) == "string" and value ~= "" then return value end
 	if type(fallback) == "string" and fallback ~= "" then return fallback end
@@ -2994,11 +3002,38 @@ function CooldownPanels:ShouldShowPanel(panelId)
 	return runtime.visibleCount and runtime.visibleCount > 0
 end
 
+function CooldownPanels:UpdatePanelOpacity(panelId)
+	local panel = self:GetPanel(panelId)
+	if not panel then return end
+	local runtime = getRuntime(panelId)
+	local frame = runtime.frame
+	if not frame then return end
+	panel.layout = panel.layout or Helper.CopyTableShallow(Helper.PANEL_LAYOUT_DEFAULTS)
+	local layout = panel.layout
+	local fallbackOut = Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat
+	local fallbackIn = Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat
+	local outAlpha = normalizeOpacity(layout.opacityOutOfCombat, fallbackOut)
+	local inAlpha = normalizeOpacity(layout.opacityInCombat, fallbackIn)
+	local alpha
+	if self:IsInEditMode() == true then
+		alpha = 1
+	else
+		local inCombat = (InCombatLockdown and InCombatLockdown()) or (UnitAffectingCombat and UnitAffectingCombat("player")) or false
+		alpha = inCombat and inAlpha or outAlpha
+	end
+	if alpha == nil then alpha = 1 end
+	if frame._eqolAlpha ~= alpha then
+		frame._eqolAlpha = alpha
+		frame:SetAlpha(alpha)
+	end
+end
+
 function CooldownPanels:UpdateVisibility(panelId)
 	local runtime = getRuntime(panelId)
 	local frame = runtime.frame
 	if not frame then return end
 	frame:SetShown(self:ShouldShowPanel(panelId))
+	self:UpdatePanelOpacity(panelId)
 	self:UpdatePanelMouseState(panelId)
 end
 
@@ -3112,6 +3147,10 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		layout.cooldownGcdDrawSwipe = value == true
 	elseif field == "showTooltips" then
 		layout.showTooltips = value == true
+	elseif field == "opacityOutOfCombat" then
+		layout.opacityOutOfCombat = normalizeOpacity(value, layout.opacityOutOfCombat or Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat)
+	elseif field == "opacityInCombat" then
+		layout.opacityInCombat = normalizeOpacity(value, layout.opacityInCombat or Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat)
 	end
 
 	if field == "iconSize" then CooldownPanels:ReskinMasque() end
@@ -3121,6 +3160,7 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 	if not skipRefresh then
 		CooldownPanels:ApplyLayout(panelId)
 		CooldownPanels:UpdatePreviewIcons(panelId)
+		CooldownPanels:UpdateVisibility(panelId)
 	end
 end
 
@@ -3155,6 +3195,8 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 	applyEditLayout(panelId, "cooldownGcdDrawBling", data.cooldownGcdDrawBling, true)
 	applyEditLayout(panelId, "cooldownGcdDrawSwipe", data.cooldownGcdDrawSwipe, true)
 	applyEditLayout(panelId, "showTooltips", data.showTooltips, true)
+	applyEditLayout(panelId, "opacityOutOfCombat", data.opacityOutOfCombat, true)
+	applyEditLayout(panelId, "opacityInCombat", data.opacityInCombat, true)
 
 	runtime.applyingFromEditMode = nil
 	self:ApplyLayout(panelId)
@@ -3554,6 +3596,38 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				set = function(_, value) applyEditLayout(panelId, "showTooltips", value) end,
 			},
 			{
+				name = L["CooldownPanelOpacityOutOfCombat"] or "Opacity (out of combat)",
+				kind = SettingType.Slider,
+				field = "opacityOutOfCombat",
+				default = normalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat),
+				minValue = 0,
+				maxValue = 1,
+				valueStep = 0.05,
+				allowInput = true,
+				get = function() return normalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat) end,
+				set = function(_, value) applyEditLayout(panelId, "opacityOutOfCombat", value) end,
+				formatter = function(value)
+					local num = tonumber(value) or 0
+					return tostring(math.floor((num * 100) + 0.5)) .. "%"
+				end,
+			},
+			{
+				name = L["CooldownPanelOpacityInCombat"] or "Opacity (in combat)",
+				kind = SettingType.Slider,
+				field = "opacityInCombat",
+				default = normalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat),
+				minValue = 0,
+				maxValue = 1,
+				valueStep = 0.05,
+				allowInput = true,
+				get = function() return normalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat) end,
+				set = function(_, value) applyEditLayout(panelId, "opacityInCombat", value) end,
+				formatter = function(value)
+					local num = tonumber(value) or 0
+					return tostring(math.floor((num * 100) + 0.5)) .. "%"
+				end,
+			},
+			{
 				name = L["CooldownPanelStacksHeader"] or "Stacks / Item Count",
 				kind = SettingType.Collapsible,
 				id = "cooldownPanelStacks",
@@ -3842,6 +3916,8 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			cooldownGcdDrawEdge = layout.cooldownGcdDrawEdge == true,
 			cooldownGcdDrawBling = layout.cooldownGcdDrawBling == true,
 			cooldownGcdDrawSwipe = layout.cooldownGcdDrawSwipe == true,
+			opacityOutOfCombat = normalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat),
+			opacityInCombat = normalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat),
 			showTooltips = layout.showTooltips == true,
 		},
 		onApply = function(_, _, data)
@@ -3945,6 +4021,8 @@ local function ensureUpdateFrame()
 	frame:RegisterEvent("BAG_UPDATE_DELAYED")
 	frame:RegisterEvent("BAG_UPDATE_COOLDOWN")
 	frame:RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN")
+	frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	CooldownPanels.runtime.updateFrame = frame
 end
