@@ -929,6 +929,20 @@ local function createCooldownViewerDropdowns(category, expandable)
 		parentCheck = dropdownEnabled,
 		parentSection = expandable,
 	})
+
+	addon.functions.SettingsCreateCheckbox(category, {
+		var = "cooldownViewerSharedHover",
+		text = L["cooldownManagerSharedHover"],
+		default = false,
+		get = function() return addon.db and addon.db.cooldownViewerSharedHover end,
+		set = function(value)
+			addon.db.cooldownViewerSharedHover = value
+			if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
+		end,
+		desc = L["cooldownManagerSharedHoverDesc"],
+		parentCheck = dropdownEnabled,
+		parentSection = expandable,
+	})
 end
 
 local function createFrameCategory()
