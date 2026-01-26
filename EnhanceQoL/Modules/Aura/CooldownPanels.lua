@@ -1496,7 +1496,8 @@ local function triggerReadyGlow(panelId, entryId, glowDuration)
 			local rt = getRuntime(panelId)
 			if rt and rt.readyAt and rt.readyAt[entryId] == now then rt.readyAt[entryId] = nil end
 			if rt and rt.glowTimers then rt.glowTimers[entryId] = nil end
-			if CooldownPanels and CooldownPanels.RequestUpdate then CooldownPanels:RequestUpdate() end
+			if CooldownPanels and CooldownPanels.RefreshPanel then CooldownPanels:RefreshPanel(panelId) end
+			-- if CooldownPanels and CooldownPanels.RequestUpdate then CooldownPanels:RequestUpdate() end
 		end)
 	end
 end
@@ -1518,7 +1519,8 @@ local function onCooldownDone(self)
 		if self._eqolGlowReady then triggerReadyGlow(self._eqolPanelId, self._eqolEntryId, self._eqolGlowDuration) end
 	end
 
-	if CooldownPanels and CooldownPanels.RequestUpdate then CooldownPanels:RequestUpdate() end
+	if CooldownPanels and CooldownPanels.RefreshPanel then CooldownPanels:RefreshPanel(self._eqolPanelId) end
+	-- if CooldownPanels and CooldownPanels.RequestUpdate then CooldownPanels:RequestUpdate() end
 end
 
 local function isSafeNumber(value) return type(value) == "number" and (not issecretvalue or not issecretvalue(value)) end
@@ -3521,6 +3523,11 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 	end
 end
 
+local function isSpellFlagged(map, baseId, effectiveId)
+	if not map then return false end
+	return (effectiveId and map[effectiveId]) or (baseId and map[baseId]) or false
+end
+
 function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local panel = self:GetPanel(panelId)
 	if not panel then return end
@@ -3571,16 +3578,16 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local shared = CooldownPanels.runtime -- Root runtime (global state)
 			local baseSpellId = entry.type == "SPELL" and entry.spellID or nil
 			local effectiveSpellId = baseSpellId and getEffectiveSpellId(baseSpellId) or nil
-			local function isSpellFlagged(map)
-				if not map then return false end
-				if effectiveSpellId and map[effectiveSpellId] == true then return true end
-				if baseSpellId and map[baseSpellId] == true then return true end
-				return false
-			end
+			-- local function isSpellFlagged(map)
+			-- 	if not map then return false end
+			-- 	if effectiveSpellId and map[effectiveSpellId] == true then return true end
+			-- 	if baseSpellId and map[baseSpellId] == true then return true end
+			-- 	return false
+			-- end
 
-			local overlayGlow = entry.type == "SPELL" and isSpellFlagged(shared.overlayGlowSpells)
-			local powerInsufficient = checkPower and entry.type == "SPELL" and isSpellFlagged(shared.powerInsufficient)
-			local rangeOverlay = rangeOverlayEnabled and entry.type == "SPELL" and isSpellFlagged(shared.rangeOverlaySpells)
+			local overlayGlow = entry.type == "SPELL" and isSpellFlagged(shared.overlayGlowSpells, baseSpellId, effectiveSpellId)
+			local powerInsufficient = checkPower and entry.type == "SPELL" and isSpellFlagged(shared.powerInsufficient, baseSpellId, effectiveSpellId)
+			local rangeOverlay = rangeOverlayEnabled and entry.type == "SPELL" and isSpellFlagged(shared.rangeOverlaySpells, baseSpellId, effectiveSpellId)
 
 			local iconTexture = getEntryIcon(entry)
 			local stackCount
@@ -5392,6 +5399,10 @@ end
 local function setOverlayGlowForSpell(spellId, enabled)
 	local id = tonumber(spellId)
 	if not id then return false end
+	local index = CooldownPanels.runtime and CooldownPanels.runtime.spellIndex
+	local panels = index and index[id]
+	if not panels then return false end
+
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	local runtime = CooldownPanels.runtime
 	runtime.overlayGlowSpells = runtime.overlayGlowSpells or {}
@@ -5409,6 +5420,9 @@ local function setRangeOverlayForSpell(spellIdentifier, isInRange, checksRange)
 	local id = tonumber(spellIdentifier)
 	if not id and type(spellIdentifier) == "string" then id = C_Spell.GetSpellIDForSpellIdentifier(spellIdentifier) end
 	if not id then return false end
+	local index = CooldownPanels.runtime and CooldownPanels.runtime.spellIndex
+	local panels = index and index[id]
+	if not panels then return false end
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	local runtime = CooldownPanels.runtime
 	runtime.rangeOverlaySpells = runtime.rangeOverlaySpells or {}
@@ -5473,17 +5487,20 @@ local function ensureUpdateFrame()
 			invalidateKeybindCache()
 			CooldownPanels:RequestUpdate()
 		end
-		if event == "UNIT_AURA" then
-			local unit = ...
-			if unit ~= "player" then return end
-		end
+		-- if event == "UNIT_AURA" then
+		-- 	local unit = ...
+		-- 	if unit ~= "player" then return end
+		-- end
 		if event == "UNIT_SPELLCAST_SUCCEEDED" then
 			local unit, _, spellId = ...
-			if unit == "player" and spellId then
-				if clearReadyGlowForSpell(spellId) then
-					if refreshPanelsForSpell(spellId) then return end
-				end
-			end
+			clearReadyGlowForSpell(spellId) -- ignorier return
+			refreshPanelsForSpell(spellId)
+			return
+			-- if unit == "player" and spellId then
+			-- 	if clearReadyGlowForSpell(spellId) then
+			-- 		if refreshPanelsForSpell(spellId) then return end
+			-- 	end
+			-- end
 		end
 		if event == "SPELL_UPDATE_COOLDOWN" then
 			if refreshPanelsForSpell(...) then return end
@@ -5501,7 +5518,6 @@ local function ensureUpdateFrame()
 	frame:RegisterEvent("SPELLS_CHANGED")
 	frame:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
 	frame:RegisterEvent("PLAYER_TALENT_UPDATE")
-	frame:RegisterEvent("UNIT_AURA")
 	frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 	frame:RegisterEvent("BAG_UPDATE_DELAYED")
 	frame:RegisterEvent("BAG_UPDATE_COOLDOWN")
@@ -5515,7 +5531,7 @@ local function ensureUpdateFrame()
 	frame:RegisterEvent("SPELL_RANGE_CHECK_UPDATE")
 	frame:RegisterEvent("PLAYER_REGEN_DISABLED")
 	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-	frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+	frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	CooldownPanels.runtime.updateFrame = frame
 	updatePowerEventRegistration()
