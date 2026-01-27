@@ -3150,8 +3150,7 @@ local function refreshPreview(editor, panel)
 
 	if editor.previewHintLabel then editor.previewHintLabel:Show() end
 	local baseLayout = (panel and panel.layout) or Helper.PANEL_LAYOUT_DEFAULTS
-	local previewEntryIds = getPreviewEntryIds and getPreviewEntryIds(panel) or nil
-	local count = getEditorPreviewCount(panel, preview, baseLayout, previewEntryIds)
+	local count = getEditorPreviewCount(panel, preview, baseLayout)
 	local layout = getPreviewLayout(panel, preview, count)
 	applyIconLayout(canvas, count, layout)
 	canvas:ClearAllPoints()
@@ -3160,16 +3159,11 @@ local function refreshPreview(editor, panel)
 
 	preview.entryByIndex = preview.entryByIndex or {}
 	for i = 1, count do
-		local entryId = (previewEntryIds and previewEntryIds[i]) or (panel.order and panel.order[i])
+		local entryId = panel.order and panel.order[i]
 		local entry = entryId and panel.entries and panel.entries[entryId] or nil
 		local icon = canvas.icons[i]
-		if entry then
-			icon.texture:SetTexture(getEntryIcon(entry))
-			icon.entryId = entryId
-		else
-			icon.texture:SetTexture(PREVIEW_ICON)
-			icon.entryId = nil
-		end
+		icon.texture:SetTexture(getEntryIcon(entry))
+		icon.entryId = entryId
 		icon.count:Hide()
 		icon.charges:Hide()
 		if icon.rangeOverlay then icon.rangeOverlay:Hide() end
