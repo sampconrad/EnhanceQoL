@@ -3918,7 +3918,6 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				end
 				if data.cooldownGCD then
 				else
-					print("Test")
 					if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
 				end
 			elseif cooldownActive then
