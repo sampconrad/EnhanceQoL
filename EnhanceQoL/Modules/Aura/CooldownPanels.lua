@@ -268,9 +268,17 @@ local function getBaseSpellId(spellId)
 	return id
 end
 
-local function getSpellPowerCostNames(spellId)
-	if not spellId or not GetSpellPowerCost then return nil end
-	local costs = GetSpellPowerCost(spellId)
+local function setPowerInsufficient(runtime, spellId, isUsable, insufficientPower)
+	if not runtime or not spellId then return end
+	runtime.powerInsufficient = runtime.powerInsufficient or {}
+	local value = (not isUsable or insufficientPower) and true or nil
+	local baseId = getBaseSpellId(spellId)
+	local effectiveId = getEffectiveSpellId(spellId)
+	if baseId then runtime.powerInsufficient[baseId] = value end
+	if effectiveId and effectiveId ~= baseId then runtime.powerInsufficient[effectiveId] = value end
+end
+
+local function getSpellPowerCostNamesFromCosts(costs)
 	if type(costs) ~= "table" then return nil end
 	local names, seen = {}, {}
 	for _, info in ipairs(costs) do
@@ -282,6 +290,11 @@ local function getSpellPowerCostNames(spellId)
 	end
 	if #names == 0 then return nil end
 	return names
+end
+
+local function getSpellPowerCostNames(spellId)
+	if not spellId or not GetSpellPowerCost then return nil end
+	return getSpellPowerCostNamesFromCosts(GetSpellPowerCost(spellId))
 end
 
 local function getRuntime(panelId)
@@ -1133,6 +1146,7 @@ function CooldownPanels:RebuildPowerIndex()
 	local root = ensureRoot()
 	local powerIndex = {}
 	local powerCostNames = {}
+	local powerCheckSpells = {}
 	local powerCheckActive = false
 	if root and root.panels then
 		for _, panel in pairs(root.panels) do
@@ -1144,14 +1158,18 @@ function CooldownPanels:RebuildPowerIndex()
 						local baseId = tonumber(entry.spellID)
 						if baseId then
 							local effectiveId = getEffectiveSpellId(baseId) or baseId
-							local names = getSpellPowerCostNames(effectiveId)
-							if names then
-								powerCostNames[baseId] = names
-								for _, name in ipairs(names) do
-									local key = string.upper(name)
-									if key ~= "" then
-										powerIndex[key] = powerIndex[key] or {}
-										powerIndex[key][effectiveId] = true
+							local costs = GetSpellPowerCost and GetSpellPowerCost(effectiveId)
+							if type(costs) == "table" then
+								powerCheckSpells[effectiveId] = true
+								local names = getSpellPowerCostNamesFromCosts(costs)
+								if names then
+									powerCostNames[baseId] = names
+									for _, name in ipairs(names) do
+										local key = string.upper(name)
+										if key ~= "" then
+											powerIndex[key] = powerIndex[key] or {}
+											powerIndex[key][effectiveId] = true
+										end
 									end
 								end
 							end
@@ -1161,21 +1179,21 @@ function CooldownPanels:RebuildPowerIndex()
 			end
 		end
 	end
-	if powerCheckActive and not next(powerIndex) then powerCheckActive = false end
+	if powerCheckActive and not next(powerCheckSpells) then powerCheckActive = false end
 	self.runtime = self.runtime or {}
 	local runtime = self.runtime
 	runtime.powerIndex = powerIndex
 	runtime.powerCostNames = powerCostNames
+	runtime.powerCheckSpells = powerCheckSpells
 	runtime.powerCheckActive = powerCheckActive == true
 	runtime.powerInsufficient = runtime.powerInsufficient or {}
 	wipe(runtime.powerInsufficient)
 	updatePowerEventRegistration()
 	if IsSpellUsableFn then
-		for _, spells in pairs(powerIndex) do
-			for spellId in pairs(spells) do
-				local _, insufficientPower = IsSpellUsableFn(spellId)
-				if insufficientPower then runtime.powerInsufficient[spellId] = true end
-			end
+		for spellId in pairs(powerCheckSpells) do
+			local checkId = getEffectiveSpellId(spellId) or spellId
+			local isUsable, insufficientPower = IsSpellUsableFn(checkId)
+			setPowerInsufficient(runtime, checkId, isUsable, insufficientPower)
 		end
 	end
 end
@@ -3670,6 +3688,13 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local overlayGlow = entry.type == "SPELL" and isSpellFlagged(shared.overlayGlowSpells, baseSpellId, effectiveSpellId)
 			local powerInsufficient = checkPower and entry.type == "SPELL" and isSpellFlagged(shared.powerInsufficient, baseSpellId, effectiveSpellId)
 			local rangeOverlay = rangeOverlayEnabled and entry.type == "SPELL" and isSpellFlagged(shared.rangeOverlaySpells, baseSpellId, effectiveSpellId)
+			if rangeOverlay and IsSpellUsableFn then
+				local checkId = effectiveSpellId or baseSpellId
+				if checkId then
+					local isUsable = IsSpellUsableFn(checkId)
+					if not isUsable then rangeOverlay = false end
+				end
+			end
 
 			local iconTexture = getEntryIcon(entry)
 			local stackCount
@@ -5569,30 +5594,36 @@ local function refreshPanelsForCharges()
 	return false
 end
 
-local function updatePowerStatesForType(powerType)
+local function updatePowerStatesVisible()
 	if not IsSpellUsableFn then return false end
 	local runtime = CooldownPanels.runtime
-	local powerIndex = runtime and runtime.powerIndex
-	if not powerIndex or not runtime.powerCheckActive or type(powerType) ~= "string" or powerType == "" then return false end
-	local key = string.upper(powerType)
-	local spells = powerIndex[key]
-	if not spells then return false end
+	local powerCheckSpells = runtime and runtime.powerCheckSpells
+	local enabledPanels = runtime and runtime.enabledPanels
+	if not powerCheckSpells or not runtime.powerCheckActive or not enabledPanels then return false end
 	runtime.powerInsufficient = runtime.powerInsufficient or {}
 	local panelsToRefresh
-	local spellIndex = runtime and runtime.spellIndex
-	for spellId in pairs(spells) do
-		local _, insufficientPower = IsSpellUsableFn(spellId)
-		if insufficientPower then
-			runtime.powerInsufficient[spellId] = true
-		else
-			runtime.powerInsufficient[spellId] = nil
-		end
-		if spellIndex then
-			local panels = spellIndex[spellId]
-			if panels then
-				panelsToRefresh = panelsToRefresh or {}
-				for panelId in pairs(panels) do
-					panelsToRefresh[panelId] = true
+	local checked = {}
+	for panelId in pairs(enabledPanels) do
+		local panelRuntime = runtime[panelId]
+		local visible = panelRuntime and panelRuntime.visibleEntries
+		if visible and #visible > 0 then
+			for i = 1, #visible do
+				local data = visible[i]
+				local entry = data and data.entry
+				if entry and entry.type == "SPELL" and entry.spellID then
+					local baseId = tonumber(entry.spellID)
+					if baseId then
+						local effectiveId = getEffectiveSpellId(baseId) or baseId
+						if powerCheckSpells[effectiveId] then
+							if not checked[effectiveId] then
+								checked[effectiveId] = true
+								local isUsable, insufficientPower = IsSpellUsableFn(effectiveId)
+								setPowerInsufficient(runtime, effectiveId, isUsable, insufficientPower)
+							end
+							panelsToRefresh = panelsToRefresh or {}
+							panelsToRefresh[panelId] = true
+						end
+					end
 				end
 			end
 		end
@@ -5605,6 +5636,19 @@ local function updatePowerStatesForType(powerType)
 	return true
 end
 
+local function schedulePowerUsableRefresh()
+	local runtime = CooldownPanels.runtime
+	if not runtime or not runtime.powerCheckActive then return end
+	if runtime.powerRefreshPending then return end
+	runtime.powerRefreshPending = true
+	C_Timer.After(0, function()
+		local rt = CooldownPanels.runtime
+		if not rt then return end
+		rt.powerRefreshPending = nil
+		updatePowerStatesVisible()
+	end)
+end
+
 updatePowerEventRegistration = function()
 	local runtime = CooldownPanels.runtime
 	local frame = runtime and runtime.updateFrame
@@ -5612,9 +5656,11 @@ updatePowerEventRegistration = function()
 	local enable = runtime and runtime.powerCheckActive
 	if enable and not runtime.powerEventRegistered then
 		frame:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
+		frame:RegisterEvent("SPELL_UPDATE_USABLE")
 		runtime.powerEventRegistered = true
 	elseif not enable and runtime.powerEventRegistered then
 		frame:UnregisterEvent("UNIT_POWER_UPDATE")
+		frame:UnregisterEvent("SPELL_UPDATE_USABLE")
 		runtime.powerEventRegistered = nil
 	end
 end
@@ -5763,10 +5809,14 @@ local function ensureUpdateFrame()
 			setRangeOverlayForSpell(spellId, inRange, checksRange)
 			return
 		end
+		if event == "SPELL_UPDATE_USABLE" then
+			schedulePowerUsableRefresh()
+			return
+		end
 		if event == "UNIT_POWER_UPDATE" then
-			local unit, powerType = ...
+			local unit = ...
 			if unit ~= "player" then return end
-			updatePowerStatesForType(powerType)
+			schedulePowerUsableRefresh()
 			return
 		end
 		if event == "SPELL_UPDATE_ICON" then

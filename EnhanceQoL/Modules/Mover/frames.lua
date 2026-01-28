@@ -429,6 +429,9 @@ local frames = {
 		label = L["Mail"] or "Mail",
 		group = "vendors",
 		names = { "MailFrame" },
+		addon = "Blizzard_MailFrame",
+		useRootHandle = true,
+		handles = { "SendMailFrame", "MailFrameInset" },
 		defaultEnabled = true,
 	},
 	{
@@ -436,6 +439,9 @@ local frames = {
 		label = L["OpenMail"] or "Open Mail",
 		group = "vendors",
 		names = { "OpenMailFrame" },
+		addon = "Blizzard_MailFrame",
+		useRootHandle = true,
+		handles = { "OpenMailSender", "OpenMailFrameInset" },
 		defaultEnabled = true,
 	},
 	{

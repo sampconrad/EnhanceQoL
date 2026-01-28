@@ -1,5 +1,14 @@
 # Changelog
 
+## [7.7.3] - 2026-01-28
+
+### 🐛 Fixed
+
+- Mover: MailFrame/SendMail and Open Mail are now movable.
+- Cooldown Panels: Spell usable checks are now evaluated correctly.
+
+---
+
 ## [7.7.2] - 2026-01-27
 
 ### 🐛 Fixed
