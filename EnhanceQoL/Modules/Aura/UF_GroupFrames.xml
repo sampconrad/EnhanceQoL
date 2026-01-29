@@ -1,0 +1,33 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<!--
+		EQoL Group Unit Frames
+		
+		This file only defines the *button template* used by SecureGroupHeaderTemplate.
+		The actual party/raid headers are created in UF_GroupFrames.lua (so we can
+		apply settings, visibility, and future EditMode integration in Lua).
+		
+		Why XML at all?
+		SecureGroupHeaderTemplate wants a named template to spawn for each unit button.
+		Defining that template in XML is the simplest and most reliable approach.
+	-->
+
+	<Button name="EQOLUFGroupUnitButtonTemplate" virtual="true" inherits="BackdropTemplate,SecureUnitButtonTemplate,PingableUnitFrameTemplate">
+		<Scripts>
+			<OnLoad>
+				EnhanceQoL.Aura.UF.GroupFrames.UnitButton_OnLoad(self);
+			</OnLoad>
+			<OnEvent>
+				EnhanceQoL.Aura.UF.GroupFrames.UnitButton_OnEvent(self, event, ...);
+			</OnEvent>
+			<OnAttributeChanged>
+				EnhanceQoL.Aura.UF.GroupFrames.UnitButton_OnAttributeChanged(self, name, value);
+			</OnAttributeChanged>
+			<OnEnter>
+				EnhanceQoL.Aura.UF.GroupFrames.UnitButton_OnEnter(self);
+			</OnEnter>
+			<OnLeave>
+				EnhanceQoL.Aura.UF.GroupFrames.UnitButton_OnLeave(self);
+			</OnLeave>
+		</Scripts>
+	</Button>
+</Ui>

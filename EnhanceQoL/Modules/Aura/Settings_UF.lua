@@ -4039,6 +4039,26 @@ local function registerSettingsUI()
 	addon.SettingsLayout.ufPlusCategory = cUF
 	addon.functions.SettingsCreateText(cUF, "|cff99e599" .. L["UFPlusHint"] .. "|r", { parentSection = expandable })
 	addon.functions.SettingsCreateText(cUF, "", { parentSection = expandable })
+	--@debug@
+	addon.functions.SettingsCreateCheckbox(cUF, {
+		var = "ufEnableGroupFrames",
+		text = L["UFGroupFramesEnable"] or "Enable party/raid group frames",
+		default = false,
+		get = function() return addon.db and addon.db.ufEnableGroupFrames == true end,
+		func = function(val)
+			addon.db = addon.db or {}
+			addon.db.ufEnableGroupFrames = val and true or false
+			if UF and UF.GroupFrames then
+				if val then
+					UF.GroupFrames:EnableFeature()
+				else
+					UF.GroupFrames:DisableFeature()
+				end
+			end
+		end,
+		parentSection = expandable,
+	})
+	--@end-debug@
 	local function addToggle(unit, label, varName)
 		local def = defaultsFor(unit)
 		addon.functions.SettingsCreateCheckbox(cUF, {
@@ -4340,6 +4360,29 @@ end
 
 function UF.RegisterSettings()
 	if not addon.db then return end
-	registerEditModeFrames()
 	registerSettingsUI()
+	if UF.EditModeRegistered then return end
+	local editMode = addon.EditMode
+	local lib = editMode and editMode.lib
+	local function isLayoutReady()
+		if not lib or not lib.GetActiveLayoutName then return true end
+		local name = lib:GetActiveLayoutName()
+		return name ~= nil and name ~= ""
+	end
+	if isLayoutReady() then
+		registerEditModeFrames()
+		return
+	end
+	if UF._pendingEditModeRegister then return end
+	UF._pendingEditModeRegister = true
+	local waiter = CreateFrame("Frame")
+	waiter:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
+	waiter:RegisterEvent("PLAYER_LOGIN")
+	waiter:SetScript("OnEvent", function()
+		if not isLayoutReady() then return end
+		registerEditModeFrames()
+		UF._pendingEditModeRegister = nil
+		waiter:UnregisterAllEvents()
+		waiter:SetScript("OnEvent", nil)
+	end)
 end

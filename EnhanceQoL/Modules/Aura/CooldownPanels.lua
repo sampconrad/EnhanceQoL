@@ -624,6 +624,21 @@ local function getPlayerSpecId()
 	return nil
 end
 
+local function getPlayerClassSpecMap()
+	local classId = UnitClass and select(3, UnitClass("player")) or nil
+	if not classId then return nil end
+	local getSpecCount = (C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializationsForClassID) or GetNumSpecializationsForClassID
+	if not getSpecCount or not GetSpecializationInfoForClassID then return nil end
+	local specs = {}
+	local sex = UnitSex and UnitSex("player") or nil
+	local specCount = getSpecCount(classId) or 0
+	for specIndex = 1, specCount do
+		local specID = GetSpecializationInfoForClassID(classId, specIndex, sex)
+		if specID then specs[specID] = true end
+	end
+	return specs
+end
+
 local function panelHasSpecFilter(panel)
 	local filter = panel and panel.specFilter
 	if type(filter) ~= "table" then return false end
@@ -639,6 +654,15 @@ local function panelAllowsSpec(panel)
 	if not specId then return false end
 	local filter = panel and panel.specFilter
 	return filter and filter[specId] == true
+end
+
+local function panelMatchesPlayerClass(panel, classSpecs)
+	if not panelHasSpecFilter(panel) then return true end
+	if not classSpecs or not next(classSpecs) then return true end
+	for specId, enabled in pairs(panel.specFilter) do
+		if enabled and classSpecs[specId] then return true end
+	end
+	return false
 end
 
 local function getSpecFilterLabel(panel)
@@ -1827,6 +1851,18 @@ local function showSpecMenu(owner, panelId)
 	end)
 end
 
+local function showPanelFilterMenu(owner)
+	if not MenuUtil or not MenuUtil.CreateContextMenu then return end
+	MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
+		rootDescription:SetTag("MENU_EQOL_COOLDOWN_PANEL_FILTERS")
+		rootDescription:CreateTitle(L["CooldownPanelPanelFilters"] or "Panel filters")
+		rootDescription:CreateCheckbox(L["CooldownPanelOnlyMyClass"] or "Only show Panels of my Class", function() return addon.db and addon.db.cooldownPanelsFilterClass == true end, function()
+			if addon.db then addon.db.cooldownPanelsFilterClass = addon.db.cooldownPanelsFilterClass ~= true end
+			CooldownPanels:RefreshEditor()
+		end)
+	end)
+end
+
 local function showSoundMenu(owner, panelId, entryId)
 	if not panelId or not entryId or not MenuUtil or not MenuUtil.CreateContextMenu then return end
 	local panel = CooldownPanels:GetPanel(panelId)
@@ -1875,6 +1911,24 @@ local function saveEditorPosition(frame)
 end
 
 local ensureDeletePopup
+
+local function applySettingsIcon(texture)
+	if not texture then return end
+	local source = QuestScrollFrame and QuestScrollFrame.SettingsDropdown and QuestScrollFrame.SettingsDropdown.icon
+	if source then
+		local atlas = source.GetAtlas and source:GetAtlas()
+		if atlas and atlas ~= "" then
+			if texture.SetAtlas then texture:SetAtlas(atlas, true) end
+			return
+		end
+		local tex = source.GetTexture and source:GetTexture()
+		if tex then
+			texture:SetTexture(tex)
+			return
+		end
+	end
+	texture:SetTexture("Interface\\Buttons\\UI-OptionsButton")
+end
 
 local function ensureEditor()
 	local runtime = getRuntime("editor")
@@ -1930,6 +1984,19 @@ local function ensureEditor()
 
 	local panelTitle = Helper.CreateLabel(left, L["CooldownPanelPanels"] or "Panels", 12, "OUTLINE")
 	panelTitle:SetPoint("TOPLEFT", left, "TOPLEFT", 12, -12)
+
+	if addon.db and addon.db.cooldownPanelsFilterClass == nil then addon.db.cooldownPanelsFilterClass = false end
+	local filterButton = CreateFrame("Button", nil, left)
+	filterButton:SetSize(18, 18)
+	filterButton:SetPoint("TOPRIGHT", left, "TOPRIGHT", -10, -10)
+	filterButton.icon = filterButton:CreateTexture(nil, "ARTWORK")
+	filterButton.icon:SetAllPoints(filterButton)
+	filterButton.icon:SetAlpha(0.9)
+	applySettingsIcon(filterButton.icon)
+	filterButton.highlight = filterButton:CreateTexture(nil, "HIGHLIGHT")
+	filterButton.highlight:SetAllPoints(filterButton)
+	filterButton.highlight:SetColorTexture(1, 1, 1, 0.12)
+	filterButton:SetScript("OnClick", function(self) showPanelFilterMenu(self) end)
 
 	local panelScroll = CreateFrame("ScrollFrame", nil, left, "UIPanelScrollFrameTemplate")
 	panelScroll:SetPoint("TOPLEFT", panelTitle, "BOTTOMLEFT", 0, -8)
@@ -2189,6 +2256,7 @@ local function ensureEditor()
 		addSpellBox = addSpellBox,
 		addItemBox = addItemBox,
 		slotButton = slotButton,
+		filterButton = filterButton,
 		inspector = {
 			scroll = rightScroll,
 			content = rightContent,
@@ -2432,17 +2500,27 @@ local function movePanelInOrder(root, panelId, targetPanelId)
 	return true
 end
 
-local function refreshPanelList(editor, root)
+local function findFirstPanelForClass(root, classSpecs)
+	if not root or not root.order then return nil end
+	for _, panelId in ipairs(root.order) do
+		local panel = root.panels and root.panels[panelId]
+		if panel and panelMatchesPlayerClass(panel, classSpecs) then return panelId end
+	end
+	return nil
+end
+
+local function refreshPanelList(editor, root, classSpecs)
 	local list = editor.panelList
 	if not list then return end
 	local content = list.content
 	local rowHeight = 28
 	local spacing = 4
 	local index = 0
+	local filterByClass = addon.db and addon.db.cooldownPanelsFilterClass == true
 
 	for _, panelId in ipairs(root.order or {}) do
 		local panel = root.panels and root.panels[panelId]
-		if panel then
+		if panel and (not filterByClass or panelMatchesPlayerClass(panel, classSpecs)) then
 			index = index + 1
 			local row = editor.panelRows[index]
 			if not row then
@@ -2996,13 +3074,27 @@ function CooldownPanels:RefreshEditor()
 
 	local panelId = editor.selectedPanelId or root.selectedPanel or (root.order and root.order[1])
 	if panelId and (not root.panels or not root.panels[panelId]) then panelId = root.order and root.order[1] or nil end
+
+	local filterByClass = addon.db and addon.db.cooldownPanelsFilterClass == true
+	local classSpecs = filterByClass and getPlayerClassSpecMap() or nil
+	if filterByClass and panelId then
+		local selectedPanel = root.panels and root.panels[panelId]
+		if selectedPanel and not panelMatchesPlayerClass(selectedPanel, classSpecs) then panelId = findFirstPanelForClass(root, classSpecs) end
+	end
 	editor.selectedPanelId = panelId
 	root.selectedPanel = panelId
 
 	local panel = panelId and root.panels and root.panels[panelId] or nil
 	if panel then Helper.NormalizePanel(panel, root.defaults) end
 
-	refreshPanelList(editor, root)
+	if editor.filterButton and editor.filterButton.icon then
+		if filterByClass then
+			editor.filterButton.icon:SetVertexColor(1, 0.82, 0.2, 1)
+		else
+			editor.filterButton.icon:SetVertexColor(1, 1, 1, 0.9)
+		end
+	end
+	refreshPanelList(editor, root, classSpecs)
 	refreshEntryList(editor, panel)
 	refreshPreview(editor, panel)
 
@@ -3587,14 +3679,37 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		if data.showCooldown then
 			if usingCooldown then
 				-- if data.entry.spellID == 204019 then print(cooldownDurationObject:GetRemainingDuration(), cooldownStart, cooldownRate)end
-				-- icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
 				-- icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
 				setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
+				if data.showChargesCooldown then
+					local entrySpellId = data.entry and data.entry.spellID
+					local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
+					local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
+					if CCD and icon.cooldown.SetCooldownFromDurationObject then
+						icon.cooldown:SetCooldownFromDurationObject(CCD)
+					elseif isSafeNumber(cooldownStart) and isSafeNumber(cooldownDuration) then
+						icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
+					else
+						icon.cooldown:Clear()
+					end
+					if not data.cooldownGCD then
+						if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+					end
+				else
+					icon.cooldown:Clear()
+					if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
+				end
 
 				-- local SCD = effectiveId and C_Spell.GetSpellCooldownDuration(effectiveId)
 				-- only when you have zero charges SCD will be true CCD is always true when one charge is missing
 				if cooldownDurationObject then
 					if data.cooldownGCD then
+						if data.showChargesCooldown then
+							local entrySpellId = data.entry and data.entry.spellID
+							local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
+							local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
+							-- icon.cooldown:SetCooldownFromDurationObject(CCD)
+						end
 						-- icon.texture:SetDesaturation(0)
 						-- desaturate = false
 						-- setCooldownDrawState(icon.cooldown, gcdDrawEdge, gcdDrawBling, gcdDrawSwipe)
@@ -3606,30 +3721,33 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 							local entrySpellId = data.entry and data.entry.spellID
 							local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
 							local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
-							icon.cooldown:SetCooldownFromDurationObject(CCD)
+							-- icon.cooldown:SetCooldownFromDurationObject(CCD)
 						else
-							icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
+							-- icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
 						end
 					end
 				end
 			elseif durationActive then
-				icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
+				-- icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
 				if data.cooldownGCD then
 					icon.texture:SetDesaturation(0)
 					desaturate = false
 					setCooldownDrawState(icon.cooldown, gcdDrawEdge, gcdDrawBling, gcdDrawSwipe)
 				else
-					setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
-
-					local desat = cooldownDurationObject:EvaluateRemainingDuration(curveDesat)
-					icon.texture:SetDesaturation(desat)
-				end
-				if data.cooldownGCD then
-				else
 					if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
+					setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
+					icon.texture:SetDesaturation(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+					if data.showChargesCooldown then
+						local entrySpellId = data.entry and data.entry.spellID
+						local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
+						local CCD = effectiveId and C_Spell.GetSpellChargeDuration(effectiveId)
+						-- icon.cooldown:SetCooldownFromDurationObject(CCD)
+					else
+						-- icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
+					end
 				end
 			elseif cooldownActive then
-				icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
+				-- icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
 				desaturate = true
 				icon.texture:SetDesaturated(desaturate)
 				setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
@@ -5536,6 +5654,7 @@ local function ensureUpdateFrame()
 		if event == "PLAYER_LOGIN" then
 			local anchorHelper = CooldownPanels.AnchorHelper
 			if anchorHelper and anchorHelper.HandlePlayerLogin then anchorHelper:HandlePlayerLogin() end
+			refreshPanelsForCharges()
 			return
 		end
 		if event == "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW" then
