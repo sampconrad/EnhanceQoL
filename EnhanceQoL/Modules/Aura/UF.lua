@@ -269,6 +269,7 @@ local defaults = {
 			useShortNumbers = true,
 			hidePercentSymbol = false,
 			texture = "DEFAULT",
+			reverseFill = false,
 		},
 		power = {
 			enabled = true,
@@ -291,6 +292,7 @@ local defaults = {
 			useShortNumbers = true,
 			hidePercentSymbol = false,
 			texture = "DEFAULT",
+			reverseFill = false,
 		},
 		status = {
 			enabled = true,
@@ -4211,12 +4213,16 @@ local function applyBars(cfg, unit)
 	local hc = cfg.health or {}
 	local def = defaultsFor(unit) or {}
 	local defH = def.health or {}
+	local defP = def.power or {}
 	local pcfg = cfg.power or {}
 	local powerEnabled = pcfg.enabled ~= false
 	local healthHeight = cfg.healthHeight or def.healthHeight or (st.health.GetHeight and st.health:GetHeight()) or 0
 	st.health:SetStatusBarTexture(UFHelper.resolveTexture(hc.texture))
 	if st.health.SetStatusBarDesaturated then st.health:SetStatusBarDesaturated(true) end
 	UFHelper.configureSpecialTexture(st.health, "HEALTH", hc.texture, hc)
+	local reverseHealth = hc.reverseFill
+	if reverseHealth == nil then reverseHealth = defH.reverseFill == true end
+	UFHelper.applyStatusBarReverseFill(st.health, reverseHealth)
 	applyBarBackdrop(st.health, hc)
 	if powerEnabled then
 		st.power:SetStatusBarTexture(UFHelper.resolveTexture(pcfg.texture))
@@ -4224,6 +4230,9 @@ local function applyBars(cfg, unit)
 		local _, powerToken = getMainPower(unit)
 		if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerToken)) end
 		UFHelper.configureSpecialTexture(st.power, powerToken, pcfg.texture, pcfg)
+		local reversePower = pcfg.reverseFill
+		if reversePower == nil then reversePower = defP.reverseFill == true end
+		UFHelper.applyStatusBarReverseFill(st.power, reversePower)
 		applyBarBackdrop(st.power, pcfg)
 		st.power:Show()
 	else

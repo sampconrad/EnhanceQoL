@@ -1497,6 +1497,11 @@ local function buildUnitSettings(unit)
 		refresh()
 	end, healthDef.texture or "DEFAULT", "health")
 
+	list[#list + 1] = checkbox(L["Reverse fill"] or "Reverse fill", function() return getValue(unit, { "health", "reverseFill" }, healthDef.reverseFill == true) == true end, function(val)
+		setValue(unit, { "health", "reverseFill" }, val and true or false)
+		refresh()
+	end, healthDef.reverseFill == true, "health")
+
 	list[#list + 1] = checkboxColor({
 		name = L["UFBarBackdrop"] or "Show bar backdrop",
 		parentId = "health",
@@ -1687,6 +1692,11 @@ local function buildUnitSettings(unit)
 		refreshSelf()
 		refreshSettingsUI()
 	end, powerDef.enabled ~= false, "power")
+
+	list[#list + 1] = checkbox(L["Reverse fill"] or "Reverse fill", function() return getValue(unit, { "power", "reverseFill" }, powerDef.reverseFill == true) == true end, function(val)
+		setValue(unit, { "power", "reverseFill" }, val and true or false)
+		refresh()
+	end, powerDef.reverseFill == true, "power", isPowerEnabled)
 
 	local powerHeightSetting = slider(L["UFPowerHeight"] or "Power height", 6, 60, 1, function() return getValue(unit, { "powerHeight" }, def.powerHeight or 16) end, function(val)
 		debounced(unit .. "_powerHeight", function()

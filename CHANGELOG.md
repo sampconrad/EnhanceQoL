@@ -10,6 +10,7 @@
 - Cooldown Panels: Added anchor points for ElvUI, Unhalted Unit Frames, and more MSUF frames (ToT/Focus/Pet/Boss).
 - Cooldown Panels: Edit Mode panel filters (only show panels of your class) and Copy Settings dropdown to clone layout/anchor settings (keeps entries + enabled state untouched).
 - UF Plus: Focus frame aura icons are now supported and configurable.
+- UF Plus: Health and power bars can now reverse their fill direction (right-to-left).
 - Cooldown Panels: New `/cpe` slash command alias (opens the Cooldown Panel editor).
 - Tooltips: Optional target-of-target line on unit tooltips.
 - Tooltips: Optional mount display on player tooltips.
