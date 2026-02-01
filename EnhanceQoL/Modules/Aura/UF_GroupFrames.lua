@@ -2314,13 +2314,11 @@ local function updateGroupAuraCache(unit, st, updateInfo, ac, helpfulFilter, har
 		harmfulFilter = harmfulFilter,
 	})
 	if wantsExternals then
-		if externalCache then
-			AuraUtil.updateAuraCacheFromEvent(externalCache, unit, updateInfo, {
-				showHelpful = true,
-				showHarmful = false,
-				helpfulFilter = AURA_FILTER_BIG_DEFENSIVE,
-			})
-		end
+		if externalCache then AuraUtil.updateAuraCacheFromEvent(externalCache, unit, updateInfo, {
+			showHelpful = true,
+			showHarmful = false,
+			helpfulFilter = AURA_FILTER_BIG_DEFENSIVE,
+		}) end
 	end
 end
 
@@ -3540,9 +3538,7 @@ function GF:ShowPreviewFrames(kind, show)
 	for _, btn in ipairs(frames) do
 		if btn then
 			if show then
-				if not btn.unit then
-					GF:UnitButton_SetUnit(btn, "player")
-				end
+				if not btn.unit then GF:UnitButton_SetUnit(btn, "player") end
 				btn:Show()
 			else
 				GF:UnitButton_ClearUnit(btn)
@@ -3975,6 +3971,19 @@ local function buildEditModeSettings(kind, editModeId)
 		local enabled = hcfg.enabled
 		if enabled == nil then enabled = def.enabled end
 		return enabled == true
+	end
+	local function auraGrowthGenerator()
+		return function(_, root, data)
+			local opts = auraGrowthOptions or auraGrowthXOptions
+			if type(opts) ~= "table" then return end
+			for _, option in ipairs(opts) do
+				local label = option.label or option.text or option.value or ""
+				root:CreateRadio(label, function() return data.get and data.get() == option.value end, function()
+					if data.set then data.set(nil, option.value) end
+					if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
+				end)
+			end
+		end
 	end
 	local function isExternalDRShown()
 		local cfg = getCfg(kind)
@@ -7657,7 +7666,7 @@ local function buildEditModeSettings(kind, editModeId)
 			kind = SettingType.Dropdown,
 			field = "buffGrowth",
 			parentId = "buffs",
-			values = auraGrowthOptions or auraGrowthXOptions,
+			generator = auraGrowthGenerator(),
 			height = 180,
 			get = function()
 				local cfg = getCfg(kind)
@@ -7854,7 +7863,7 @@ local function buildEditModeSettings(kind, editModeId)
 			kind = SettingType.Dropdown,
 			field = "debuffGrowth",
 			parentId = "debuffs",
-			values = auraGrowthOptions or auraGrowthXOptions,
+			generator = auraGrowthGenerator(),
 			height = 180,
 			get = function()
 				local cfg = getCfg(kind)
@@ -8051,7 +8060,7 @@ local function buildEditModeSettings(kind, editModeId)
 			kind = SettingType.Dropdown,
 			field = "externalGrowth",
 			parentId = "externals",
-			values = auraGrowthOptions or auraGrowthXOptions,
+			generator = auraGrowthGenerator(),
 			height = 180,
 			get = function()
 				local cfg = getCfg(kind)
