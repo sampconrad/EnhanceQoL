@@ -45,6 +45,41 @@ local npcColorDefaults = {
 local nameWidthCache = {}
 local DROP_SHADOW_FLAG = "DROPSHADOW"
 
+local function utf8Iter(str) return (str or ""):gmatch("[%z\1-\127\194-\244][\128-\191]*") end
+
+local function utf8Len(str)
+	local len = 0
+	for _ in utf8Iter(str) do
+		len = len + 1
+	end
+	return len
+end
+
+local function utf8Sub(str, i, j)
+	str = str or ""
+	if str == "" then return "" end
+	i = i or 1
+	j = j or -1
+	if i < 1 then i = 1 end
+	local len = utf8Len(str)
+	if j < 0 then j = len + j + 1 end
+	if j > len then j = len end
+	if i > j then return "" end
+	local pos = 1
+	local startByte, endByte
+	local idx = 0
+	for char in utf8Iter(str) do
+		idx = idx + 1
+		if idx == i then startByte = pos end
+		if idx == j then
+			endByte = pos + #char - 1
+			break
+		end
+		pos = pos + #char
+	end
+	return str:sub(startByte or 1, endByte or #str)
+end
+
 local function normalizeFontOutline(outline)
 	if outline == nil then return "OUTLINE" end
 	if outline == "" or outline == "NONE" or outline == DROP_SHADOW_FLAG then return nil end
@@ -1231,6 +1266,37 @@ function H.applyNameCharLimit(st, scfg, defStatus)
 	if st.nameText.SetWordWrap then st.nameText:SetWordWrap(false) end
 	local width = H.getNameLimitWidth(scfg and scfg.font, scfg and scfg.fontSize or 14, scfg and scfg.fontOutline or "OUTLINE", maxChars)
 	if width and width > 0 then st.nameText:SetWidth(width) end
+end
+
+function H.truncateTextToWidth(fontPath, fontSize, fontOutline, text, maxWidth)
+	if not text or text == "" or maxWidth <= 0 then return text or "" end
+	if not nameWidthCache._measure and UIParent and UIParent.CreateFontString then
+		nameWidthCache._measure = UIParent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		if nameWidthCache._measure then nameWidthCache._measure:Hide() end
+	end
+	local measure = nameWidthCache._measure
+	if not measure then return text end
+	local size = fontSize or 14
+	local outline = fontOutline or "OUTLINE"
+	local ok = measure.SetFont and measure:SetFont(H.getFont(fontPath), size, outline)
+	if ok == false then measure:SetFont(H.getFont(nil), size, outline) end
+	measure:SetText(text)
+	if measure:GetStringWidth() <= maxWidth then return text end
+	local length = utf8Len(text)
+	local low, high = 1, length
+	local best = ""
+	while low <= high do
+		local mid = math.floor((low + high) / 2)
+		local candidate = utf8Sub(text, 1, mid)
+		measure:SetText(candidate)
+		if measure:GetStringWidth() <= maxWidth then
+			best = candidate
+			low = mid + 1
+		else
+			high = mid - 1
+		end
+	end
+	return best
 end
 
 function H.getTextDelimiter(cfg, def)

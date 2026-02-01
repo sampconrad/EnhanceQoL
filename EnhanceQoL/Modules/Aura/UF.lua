@@ -1346,7 +1346,7 @@ function AuraUtil.updateAuraCacheFromEvent(cache, unit, updateInfo, opts)
 	if updateInfo.addedAuras then
 		for _, aura in ipairs(updateInfo.addedAuras) do
 			if aura and aura.auraInstanceID then
-				if hidePermanent and AuraUtil.isPermanentAura(aura, unit) then
+				if hidePermanent and not C_Secrets.ShouldAurasBeSecret() and AuraUtil.isPermanentAura(aura, unit) then
 					if auras[aura.auraInstanceID] then
 						auras[aura.auraInstanceID] = nil
 						local idx = AuraUtil.removeAuraFromOrder(cache, aura.auraInstanceID)
@@ -2057,7 +2057,10 @@ function AuraUtil.updateTargetAuraIcons(startIndex, unit)
 		local icons = st.auraButtons or {}
 		st.auraButtons = icons
 		local shown = #visible
-		for i = 1, shown do
+		startIndex = startIndex or 1
+		if startIndex < 1 then startIndex = 1 end
+
+		for i = startIndex, shown do
 			local entry = visible[i]
 			local auraId = entry and entry.id
 			local aura = auraId and auras[auraId]
