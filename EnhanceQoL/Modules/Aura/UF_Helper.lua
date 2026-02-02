@@ -20,6 +20,12 @@ local EnumPowerType = Enum and Enum.PowerType
 local BLIZZARD_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
 local DEFAULT_AURA_BORDER_TEX = "Interface\\Buttons\\UI-Debuff-Overlays"
 local DEFAULT_AURA_BORDER_COORDS = { 0.296875, 0.5703125, 0, 0.515625 }
+local CombatFeedback_Initialize = _G.CombatFeedback_Initialize
+local CombatFeedback_OnCombatEvent = _G.CombatFeedback_OnCombatEvent
+local CombatFeedback_OnUpdate = _G.CombatFeedback_OnUpdate
+local NewTicker = C_Timer and C_Timer.NewTicker
+local GetTime = _G.GetTime
+local COMBAT_FEEDBACK_THROTTLE = 0.1
 local abs = math.abs
 local floor = math.floor
 local UnitThreatSituation = UnitThreatSituation
@@ -1523,6 +1529,212 @@ function H.updateClassificationIndicator(st, unit, cfg, def, skipDisabled)
 		st.classificationIcon:Show()
 	else
 		st.classificationIcon:Hide()
+	end
+end
+
+local function getCombatFeedbackConfig(cfg, def)
+	local c = (cfg and cfg.combatFeedback) or {}
+	local d = (def and def.combatFeedback) or {}
+	return c, d
+end
+
+local function resolveCombatFeedbackParent(st, location)
+	if not st then return nil end
+	if location == "HEALTH" then return st.health or st.barGroup or st.frame end
+	if location == "POWER" then return st.power or st.barGroup or st.frame end
+	if location == "STATUS" then return st.status or st.frame end
+	return st.frame
+end
+
+local function combatFeedbackHasEvents(events)
+	if type(events) ~= "table" then return true end
+	for _, enabled in pairs(events) do
+		if enabled then return true end
+	end
+	return false
+end
+
+local function combatFeedbackJustify(anchor)
+	if type(anchor) ~= "string" then return "CENTER" end
+	local upper = anchor:upper()
+	if upper:find("LEFT", 1, true) then return "LEFT" end
+	if upper:find("RIGHT", 1, true) then return "RIGHT" end
+	return "CENTER"
+end
+
+function H.combatFeedbackIsEnabled(cfg, def)
+	if cfg and cfg.enabled == false then return false end
+	if not CombatFeedback_OnCombatEvent then return false end
+	local c, d = getCombatFeedbackConfig(cfg, def)
+	local enabled = c.enabled
+	if enabled == nil then enabled = d.enabled end
+	if enabled ~= true then return false end
+	local events = c.events
+	if events == nil then events = d.events end
+	return combatFeedbackHasEvents(events)
+end
+
+function H.combatFeedbackShouldShowEvent(cfg, def, event)
+	if not event then return false end
+	local c, d = getCombatFeedbackConfig(cfg, def)
+	local events = c.events
+	if events == nil then events = d.events end
+	if type(events) ~= "table" then return true end
+	local val = events[event]
+	if val == nil and type(d.events) == "table" then val = d.events[event] end
+	if val == nil then return true end
+	return val == true
+end
+
+local function getCombatFeedbackSampleConfig(cfg, def)
+	local c, d = getCombatFeedbackConfig(cfg, def)
+	local sampleEnabled = c.sample
+	if sampleEnabled == nil then sampleEnabled = d.sample end
+	sampleEnabled = sampleEnabled == true
+	local sampleEvent = c.sampleEvent or d.sampleEvent or "WOUND"
+	local sampleAmount = tonumber(c.sampleAmount or d.sampleAmount) or 12345
+	if sampleAmount < 0 then sampleAmount = 0 end
+	if sampleAmount == 0 then sampleAmount = 1 end
+	return sampleEnabled, sampleEvent, sampleAmount
+end
+
+function H.ensureCombatFeedbackElements(st)
+	if not st or not st.frame then return nil end
+	if not st.combatFeedback then st.combatFeedback = CreateFrame("Frame", nil, st.frame) end
+	if not st.combatFeedbackText then
+		local parent = st.statusTextLayer or st.status or st.frame
+		st.combatFeedbackText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		st.combatFeedbackText:Hide()
+	end
+	st.combatFeedback.feedbackText = st.combatFeedbackText
+	return st.combatFeedback, st.combatFeedbackText
+end
+
+local function stopCombatFeedbackSample(st)
+	if not st then return end
+	local ticker = st._combatFeedbackSampleTicker
+	if ticker and ticker.Cancel then ticker:Cancel() end
+	st._combatFeedbackSampleTicker = nil
+end
+
+function H.applyCombatFeedbackStyle(st, cfg, def)
+	if not st then return end
+	local c, d = getCombatFeedbackConfig(cfg, def)
+	local font = c.font or d.font
+	local fontSize = tonumber(c.fontSize or d.fontSize) or 30
+	if fontSize <= 0 then fontSize = 30 end
+	local anchor = c.anchor or d.anchor or "CENTER"
+	local location = c.location or d.location or "STATUS"
+	local off = c.offset or d.offset or {}
+	local ox = off.x or 0
+	local oy = off.y or 0
+	local key = tostring(font) .. "|" .. tostring(fontSize) .. "|" .. tostring(anchor) .. "|" .. tostring(location) .. "|" .. tostring(ox) .. "|" .. tostring(oy)
+	if st._combatFeedbackStyleKey == key then return end
+	st._combatFeedbackStyleKey = key
+
+	local frame, text = H.ensureCombatFeedbackElements(st)
+	if not frame or not text then return end
+	H.applyFont(text, font, fontSize, nil)
+	text:ClearAllPoints()
+	local parent = resolveCombatFeedbackParent(st, location) or st.frame
+	text:SetPoint(anchor, parent, anchor, ox, oy)
+	if text.SetJustifyH then text:SetJustifyH(combatFeedbackJustify(anchor)) end
+	if text.SetWordWrap then text:SetWordWrap(false) end
+	if text.SetMaxLines then text:SetMaxLines(1) end
+
+	if CombatFeedback_Initialize then
+		CombatFeedback_Initialize(frame, text, fontSize)
+	else
+		frame.feedbackText = text
+		frame.feedbackFontHeight = fontSize
+	end
+end
+
+function H.showCombatFeedbackSample(st, cfg, def)
+	if not st or not CombatFeedback_OnCombatEvent then return end
+	local enabled, sampleEvent, sampleAmount = getCombatFeedbackSampleConfig(cfg, def)
+	if not enabled then return end
+	local frame, text = H.ensureCombatFeedbackElements(st)
+	if not frame or not text then return end
+	H.applyCombatFeedbackStyle(st, cfg, def)
+	if CombatFeedback_OnUpdate and frame.GetScript and frame:GetScript("OnUpdate") == nil then frame:SetScript("OnUpdate", CombatFeedback_OnUpdate) end
+	CombatFeedback_OnCombatEvent(frame, sampleEvent, "", sampleAmount, 1)
+end
+
+function H.handleCombatFeedbackEvent(st, cfg, def, event, flags, amount, schoolMask)
+	if not st or not CombatFeedback_OnCombatEvent then return end
+	if not H.combatFeedbackIsEnabled(cfg, def) then return end
+	if not H.combatFeedbackShouldShowEvent(cfg, def, event) then return end
+	if issecretvalue and (issecretvalue(event) or issecretvalue(flags) or issecretvalue(amount) or issecretvalue(schoolMask)) then return end
+	if GetTime then
+		local now = GetTime()
+		local last = st._combatFeedbackLastAt
+		if last and (now - last) < COMBAT_FEEDBACK_THROTTLE then return end
+		st._combatFeedbackLastAt = now
+	end
+	local frame, text = H.ensureCombatFeedbackElements(st)
+	if not frame or not text then return end
+	H.applyCombatFeedbackStyle(st, cfg, def)
+	if CombatFeedback_OnUpdate and frame.GetScript and frame:GetScript("OnUpdate") == nil then frame:SetScript("OnUpdate", CombatFeedback_OnUpdate) end
+	CombatFeedback_OnCombatEvent(frame, event, flags, amount, schoolMask)
+end
+
+function H.updateCombatFeedback(st, unit, cfg, def)
+	if not st then return end
+	st._combatFeedbackDef = def
+	if not H.combatFeedbackIsEnabled(cfg, def) then
+		if st._combatFeedbackEventFrame and st._combatFeedbackEventFrame.UnregisterEvent then st._combatFeedbackEventFrame:UnregisterEvent("UNIT_COMBAT") end
+		if st.combatFeedback and st.combatFeedback.SetScript then st.combatFeedback:SetScript("OnUpdate", nil) end
+		if st.combatFeedback then st.combatFeedback:Hide() end
+		if st.combatFeedbackText then st.combatFeedbackText:Hide() end
+		stopCombatFeedbackSample(st)
+		return
+	end
+	if not unit then return end
+	H.applyCombatFeedbackStyle(st, cfg, def)
+	local frame = st.combatFeedback
+	if frame then frame:Show() end
+	if frame and CombatFeedback_OnUpdate and frame.GetScript and frame:GetScript("OnUpdate") == nil then frame:SetScript("OnUpdate", CombatFeedback_OnUpdate) end
+	local evt = st._combatFeedbackEventFrame
+	if not evt then
+		evt = CreateFrame("Frame")
+		st._combatFeedbackEventFrame = evt
+		evt:SetScript("OnEvent", function(_, _, unitTarget, eventName, flagText, amount, schoolMask)
+			if unitTarget ~= unit then return end
+			local activeCfg = st.cfg or cfg
+			local activeDef = st._combatFeedbackDef or def
+			H.handleCombatFeedbackEvent(st, activeCfg, activeDef, eventName, flagText, amount, schoolMask)
+		end)
+	end
+	if evt.UnregisterEvent then evt:UnregisterEvent("UNIT_COMBAT") end
+	if evt.RegisterUnitEvent then
+		evt:RegisterUnitEvent("UNIT_COMBAT", unit)
+	elseif evt.RegisterEvent then
+		evt:RegisterEvent("UNIT_COMBAT")
+	end
+
+	stopCombatFeedbackSample(st)
+	local sampleEnabled = getCombatFeedbackSampleConfig(cfg, def)
+	if sampleEnabled then
+		H.showCombatFeedbackSample(st, cfg, def)
+		if NewTicker then
+			st._combatFeedbackSampleTicker = NewTicker(1.2, function()
+				local activeCfg = st.cfg or cfg
+				local activeDef = st._combatFeedbackDef or def
+				H.showCombatFeedbackSample(st, activeCfg, activeDef)
+			end)
+		end
+	end
+end
+
+function H.disableCombatFeedbackAll(states)
+	if type(states) ~= "table" then return end
+	for _, st in pairs(states) do
+		if st and st._combatFeedbackEventFrame and st._combatFeedbackEventFrame.UnregisterEvent then st._combatFeedbackEventFrame:UnregisterEvent("UNIT_COMBAT") end
+		if st and st.combatFeedback and st.combatFeedback.SetScript then st.combatFeedback:SetScript("OnUpdate", nil) end
+		if st and st.combatFeedback then st.combatFeedback:Hide() end
+		if st and st.combatFeedbackText then st.combatFeedbackText:Hide() end
+		stopCombatFeedbackSample(st)
 	end
 end
 

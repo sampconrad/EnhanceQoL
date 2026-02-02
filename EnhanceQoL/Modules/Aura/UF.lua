@@ -332,6 +332,33 @@ local defaults = {
 				texCoords = { 0.5, 1, 0, 0.5 }, -- combat icon region
 			},
 		},
+		combatFeedback = {
+			enabled = false,
+			font = nil,
+			fontSize = 30,
+			anchor = "CENTER",
+			location = "STATUS",
+			offset = { x = 0, y = 0 },
+			sample = false,
+			sampleAmount = 12345,
+			sampleEvent = "WOUND",
+			events = {
+				WOUND = true,
+				HEAL = true,
+				ENERGIZE = true,
+				MISS = true,
+				DODGE = true,
+				PARRY = true,
+				BLOCK = true,
+				RESIST = true,
+				ABSORB = true,
+				IMMUNE = true,
+				DEFLECT = true,
+				REFLECT = true,
+				EVADE = true,
+				INTERRUPT = true,
+			},
+		},
 		cast = {
 			enabled = false,
 			width = 220,
@@ -4737,6 +4764,7 @@ local function applyConfig(unit)
 			st._hovered = false
 		end
 		if st then st._highlightCfg = nil end
+		if UFHelper and UFHelper.updateCombatFeedback then UFHelper.updateCombatFeedback(st, unit, cfg, def) end
 		applyVisibilityDriver(unit, false)
 		if unit == UNIT.PLAYER then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.player, false) end
 		if unit == UNIT.TARGET then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.target, false) end
@@ -4771,6 +4799,7 @@ local function applyConfig(unit)
 		UFHelper.applyHighlightStyle(st, st._highlightCfg)
 	end
 	updateStatus(cfg, unit)
+	if UFHelper and UFHelper.updateCombatFeedback then UFHelper.updateCombatFeedback(st, unit, cfg, def) end
 	updateNameAndLevel(cfg, unit)
 	updateHealth(cfg, unit)
 	updatePower(cfg, unit)
@@ -5925,6 +5954,7 @@ local function ensureEventHandling()
 	if not anyUFEnabled() then
 		hideBossFrames()
 		if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+		if UFHelper and UFHelper.disableCombatFeedbackAll then UFHelper.disableCombatFeedbackAll(states) end
 		if eventFrame and eventFrame.UnregisterAllEvents then eventFrame:UnregisterAllEvents() end
 		if eventFrame then eventFrame:SetScript("OnEvent", nil) end
 		eventFrame = nil
