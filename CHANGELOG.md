@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.9.1] - 2026-02-02
+
+### 🐛 Fixed
+
+- Wrong default font for zhTW
+
+---
+
 ## [7.9.0] - 2026-02-02
 
 ### ✨ Added
@@ -7,6 +15,7 @@
 - Keybinding: Toggle friendly NPC nameplates (nameplateShowFriendlyNpcs)
 - UF Plus: Unit status group number format options (e.g., Group 1, (1), | 1 |, G1)
 - UF Plus: Target range fade via spell range events (configurable opacity)
+- Cooldown Panels: Optional radial layout with radius/rotation controls
 
 ### 🔁 Changed
 

@@ -841,7 +841,7 @@ if (GAME_LOCALE or GetLocale()) == "ruRU" then
 elseif (GAME_LOCALE or GetLocale()) == "koKR" then
 	addon.variables.defaultFont = "Fonts\\2002.ttf"
 elseif (GAME_LOCALE or GetLocale()) == "zhTW" then
-	addon.variables.defaultFont = "Fonts\\ARKai_T.ttf"
+	addon.variables.defaultFont = "Fonts\\bLEI00D.TTF"
 elseif (GAME_LOCALE or GetLocale()) == "zhCN" then
 	addon.variables.defaultFont = "Fonts\\ARKai_T.ttf"
 end
