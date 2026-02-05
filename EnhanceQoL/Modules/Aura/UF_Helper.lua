@@ -30,6 +30,8 @@ local abs = math.abs
 local floor = math.floor
 local UnitThreatSituation = UnitThreatSituation
 local UnitExists = UnitExists
+local UnitGetTotalAbsorbs = UnitGetTotalAbsorbs
+local UnitHealthPercent = UnitHealthPercent
 
 local atlasByPower = {
 	LUNAR_POWER = "Unit_Druid_AstralPower_Fill",
@@ -49,6 +51,23 @@ local npcColorDefaults = {
 	neutral = { 1, 1, 0, 1 },
 	friendly = { 0.2, 1, 0.2, 1 },
 }
+
+local absorbFullCurve = C_CurveUtil and C_CurveUtil.CreateCurve() or nil
+if absorbFullCurve and Enum and Enum.LuaCurveType and Enum.LuaCurveType.Step then
+	absorbFullCurve:SetType(Enum.LuaCurveType.Step)
+	absorbFullCurve:AddPoint(1.0, 1)
+	absorbFullCurve:AddPoint(0.9, 0)
+end
+
+local absorbNotFullCurve = C_CurveUtil and C_CurveUtil.CreateCurve() or nil
+if absorbNotFullCurve and Enum and Enum.LuaCurveType and Enum.LuaCurveType.Step then
+	absorbNotFullCurve:SetType(Enum.LuaCurveType.Step)
+	absorbNotFullCurve:AddPoint(1.0, 0)
+	absorbNotFullCurve:AddPoint(0.9, 1)
+end
+
+H.absorbFullCurve = absorbFullCurve
+H.absorbNotFullCurve = absorbNotFullCurve
 
 local nameWidthCache = {}
 local DROP_SHADOW_FLAG = "DROPSHADOW"
@@ -100,6 +119,120 @@ function H.clamp(value, minV, maxV)
 	if value < minV then return minV end
 	if value > maxV then return maxV end
 	return value
+end
+
+function H.getClampedAbsorbAmount(unit) return UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0 end
+
+function H.getHealthCurveValue(unit, curve)
+	if not curve or not unit then return nil end
+	return UnitHealthPercent(unit, true, curve)
+end
+
+function H.setupAbsorbClamp(health, absorb)
+	if not (health and absorb) then return end
+
+	if not health.absorbClip then
+		local clip = CreateFrame("Frame", nil, health)
+		clip:SetAllPoints(health)
+		clip:SetClipsChildren(true)
+		clip:SetFrameLevel(health:GetFrameLevel() + 5)
+		health.absorbClip = clip
+	end
+
+	local clip = health.absorbClip
+
+	absorb:SetParent(clip)
+	absorb:ClearAllPoints()
+
+	local htex = health:GetStatusBarTexture()
+
+	absorb:SetPoint("TOPLEFT", htex, "TOPRIGHT", 0, 0)
+	absorb:SetPoint("BOTTOMLEFT", htex, "BOTTOMRIGHT", 0, 0)
+
+	absorb:SetWidth(health:GetWidth())
+	absorb:SetHeight(health:GetHeight())
+end
+
+function H.setupAbsorbClampReverseAware(health, absorb)
+	H.setupAbsorbClamp(health, absorb)
+
+	local htex = health:GetStatusBarTexture()
+	absorb:ClearAllPoints()
+
+	local reverse = false
+	if health.GetFillStyle and Enum and Enum.StatusBarFillStyle then
+		reverse = health:GetFillStyle() == Enum.StatusBarFillStyle.Reverse
+	elseif health.GetReverseFill then
+		reverse = health:GetReverseFill() == true
+	end
+
+	H.applyStatusBarReverseFill(absorb, reverse)
+
+	if reverse then
+		absorb:SetPoint("TOPRIGHT", htex, "TOPLEFT", 0, 0)
+		absorb:SetPoint("BOTTOMRIGHT", htex, "BOTTOMLEFT", 0, 0)
+	else
+		absorb:SetPoint("TOPLEFT", htex, "TOPRIGHT", 0, 0)
+		absorb:SetPoint("BOTTOMLEFT", htex, "BOTTOMRIGHT", 0, 0)
+	end
+
+	absorb:SetWidth(health:GetWidth())
+	absorb:SetHeight(health:GetHeight())
+end
+
+function H.setupAbsorbOverShift(healthBar, overAbsorbBar)
+	if not (healthBar and overAbsorbBar) then return end
+
+	local htex = healthBar:GetStatusBarTexture()
+
+	if not healthBar._healthFillClip then
+		local clip = CreateFrame("Frame", nil, healthBar)
+		clip:SetClipsChildren(true)
+		clip:SetFrameLevel(healthBar:GetFrameLevel() + 6)
+		healthBar._healthFillClip = clip
+	end
+
+	local clip = healthBar._healthFillClip
+	clip:ClearAllPoints()
+
+	if healthBar:GetReverseFill() then
+		clip:SetPoint("TOPLEFT", htex, "TOPLEFT", 0, 0)
+		clip:SetPoint("BOTTOMLEFT", htex, "BOTTOMLEFT", 0, 0)
+		clip:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", 0, 0)
+		clip:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", 0, 0)
+	else
+		clip:SetPoint("TOPLEFT", healthBar, "TOPLEFT", 0, 0)
+		clip:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", 0, 0)
+		clip:SetPoint("TOPRIGHT", htex, "TOPRIGHT", 0, 0)
+		clip:SetPoint("BOTTOMRIGHT", htex, "BOTTOMRIGHT", 0, 0)
+	end
+
+	overAbsorbBar:SetParent(clip)
+	overAbsorbBar:ClearAllPoints()
+
+	overAbsorbBar:SetPoint("TOPLEFT", healthBar, "TOPLEFT", 0, 0)
+	overAbsorbBar:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", 0, 0)
+
+	overAbsorbBar:SetOrientation("HORIZONTAL")
+
+	overAbsorbBar:SetReverseFill(not healthBar:GetReverseFill())
+end
+
+function H.applyAbsorbClampLayout(bar, healthBar, height, maxHeight)
+	if not bar or not healthBar then return end
+	bar:ClearAllPoints()
+	local anchor = (healthBar.GetStatusBarTexture and healthBar:GetStatusBarTexture()) or healthBar
+	bar:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 0, 0)
+	local desired = tonumber(height)
+	local limit = tonumber(maxHeight)
+	if not limit or limit <= 0 then limit = healthBar.GetHeight and healthBar:GetHeight() or 0 end
+	if not desired or desired <= 0 then
+		bar:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 0, 0)
+	else
+		if limit and limit > 0 and desired > limit then desired = limit end
+		bar:SetHeight(desired)
+	end
+	if healthBar.GetWidth then bar:SetWidth(healthBar:GetWidth() or 0) end
 end
 
 function H.trim(str)

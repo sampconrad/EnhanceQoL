@@ -3507,8 +3507,32 @@ local function updateHealth(cfg, unit)
 		local hasVisibleAbsorb = abs and (not issecretvalue or not issecretvalue(abs)) and abs > 0
 		if shouldShowSampleAbsorb(unit) and not hasVisibleAbsorb and (not issecretvalue or not issecretvalue(maxForValue)) then abs = (maxForValue or 1) * 0.6 end
 		st.absorb:SetValue(abs or 0)
+		local reverseAbsorb = hc.absorbReverseFill
+		if reverseAbsorb == nil then reverseAbsorb = defH.absorbReverseFill == true end
+		if reverseAbsorb and st.absorb2 then
+			local _, maxHealth = st.health:GetMinMaxValues()
+			if maxHealth == nil then maxHealth = maxForValue end
+			st.absorb2:SetMinMaxValues(0, maxHealth or 1)
+			if UFHelper and UFHelper.getClampedAbsorbAmount then
+				st.absorb2:SetValue(UFHelper.getClampedAbsorbAmount(unit))
+			else
+				st.absorb2:SetValue(UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0)
+			end
+		end
+		if reverseAbsorb and st.absorb2 then
+			st.absorb2:Show()
+			if st.absorb then st.absorb:Show() end
+		elseif st.absorb then
+			st.absorb:SetAlpha(1)
+			st.absorb:Show()
+			if st.absorb2 then
+				st.absorb2:SetAlpha(0)
+				st.absorb2:Show()
+			end
+		end
 		local ar, ag, ab, aa = UFHelper.getAbsorbColor(hc, defH)
 		st.absorb:SetStatusBarColor(ar or 0.85, ag or 0.95, ab or 1, aa or 0.7)
+		if reverseAbsorb and st.absorb2 then st.absorb2:SetStatusBarColor(ar or 0.85, ag or 0.95, ab or 1, aa or 0.7) end
 		if st.overAbsorbGlow then
 			local showGlow = hc.useAbsorbGlow ~= false and ((C_StringUtil and not C_StringUtil.TruncateWhenZero(abs)) or (not issecretvalue and abs > 0))
 			-- (not (C_StringUtil and C_StringUtil.TruncateWhenZero(abs)) or (not addon.variables.isMidnight and abs))
@@ -4476,6 +4500,8 @@ local function ensureFrames(unit)
 	else
 		if st.absorb then st.absorb:Hide() end
 		st.absorb = nil
+		if st.absorb2 then st.absorb2:Hide() end
+		st.absorb2 = nil
 		if st.overAbsorbGlow then st.overAbsorbGlow:Hide() end
 		if st.healAbsorb then st.healAbsorb:Hide() end
 		st.healAbsorb = nil
@@ -4596,9 +4622,35 @@ local function applyBars(cfg, unit)
 		local reverseAbsorb = hc.absorbReverseFill
 		if reverseAbsorb == nil then reverseAbsorb = defH.absorbReverseFill == true end
 		UFHelper.applyStatusBarReverseFill(st.absorb, reverseAbsorb)
+		if reverseAbsorb then
+			st.absorb2 = st.absorb2 or CreateFrame("StatusBar", info.healthName .. "Absorb2", st.health, "BackdropTemplate")
+			if st.absorb2.SetStatusBarDesaturated then st.absorb2:SetStatusBarDesaturated(false) end
+			st.absorb2:Hide()
+		elseif st.absorb2 then
+			st.absorb2:Hide()
+		end
 		local absorbHeight = hc.absorbOverlayHeight
 		if absorbHeight == nil then absorbHeight = defH.absorbOverlayHeight end
 		applyOverlayHeight(st.absorb, st.health, absorbHeight, healthHeight)
+		if reverseAbsorb and st.absorb2 then
+			st.absorb2:SetStatusBarTexture(UFHelper.resolveTexture(absorbTextureKey))
+			if st.absorb2.SetStatusBarDesaturated then st.absorb2:SetStatusBarDesaturated(false) end
+			UFHelper.configureSpecialTexture(st.absorb2, "HEALTH", absorbTextureKey, hc)
+			if st.absorb2.SetOrientation then st.absorb2:SetOrientation("HORIZONTAL") end
+			if UFHelper and UFHelper.applyAbsorbClampLayout then
+				UFHelper.applyAbsorbClampLayout(st.absorb2, st.health, absorbHeight, healthHeight)
+				if reverseHealth then
+					if UFHelper.setupAbsorbClampReverseAware then UFHelper.setupAbsorbClampReverseAware(st.health, st.absorb2) end
+				else
+					if UFHelper.setupAbsorbClamp then UFHelper.setupAbsorbClamp(st.health, st.absorb2) end
+					if UFHelper.setupAbsorbOverShift then UFHelper.setupAbsorbOverShift(st.health, st.absorb) end
+				end
+			end
+			setFrameLevelAbove(st.absorb2, st.health, 1)
+			st.absorb2:SetMinMaxValues(0, 1)
+			st.absorb2:SetValue(0)
+			st.absorb2:Hide()
+		end
 		local borderFrame = st.barGroup and st.barGroup._ufBorder
 		setFrameLevelAbove(st.absorb, st.health, 1)
 		st.absorb:SetMinMaxValues(0, 1)
