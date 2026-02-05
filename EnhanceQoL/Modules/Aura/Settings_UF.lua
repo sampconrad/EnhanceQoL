@@ -1555,6 +1555,19 @@ local function buildUnitSettings(unit)
 		colorDefault = { r = 0, g = 0, b = 0, a = 0.6 },
 	})
 
+	local healthBackdropTexture = checkboxDropdown(
+		L["Backdrop Texture"] or "Backdrop Texture",
+		textureOpts,
+		function() return getValue(unit, { "health", "backdrop", "texture" }, (healthDef.backdrop and healthDef.backdrop.texture) or "SOLID") or "SOLID" end,
+		function(val)
+			setValue(unit, { "health", "backdrop", "texture" }, (val == nil or val == "") and "SOLID" or val)
+			refresh()
+		end,
+		(healthDef.backdrop and healthDef.backdrop.texture) or "SOLID",
+		"health"
+	)
+	list[#list + 1] = healthBackdropTexture
+
 	if unit ~= "pet" then
 		local function getOverlayHeightFallback()
 			local height = getValue(unit, { "healthHeight" }, def.healthHeight or 24)
@@ -2082,6 +2095,20 @@ local function buildUnitSettings(unit)
 		colorDefault = { r = 0, g = 0, b = 0, a = 0.6 },
 		isEnabled = isPowerEnabled,
 	})
+
+	local powerBackdropTexture = checkboxDropdown(
+		L["Backdrop Texture"] or "Backdrop Texture",
+		textureOpts,
+		function() return getValue(unit, { "power", "backdrop", "texture" }, (powerDef.backdrop and powerDef.backdrop.texture) or "SOLID") or "SOLID" end,
+		function(val)
+			setValue(unit, { "power", "backdrop", "texture" }, (val == nil or val == "") and "SOLID" or val)
+			refresh()
+		end,
+		(powerDef.backdrop and powerDef.backdrop.texture) or "SOLID",
+		"power"
+	)
+	powerBackdropTexture.isEnabled = isPowerEnabled
+	list[#list + 1] = powerBackdropTexture
 
 	local mainPowerTokens = getMainPowerTokens()
 	if #mainPowerTokens > 0 then
@@ -2776,6 +2803,20 @@ local function buildUnitSettings(unit)
 		})
 		castBackdrop.isEnabled = isCastEnabled
 		list[#list + 1] = castBackdrop
+
+		local castBackdropTexture = checkboxDropdown(
+			L["Backdrop Texture"] or "Backdrop Texture",
+			textureOpts,
+			function() return getValue(unit, { "cast", "backdrop", "texture" }, (castDef.backdrop and castDef.backdrop.texture) or "SOLID") or "SOLID" end,
+			function(val)
+				setValue(unit, { "cast", "backdrop", "texture" }, (val == nil or val == "") and "SOLID" or val)
+				refresh()
+			end,
+			(castDef.backdrop and castDef.backdrop.texture) or "SOLID",
+			"cast"
+		)
+		castBackdropTexture.isEnabled = isCastEnabled
+		list[#list + 1] = castBackdropTexture
 
 		list[#list + 1] = {
 			name = L["Cast color"] or "Cast color",

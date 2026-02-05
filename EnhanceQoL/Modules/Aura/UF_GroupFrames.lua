@@ -303,9 +303,11 @@ local function applyBarBackdrop(bar, cfg)
 		bar:SetBackdrop(nil)
 		return
 	end
+	local texKey = (bd.texture == nil or bd.texture == "") and "SOLID" or bd.texture
+	local bgFile = (UFHelper and UFHelper.resolveTexture and UFHelper.resolveTexture(texKey)) or "Interface\\Buttons\\WHITE8x8"
 	local col = bd.color or { 0, 0, 0, 0.6 }
 	bar:SetBackdrop({
-		bgFile = "Interface\\Buttons\\WHITE8x8",
+		bgFile = bgFile,
 		edgeFile = nil,
 		tile = false,
 	})
@@ -7058,6 +7060,50 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
+			name = L["Backdrop Texture"] or "Backdrop Texture",
+			kind = SettingType.Dropdown,
+			field = "healthBackdropTexture",
+			parentId = "health",
+			height = 180,
+			get = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				return hc.backdrop and (hc.backdrop.texture or "SOLID") or "SOLID"
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.health = cfg.health or {}
+				cfg.health.backdrop = cfg.health.backdrop or {}
+				cfg.health.backdrop.texture = (value == nil or value == "") and "SOLID" or value
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healthBackdropTexture", cfg.health.backdrop.texture, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			generator = function(_, root)
+				for _, option in ipairs(textureOptions()) do
+					root:CreateRadio(option.label, function()
+						local cfg = getCfg(kind)
+						local hc = cfg and cfg.health or {}
+						local current = hc.backdrop and (hc.backdrop.texture or "SOLID") or "SOLID"
+						return current == option.value
+					end, function()
+						local cfg = getCfg(kind)
+						if not cfg then return end
+						cfg.health = cfg.health or {}
+						cfg.health.backdrop = cfg.health.backdrop or {}
+						cfg.health.backdrop.texture = (option.value == nil or option.value == "") and "SOLID" or option.value
+						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healthBackdropTexture", cfg.health.backdrop.texture, nil, true) end
+						GF:ApplyHeaderAttributes(kind)
+					end)
+				end
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				return hc.backdrop and hc.backdrop.enabled ~= false
+			end,
+		},
+		{
 			name = "Absorb",
 			kind = SettingType.Collapsible,
 			id = "absorb",
@@ -10035,6 +10081,50 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.power.backdrop.color = { value.r or 0, value.g or 0, value.b or 0, value.a or 0.6 }
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerBackdropColor", cfg.power.backdrop.color, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				return pcfg.backdrop and pcfg.backdrop.enabled ~= false
+			end,
+		},
+		{
+			name = L["Backdrop Texture"] or "Backdrop Texture",
+			kind = SettingType.Dropdown,
+			field = "powerBackdropTexture",
+			parentId = "power",
+			height = 180,
+			get = function()
+				local cfg = getCfg(kind)
+				local pcfg = cfg and cfg.power or {}
+				return pcfg.backdrop and (pcfg.backdrop.texture or "SOLID") or "SOLID"
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.power = cfg.power or {}
+				cfg.power.backdrop = cfg.power.backdrop or {}
+				cfg.power.backdrop.texture = (value == nil or value == "") and "SOLID" or value
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerBackdropTexture", cfg.power.backdrop.texture, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			generator = function(_, root)
+				for _, option in ipairs(textureOptions()) do
+					root:CreateRadio(option.label, function()
+						local cfg = getCfg(kind)
+						local pcfg = cfg and cfg.power or {}
+						local current = pcfg.backdrop and (pcfg.backdrop.texture or "SOLID") or "SOLID"
+						return current == option.value
+					end, function()
+						local cfg = getCfg(kind)
+						if not cfg then return end
+						cfg.power = cfg.power or {}
+						cfg.power.backdrop = cfg.power.backdrop or {}
+						cfg.power.backdrop.texture = (option.value == nil or option.value == "") and "SOLID" or option.value
+						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerBackdropTexture", cfg.power.backdrop.texture, nil, true) end
+						GF:ApplyHeaderAttributes(kind)
+					end)
+				end
 			end,
 			isEnabled = function()
 				local cfg = getCfg(kind)

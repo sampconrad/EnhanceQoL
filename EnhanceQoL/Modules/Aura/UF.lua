@@ -2680,9 +2680,11 @@ local function applyBarBackdrop(bar, cfg)
 		bar:SetBackdrop(nil)
 		return
 	end
+	local texKey = (bd.texture == nil or bd.texture == "") and "SOLID" or bd.texture
+	local bgFile = (UFHelper and UFHelper.resolveTexture and UFHelper.resolveTexture(texKey)) or "Interface\\Buttons\\WHITE8x8"
 	local col = bd.color or { 0, 0, 0, 0.6 }
 	bar:SetBackdrop({
-		bgFile = "Interface\\Buttons\\WHITE8x8",
+		bgFile = bgFile,
 		edgeFile = nil,
 		tile = false,
 	})
@@ -2811,13 +2813,15 @@ local function applyCastLayout(cfg, unit)
 				st.castBar.backdropTexture = bg
 			end
 			local col = bd.color or { 0, 0, 0, 0.6 }
+			local backdropTexKey = (bd.texture == nil or bd.texture == "") and "SOLID" or bd.texture
+			local backdropTexPath = (UFHelper and UFHelper.resolveTexture and UFHelper.resolveTexture(backdropTexKey)) or "Interface\\Buttons\\WHITE8x8"
 			bg:ClearAllPoints()
 			if useDefaultArt and bg.SetAtlas then
 				bg:SetAtlas("ui-castingbar-background", false)
 				bg:SetPoint("TOPLEFT", st.castBar, "TOPLEFT", -1, 1)
 				bg:SetPoint("BOTTOMRIGHT", st.castBar, "BOTTOMRIGHT", 1, -1)
 			else
-				bg:SetTexture(castTexture)
+				bg:SetTexture(backdropTexPath)
 				bg:SetAllPoints(st.castBar)
 			end
 			bg:SetVertexColor(col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.6)
