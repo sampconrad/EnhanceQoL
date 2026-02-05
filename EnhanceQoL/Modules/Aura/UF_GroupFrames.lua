@@ -1673,6 +1673,7 @@ function GF:LayoutButton(self)
 			stabilizeStatusBarTexture(st.health)
 		end
 	end
+	applyBarBackdrop(st.health, hc)
 	local pcfg = cfg.power or {}
 	local powerTexKey = getEffectiveBarTexture(cfg, pcfg)
 	if st.power.SetStatusBarTexture and UFHelper and UFHelper.resolveTexture then
@@ -1682,7 +1683,7 @@ function GF:LayoutButton(self)
 			stabilizeStatusBarTexture(st.power)
 		end
 	end
-
+	applyBarBackdrop(st.power, pcfg)
 	
 	if st.absorb then
 		local absorbTextureKey = hc.absorbTexture or healthTexKey
@@ -7060,7 +7061,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Backdrop Texture"] or "Backdrop Texture",
+			name = "Backdrop Texture",
 			kind = SettingType.Dropdown,
 			field = "healthBackdropTexture",
 			parentId = "health",
@@ -10089,7 +10090,7 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
-			name = L["Backdrop Texture"] or "Backdrop Texture",
+			name = "Backdrop Texture",
 			kind = SettingType.Dropdown,
 			field = "powerBackdropTexture",
 			parentId = "power",
