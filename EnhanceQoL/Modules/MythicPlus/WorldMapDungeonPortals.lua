@@ -71,6 +71,12 @@ local function BuildSeasonSection()
 	return addon.MythicPlus.functions.BuildCurrentSeasonTeleportSection()
 end
 
+local function IsConsolePortLoaded()
+	if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded("ConsolePort") or C_AddOns.IsAddOnLoaded("ConsolePort_Cursor") end
+	if IsAddOnLoaded then return IsAddOnLoaded("ConsolePort") or IsAddOnLoaded("ConsolePort_Cursor") end
+	return false
+end
+
 local function AddVariantTooltipLine(entry)
 	if not entry or not entry.variantOtherCount or entry.variantOtherCount <= 0 then return end
 	local fmt = L["teleportOtherVariants"] or "%d other variants available"
@@ -354,6 +360,8 @@ local function CreateSecureSpellButton(parent, entry)
 	local b = CreateFrame("Button", nil, parent, "InsecureActionButtonTemplate, UIPanelButtonTemplate")
 	b:SetSize(28, 28)
 	b.entry = entry
+	-- ConsolePort fires clicks as typerelease; force release-based casting for compatibility
+	if IsConsolePortLoaded() then b:SetAttribute("useOnKeyDown", false) end
 
 	-- Keep buttons above any background art
 	if panel then
@@ -467,6 +475,8 @@ local function CreateLegendRowButton(parent, entry, width, height)
 	local b = CreateFrame("Button", nil, parent, "InsecureActionButtonTemplate")
 	b:SetSize(width, height)
 	b.entry = entry
+	-- ConsolePort fires clicks as typerelease; force release-based casting for compatibility
+	if IsConsolePortLoaded() then b:SetAttribute("useOnKeyDown", false) end
 
 	-- icon
 	local icon = b:CreateTexture(nil, "ARTWORK")
@@ -1033,9 +1043,7 @@ local function setWorldMapTeleportEventsEnabled(enabled)
 end
 
 local function worldMapEventHandler(self, event, arg1)
-	if not addon.db or not addon.db["teleportsWorldMapEnabled"] then
-		return
-	end
+	if not addon.db or not addon.db["teleportsWorldMapEnabled"] then return end
 	if event == "PLAYER_REGEN_DISABLED" then
 		SetCombatScrolling(false)
 		SetButtonsInteractable(false)

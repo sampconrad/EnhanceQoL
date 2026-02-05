@@ -42,6 +42,7 @@
 - Unit Frames: Boss cast bar interrupt texture now resets on new casts
 - ChatIM: Disabling instant messenger restores whispers in normal chat
 - Vendor: Disable destroy-queue Add button when the feature is off
+- MythicPlus: ConsolePort left-click on World Map teleports now triggers the cast correctly
 
 ---
 
