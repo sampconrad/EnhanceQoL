@@ -1240,6 +1240,12 @@ function CooldownPanels:SelectEntry(entryId)
 	local editor = getEditor()
 	if not editor then return end
 	editor.selectedEntryId = entryId
+	local panelId = editor.selectedPanelId
+	if panelId then
+		local runtime = getRuntime(panelId)
+		runtime.editModeEntryId = entryId
+	end
+	refreshEditModeSettingValues()
 	self:RefreshEditor()
 end
 
@@ -1277,6 +1283,32 @@ local function applyIconTooltip(icon, entry, enabled)
 	end
 end
 
+local function applyStaticText(icon, entry, defaultFontPath, defaultFontSize, defaultFontStyle, cooldownActive)
+	if not icon or not icon.staticText then return end
+	if not entry or type(entry.staticText) ~= "string" or entry.staticText == "" then
+		icon.staticText:Hide()
+		return
+	end
+	if entry.staticTextShowOnCooldown == true and not cooldownActive then
+		icon.staticText:Hide()
+		return
+	end
+	local text = entry.staticText
+	if text:find("\\n", 1, true) then text = text:gsub("\\n", "\n") end
+	if text:find("|n", 1, true) then text = text:gsub("|n", "\n") end
+	local fontPath = Helper.ResolveFontPath(entry.staticTextFont, defaultFontPath)
+	local fontSize = Helper.ClampInt(entry.staticTextSize, 6, 64, defaultFontSize or 12)
+	local fontStyle = Helper.NormalizeFontStyle(entry.staticTextStyle, defaultFontStyle) or ""
+	icon.staticText:SetFont(fontPath, fontSize, fontStyle)
+	icon.staticText:ClearAllPoints()
+	local anchor = Helper.NormalizeAnchor(entry.staticTextAnchor, "CENTER")
+	local x = Helper.ClampInt(entry.staticTextX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+	local y = Helper.ClampInt(entry.staticTextY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+	icon.staticText:SetPoint(anchor, icon.overlay, anchor, x, y)
+	icon.staticText:SetText(text)
+	icon.staticText:Show()
+end
+
 local function createIconFrame(parent)
 	local icon = CreateFrame("Frame", nil, parent)
 	icon:Hide()
@@ -1312,6 +1344,13 @@ local function createIconFrame(parent)
 	icon.keybind = icon.overlay:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
 	icon.keybind:SetPoint("TOPLEFT", icon.overlay, "TOPLEFT", 2, -2)
 	icon.keybind:Hide()
+
+	icon.staticText = icon.overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	icon.staticText:SetPoint("CENTER", icon.overlay, "CENTER", 0, 0)
+	icon.staticText:SetJustifyH("CENTER")
+	icon.staticText:SetJustifyV("MIDDLE")
+	if icon.staticText.SetWordWrap then icon.staticText:SetWordWrap(true) end
+	icon.staticText:Hide()
 
 	icon.msqNormal = icon:CreateTexture(nil, "OVERLAY")
 	icon.msqNormal:SetAllPoints(icon)
@@ -2432,6 +2471,16 @@ local function ensureEditor()
 	local cbShowWhenNoCooldown = Helper.CreateCheck(rightContent, L["CooldownPanelShowWhenNoCooldown"] or "Show even without cooldown")
 	cbShowWhenNoCooldown:SetPoint("TOPLEFT", cbShowWhenEmpty, "BOTTOMLEFT", 0, -4)
 
+	local staticTextLabel = Helper.CreateLabel(rightContent, L["CooldownPanelStaticText"] or "Static text", 11, "OUTLINE")
+	staticTextLabel:SetPoint("TOPLEFT", cbShowWhenNoCooldown, "BOTTOMLEFT", 2, -8)
+	staticTextLabel:SetTextColor(0.9, 0.9, 0.9, 1)
+
+	local staticTextBox = Helper.CreateEditBox(rightContent, 180, 20)
+	staticTextBox:SetPoint("TOPLEFT", staticTextLabel, "BOTTOMLEFT", -2, -4)
+
+	local cbStaticTextDuringCD = Helper.CreateCheck(rightContent, L["CooldownPanelStaticTextDuringCD"] or "Show text during CD")
+	cbStaticTextDuringCD:SetPoint("TOPLEFT", staticTextBox, "BOTTOMLEFT", -2, -6)
+
 	local cbGlow = Helper.CreateCheck(rightContent, L["CooldownPanelGlowReady"] or "Glow when ready")
 	cbGlow:SetPoint("TOPLEFT", cbStacks, "BOTTOMLEFT", 0, -4)
 
@@ -2612,6 +2661,9 @@ local function ensureEditor()
 			cbItemUses = cbItemUses,
 			cbShowWhenEmpty = cbShowWhenEmpty,
 			cbShowWhenNoCooldown = cbShowWhenNoCooldown,
+			staticTextLabel = staticTextLabel,
+			staticTextBox = staticTextBox,
+			cbStaticTextDuringCD = cbStaticTextDuringCD,
 			cbGlow = cbGlow,
 			cbSound = cbSound,
 			glowDuration = glowDuration,
@@ -2771,9 +2823,37 @@ local function ensureEditor()
 	bindEntryToggle(cbItemUses, "showItemUses")
 	bindEntryToggle(cbShowWhenEmpty, "showWhenEmpty")
 	bindEntryToggle(cbShowWhenNoCooldown, "showWhenNoCooldown")
+	bindEntryToggle(cbStaticTextDuringCD, "staticTextShowOnCooldown")
 	bindEntryToggle(cbGlow, "glowReady")
 	bindEntryToggle(cbSound, "soundReady")
 	bindEntrySlider(glowDuration, "glowDuration", 0, 30)
+
+	local function applyStaticTextValue(self)
+		local panelId = editor.selectedPanelId
+		local entryId = editor.selectedEntryId
+		local panel = panelId and CooldownPanels:GetPanel(panelId)
+		local entry = panel and panel.entries and panel.entries[entryId]
+		if not entry then
+			self:ClearFocus()
+			return
+		end
+		local text = self:GetText() or ""
+		if entry.staticText == text then
+			self:ClearFocus()
+			return
+		end
+		entry.staticText = text
+		self:ClearFocus()
+		CooldownPanels:RefreshPanel(panelId)
+		CooldownPanels:RefreshEditor()
+	end
+
+	staticTextBox:SetScript("OnEnterPressed", applyStaticTextValue)
+	staticTextBox:SetScript("OnEditFocusLost", applyStaticTextValue)
+	staticTextBox:SetScript("OnEscapePressed", function(self)
+		self:ClearFocus()
+		CooldownPanels:RefreshEditor()
+	end)
 
 	soundButton:SetScript("OnClick", function(self)
 		local panelId = editor.selectedPanelId
@@ -3167,12 +3247,15 @@ local function refreshPreview(editor, panel)
 	canvas:ClearAllPoints()
 	canvas:SetPoint("CENTER", preview, "CENTER")
 	local showKeybinds = layout.keybindsEnabled == true
+	local staticFontPath, staticFontSize, staticFontStyle = Helper.GetCountFontDefaults(canvas)
 
 	preview.entryByIndex = preview.entryByIndex or {}
 	for i = 1, count do
 		local entryId = panel.order and panel.order[i]
 		local entry = entryId and panel.entries and panel.entries[entryId] or nil
 		local icon = canvas.icons[i]
+		local showCooldown = entry and entry.showCooldown ~= false
+		local staticCooldown = entry and entry.staticTextShowOnCooldown == true or false
 		icon.texture:SetTexture(getEntryIcon(entry))
 		icon.entryId = entryId
 		icon.count:Hide()
@@ -3181,6 +3264,7 @@ local function refreshPreview(editor, panel)
 		if icon.keybind then icon.keybind:Hide() end
 		if icon.previewGlow then icon.previewGlow:Hide() end
 		if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
+		applyStaticText(icon, entry, staticFontPath, staticFontSize, staticFontStyle, staticCooldown)
 		if entry then
 			if entry.type == "SPELL" then
 				if entry.showCharges then
@@ -3241,6 +3325,9 @@ local function layoutInspectorToggles(inspector, entry)
 		hideToggle(inspector.cbItemUses)
 		hideToggle(inspector.cbShowWhenEmpty)
 		hideToggle(inspector.cbShowWhenNoCooldown)
+		hideControl(inspector.staticTextLabel)
+		hideControl(inspector.staticTextBox)
+		hideToggle(inspector.cbStaticTextDuringCD)
 		hideToggle(inspector.cbGlow)
 		hideToggle(inspector.cbSound)
 		hideControl(inspector.glowDuration)
@@ -3297,6 +3384,9 @@ local function layoutInspectorToggles(inspector, entry)
 		place(inspector.cbShowWhenEmpty, false)
 		place(inspector.cbShowWhenNoCooldown, false)
 	end
+	place(inspector.staticTextLabel, true, 2, -8)
+	place(inspector.staticTextBox, true, -2, -4)
+	place(inspector.cbStaticTextDuringCD, true, -2, -6)
 	place(inspector.cbGlow, true)
 	if inspector.glowDuration then
 		inspector.glowDuration:ClearAllPoints()
@@ -3406,6 +3496,8 @@ local function refreshInspector(editor, panel, entry)
 		inspector.cbGlow:SetChecked(entry.glowReady and true or false)
 		inspector.cbSound:SetChecked(entry.soundReady and true or false)
 		if inspector.soundButton then inspector.soundButton:SetText(getSoundButtonText(entry.soundReadyFile)) end
+		if inspector.staticTextBox then inspector.staticTextBox:SetText(entry.staticText or "") end
+		if inspector.cbStaticTextDuringCD then inspector.cbStaticTextDuringCD:SetChecked(entry.staticTextShowOnCooldown == true) end
 		if inspector.glowDuration then
 			local duration = Helper.ClampInt(entry.glowDuration, 0, 30, 0)
 			inspector.glowDuration._suspend = true
@@ -3432,6 +3524,9 @@ local function refreshInspector(editor, panel, entry)
 			inspector.entryId:SetText("")
 			inspector.entryId:Hide()
 		end
+
+		if inspector.staticTextBox then inspector.staticTextBox:SetText("") end
+		if inspector.cbStaticTextDuringCD then inspector.cbStaticTextDuringCD:SetChecked(false) end
 
 		inspector.entryId:Disable()
 		inspector.removeEntry:Disable()
@@ -3585,6 +3680,7 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 	local showTooltips = layout.showTooltips == true
 	local showKeybinds = layout.keybindsEnabled == true
 	local showIconTexture = layout.showIconTexture ~= false
+	local staticFontPath, staticFontSize, staticFontStyle = Helper.GetCountFontDefaults(frame)
 	local previewEntryIds = getPreviewEntryIds and getPreviewEntryIds(panel) or nil
 	local count = countOverride or getPreviewCount(panel)
 	ensureIconCount(frame, count)
@@ -3594,6 +3690,7 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 		local entry = entryId and panel.entries and panel.entries[entryId] or nil
 		local icon = frame.icons[i]
 		local showCooldown = entry and entry.showCooldown ~= false
+		local staticCooldown = entry and entry.staticTextShowOnCooldown == true or false
 		local showCooldownText = entry and entry.showCooldownText ~= false
 		local showCharges = entry and entry.type == "SPELL" and entry.showCharges == true
 		local showStacks = entry and entry.type == "SPELL" and entry.showStacks == true
@@ -3612,6 +3709,7 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 		if icon.previewGlow then icon.previewGlow:Hide() end
 		if icon.previewBling then icon.previewBling:Hide() end
 		setGlow(icon, false)
+		applyStaticText(icon, entry, staticFontPath, staticFontSize, staticFontStyle, staticCooldown)
 		if showCooldown then
 			setExampleCooldown(icon.cooldown)
 			icon.texture:SetDesaturated(true)
@@ -3729,6 +3827,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local showKeybinds = layout.keybindsEnabled == true
 	local showIconTexture = layout.showIconTexture ~= false
 	local checkPower = layout.checkPower == true
+	local staticFontPath, staticFontSize, staticFontStyle = Helper.GetCountFontDefaults(frame)
 	local powerTintR, powerTintG, powerTintB = Helper.ResolveColor(layout.powerTintColor, Helper.PANEL_LAYOUT_DEFAULTS.powerTintColor)
 	local unusableTintR, unusableTintG, unusableTintB = Helper.ResolveColor(layout.unusableTintColor, Helper.PANEL_LAYOUT_DEFAULTS.unusableTintColor)
 	local rangeOverlayEnabled = layout.rangeOverlayEnabled == true
@@ -3759,6 +3858,8 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		if entry then
 			local showCooldown = entry.showCooldown ~= false
 			local showCooldownText = entry.showCooldownText ~= false
+			local staticTextShowOnCooldown = entry.staticTextShowOnCooldown == true
+			local trackCooldown = showCooldown or staticTextShowOnCooldown
 			local showCharges = entry.showCharges == true
 			local showChargesCooldown = showCharges and layout.showChargesCooldown == true
 			local showStacks = entry.showStacks == true
@@ -3814,7 +3915,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					show = false
 				else
 					if showCharges and Api.GetSpellChargesInfo then chargesInfo = Api.GetSpellChargesInfo(spellId) end
-					if showCooldown then
+					if trackCooldown then
 						cooldownDurationObject = getSpellCooldownDurationObject(spellId)
 						cooldownRemaining = getDurationRemaining(cooldownDurationObject)
 						if cooldownRemaining ~= nil and cooldownRemaining <= 0 then
@@ -3822,7 +3923,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 							cooldownRemaining = nil
 						end
 					end
-					if (showCooldown or (showCharges and chargesInfo)) and not cooldownDurationObject then
+					if (trackCooldown or (showCharges and chargesInfo)) and not cooldownDurationObject then
 						cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD = getSpellCooldownInfo(spellId)
 					elseif cooldownDurationObject then
 						_, _, _, _, cooldownGCD = getSpellCooldownInfo(spellId)
@@ -3851,7 +3952,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				end
 				emptyItem = showWhenEmpty and not ownsItem
 				if (ownsItem or showWhenEmpty) and itemHasUseSpell(entry.itemID) then
-					if showCooldown and ownsItem then
+					if trackCooldown and ownsItem then
 						cooldownStart, cooldownDuration, cooldownEnabled = getItemCooldownInfo(entry.itemID)
 					end
 					if showItemCount then
@@ -3901,7 +4002,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				if itemId then
 					iconTexture = Api.GetItemIconByID and Api.GetItemIconByID(itemId) or iconTexture
 					if itemHasUseSpell(itemId) then
-						if showCooldown then
+						if trackCooldown then
 							cooldownStart, cooldownDuration, cooldownEnabled = getItemCooldownInfo(itemId, entry.slotID)
 						end
 						cooldownEnabledOk = isSafeNotFalse(cooldownEnabled)
@@ -4207,6 +4308,11 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				icon.keybind:Hide()
 			end
 		end
+		local staticTextCooldown = false
+		if data.entry and data.entry.staticTextShowOnCooldown == true then
+			staticTextCooldown = durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))
+		end
+		applyStaticText(icon, data.entry, staticFontPath, staticFontSize, staticFontStyle, staticTextCooldown)
 		if icon.rangeOverlay then
 			if data.rangeOverlay then
 				icon.rangeOverlay:SetColorTexture(rangeOverlayR or 1, rangeOverlayG or 0.1, rangeOverlayB or 0.1, rangeOverlayA or 0.35)
@@ -4248,6 +4354,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			icon.charges:Hide()
 			if icon.rangeOverlay then icon.rangeOverlay:Hide() end
 			if icon.keybind then icon.keybind:Hide() end
+			if icon.staticText then icon.staticText:Hide() end
 			if icon.previewBling then icon.previewBling:Hide() end
 			icon.texture:SetDesaturated(false)
 			icon.texture:SetAlpha(1)
@@ -4693,6 +4800,52 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 	local chargesFontPath, chargesFontSize, chargesFontStyle = Helper.GetChargesFontDefaults(frame)
 	local fontOptions = Helper.GetFontOptions(countFontPath)
 	local chargesFontOptions = Helper.GetFontOptions(chargesFontPath)
+	local function hasStaticTextEntries()
+		return panel and panel.entries and next(panel.entries) ~= nil
+	end
+	local function setStaticTextEntryId(entryId)
+		local runtimePanel = getRuntime(panelId)
+		if runtimePanel then runtimePanel.editModeEntryId = normalizeId(entryId) end
+	end
+	local function getStaticTextEntryId()
+		if not hasStaticTextEntries() then return nil end
+		local editor = getEditor()
+		if editor and editor.selectedPanelId == panelId then
+			local selected = normalizeId(editor.selectedEntryId)
+			if selected and panel.entries and panel.entries[selected] then
+				setStaticTextEntryId(selected)
+				return selected
+			end
+		end
+		local runtimePanel = getRuntime(panelId)
+		local entryId = normalizeId(runtimePanel and runtimePanel.editModeEntryId)
+		if entryId and panel.entries and panel.entries[entryId] then return entryId end
+		local order = panel.order or {}
+		for _, id in ipairs(order) do
+			if panel.entries and panel.entries[id] then
+				setStaticTextEntryId(id)
+				return id
+			end
+		end
+		for id in pairs(panel.entries) do
+			if panel.entries[id] then
+				setStaticTextEntryId(id)
+				return id
+			end
+		end
+		return nil
+	end
+	local function getStaticTextEntry()
+		local entryId = getStaticTextEntryId()
+		return entryId and panel.entries and panel.entries[entryId] or nil, entryId
+	end
+	local function updateStaticTextEntry(entry, field, value)
+		if not entry then return end
+		if entry[field] == value then return end
+		entry[field] = value
+		CooldownPanels:RefreshPanel(panelId)
+		CooldownPanels:RefreshEditor()
+	end
 	local function ensureAnchorTable() return ensurePanelAnchor(panel) end
 	local function syncPanelPositionFromAnchor()
 		local a = ensureAnchorTable()
@@ -5451,6 +5604,177 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				allowInput = true,
 				get = function() return layout.cooldownTextY or 0 end,
 				set = function(_, value) applyEditLayout(panelId, "cooldownTextY", value) end,
+			},
+			{
+				name = L["CooldownPanelStaticText"] or "Static text",
+				kind = SettingType.Collapsible,
+				id = "cooldownPanelStaticText",
+				defaultCollapsed = true,
+				isShown = function() return hasStaticTextEntries() end,
+			},
+			{
+				name = L["CooldownPanelStaticText"] or "Static text",
+				kind = SettingType.Input,
+				parentId = "cooldownPanelStaticText",
+				inputWidth = 220,
+				maxChars = 120,
+				isShown = function() return hasStaticTextEntries() end,
+				get = function()
+					local entry = getStaticTextEntry()
+					return entry and entry.staticText or ""
+				end,
+				set = function(_, value)
+					local entry = getStaticTextEntry()
+					if not entry then return end
+					updateStaticTextEntry(entry, "staticText", tostring(value or ""))
+				end,
+			},
+			{
+				name = L["Font"] or "Font",
+				kind = SettingType.Dropdown,
+				parentId = "cooldownPanelStaticText",
+				height = 220,
+				isShown = function() return hasStaticTextEntries() end,
+				get = function()
+					local entry = getStaticTextEntry()
+					return Helper.ResolveFontPath(entry and entry.staticTextFont, countFontPath)
+				end,
+				set = function(_, value)
+					local entry = getStaticTextEntry()
+					if not entry then return end
+					updateStaticTextEntry(entry, "staticTextFont", value)
+				end,
+				generator = function(_, root)
+					for _, option in ipairs(fontOptions) do
+						root:CreateRadio(option.label, function()
+							local entry = getStaticTextEntry()
+							return entry and Helper.ResolveFontPath(entry.staticTextFont, countFontPath) == option.value
+						end, function()
+							local entry = getStaticTextEntry()
+							if not entry then return end
+							updateStaticTextEntry(entry, "staticTextFont", option.value)
+						end)
+					end
+				end,
+			},
+			{
+				name = L["CooldownPanelFontStyle"] or "Font style",
+				kind = SettingType.Dropdown,
+				parentId = "cooldownPanelStaticText",
+				height = 120,
+				isShown = function() return hasStaticTextEntries() end,
+				get = function()
+					local entry = getStaticTextEntry()
+					return Helper.NormalizeFontStyleChoice(entry and entry.staticTextStyle, Helper.ENTRY_DEFAULTS.staticTextStyle or "OUTLINE")
+				end,
+				set = function(_, value)
+					local entry = getStaticTextEntry()
+					if not entry then return end
+					updateStaticTextEntry(entry, "staticTextStyle", Helper.NormalizeFontStyleChoice(value, Helper.ENTRY_DEFAULTS.staticTextStyle or "OUTLINE"))
+				end,
+				generator = function(_, root)
+					for _, option in ipairs(Helper.FontStyleOptions) do
+						root:CreateRadio(option.label, function()
+							local entry = getStaticTextEntry()
+							return Helper.NormalizeFontStyleChoice(entry and entry.staticTextStyle, Helper.ENTRY_DEFAULTS.staticTextStyle or "OUTLINE") == option.value
+						end, function()
+							local entry = getStaticTextEntry()
+							if not entry then return end
+							updateStaticTextEntry(entry, "staticTextStyle", option.value)
+						end)
+					end
+				end,
+			},
+			{
+				name = L["FontSize"] or "Font size",
+				kind = SettingType.Slider,
+				parentId = "cooldownPanelStaticText",
+				minValue = 6,
+				maxValue = 64,
+				valueStep = 1,
+				allowInput = true,
+				isShown = function() return hasStaticTextEntries() end,
+				get = function()
+					local entry = getStaticTextEntry()
+					return Helper.ClampInt(entry and entry.staticTextSize, 6, 64, Helper.ENTRY_DEFAULTS.staticTextSize or countFontSize or 12)
+				end,
+				set = function(_, value)
+					local entry = getStaticTextEntry()
+					if not entry then return end
+					local size = Helper.ClampInt(value, 6, 64, Helper.ENTRY_DEFAULTS.staticTextSize or countFontSize or 12)
+					updateStaticTextEntry(entry, "staticTextSize", size)
+				end,
+				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+			},
+			{
+				name = L["Anchor"] or "Anchor",
+				kind = SettingType.Dropdown,
+				parentId = "cooldownPanelStaticText",
+				height = 160,
+				isShown = function() return hasStaticTextEntries() end,
+				get = function()
+					local entry = getStaticTextEntry()
+					return Helper.NormalizeAnchor(entry and entry.staticTextAnchor, Helper.ENTRY_DEFAULTS.staticTextAnchor or "CENTER")
+				end,
+				set = function(_, value)
+					local entry = getStaticTextEntry()
+					if not entry then return end
+					updateStaticTextEntry(entry, "staticTextAnchor", Helper.NormalizeAnchor(value, Helper.ENTRY_DEFAULTS.staticTextAnchor or "CENTER"))
+				end,
+				generator = function(_, root)
+					for _, option in ipairs(Helper.AnchorOptions) do
+						root:CreateRadio(option.label, function()
+							local entry = getStaticTextEntry()
+							return Helper.NormalizeAnchor(entry and entry.staticTextAnchor, Helper.ENTRY_DEFAULTS.staticTextAnchor or "CENTER") == option.value
+						end, function()
+							local entry = getStaticTextEntry()
+							if not entry then return end
+							updateStaticTextEntry(entry, "staticTextAnchor", option.value)
+						end)
+					end
+				end,
+			},
+			{
+				name = L["Text X Offset"] or "Text X Offset",
+				kind = SettingType.Slider,
+				parentId = "cooldownPanelStaticText",
+				minValue = -Helper.OFFSET_RANGE,
+				maxValue = Helper.OFFSET_RANGE,
+				valueStep = 1,
+				allowInput = true,
+				isShown = function() return hasStaticTextEntries() end,
+				get = function()
+					local entry = getStaticTextEntry()
+					return Helper.ClampInt(entry and entry.staticTextX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+				end,
+				set = function(_, value)
+					local entry = getStaticTextEntry()
+					if not entry then return end
+					local offset = Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+					updateStaticTextEntry(entry, "staticTextX", offset)
+				end,
+				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+			},
+			{
+				name = L["Text Y Offset"] or "Text Y Offset",
+				kind = SettingType.Slider,
+				parentId = "cooldownPanelStaticText",
+				minValue = -Helper.OFFSET_RANGE,
+				maxValue = Helper.OFFSET_RANGE,
+				valueStep = 1,
+				allowInput = true,
+				isShown = function() return hasStaticTextEntries() end,
+				get = function()
+					local entry = getStaticTextEntry()
+					return Helper.ClampInt(entry and entry.staticTextY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+				end,
+				set = function(_, value)
+					local entry = getStaticTextEntry()
+					if not entry then return end
+					local offset = Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+					updateStaticTextEntry(entry, "staticTextY", offset)
+				end,
+				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 			},
 			{
 				name = L["CooldownPanelOverlaysHeader"] or "Overlays",

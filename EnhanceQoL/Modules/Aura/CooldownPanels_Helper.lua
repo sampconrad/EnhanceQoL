@@ -148,6 +148,14 @@ Helper.ENTRY_DEFAULTS = {
 	glowDuration = 0,
 	soundReady = false,
 	soundReadyFile = "None",
+	staticText = "",
+	staticTextShowOnCooldown = false,
+	staticTextFont = "",
+	staticTextSize = 12,
+	staticTextStyle = "OUTLINE",
+	staticTextAnchor = "CENTER",
+	staticTextX = 0,
+	staticTextY = 0,
 }
 
 Helper.DEFAULT_PREVIEW_COUNT = 6
@@ -740,6 +748,14 @@ function Helper.NormalizeEntry(entry, defaults)
 	entry.glowDuration = math.floor(duration + 0.5)
 	if type(entry.soundReady) ~= "boolean" then entry.soundReady = Helper.ENTRY_DEFAULTS.soundReady end
 	if type(entry.soundReadyFile) ~= "string" or entry.soundReadyFile == "" then entry.soundReadyFile = Helper.ENTRY_DEFAULTS.soundReadyFile end
+	if type(entry.staticText) ~= "string" then entry.staticText = Helper.ENTRY_DEFAULTS.staticText end
+	if type(entry.staticTextShowOnCooldown) ~= "boolean" then entry.staticTextShowOnCooldown = Helper.ENTRY_DEFAULTS.staticTextShowOnCooldown end
+	if type(entry.staticTextFont) ~= "string" then entry.staticTextFont = Helper.ENTRY_DEFAULTS.staticTextFont end
+	entry.staticTextSize = Helper.ClampInt(entry.staticTextSize, 6, 64, Helper.ENTRY_DEFAULTS.staticTextSize or 12)
+	entry.staticTextStyle = Helper.NormalizeFontStyleChoice(entry.staticTextStyle, Helper.ENTRY_DEFAULTS.staticTextStyle or "OUTLINE")
+	entry.staticTextAnchor = Helper.NormalizeAnchor(entry.staticTextAnchor, Helper.ENTRY_DEFAULTS.staticTextAnchor or "CENTER")
+	entry.staticTextX = Helper.ClampInt(entry.staticTextX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, Helper.ENTRY_DEFAULTS.staticTextX or 0)
+	entry.staticTextY = Helper.ClampInt(entry.staticTextY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, Helper.ENTRY_DEFAULTS.staticTextY or 0)
 end
 
 function Helper.SyncOrder(order, map)

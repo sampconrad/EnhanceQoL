@@ -232,6 +232,21 @@ addon.functions.SettingsCreateCheckbox(cGeneral, {
 	default = false,
 	parentSection = utilitiesExpandable,
 })
+addon.functions.SettingsCreateCheckbox(cGeneral, {
+	var = "enableReloadUISlashCommand",
+	text = L["enableReloadUISlashCommand"],
+	desc = L["enableReloadUISlashCommandDesc"],
+	func = function(value)
+		addon.db["enableReloadUISlashCommand"] = value
+		if value then
+			addon.functions.registerReloadUISlashCommand()
+		else
+			addon.variables.requireReload = true
+		end
+	end,
+	default = false,
+	parentSection = utilitiesExpandable,
+})
 
 local systemExpandable = addon.functions.SettingsCreateExpandableSection(cGeneral, {
 	name = L["SystemAndDebug"] or "System & Debug",

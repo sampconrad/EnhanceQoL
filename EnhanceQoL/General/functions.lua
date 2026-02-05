@@ -1505,6 +1505,16 @@ function addon.functions.registerQuickKeybindSlashCommand()
 	SlashCmdList["EQOLKB"] = function() toggleQuickKeybindMode() end
 end
 
+function addon.functions.registerReloadUISlashCommand()
+	if not SlashCmdList then return end
+	local function canClaim(command) return isSlashCommandOwnedByEQOL(command, "EQOLRL", "EQOLRL", 1) or not isSlashCommandRegistered(command) end
+	if not canClaim("/rl") then return end
+	_G.SLASH_EQOLRL1 = "/rl"
+	SlashCmdList["EQOLRL"] = function()
+		if ReloadUI then ReloadUI() end
+	end
+end
+
 function addon.functions.catalystChecks()
 	-- No catalyst charges exist for Timerunners; ensure hidden
 	if addon.functions.IsTimerunner() then

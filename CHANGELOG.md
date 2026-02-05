@@ -9,6 +9,8 @@
 - Cooldown Panels: Cursor anchor mode with Edit Mode preview and live cursor follow
 - Cooldown Panels: Hide on CD option for cooldown icons
 - Cooldown Panels: Show on CD option for cooldown icons
+- Cooldown Panels: Per-entry static text with Edit Mode font/anchor/offset controls
+- System: Optional `/rl` slash command to reload the UI (skips if the command is already claimed)
 - Unit Frames: Combat feedback text with configurable font/anchor/events
 - Skinner: Character Frame flat skin (buttons, dropdowns, title pane hover/selection)
 - Data Panels: Background and border textures/colors are now configurable via SharedMedia.

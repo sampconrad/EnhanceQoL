@@ -3731,6 +3731,7 @@ local function syncTextFrameLevels(st)
 	if st.restLoop and st.statusTextLayer then setFrameLevelAbove(st.restLoop, st.statusTextLayer, 3) end
 	if st.castTextLayer then setFrameLevelAbove(st.castTextLayer, st.castBar, 5) end
 	if st.castIconLayer then setFrameLevelAbove(st.castIconLayer, st.castBar, 4) end
+	if UFHelper and UFHelper.syncCombatFeedbackLayer then UFHelper.syncCombatFeedbackLayer(st) end
 end
 
 local function hookTextFrameLevels(st)
@@ -6054,6 +6055,11 @@ local function ensureEventHandling()
 				if states[UNIT.TARGET] and states[UNIT.TARGET].castBar then setCastInfoFromUnit(UNIT.TARGET) end
 				if states[UNIT.FOCUS] and states[UNIT.FOCUS].castBar then setCastInfoFromUnit(UNIT.FOCUS) end
 				if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+				if UFHelper and UFHelper.stopCombatFeedbackSample then
+					for _, st in pairs(states) do
+						UFHelper.stopCombatFeedbackSample(st)
+					end
+				end
 			end)
 		end
 	end

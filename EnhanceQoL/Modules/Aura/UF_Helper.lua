@@ -1673,9 +1673,54 @@ end
 
 local function resolveCombatFeedbackParent(st, location)
 	if not st then return nil end
-	if location == "HEALTH" then return st.health or st.barGroup or st.frame end
-	if location == "POWER" then return st.power or st.barGroup or st.frame end
-	if location == "STATUS" then return st.status or st.frame end
+	if location == "HEALTH" then return st.healthTextLayer or st.health or st.barGroup or st.frame end
+	if location == "POWER" then return st.powerTextLayer or st.power or st.barGroup or st.frame end
+	if location == "STATUS" then return st.statusTextLayer or st.status or st.frame end
+	return st.frame
+end
+
+local function getCombatFeedbackLayer(st)
+	if not st or not st.frame then return nil end
+	if not st.combatFeedbackLayer then
+		st.combatFeedbackLayer = CreateFrame("Frame", nil, st.frame)
+		st.combatFeedbackLayer:SetAllPoints(st.frame)
+	end
+	local layer = st.combatFeedbackLayer
+	if layer.SetFrameStrata and st.frame.GetFrameStrata then layer:SetFrameStrata(st.frame:GetFrameStrata()) end
+	local maxLevel = 0
+	local function consider(frame)
+		if not frame or not frame.GetFrameLevel then return end
+		local level = frame:GetFrameLevel() or 0
+		if level > maxLevel then maxLevel = level end
+	end
+	consider(st.healthTextLayer)
+	consider(st.powerTextLayer)
+	consider(st.statusTextLayer)
+	consider(st.health and st.health.absorbClip)
+	consider(st.health and st.health._healthFillClip)
+	consider(st.health)
+	consider(st.status)
+	consider(st.power)
+	if layer.SetFrameLevel then layer:SetFrameLevel(maxLevel + 5) end
+	return layer
+end
+
+function H.syncCombatFeedbackLayer(st)
+	local layer = getCombatFeedbackLayer(st)
+	if not layer then return end
+	if st.combatFeedback then
+		if st.combatFeedback.GetParent and st.combatFeedback:GetParent() ~= layer then st.combatFeedback:SetParent(layer) end
+		if st.combatFeedback.SetFrameStrata and layer.GetFrameStrata then st.combatFeedback:SetFrameStrata(layer:GetFrameStrata()) end
+		if st.combatFeedback.SetFrameLevel and layer.GetFrameLevel then st.combatFeedback:SetFrameLevel((layer:GetFrameLevel() or 0) + 1) end
+	end
+	if st.combatFeedbackText and st.combatFeedbackText.GetParent and st.combatFeedbackText:GetParent() ~= layer then st.combatFeedbackText:SetParent(layer) end
+end
+
+local function resolveCombatFeedbackTextParent(st, location)
+	if not st then return nil end
+	if location == "HEALTH" then return st.healthTextLayer or st.health or st.barGroup or st.frame end
+	if location == "POWER" then return st.powerTextLayer or st.power or st.barGroup or st.frame end
+	if location == "STATUS" then return st.statusTextLayer or st.status or st.frame end
 	return st.frame
 end
 
@@ -1748,6 +1793,10 @@ local function stopCombatFeedbackSample(st)
 	local ticker = st._combatFeedbackSampleTicker
 	if ticker and ticker.Cancel then ticker:Cancel() end
 	st._combatFeedbackSampleTicker = nil
+	if st._combatFeedbackSampleActive then
+		st._combatFeedbackSampleActive = nil
+		if st.combatFeedbackText then st.combatFeedbackText:Hide() end
+	end
 end
 
 function H.applyCombatFeedbackStyle(st, cfg, def)
@@ -1768,6 +1817,10 @@ function H.applyCombatFeedbackStyle(st, cfg, def)
 	local frame, text = H.ensureCombatFeedbackElements(st)
 	if not frame or not text then return end
 	H.applyFont(text, font, fontSize, nil)
+	H.syncCombatFeedbackLayer(st)
+	local textParent = getCombatFeedbackLayer(st) or resolveCombatFeedbackTextParent(st, location) or st.frame
+	if text.GetParent and text:GetParent() ~= textParent then text:SetParent(textParent) end
+	if text.SetDrawLayer then text:SetDrawLayer("OVERLAY", 7) end
 	text:ClearAllPoints()
 	local parent = resolveCombatFeedbackParent(st, location) or st.frame
 	text:SetPoint(anchor, parent, anchor, ox, oy)
@@ -1792,6 +1845,7 @@ function H.showCombatFeedbackSample(st, cfg, def)
 	H.applyCombatFeedbackStyle(st, cfg, def)
 	if CombatFeedback_OnUpdate and frame.GetScript and frame:GetScript("OnUpdate") == nil then frame:SetScript("OnUpdate", CombatFeedback_OnUpdate) end
 	CombatFeedback_OnCombatEvent(frame, sampleEvent, "", sampleAmount, 1)
+	st._combatFeedbackSampleActive = true
 end
 
 function H.handleCombatFeedbackEvent(st, cfg, def, event, flags, amount, schoolMask)
@@ -1848,7 +1902,8 @@ function H.updateCombatFeedback(st, unit, cfg, def)
 
 	stopCombatFeedbackSample(st)
 	local sampleEnabled = getCombatFeedbackSampleConfig(cfg, def)
-	if sampleEnabled then
+	local inEditMode = addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode()
+	if sampleEnabled and inEditMode then
 		H.showCombatFeedbackSample(st, cfg, def)
 		if NewTicker then
 			st._combatFeedbackSampleTicker = NewTicker(1.2, function()
@@ -1857,8 +1912,12 @@ function H.updateCombatFeedback(st, unit, cfg, def)
 				H.showCombatFeedbackSample(st, activeCfg, activeDef)
 			end)
 		end
+	else
+		stopCombatFeedbackSample(st)
 	end
 end
+
+function H.stopCombatFeedbackSample(st) stopCombatFeedbackSample(st) end
 
 function H.disableCombatFeedbackAll(states)
 	if type(states) ~= "table" then return end
