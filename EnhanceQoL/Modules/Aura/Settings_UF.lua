@@ -4386,26 +4386,65 @@ local function registerSettingsUI()
 	addon.SettingsLayout.ufPlusCategory = cUF
 	addon.functions.SettingsCreateText(cUF, "|cff99e599" .. L["UFPlusHint"] .. "|r", { parentSection = expandable })
 	addon.functions.SettingsCreateText(cUF, "", { parentSection = expandable })
-	--@debug@
+	local function getGroupFramesConfig(kind)
+		if UF and UF.GroupFrames and UF.GroupFrames.GetConfig then return UF.GroupFrames:GetConfig(kind) end
+		addon.db = addon.db or {}
+		addon.db.ufGroupFrames = addon.db.ufGroupFrames or {}
+		addon.db.ufGroupFrames[kind] = addon.db.ufGroupFrames[kind] or {}
+		return addon.db.ufGroupFrames[kind]
+	end
 	addon.functions.SettingsCreateCheckbox(cUF, {
-		var = "ufEnableGroupFrames",
-		text = L["UFGroupFramesEnable"] or "Enable party/raid group frames",
+		var = "ufEnablePartyGroupFrames",
+		text = L["UFGroupFramesPartyEnable"] or "Enable party frames",
 		default = false,
-		get = function() return addon.db and addon.db.ufEnableGroupFrames == true end,
+		get = function()
+			local cfg = getGroupFramesConfig("party")
+			return cfg and cfg.enabled == true
+		end,
 		func = function(val)
-			addon.db = addon.db or {}
-			addon.db.ufEnableGroupFrames = val and true or false
+			local cfg = getGroupFramesConfig("party")
+			if cfg then cfg.enabled = val and true or false end
 			if UF and UF.GroupFrames then
 				if val then
-					UF.GroupFrames:EnableFeature()
+					UF.GroupFrames:Enable("party")
 				else
-					UF.GroupFrames:DisableFeature()
+					UF.GroupFrames:Disable("party")
 				end
 			end
+			if val == false then
+				addon.variables.requireReload = true
+				if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
+			end
+			refreshSettingsUI()
 		end,
 		parentSection = expandable,
 	})
-	--@end-debug@
+	addon.functions.SettingsCreateCheckbox(cUF, {
+		var = "ufEnableRaidGroupFrames",
+		text = L["UFGroupFramesRaidEnable"] or "Enable raid frames",
+		default = false,
+		get = function()
+			local cfg = getGroupFramesConfig("raid")
+			return cfg and cfg.enabled == true
+		end,
+		func = function(val)
+			local cfg = getGroupFramesConfig("raid")
+			if cfg then cfg.enabled = val and true or false end
+			if UF and UF.GroupFrames then
+				if val then
+					UF.GroupFrames:Enable("raid")
+				else
+					UF.GroupFrames:Disable("raid")
+				end
+			end
+			if val == false then
+				addon.variables.requireReload = true
+				if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
+			end
+			refreshSettingsUI()
+		end,
+		parentSection = expandable,
+	})
 	local function addToggle(unit, label, varName)
 		local def = defaultsFor(unit)
 		addon.functions.SettingsCreateCheckbox(cUF, {

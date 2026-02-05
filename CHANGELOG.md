@@ -5,6 +5,7 @@
 ### ✨ Added
 
 - Unit Frames: Aura icons can use custom border textures (boss frames included)
+- Group Frames (Party/Raid): **BETA** (performance test) for feedback on missing features or breakage. Aura filters require 12.0.1; on 12.0.0 you will see more auras (e.g., Externals filtering won’t work yet).
 - Cooldown Panels: Optional radial layout with radius/rotation controls (layout fields auto-hide on switch)
 - Cooldown Panels: Cursor anchor mode with Edit Mode preview and live cursor follow
 - Cooldown Panels: Hide on CD option for cooldown icons
@@ -41,6 +42,7 @@
 - Unit Frames: Boss cast bar interrupt texture now resets on new casts
 - ChatIM: Disabling instant messenger restores whispers in normal chat
 - Vendor: Disable destroy-queue Add button when the feature is off
+- MythicPlus: ConsolePort left-click on World Map teleports now triggers the cast correctly
 
 ---
 

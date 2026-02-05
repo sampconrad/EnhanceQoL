@@ -1283,7 +1283,58 @@ getCfg = function(kind)
 	return db[kind] or DEFAULTS[kind]
 end
 
-local function isFeatureEnabled() return addon.db and addon.db.ufEnableGroupFrames == true end
+local function isFeatureEnabled()
+	local db = DB or ensureDB()
+	local partyEnabled = db and db.party and db.party.enabled == true
+	local raidEnabled = db and db.raid and db.raid.enabled == true
+	return partyEnabled or raidEnabled
+end
+
+local hiddenParent
+local function getHiddenParent()
+	if hiddenParent then return hiddenParent end
+	hiddenParent = CreateFrame("Frame")
+	hiddenParent:Hide()
+	return hiddenParent
+end
+
+local function hideFrameLocked(frame)
+	if not frame or frame._eqolHidden then return end
+	if frame.UnregisterAllEvents then frame:UnregisterAllEvents() end
+	if frame.Hide then pcall(frame.Hide, frame) end
+	frame._eqolHidden = true
+	if frame.SetParent then pcall(frame.SetParent, frame, getHiddenParent()) end
+	if frame.Show then hooksecurefunc(frame, "Show", frame.Hide) end
+	if frame.SetShown then
+		hooksecurefunc(frame, "SetShown", function(f, shown)
+			if shown and f.Hide then f:Hide() end
+		end)
+	end
+end
+
+function GF:DisableBlizzardFrames()
+	local db = DB or ensureDB()
+	local wantParty = db and db.party and db.party.enabled == true
+	local wantRaid = db and db.raid and db.raid.enabled == true
+	if InCombatLockdown and InCombatLockdown() then
+		GF._pendingBlizzardDisable = { party = wantParty, raid = wantRaid }
+		return
+	end
+	local pending = GF._pendingBlizzardDisable or {}
+	GF._pendingBlizzardDisable = nil
+	if wantParty or pending.party then
+		hideFrameLocked(_G.PartyFrame)
+		hideFrameLocked(_G.CompactPartyFrame)
+		hideFrameLocked(_G.CompactPartyFrameTitle)
+	end
+	if wantRaid or pending.raid then
+		hideFrameLocked(_G.CompactRaidFrameContainer)
+		hideFrameLocked(_G.CompactRaidFrameManager)
+		if CompactRaidFrameManager_SetSetting then
+			pcall(CompactRaidFrameManager_SetSetting, "IsShown", "0")
+		end
+	end
+end
 
 
 function GF:GetConfig(kind) return getCfg(kind) end
@@ -4302,21 +4353,25 @@ local function applyVisibility(header, kind, cfg)
 
 	if UnregisterStateDriver then UnregisterStateDriver(header, "visibility") end
 
+	if cfg.enabled ~= true then
+		RegisterStateDriver(header, "visibility", "hide")
+		header._eqolVisibilityCond = "hide"
+		return
+	end
+
 	local cond = "hide"
 	if header._eqolForceHide then
 		cond = "hide"
 	elseif header._eqolForceShow then
 		cond = "show"
-	elseif cfg.enabled then
-		if kind == "party" then
-			if cfg.showSolo then
-				cond = "[group:raid] hide; show"
-			else
-				cond = "[group:raid] hide; [group:party] show; hide"
-			end
-		elseif kind == "raid" then
-			cond = "[group:raid] show; hide"
+	elseif kind == "party" then
+		if cfg.showSolo then
+			cond = "[group:raid] hide; show"
+		else
+			cond = "[group:raid] hide; [group:party] show; hide"
 		end
+	elseif kind == "raid" then
+		cond = "[group:raid] show; hide"
 	end
 
 	RegisterStateDriver(header, "visibility", cond)
@@ -4325,6 +4380,8 @@ end
 
 function GF:EnsurePreviewFrames(kind)
 	if kind ~= "party" and kind ~= "raid" then return nil end
+	local cfg = getCfg(kind)
+	if not (cfg and cfg.enabled == true) then return nil end
 	local samples = PREVIEW_SAMPLES[kind]
 	if not (samples and #samples > 0) then return nil end
 	if InCombatLockdown and InCombatLockdown() then return nil end
@@ -4370,7 +4427,10 @@ function GF:UpdatePreviewLayout(kind)
 	local anchor = GF.anchors and GF.anchors[kind]
 	if not (frames and anchor) then return end
 	local cfg = getCfg(kind)
-	if not cfg then return end
+	if not (cfg and cfg.enabled == true) then
+		GF:ShowPreviewFrames(kind, false)
+		return
+	end
 	local sampleLimit = (kind == "raid" and ((GF._previewSampleSize and GF._previewSampleSize[kind]) or 10)) or nil
 	local samples = (GFH.BuildPreviewSampleList and GFH.BuildPreviewSampleList(kind, cfg, PREVIEW_SAMPLES[kind], sampleLimit, 2, 3)) or (PREVIEW_SAMPLES[kind] or {})
 	GF._previewSampleCount = GF._previewSampleCount or {}
@@ -5068,17 +5128,14 @@ end
 
 
 function GF:EnableFeature()
-	addon.db = addon.db or {}
-	addon.db.ufEnableGroupFrames = true
 	registerFeatureEvents(GF._eventFrame)
 	GF:EnsureHeaders()
 	GF.Refresh()
+	GF:DisableBlizzardFrames()
 	GF:EnsureEditMode()
 end
 
 function GF:DisableFeature()
-	addon.db = addon.db or {}
-	addon.db.ufEnableGroupFrames = false
 	if InCombatLockdown and InCombatLockdown() then
 		GF._pendingDisable = true
 		return
@@ -5109,18 +5166,36 @@ function GF:DisableFeature()
 	end
 end
 
-function GF.Enable(kind)
+function GF.Enable(self, kind)
+	if type(self) == "string" and kind == nil then kind = self end
+	if type(kind) ~= "string" then return end
 	local cfg = getCfg(kind)
+	if not cfg then return end
 	cfg.enabled = true
 	GF:EnsureHeaders()
 	GF:ApplyHeaderAttributes(kind)
+	GF:EnableFeature()
+	GF:DisableBlizzardFrames()
 end
 
-function GF.Disable(kind)
+function GF.Disable(self, kind)
+	if type(self) == "string" and kind == nil then kind = self end
+	if type(kind) ~= "string" then return end
 	local cfg = getCfg(kind)
+	if not cfg then return end
 	cfg.enabled = false
 	GF:EnsureHeaders()
+	local header = GF.headers and GF.headers[kind]
+	if header then
+		header._eqolForceShow = nil
+		header._eqolForceHide = nil
+	end
+	if GF._previewActive then GF._previewActive[kind] = nil end
+	GF:ShowPreviewFrames(kind, false)
 	GF:ApplyHeaderAttributes(kind)
+	if not isFeatureEnabled() then
+		GF:DisableFeature()
+	end
 end
 
 function GF.Refresh(kind)
@@ -5346,24 +5421,6 @@ local function buildEditModeSettings(kind, editModeId)
 			kind = SettingType.Collapsible,
 			id = "frame",
 			defaultCollapsed = true,
-		},
-		{
-			name = "Enabled",
-			kind = SettingType.Checkbox,
-			field = "enabled",
-			default = (DEFAULTS[kind] and DEFAULTS[kind].enabled) or false,
-			parentId = "frame",
-			get = function()
-				local cfg = getCfg(kind)
-				return cfg and cfg.enabled == true
-			end,
-			set = function(_, value)
-				local cfg = getCfg(kind)
-				if not cfg then return end
-				cfg.enabled = value and true or false
-				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "enabled", cfg.enabled, nil, true) end
-				GF:ApplyHeaderAttributes(kind)
-			end,
 		},
 		{
 			name = widthLabel,
@@ -12391,7 +12448,6 @@ local function applyEditModeData(kind, data)
 	if data.targetHighlightTexture ~= nil then cfg.highlightTarget.texture = data.targetHighlightTexture end
 	if data.targetHighlightSize ~= nil then cfg.highlightTarget.size = clampNumber(data.targetHighlightSize, 1, 64, cfg.highlightTarget.size or 2) end
 	if data.targetHighlightOffset ~= nil then cfg.highlightTarget.offset = clampNumber(data.targetHighlightOffset, -64, 64, cfg.highlightTarget.offset or 0) end
-	if data.enabled ~= nil then cfg.enabled = data.enabled and true or false end
 	if data.showName ~= nil then
 		cfg.text = cfg.text or {}
 		cfg.text.showName = data.showName and true or false
@@ -13088,7 +13144,6 @@ function GF:EnsureEditMode()
 				targetHighlightTexture = (cfg.highlightTarget and cfg.highlightTarget.texture) or (def.highlightTarget and def.highlightTarget.texture) or "DEFAULT",
 				targetHighlightSize = (cfg.highlightTarget and cfg.highlightTarget.size) or (def.highlightTarget and def.highlightTarget.size) or 2,
 				targetHighlightOffset = (cfg.highlightTarget and cfg.highlightTarget.offset) or (def.highlightTarget and def.highlightTarget.offset) or 0,
-				enabled = cfg.enabled == true,
 				tooltipMode = tcfg.mode or defTooltip.mode or "OFF",
 				tooltipModifier = tcfg.modifier or defTooltip.modifier or "ALT",
 				tooltipAuras = ac.buff.showTooltip == true and ac.debuff.showTooltip == true and ac.externals.showTooltip == true,
@@ -13334,7 +13389,10 @@ function GF:EnsureEditMode()
 				onPositionChanged = function(_, _, data) applyEditModeData(kind, data) end,
 				onEnter = function() GF:OnEnterEditMode(kind) end,
 				onExit = function() GF:OnExitEditMode(kind) end,
-				isEnabled = function() return true end,
+				isEnabled = function()
+					local cfg = getCfg(kind)
+					return cfg and cfg.enabled == true
+				end,
 				allowDrag = function() return anchorUsesUIParent(kind) end,
 				showOutsideEditMode = false,
 				showReset = false,
@@ -13382,6 +13440,8 @@ end
 
 function GF:OnEnterEditMode(kind)
 	if not isFeatureEnabled() then return end
+	local cfg = getCfg(kind)
+	if not (cfg and cfg.enabled == true) then return end
 	if GF._editModeSampleAuras == nil then GF._editModeSampleAuras = true end
 	if GF._editModeSampleStatusText == nil then GF._editModeSampleStatusText = true end
 	if GF._editModeSampleFrames == nil then GF._editModeSampleFrames = { party = false, raid = false } end
@@ -13409,6 +13469,8 @@ end
 
 function GF:OnExitEditMode(kind)
 	if not isFeatureEnabled() then return end
+	local cfg = getCfg(kind)
+	if not (cfg and cfg.enabled == true) then return end
 	GF:EnsureHeaders()
 	local header = GF.headers and GF.headers[kind]
 	if not header then return end
@@ -13464,12 +13526,15 @@ do
 				registerFeatureEvents(f)
 				GF:EnsureHeaders()
 				GF.Refresh()
+				GF:DisableBlizzardFrames()
 				GF:EnsureEditMode()
 			end
 		elseif event == "PLAYER_REGEN_ENABLED" then
 			if GF._pendingDisable then
 				GF._pendingDisable = nil
 				GF:DisableFeature()
+			elseif GF._pendingBlizzardDisable then
+				GF:DisableBlizzardFrames()
 			elseif GF._pendingRefresh then
 				GF._pendingRefresh = false
 				GF.Refresh()
