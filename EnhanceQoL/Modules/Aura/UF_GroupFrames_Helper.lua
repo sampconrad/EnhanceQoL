@@ -17,16 +17,21 @@ H.COLOR_YELLOW = { 1, 1, 0, 1 }
 
 H.GROUP_ORDER = "1,2,3,4,5,6,7,8"
 H.ROLE_TOKENS = { "TANK", "HEALER", "DAMAGER" }
+H.ROLE_TOKENS_CORE = { "TANK", "HEALER" }
 H.ROLE_ORDER = table.concat(H.ROLE_TOKENS, ",")
 H.ROLE_LABELS = {
 	TANK = TANK or "Tank",
 	HEALER = HEALER or "Healer",
 	DAMAGER = DAMAGER or "DPS",
+	MELEE = "Melee DPS",
+	RANGED = "Ranged DPS",
 }
 H.ROLE_COLORS = {
 	TANK = { 0.2, 0.6, 1.0 },
 	HEALER = { 0.2, 1.0, 0.4 },
 	DAMAGER = { 1.0, 0.2, 0.2 },
+	MELEE = { 0.82, 0.65, 0.47 },
+	RANGED = { 0.6, 0.6, 1.0 },
 }
 H.CUSTOM_SORT_ROW_HEIGHT = 22
 H.CUSTOM_SORT_ROW_WIDTH = 170
@@ -48,6 +53,45 @@ H.CLASS_TOKENS = {
 }
 H.CLASS_ORDER = table.concat(H.CLASS_TOKENS, ",")
 
+H.MELEE_SPECS = {
+	-- Death Knight (all melee)
+	[250] = true, [251] = true, [252] = true,
+	-- Demon Hunter (all melee)
+	[577] = true, [581] = true,
+	-- Druid (Feral, Guardian)
+	[103] = true, [104] = true,
+	-- Evoker (Augmentation is melee-range)
+	[1473] = true,
+	-- Hunter (Survival)
+	[255] = true,
+	-- Monk (Brewmaster, Windwalker)
+	[268] = true, [269] = true,
+	-- Paladin (Protection, Retribution)
+	[66] = true, [70] = true,
+	-- Rogue (all melee)
+	[259] = true, [260] = true, [261] = true,
+	-- Shaman (Enhancement)
+	[263] = true,
+	-- Warrior (all melee)
+	[71] = true, [72] = true, [73] = true,
+}
+
+H.MELEE_DPS_CLASSES = {
+	WARRIOR = true,
+	ROGUE = true,
+	DEATHKNIGHT = true,
+	DEMONHUNTER = true,
+	MONK = true,
+	PALADIN = true,
+}
+
+H.RANGED_DPS_CLASSES = {
+	MAGE = true,
+	WARLOCK = true,
+	PRIEST = true,
+	EVOKER = true,
+}
+
 local UnitSex = UnitSex
 local GetNumClasses = GetNumClasses
 local GetClassInfo = GetClassInfo
@@ -55,9 +99,21 @@ local GetSpecializationInfo = GetSpecializationInfo
 local GetNumSpecializations = GetNumSpecializations
 local GetSpecializationInfoForClassID = GetSpecializationInfoForClassID
 local GetNumSpecializationsForClassID = GetNumSpecializationsForClassID
+local GetInspectSpecialization = GetInspectSpecialization
+local NotifyInspect = NotifyInspect
+local ClearInspectPlayer = ClearInspectPlayer
 local C_SpecializationInfo = C_SpecializationInfo
 local C_CreatureInfo = C_CreatureInfo
 local floor = math.floor
+local UnitIsUnit = UnitIsUnit
+local UnitExists = UnitExists
+local UnitIsPlayer = UnitIsPlayer
+local UnitGUID = UnitGUID
+local InCombatLockdown = InCombatLockdown
+local IsInRaid = IsInRaid
+local IsInGroup = IsInGroup
+local GetNumGroupMembers = GetNumGroupMembers
+local C_Timer = C_Timer
 local strlower = string.lower
 local CreateFrame = CreateFrame
 local UIParent = UIParent
@@ -343,8 +399,12 @@ function H.CreateCustomSortEditor(opts)
 	function frame:Refresh()
 		local roleOrder, classOrder = nil, nil
 		if getOrders then roleOrder, classOrder = getOrders() end
-		roleOrder = H.NormalizeOrderList(roleOrder, roleTokens)
-		classOrder = H.NormalizeOrderList(classOrder, classTokens)
+		roleOrder = H.NormalizeOrderList(roleOrder, nil)
+		if #roleOrder == 0 then roleOrder = H.NormalizeOrderList(nil, roleTokens) end
+		classOrder = H.NormalizeOrderList(classOrder, nil)
+		if #classOrder == 0 then classOrder = H.NormalizeOrderList(nil, classTokens) end
+		if self.RoleContainer then self.RoleContainer:SetSize(rowWidth, rowHeight * #roleOrder) end
+		if self.ClassContainer then self.ClassContainer:SetSize(rowWidth, rowHeight * #classOrder) end
 		self.roleOrder = roleOrder
 		self.classOrder = classOrder
 		self:RefreshList("role", self.RoleContainer, self.roleRows, roleOrder, function(token)
@@ -384,6 +444,74 @@ function H.NormalizeOrderList(list, fallback)
 	return out
 end
 
+function H.ExpandRoleOrder(roleOrder, separateMeleeRanged, meleeBeforeRanged)
+	local fallback = separateMeleeRanged and H.ROLE_TOKENS_CORE or H.ROLE_TOKENS
+	local order = H.NormalizeOrderList(roleOrder, fallback)
+	if not separateMeleeRanged then return order end
+
+	local expanded = {}
+	local hasMelee = false
+	local hasRanged = false
+	local meleeFirst = (meleeBeforeRanged ~= false)
+	for _, role in ipairs(order) do
+		if role == "MELEE" then
+			hasMelee = true
+			expanded[#expanded + 1] = role
+		elseif role == "RANGED" then
+			hasRanged = true
+			expanded[#expanded + 1] = role
+		elseif role == "DAMAGER" then
+			if meleeFirst then
+				expanded[#expanded + 1] = "MELEE"
+				expanded[#expanded + 1] = "RANGED"
+			else
+				expanded[#expanded + 1] = "RANGED"
+				expanded[#expanded + 1] = "MELEE"
+			end
+		else
+			expanded[#expanded + 1] = role
+		end
+	end
+	if not hasMelee and not hasRanged then
+		if meleeFirst then
+			expanded[#expanded + 1] = "MELEE"
+			expanded[#expanded + 1] = "RANGED"
+		else
+			expanded[#expanded + 1] = "RANGED"
+			expanded[#expanded + 1] = "MELEE"
+		end
+	elseif not hasMelee then
+		expanded[#expanded + 1] = "MELEE"
+	elseif not hasRanged then
+		expanded[#expanded + 1] = "RANGED"
+	end
+	return expanded
+end
+
+function H.CollapseRoleOrder(roleOrder)
+	local order = H.NormalizeOrderList(roleOrder, H.ROLE_TOKENS)
+	local collapsed = {}
+	local seen = {}
+	local insertedDamager = false
+	for _, role in ipairs(order) do
+		local token = role
+		if token == "MELEE" or token == "RANGED" then
+			if not insertedDamager then
+				token = "DAMAGER"
+				insertedDamager = true
+			else
+				token = nil
+			end
+		end
+		if token and not seen[token] then
+			seen[token] = true
+			collapsed[#collapsed + 1] = token
+		end
+	end
+	if not seen.DAMAGER then collapsed[#collapsed + 1] = "DAMAGER" end
+	return H.NormalizeOrderList(collapsed, H.ROLE_TOKENS)
+end
+
 function H.BuildOrderMapFromList(list)
 	local map = {}
 	if type(list) ~= "table" then return map end
@@ -398,12 +526,170 @@ function H.EnsureCustomSortConfig(cfg)
 	cfg.customSort = cfg.customSort or {}
 	local custom = cfg.customSort
 	if custom.enabled == nil then custom.enabled = false end
-	custom.roleOrder = H.NormalizeOrderList(custom.roleOrder, H.ROLE_TOKENS)
+	if custom.separateMeleeRanged == nil then custom.separateMeleeRanged = false end
+	if custom.separateMeleeRanged == true then
+		custom.roleOrder = H.ExpandRoleOrder(custom.roleOrder, true)
+	else
+		custom.roleOrder = H.CollapseRoleOrder(custom.roleOrder)
+	end
 	custom.classOrder = H.NormalizeOrderList(custom.classOrder, H.CLASS_TOKENS)
 	return custom
 end
 
-local function getUnitFullName(unit)
+function H.GetUnitSpecId(unit)
+	if not unit then return nil end
+	if UnitIsUnit and UnitIsUnit(unit, "player") then
+		local specIndex = GetSpecialization and GetSpecialization()
+		if specIndex and GetSpecializationInfo then
+			local specId = GetSpecializationInfo(specIndex)
+			if specId and specId > 0 then return specId end
+		end
+	end
+	if GetInspectSpecialization then
+		local specId = GetInspectSpecialization(unit)
+		if specId and specId > 0 then return specId end
+	end
+	return nil
+end
+
+H.specCache = H.specCache or {}
+H.inspectQueue = H.inspectQueue or {}
+H.inspectInProgress = H.inspectInProgress or false
+H.inspectUnit = H.inspectUnit or nil
+H.inspectGuid = H.inspectGuid or nil
+
+function H.CacheUnitSpec(unit, specId)
+	if not unit or not specId or specId <= 0 then return false end
+	local name = H.GetUnitFullName(unit)
+	if not name or name == "" then return false end
+	H.specCache[name] = specId
+	return true
+end
+
+function H.GetCachedSpecId(unit)
+	local name = H.GetUnitFullName(unit)
+	if not name or name == "" then return nil end
+	return H.specCache[name]
+end
+
+function H.GetUnitSpecIdCached(unit)
+	local cached = H.GetCachedSpecId(unit)
+	if cached and cached > 0 then return cached end
+	local specId = H.GetUnitSpecId(unit)
+	if specId and specId > 0 then
+		H.CacheUnitSpec(unit, specId)
+		return specId
+	end
+	return nil
+end
+
+function H.QueueInspect(unit)
+	if not (UnitExists and UnitExists(unit)) then return end
+	if UnitIsPlayer and not UnitIsPlayer(unit) then return end
+	if UnitIsUnit and UnitIsUnit(unit, "player") then return end
+	if InCombatLockdown and InCombatLockdown() then return end
+	local name = H.GetUnitFullName(unit)
+	if name and H.specCache[name] then return end
+	local guid = UnitGUID and UnitGUID(unit)
+	if not guid or guid == "" then return end
+	if H.inspectQueue[guid] then return end
+	H.inspectQueue[guid] = unit
+	H.ProcessInspectQueue()
+end
+
+function H.ProcessInspectQueue()
+	if H.inspectInProgress then return end
+	if InCombatLockdown and InCombatLockdown() then return end
+	local guid, unit = next(H.inspectQueue)
+	if not guid then return end
+	if not (UnitExists and UnitExists(unit)) then
+		H.inspectQueue[guid] = nil
+		if C_Timer and C_Timer.After then C_Timer.After(0.1, function() H.ProcessInspectQueue() end) end
+		return
+	end
+	local unitGuid = UnitGUID and UnitGUID(unit)
+	if unitGuid and unitGuid ~= guid then
+		H.inspectQueue[guid] = nil
+		if C_Timer and C_Timer.After then C_Timer.After(0.1, function() H.ProcessInspectQueue() end) end
+		return
+	end
+	if InspectFrame and InspectFrame.IsShown and InspectFrame:IsShown() then
+		if C_Timer and C_Timer.After then C_Timer.After(2, function() H.ProcessInspectQueue() end) end
+		return
+	end
+	H.inspectInProgress = true
+	H.inspectGuid = guid
+	H.inspectUnit = unit
+	if NotifyInspect then NotifyInspect(unit) end
+end
+
+function H.OnInspectReady(guid)
+	if not H.inspectInProgress then return false end
+	local issecret = _G.issecretvalue
+	local guidSecret = issecret and issecret(guid)
+	local restricted = addon and addon.functions and addon.functions.isRestrictedContent
+		and addon.functions.isRestrictedContent(true) == true
+	local unit
+	if restricted or guidSecret then
+		unit = H.inspectUnit
+	else
+		if H.inspectGuid and guid == H.inspectGuid then
+			unit = H.inspectUnit
+		elseif guid and H.inspectQueue[guid] then
+			unit = H.inspectQueue[guid]
+		end
+	end
+	if not unit or not (UnitExists and UnitExists(unit)) then
+		H.inspectInProgress = false
+		H.inspectGuid = nil
+		H.inspectUnit = nil
+		return false
+	end
+	local specId = GetInspectSpecialization and GetInspectSpecialization(unit)
+	local updated = false
+	if specId and specId > 0 then
+		updated = H.CacheUnitSpec(unit, specId)
+	end
+	if H.inspectGuid then H.inspectQueue[H.inspectGuid] = nil end
+	if guid and H.inspectQueue[guid] then H.inspectQueue[guid] = nil end
+	H.inspectInProgress = false
+	H.inspectGuid = nil
+	H.inspectUnit = nil
+	if ClearInspectPlayer then ClearInspectPlayer() end
+	if C_Timer and C_Timer.After then C_Timer.After(0.5, function() H.ProcessInspectQueue() end) end
+	return updated
+end
+
+function H.QueueInspectGroup()
+	if InCombatLockdown and InCombatLockdown() then return end
+	local playerSpec = GetSpecialization and GetSpecialization()
+	if playerSpec and GetSpecializationInfo then
+		local specId = GetSpecializationInfo(playerSpec)
+		if specId and specId > 0 then H.CacheUnitSpec("player", specId) end
+	end
+	if IsInRaid and IsInRaid() then
+		local total = GetNumGroupMembers and GetNumGroupMembers() or 0
+		for i = 1, total do
+			local unit = "raid" .. i
+			if UnitExists and UnitExists(unit) then H.QueueInspect(unit) end
+		end
+	elseif IsInGroup and IsInGroup() then
+		for i = 1, 4 do
+			local unit = "party" .. i
+			if UnitExists and UnitExists(unit) then H.QueueInspect(unit) end
+		end
+	end
+end
+
+function H.GetDpsRangeRole(specId, classToken)
+	if specId and H.MELEE_SPECS[specId] then return "MELEE" end
+	if specId and specId > 0 then return "RANGED" end
+	if classToken and H.MELEE_DPS_CLASSES[classToken] then return "MELEE" end
+	if classToken and H.RANGED_DPS_CLASSES[classToken] then return "RANGED" end
+	return "RANGED"
+end
+
+function H.GetUnitFullName(unit)
 	if not unit or not UnitName then return nil end
 	local name, realm = UnitName(unit)
 	if not name or name == "" then return nil end
@@ -415,7 +701,8 @@ function H.BuildCustomSortNameList(cfg)
 	local custom = H.EnsureCustomSortConfig(cfg)
 	if not (custom and custom.enabled == true) then return "" end
 
-	local roleOrder = custom.roleOrder or H.ROLE_TOKENS
+	local separate = custom.separateMeleeRanged == true
+	local roleOrder = H.ExpandRoleOrder(custom.roleOrder, separate)
 	local classOrder = custom.classOrder or H.CLASS_TOKENS
 	local roleMap = H.BuildOrderMapFromList(roleOrder)
 	local classMap = H.BuildOrderMapFromList(classOrder)
@@ -425,14 +712,20 @@ function H.BuildCustomSortNameList(cfg)
 	for i = 1, num do
 		local unit = "raid" .. i
 		if UnitExists and UnitExists(unit) then
-			local name = getUnitFullName(unit)
+			local name = H.GetUnitFullName(unit)
 			if name then
 				local _, classToken = UnitClass(unit)
 				local role = UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit) or nil
 				if role == "NONE" or role == nil then role = "DAMAGER" end
+				local sortRole = role
+				if separate and role == "DAMAGER" then
+					local specId = H.GetUnitSpecIdCached(unit)
+					sortRole = H.GetDpsRangeRole(specId, classToken)
+				end
 				entries[#entries + 1] = {
 					name = name,
 					role = role,
+					sortRole = sortRole,
 					class = classToken,
 				}
 			end
@@ -440,8 +733,8 @@ function H.BuildCustomSortNameList(cfg)
 	end
 
 	table.sort(entries, function(a, b)
-		local roleA = roleMap[a.role] or 999
-		local roleB = roleMap[b.role] or 999
+		local roleA = roleMap[a.sortRole or a.role] or 999
+		local roleB = roleMap[b.sortRole or b.role] or 999
 		if roleA ~= roleB then return roleA < roleB end
 		local classA = classMap[a.class] or 999
 		local classB = classMap[b.class] or 999
@@ -563,7 +856,8 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 
 	local customSort = cfg and cfg.customSort
 	if customSort and customSort.enabled == true then
-		local roleOrder = H.NormalizeOrderList(customSort.roleOrder, H.ROLE_TOKENS)
+		local separate = customSort.separateMeleeRanged == true
+		local roleOrder = H.ExpandRoleOrder(customSort.roleOrder, separate)
 		local classOrder = H.NormalizeOrderList(customSort.classOrder, H.CLASS_TOKENS)
 		local roleMap = buildOrderMap(table.concat(roleOrder, ","))
 		local classMap = buildOrderMap(table.concat(classOrder, ","))
@@ -575,6 +869,8 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 		table.sort(list, function(a, b)
 			local roleA = a.sample and (a.sample.assignedRole or a.sample.role) or nil
 			local roleB = b.sample and (b.sample.assignedRole or b.sample.role) or nil
+			if separate and roleA == "DAMAGER" then roleA = H.GetDpsRangeRole(nil, a.sample and a.sample.class) end
+			if separate and roleB == "DAMAGER" then roleB = H.GetDpsRangeRole(nil, b.sample and b.sample.class) end
 			local orderA = roleMap[roleA] or 999
 			local orderB = roleMap[roleB] or 999
 			if orderA ~= orderB then return orderA < orderB end
