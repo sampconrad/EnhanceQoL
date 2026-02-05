@@ -3695,6 +3695,23 @@ local function setFrameLevelAbove(child, parent, offset)
 	child:SetFrameLevel((parent:GetFrameLevel() or 0) + (offset or 1))
 end
 
+local function getHealthTextAnchor(st)
+	if not st or not st.health then return nil end
+	local anchor = st.health
+	local maxLevel = (anchor.GetFrameLevel and anchor:GetFrameLevel()) or 0
+	local function consider(frame)
+		if not frame or not frame.GetFrameLevel then return end
+		local level = frame:GetFrameLevel() or 0
+		if level > maxLevel then
+			maxLevel = level
+			anchor = frame
+		end
+	end
+	consider(st.health.absorbClip)
+	consider(st.health._healthFillClip)
+	return anchor
+end
+
 local STRATA_ORDER = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
 local STRATA_INDEX = {}
 for i = 1, #STRATA_ORDER do
@@ -3703,7 +3720,8 @@ end
 
 local function syncTextFrameLevels(st)
 	if not st then return end
-	setFrameLevelAbove(st.healthTextLayer, st.health, 5)
+	local healthAnchor = getHealthTextAnchor(st) or st.health
+	setFrameLevelAbove(st.healthTextLayer, healthAnchor, 5)
 	setFrameLevelAbove(st.powerTextLayer, st.power, 5)
 	setFrameLevelAbove(st.statusTextLayer, st.status, 5)
 	if st.restLoop and st.statusTextLayer then setFrameLevelAbove(st.restLoop, st.statusTextLayer, 3) end
@@ -4645,6 +4663,7 @@ local function applyBars(cfg, unit)
 					if UFHelper.setupAbsorbClamp then UFHelper.setupAbsorbClamp(st.health, st.absorb2) end
 					if UFHelper.setupAbsorbOverShift then UFHelper.setupAbsorbOverShift(st.health, st.absorb) end
 				end
+				syncTextFrameLevels(st)
 			end
 			setFrameLevelAbove(st.absorb2, st.health, 1)
 			st.absorb2:SetMinMaxValues(0, 1)
