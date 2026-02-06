@@ -247,6 +247,13 @@ local frames = {
 		defaultEnabled = true,
 	},
 	{
+		id = "LFGListInviteDialog",
+		label = L["LFG List Invite Dialog"] or "LFG List Invite Dialog",
+		group = "activities",
+		names = { "LFGListInviteDialog" },
+		defaultEnabled = true,
+	},
+	{
 		id = "ReadyCheckFrame",
 		label = L["Ready Check"] or "Ready Check",
 		group = "activities",
@@ -685,6 +692,14 @@ local frames = {
 		group = "activities",
 		names = { "CovenantPreviewFrame" },
 		addon = "Blizzard_CovenantPreviewUI",
+		defaultEnabled = true,
+	},
+	{
+		id = "GarrisonLandingPage",
+		label = L["Garrison Landing Page"] or "Garrison Landing Page",
+		group = "activities",
+		names = { "GarrisonLandingPage" },
+		addon = "Blizzard_GarrisonUI",
 		defaultEnabled = true,
 	},
 }
