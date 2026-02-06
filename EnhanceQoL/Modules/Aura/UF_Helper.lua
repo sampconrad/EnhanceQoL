@@ -631,7 +631,7 @@ function H.RemovePrivateAuras(container)
 	container._eqolPrivateAuraState = nil
 end
 
-function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSample)
+function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSample, inverseAnchor)
 	if not container then return end
 	if not (C_UnitAuras and C_UnitAuras.AddPrivateAuraAnchor) then return end
 	cfg = cfg or {}
@@ -679,7 +679,8 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 	local parentPoint = tostring(parentCfg.point or "CENTER"):upper()
 	local parentOffsetX = tonumber(parentCfg.offsetX) or 0
 	local parentOffsetY = tonumber(parentCfg.offsetY) or 0
-	local anchorPoint = inversePoint(parentPoint)
+	local useInverse = inverseAnchor ~= false
+	local anchorPoint = useInverse and inversePoint(parentPoint) or parentPoint
 
 	if parent and container.GetParent and container:GetParent() ~= parent then container:SetParent(parent) end
 	if container.SetFrameStrata and parent and parent.GetFrameStrata then container:SetFrameStrata(parent:GetFrameStrata()) end

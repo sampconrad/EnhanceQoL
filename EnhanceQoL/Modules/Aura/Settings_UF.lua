@@ -3589,6 +3589,19 @@ local function buildUnitSettings(unit)
 		groupFormatSetting.isEnabled = isGroupEnabled
 		list[#list + 1] = groupFormatSetting
 
+		list[#list + 1] = radioDropdown(
+			L["UFUnitStatusGroupAnchor"] or "Group number anchor",
+			anchorOptions9,
+			function() return getValue(unit, { "status", "unitStatus", "groupAnchor" }, usDef.groupAnchor or "TOP") end,
+			function(val)
+				setValue(unit, { "status", "unitStatus", "groupAnchor" }, val or "TOP")
+				refresh()
+			end,
+			usDef.groupAnchor or "TOP",
+			"unitStatus"
+		)
+		list[#list].isEnabled = isGroupEnabled
+
 		list[#list + 1] = slider(
 			L["UFUnitStatusGroupSize"] or "Group number size",
 			8,
@@ -3604,6 +3617,36 @@ local function buildUnitSettings(unit)
 			true
 		)
 		list[#list].isEnabled = isGroupEnabled
+
+		if #fontOptions() > 0 then
+			local groupFontSetting = checkboxDropdown(
+				L["UFUnitStatusGroupFont"] or "Group number font",
+				fontOptions,
+				function() return getValue(unit, { "status", "unitStatus", "groupFont" }, usDef.groupFont or usDef.font or statusDef.font or defaultFontPath()) end,
+				function(val)
+					setValue(unit, { "status", "unitStatus", "groupFont" }, val)
+					refreshSelf()
+				end,
+				usDef.groupFont or usDef.font or statusDef.font or defaultFontPath(),
+				"unitStatus"
+			)
+			groupFontSetting.isEnabled = isGroupEnabled
+			list[#list + 1] = groupFontSetting
+		end
+
+		local groupFontOutlineSetting = checkboxDropdown(
+			L["UFUnitStatusGroupFontOutline"] or "Group number font outline",
+			outlineOptions,
+			function() return getValue(unit, { "status", "unitStatus", "groupFontOutline" }, usDef.groupFontOutline or usDef.fontOutline or statusDef.fontOutline or "OUTLINE") end,
+			function(val)
+				setValue(unit, { "status", "unitStatus", "groupFontOutline" }, val)
+				refreshSelf()
+			end,
+			usDef.groupFontOutline or usDef.fontOutline or statusDef.fontOutline or "OUTLINE",
+			"unitStatus"
+		)
+		groupFontOutlineSetting.isEnabled = isGroupEnabled
+		list[#list + 1] = groupFontOutlineSetting
 
 		list[#list + 1] = slider(
 			L["UFUnitStatusGroupOffsetX"] or "Group number X offset",

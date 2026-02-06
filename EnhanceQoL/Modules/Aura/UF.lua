@@ -4956,7 +4956,7 @@ local function applyConfig(unit)
 	if st.privateAuras and UFHelper and UFHelper.ApplyPrivateAuras then
 		local pcfg = cfg.privateAuras or (def and def.privateAuras)
 		local inEditMode = addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode()
-		UFHelper.ApplyPrivateAuras(st.privateAuras, unit, pcfg, st.frame, st.statusTextLayer or st.frame, inEditMode == true)
+		UFHelper.ApplyPrivateAuras(st.privateAuras, unit, pcfg, st.frame, st.statusTextLayer or st.frame, inEditMode == true, true)
 	end
 	if unit == UNIT.PLAYER then
 		updateCombatIndicator(cfg)
@@ -5764,7 +5764,7 @@ local function onEvent(self, event, unit, ...)
 				local function applyPrivate()
 					if not states[unitToken] or states[unitToken] ~= st then return end
 					if not UnitExists(unitToken) then return end
-					UFHelper.ApplyPrivateAuras(st.privateAuras, unitToken, pcfg, st.frame, st.statusTextLayer or st.frame, addon.EditModeLib and addon.EditModeLib:IsInEditMode())
+					UFHelper.ApplyPrivateAuras(st.privateAuras, unitToken, pcfg, st.frame, st.statusTextLayer or st.frame, addon.EditModeLib and addon.EditModeLib:IsInEditMode(), true)
 				end
 				if After then
 					After(0, applyPrivate)

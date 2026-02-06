@@ -60,46 +60,78 @@ H.PREVIEW_SAMPLES = {
 		{ name = "DPS", class = "HUNTER", role = "DAMAGER", group = 1 },
 		{ name = "DPS", class = "ROGUE", role = "DAMAGER", group = 1 },
 	},
-	raid = {},
+	raid = nil,
 }
-if H.BuildRaidPreviewSamples then
-	H.PREVIEW_SAMPLES.raid = H.BuildRaidPreviewSamples(40) or {}
-end
 
 H.GROUP_NUMBER_FORMAT_OPTIONS = {
-	{ value = "GROUP", label = "Group 1" },
-	{ value = "G", label = "G1" },
-	{ value = "G_SPACE", label = "G 1" },
-	{ value = "NUMBER", label = "1" },
-	{ value = "PARENS", label = "(1)" },
-	{ value = "BRACKETS", label = "[1]" },
-	{ value = "BRACES", label = "{1}" },
-	{ value = "ANGLE", label = "<1>" },
-	{ value = "PIPE", label = "|| 1 ||" },
-	{ value = "HASH", label = "#1" },
+	{ value = "GROUP", label = "Group 1", text = "Group 1" },
+	{ value = "G", label = "G1", text = "G1" },
+	{ value = "G_SPACE", label = "G 1", text = "G 1" },
+	{ value = "NUMBER", label = "1", text = "1" },
+	{ value = "PARENS", label = "(1)", text = "(1)" },
+	{ value = "BRACKETS", label = "[1]", text = "[1]" },
+	{ value = "BRACES", label = "{1}", text = "{1}" },
+	{ value = "ANGLE", label = "<1>", text = "<1>" },
+	{ value = "PIPE", label = "|| 1 ||", text = "|| 1 ||" },
+	{ value = "HASH", label = "#1", text = "#1" },
 }
+
+function H.FormatGroupNumber(subgroup, format)
+	local num = tonumber(subgroup)
+	if not num then return nil end
+	local fmt = format or "GROUP"
+	if fmt == "NUMBER" then return tostring(num) end
+	if fmt == "PARENS" then return "(" .. num .. ")" end
+	if fmt == "BRACKETS" then return "[" .. num .. "]" end
+	if fmt == "BRACES" then return "{" .. num .. "}" end
+	if fmt == "PIPE" then return "|| " .. num .. " ||" end
+	if fmt == "ANGLE" then return "<" .. num .. ">" end
+	if fmt == "G" then return "G" .. num end
+	if fmt == "G_SPACE" then return "G " .. num end
+	if fmt == "HASH" then return "#" .. num end
+	return string.format(GROUP_NUMBER or "Group %d", num)
+end
+
+function H.GetUnitSubgroup(unit)
+	if not (unit and UnitInRaid and GetRaidRosterInfo) then return nil end
+	local idx = UnitInRaid(unit)
+	if not idx then return nil end
+	local _, _, raidSubgroup = GetRaidRosterInfo(idx)
+	if issecretvalue and issecretvalue(raidSubgroup) then return nil end
+	return raidSubgroup
+end
 
 H.MELEE_SPECS = {
 	-- Death Knight (all melee)
-	[250] = true, [251] = true, [252] = true,
+	[250] = true,
+	[251] = true,
+	[252] = true,
 	-- Demon Hunter (all melee)
-	[577] = true, [581] = true,
+	[577] = true,
+	[581] = true,
 	-- Druid (Feral, Guardian)
-	[103] = true, [104] = true,
+	[103] = true,
+	[104] = true,
 	-- Evoker (Augmentation is melee-range)
 	[1473] = true,
 	-- Hunter (Survival)
 	[255] = true,
 	-- Monk (Brewmaster, Windwalker)
-	[268] = true, [269] = true,
+	[268] = true,
+	[269] = true,
 	-- Paladin (Protection, Retribution)
-	[66] = true, [70] = true,
+	[66] = true,
+	[70] = true,
 	-- Rogue (all melee)
-	[259] = true, [260] = true, [261] = true,
+	[259] = true,
+	[260] = true,
+	[261] = true,
 	-- Shaman (Enhancement)
 	[263] = true,
 	-- Warrior (all melee)
-	[71] = true, [72] = true, [73] = true,
+	[71] = true,
+	[72] = true,
+	[73] = true,
 }
 
 H.MELEE_DPS_CLASSES = {
@@ -193,6 +225,24 @@ function H.LayoutTexts(bar, leftFS, centerFS, rightFS, cfg, scale)
 	end
 end
 
+local OUTER_ANCHOR_MAP = {
+	TOP = "BOTTOM",
+	BOTTOM = "TOP",
+	LEFT = "RIGHT",
+	RIGHT = "LEFT",
+	TOPLEFT = "BOTTOMLEFT",
+	TOPRIGHT = "BOTTOMRIGHT",
+	BOTTOMLEFT = "TOPLEFT",
+	BOTTOMRIGHT = "TOPRIGHT",
+	CENTER = "CENTER",
+}
+
+function H.GetOuterAnchorPoint(anchor)
+	local a = (anchor or "CENTER"):upper()
+	local point = OUTER_ANCHOR_MAP[a] or "CENTER"
+	return point, a
+end
+
 function H.GetGrowthStartPoint(growth)
 	local g = (growth or "DOWN"):upper()
 	if g == "LEFT" then return "TOPRIGHT" end
@@ -258,17 +308,23 @@ local function normalizeGroupBy(value)
 	return nil
 end
 
-local function normalizeSortMethod(value)
+function H.NormalizeSortMethod(value)
 	local v = trim(value):upper()
 	if v == "NAME" then return "NAME" end
 	if v == "NAMELIST" then return "NAMELIST" end
 	return "INDEX"
 end
 
-local function normalizeSortDir(value)
+function H.NormalizeSortDir(value)
 	local v = trim(value):upper()
 	if v == "DESC" then return "DESC" end
 	return "ASC"
+end
+
+function H.IsBetterSortKey(key, currentKey, sortDir)
+	if currentKey == nil then return true end
+	if sortDir == "DESC" then return key > currentKey end
+	return key < currentKey
 end
 
 function H.ParseCsvSet(value, upper)
@@ -308,12 +364,8 @@ end
 
 function H.GetLocalizedClassName(token)
 	if not token then return "" end
-	if LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[token] then
-		return LOCALIZED_CLASS_NAMES_MALE[token]
-	end
-	if LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[token] then
-		return LOCALIZED_CLASS_NAMES_FEMALE[token]
-	end
+	if LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[token] then return LOCALIZED_CLASS_NAMES_MALE[token] end
+	if LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[token] then return LOCALIZED_CLASS_NAMES_FEMALE[token] end
 	return token
 end
 
@@ -342,20 +394,20 @@ function H.CreateCustomSortEditor(opts)
 	local frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 	frame:SetSize(size.w or 420, size.h or 520)
 	frame:SetBackdrop({
-		bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+		bgFile = "Interface\\Buttons\\WHITE8x8",
 		edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
 		tile = true,
 		tileSize = 32,
 		edgeSize = 24,
 		insets = { left = 6, right = 6, top = 6, bottom = 6 },
 	})
-	frame:SetBackdropColor(0, 0, 0, 0.85)
+	frame:SetBackdropColor(0, 0, 0, 1)
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag("LeftButton")
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-	frame:SetFrameStrata("DIALOG")
+	frame:SetFrameStrata("TOOLTIP")
 	frame:SetClampedToScreen(true)
 	frame:SetPoint("CENTER")
 	frame:Hide()
@@ -491,7 +543,9 @@ function H.CreateCustomSortEditor(opts)
 
 	function frame:Refresh()
 		local roleOrder, classOrder = nil, nil
-		if getOrders then roleOrder, classOrder = getOrders() end
+		if getOrders then
+			roleOrder, classOrder = getOrders()
+		end
 		roleOrder = H.NormalizeOrderList(roleOrder, nil)
 		if #roleOrder == 0 then roleOrder = H.NormalizeOrderList(nil, roleTokens) end
 		classOrder = H.NormalizeOrderList(classOrder, nil)
@@ -500,16 +554,8 @@ function H.CreateCustomSortEditor(opts)
 		if self.ClassContainer then self.ClassContainer:SetSize(rowWidth, rowHeight * #classOrder) end
 		self.roleOrder = roleOrder
 		self.classOrder = classOrder
-		self:RefreshList("role", self.RoleContainer, self.roleRows, roleOrder, function(token)
-			return roleLabels[token] or token or ""
-		end, function(token)
-			return roleColors[token]
-		end)
-		self:RefreshList("class", self.ClassContainer, self.classRows, classOrder, function(token)
-			return getClassLabel(token)
-		end, function(token)
-			return getClassColor(token)
-		end)
+		self:RefreshList("role", self.RoleContainer, self.roleRows, roleOrder, function(token) return roleLabels[token] or token or "" end, function(token) return roleColors[token] end)
+		self:RefreshList("class", self.ClassContainer, self.classRows, classOrder, function(token) return getClassLabel(token) end, function(token) return getClassColor(token) end)
 	end
 
 	return frame
@@ -720,8 +766,7 @@ function H.OnInspectReady(guid)
 	if not H.inspectInProgress then return false end
 	local issecret = _G.issecretvalue
 	local guidSecret = issecret and issecret(guid)
-	local restricted = addon and addon.functions and addon.functions.isRestrictedContent
-		and addon.functions.isRestrictedContent(true) == true
+	local restricted = addon and addon.functions and addon.functions.isRestrictedContent and addon.functions.isRestrictedContent(true) == true
 	local unit
 	if restricted or guidSecret then
 		unit = H.inspectUnit
@@ -740,9 +785,7 @@ function H.OnInspectReady(guid)
 	end
 	local specId = GetInspectSpecialization and GetInspectSpecialization(unit)
 	local updated = false
-	if specId and specId > 0 then
-		updated = H.CacheUnitSpec(unit, specId)
-	end
+	if specId and specId > 0 then updated = H.CacheUnitSpec(unit, specId) end
 	if H.inspectGuid then H.inspectQueue[H.inspectGuid] = nil end
 	if guid and H.inspectQueue[guid] then H.inspectQueue[guid] = nil end
 	H.inspectInProgress = false
@@ -856,7 +899,9 @@ local function applyRoleQuotaWithLimit(list, limit, maxTanks, maxHealers)
 	if limitT <= 0 and limitH <= 0 then
 		if #list > limitCount then
 			local result = {}
-			for i = 1, limitCount do result[#result + 1] = list[i] end
+			for i = 1, limitCount do
+				result[#result + 1] = list[i]
+			end
 			return result
 		end
 		return list
@@ -902,9 +947,7 @@ local function applyRoleQuotaWithLimit(list, limit, maxTanks, maxHealers)
 			if role ~= "TANK" and role ~= "HEALER" then
 				local remainingSlots = limitCount - #result
 				local requiredRemaining = requiredSuffix[i]
-				if remainingSlots > requiredRemaining then
-					result[#result + 1] = entry
-				end
+				if remainingSlots > requiredRemaining then result[#result + 1] = entry end
 			end
 		end
 	end
@@ -930,8 +973,12 @@ function H.BuildRaidPreviewSamples(count)
 
 	local tanks = { "WARRIOR", "PALADIN" }
 	local healers = { "PRIEST", "DRUID", "SHAMAN", "MONK", "EVOKER", "PALADIN" }
-	for _, class in ipairs(tanks) do addSample(class, "TANK") end
-	for _, class in ipairs(healers) do addSample(class, "HEALER") end
+	for _, class in ipairs(tanks) do
+		addSample(class, "TANK")
+	end
+	for _, class in ipairs(healers) do
+		addSample(class, "HEALER")
+	end
 
 	local i = 1
 	while #samples < (tonumber(count) or 0) do
@@ -942,6 +989,8 @@ function H.BuildRaidPreviewSamples(count)
 
 	return samples
 end
+
+if not H.PREVIEW_SAMPLES.raid or #H.PREVIEW_SAMPLES.raid == 0 then H.PREVIEW_SAMPLES.raid = H.BuildRaidPreviewSamples(40) or {} end
 
 function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quotaHealers)
 	local base = baseSamples or {}
@@ -954,7 +1003,7 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 		local classOrder = H.NormalizeOrderList(customSort.classOrder, H.CLASS_TOKENS)
 		local roleMap = buildOrderMap(table.concat(roleOrder, ","))
 		local classMap = buildOrderMap(table.concat(classOrder, ","))
-		local sortDir = normalizeSortDir(cfg and cfg.sortDir)
+		local sortDir = H.NormalizeSortDir(cfg and cfg.sortDir)
 		local list = {}
 		for i, sample in ipairs(base) do
 			list[#list + 1] = { sample = sample, index = i }
@@ -982,7 +1031,9 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 		end
 		list = applyRoleQuotaWithLimit(list, limit, quotaTanks or 0, quotaHealers or 0)
 		local result = {}
-		for _, entry in ipairs(list) do result[#result + 1] = entry.sample end
+		for _, entry in ipairs(list) do
+			result[#result + 1] = entry.sample
+		end
 		return result
 	end
 
@@ -990,14 +1041,12 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 	local roleFilter = cfg and cfg.roleFilter
 	local nameList = cfg and cfg.nameList
 	local strictFiltering = cfg and cfg.strictFiltering
-	local sortMethod = normalizeSortMethod(cfg and cfg.sortMethod)
-	local sortDir = normalizeSortDir(cfg and cfg.sortDir)
+	local sortMethod = H.NormalizeSortMethod(cfg and cfg.sortMethod)
+	local sortDir = H.NormalizeSortDir(cfg and cfg.sortDir)
 	local groupBy = normalizeGroupBy(cfg and cfg.groupBy)
 	local groupingOrder = cfg and cfg.groupingOrder
 
-	if not groupFilter and not roleFilter and not nameList then
-		groupFilter = H.GROUP_ORDER
-	end
+	if not groupFilter and not roleFilter and not nameList then groupFilter = H.GROUP_ORDER end
 
 	local list = {}
 	local nameOrder = {}
@@ -1006,14 +1055,14 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 		local tokenTable = {}
 		if groupFilter and not roleFilter then
 			fillTableFromCsv(tokenTable, groupFilter, true)
-			if strictFiltering then
-				fillTableFromCsv(tokenTable, "MAINTANK,MAINASSIST,TANK,HEALER,DAMAGER,NONE", true)
-			end
+			if strictFiltering then fillTableFromCsv(tokenTable, "MAINTANK,MAINASSIST,TANK,HEALER,DAMAGER,NONE", true) end
 		elseif roleFilter and not groupFilter then
 			fillTableFromCsv(tokenTable, roleFilter, true)
 			if strictFiltering then
 				fillTableFromCsv(tokenTable, H.GROUP_ORDER, false)
-				for _, class in ipairs(H.CLASS_TOKENS) do tokenTable[class] = true end
+				for _, class in ipairs(H.CLASS_TOKENS) do
+					tokenTable[class] = true
+				end
 			end
 		else
 			fillTableFromCsv(tokenTable, groupFilter, true)
@@ -1045,9 +1094,7 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 			end
 		end
 		for i, sample in ipairs(base) do
-			if not nameList or nameOrder[sample.name or ""] then
-				list[#list + 1] = { sample = sample, index = i }
-			end
+			if not nameList or nameOrder[sample.name or ""] then list[#list + 1] = { sample = sample, index = i } end
 		end
 	end
 
@@ -1082,9 +1129,7 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 				local order2 = orderMap[groupKey(b.sample)]
 				if order1 then
 					if not order2 then return true end
-					if order1 == order2 then
-						return (a.sample.name or "") < (b.sample.name or "")
-					end
+					if order1 == order2 then return (a.sample.name or "") < (b.sample.name or "") end
 					return order1 < order2
 				else
 					if order2 then return false end
@@ -1108,9 +1153,7 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 	elseif sortMethod == "NAME" then
 		table.sort(list, function(a, b) return (a.sample.name or "") < (b.sample.name or "") end)
 	elseif sortMethod == "NAMELIST" and next(nameOrder) then
-		table.sort(list, function(a, b)
-			return (nameOrder[a.sample.name or ""] or 0) < (nameOrder[b.sample.name or ""] or 0)
-		end)
+		table.sort(list, function(a, b) return (nameOrder[a.sample.name or ""] or 0) < (nameOrder[b.sample.name or ""] or 0) end)
 	end
 
 	if sortDir == "DESC" then

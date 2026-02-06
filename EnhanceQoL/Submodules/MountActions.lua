@@ -13,6 +13,7 @@ addon.MountActions = MountActions
 local issecretvalue = _G.issecretvalue
 
 local RANDOM_FAVORITE_SPELL_ID = 150544
+local GHOST_WOLF_SPELL_ID = 2645
 local REPAIR_MOUNT_SPELLS = { 457485, 122708, 61425, 61447 }
 local AH_MOUNT_SPELLS = { 264058, 465235 }
 local MOUNT_TYPE_CATEGORIES = {
@@ -162,6 +163,12 @@ local function getDruidMoveFormMacro()
 	return "/cancelform\n/cast [swimming][outdoors] " .. travel .. "; [indoors] " .. cat .. "; " .. cat
 end
 
+local function getShamanGhostWolfMacro()
+	local ghostName = getSpellNameByID(GHOST_WOLF_SPELL_ID)
+	if not ghostName or ghostName == "" then return nil end
+	return "/cancelform\n/cast " .. ghostName
+end
+
 local function buildMountMacro(spellID)
 	local name = getSpellNameByID(spellID)
 	if not name or name == "" then return nil end
@@ -273,12 +280,30 @@ function MountActions:PrepareActionButton(btn)
 			end
 		end
 	end
+	if btn._eqolAction == "random" and addon.variables.unitClass == "SHAMAN" and IsMounted and IsMounted() and IsPlayerMoving() and C_SpellBook.IsSpellKnown(GHOST_WOLF_SPELL_ID) then
+		if not (IsFlying and IsFlying()) then
+			local macro = getShamanGhostWolfMacro()
+			if macro then
+				btn:SetAttribute("macrotext1", macro)
+				btn:SetAttribute("macrotext", macro)
+				return
+			end
+		end
+	end
 	if IsMounted and IsMounted() then
 		btn:SetAttribute("macrotext1", "/dismount")
 		btn:SetAttribute("macrotext", "/dismount")
 		return
 	end
 	if btn._eqolAction == "random" then
+		if addon.variables.unitClass == "SHAMAN" and IsPlayerMoving() and C_SpellBook.IsSpellKnown(GHOST_WOLF_SPELL_ID) then
+			local macro = getShamanGhostWolfMacro()
+			if macro then
+				btn:SetAttribute("macrotext1", macro)
+				btn:SetAttribute("macrotext", macro)
+				return
+			end
+		end
 		if addon.variables.unitClass == "DRUID" and IsPlayerMoving() and (C_SpellBook.IsSpellKnown(783) or C_SpellBook.IsSpellKnown(768)) then
 			local macro = getDruidMoveFormMacro()
 			if macro then
