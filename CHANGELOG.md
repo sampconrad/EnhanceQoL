@@ -1,10 +1,15 @@
 # Changelog
 
-## [7.10.0] - 2026-02-02
+## [7.10.0] - 2026-02-06
 
 ### ✨ Added
 
 - Unit Frames: Aura icons can use custom border textures (boss frames included)
+- Unit Frames: Option to round percent values for health/power text
+- Unit Frames: Castbar border options (texture/color/size/offset)
+- Unit Frames: Option to disable interrupt feedback on castbars
+- Unit Frames: Castbar can use class color instead of custom cast color
+- Unit Frames: Per-frame smooth fill option for health/power/absorb bars (default off)
 - Group Frames (Party/Raid): **BETA** (performance test) for feedback on missing features or breakage. Aura filters require 12.0.1; on 12.0.0 you will see more auras (e.g., Externals filtering won’t work yet).
 - Cooldown Panels: Optional radial layout with radius/rotation controls (layout fields auto-hide on switch)
 - Cooldown Panels: Cursor anchor mode with Edit Mode preview and live cursor follow
@@ -40,9 +45,11 @@
 - Tooltips: Guard secret values when resolving unit names (prevents secret boolean test errors)
 - Group Frames: Guard missing Edit Mode registration IDs on disable
 - Unit Frames: Boss cast bar interrupt texture now resets on new casts
+- Resource Bars: Smooth fill now uses status bar interpolation (fixes legacy smooth update behavior)
 - ChatIM: Disabling instant messenger restores whispers in normal chat
 - Vendor: Disable destroy-queue Add button when the feature is off
 - MythicPlus: ConsolePort left-click on World Map teleports now triggers the cast correctly
+- Visibility: Skyriding stance check no longer triggers for non-druids (e.g., paladin auras)
 
 ---
 

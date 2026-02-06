@@ -221,6 +221,7 @@ EnsureUnitData = function(unit)
 	-- Only fetch if at least one feature is enabled (opt-in)
 	if not (addon.db["TooltipUnitShowSpec"] or addon.db["TooltipUnitShowItemLevel"]) then return end
 	local guid = UnitGUID(unit)
+	if type(guid) == "nil" or issecretvalue(guid) then return end
 	if not guid then return end
 	local c = InspectCache[guid]
 	if c and (now() - (c.last or 0) < CACHE_TTL) then return end

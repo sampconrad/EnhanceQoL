@@ -2470,7 +2470,12 @@ EnsureSkyridingStateDriver = function()
 		addon.variables.isPlayerSkyriding = false
 		refreshSkyridingDependents()
 	end)
-	local expr = "[advflyable, mounted] show; [advflyable, stance:3] show; hide"
+	local expr
+	if addon.variables.unitClass == "DRUID" then
+		expr = "[advflyable, mounted] show; [advflyable, stance:3] show; hide"
+	else
+		expr = "[advflyable, mounted] show; hide"
+	end
 	local function registerDriver()
 		if addon.variables.skyridingDriverRegistered then return end
 		if RegisterStateDriver then

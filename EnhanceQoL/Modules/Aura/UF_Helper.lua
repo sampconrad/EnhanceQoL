@@ -32,6 +32,8 @@ local UnitThreatSituation = UnitThreatSituation
 local UnitExists = UnitExists
 local UnitGetTotalAbsorbs = UnitGetTotalAbsorbs
 local UnitHealthPercent = UnitHealthPercent
+local C_UnitAuras = C_UnitAuras
+local UIParent = UIParent
 
 local atlasByPower = {
 	LUNAR_POWER = "Unit_Druid_AstralPower_Fill",
@@ -52,6 +54,45 @@ local npcColorDefaults = {
 	friendly = { 0.2, 1, 0.2, 1 },
 }
 
+local debuffinfo = {
+	[1] = DEBUFF_TYPE_MAGIC_COLOR,
+	[2] = DEBUFF_TYPE_CURSE_COLOR,
+	[3] = DEBUFF_TYPE_DISEASE_COLOR,
+	[4] = DEBUFF_TYPE_POISON_COLOR,
+	[5] = DEBUFF_TYPE_BLEED_COLOR,
+	[0] = DEBUFF_TYPE_NONE_COLOR,
+}
+local dispelIndexByName = {
+	Magic = 1,
+	Curse = 2,
+	Disease = 3,
+	Poison = 4,
+	Bleed = 5,
+	None = 0,
+}
+
+local function getDebuffColorFromName(name)
+	local idx = dispelIndexByName[name] or 0
+	local col = debuffinfo[idx] or debuffinfo[0]
+	if not col then return nil end
+	if col.GetRGBA then return col:GetRGBA() end
+	if col.GetRGB then return col:GetRGB() end
+	if col.r then return col.r, col.g, col.b, col.a end
+	return col[1], col[2], col[3], col[4]
+end
+
+H.getDebuffColorFromName = getDebuffColorFromName
+
+local debuffColorCurve = C_CurveUtil and C_CurveUtil.CreateColorCurve() or nil
+if debuffColorCurve and Enum.LuaCurveType and Enum.LuaCurveType.Step then
+	debuffColorCurve:SetType(Enum.LuaCurveType.Step)
+	for dispeltype, v in pairs(debuffinfo) do
+		debuffColorCurve:AddPoint(dispeltype, v)
+	end
+end
+
+H.debuffColorCurve = debuffColorCurve
+
 local absorbFullCurve = C_CurveUtil and C_CurveUtil.CreateCurve() or nil
 if absorbFullCurve and Enum and Enum.LuaCurveType and Enum.LuaCurveType.Step then
 	absorbFullCurve:SetType(Enum.LuaCurveType.Step)
@@ -68,6 +109,50 @@ end
 
 H.absorbFullCurve = absorbFullCurve
 H.absorbNotFullCurve = absorbNotFullCurve
+
+local npcColorUnits = {
+	target = true,
+	targettarget = true,
+	focus = true,
+	boss = true,
+}
+for i = 1, (MAX_BOSS_FRAMES or 5) do
+	npcColorUnits["boss" .. i] = true
+end
+
+local selectionKeyByType = {
+	[0] = "enemy",
+	[1] = "enemy",
+	[2] = "neutral",
+	[3] = "friendly",
+}
+
+function H.getNPCSelectionKey(unit)
+	if not npcColorUnits[unit] then return nil end
+	if UnitIsPlayer and UnitIsPlayer(unit) then return nil end
+	local t = UnitSelectionType and UnitSelectionType(unit)
+	return selectionKeyByType[t]
+end
+
+function H.getNPCOverrideColor(unit)
+	local overrides = addon.db and addon.db.ufNPCColorOverrides
+	if not overrides then return nil end
+
+	local key = H.getNPCSelectionKey(unit)
+	if not key then return nil end
+	local override = overrides[key]
+	if override then
+		if override.r then return override.r, override.g, override.b, override.a or 1 end
+		if override[1] then return override[1], override[2], override[3], override[4] or 1 end
+	end
+	return nil
+end
+
+function H.getNPCHealthColor(unit)
+	local key = H.getNPCSelectionKey(unit)
+	if not key then return nil end
+	return H.getNPCColor(key)
+end
 
 local nameWidthCache = {}
 local DROP_SHADOW_FLAG = "DROPSHADOW"
@@ -119,6 +204,14 @@ function H.clamp(value, minV, maxV)
 	if value < minV then return minV end
 	if value > maxV then return maxV end
 	return value
+end
+
+function H.ClampNumber(value, minValue, maxValue, fallback)
+	local v = tonumber(value)
+	if v == nil then return fallback end
+	if minValue ~= nil and v < minValue then v = minValue end
+	if maxValue ~= nil and v > maxValue then v = maxValue end
+	return v
 end
 
 function H.getClampedAbsorbAmount(unit) return UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0 end
@@ -350,6 +443,346 @@ function H.calcAuraBorderSize(btn, ac)
 	if size < 1 then size = 1 end
 	if size > 6 then size = 6 end
 	return size
+end
+
+local PRIVATE_AURA_INVERSE_POINTS = {
+	TOP = "BOTTOM",
+	BOTTOM = "TOP",
+	LEFT = "RIGHT",
+	RIGHT = "LEFT",
+	TOPLEFT = "BOTTOMLEFT",
+	TOPRIGHT = "BOTTOMRIGHT",
+	BOTTOMLEFT = "TOPLEFT",
+	BOTTOMRIGHT = "TOPRIGHT",
+	CENTER = "CENTER",
+}
+
+local function inversePoint(point)
+	if not point then return "CENTER" end
+	local key = tostring(point):upper()
+	return PRIVATE_AURA_INVERSE_POINTS[key] or "CENTER"
+end
+
+local function resolvePrivateAuraOffset(point, offset)
+	local p = tostring(point or "RIGHT"):upper()
+	local off = tonumber(offset) or 0
+	if p == "LEFT" then return -off, 0 end
+	if p == "TOP" then return 0, off end
+	if p == "BOTTOM" then return 0, -off end
+	return off, 0
+end
+
+local function resolvePrivateAuraUnitToken(unit)
+	if type(unit) ~= "string" then return unit end
+	if unit ~= "player" and UnitIsUnit then
+		local ok, isPlayer = pcall(UnitIsUnit, unit, "player")
+		if ok and isPlayer then return "player" end
+	end
+	return unit
+end
+
+local PRIVATE_AURA_SAMPLE_ICON_ID = 237555
+
+local function ensurePrivateAuraSampleTexture(anchor)
+	if not anchor then return nil end
+	local tex = anchor._eqolPrivateAuraSample
+	if not tex then
+		tex = anchor:CreateTexture(nil, "OVERLAY")
+		tex:SetAllPoints(anchor)
+		tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		tex:SetTexture(PRIVATE_AURA_SAMPLE_ICON_ID)
+		anchor._eqolPrivateAuraSample = tex
+	end
+	return tex
+end
+
+local privateAuraArgs = {
+	unitToken = "player",
+	parent = UIParent,
+	auraIndex = 1,
+	showCountdownFrame = true,
+	showCountdownNumbers = true,
+	iconInfo = {
+		iconWidth = 32,
+		iconHeight = 32,
+		iconAnchor = {
+			point = "CENTER",
+			relativePoint = "CENTER",
+			offsetX = 0,
+			offsetY = 0,
+		},
+	},
+}
+
+local privateAuraDuration = {
+	point = "CENTER",
+	relativePoint = "CENTER",
+	offsetX = 0,
+	offsetY = 0,
+}
+
+local privateAuraShowDispelType = false
+local privateAuraShowDispelCount = 0
+
+local function removePrivateAuraAnchor(anchor)
+	if anchor and anchor.anchorID and C_UnitAuras and C_UnitAuras.RemovePrivateAuraAnchor then
+		pcall(C_UnitAuras.RemovePrivateAuraAnchor, anchor.anchorID)
+		anchor.anchorID = nil
+	end
+end
+
+local function buildPrivateAuraAnchor(anchor, unit, index, size, borderScale, showFrame, showNumbers, durationEnabled, durationPoint, durationOffsetX, durationOffsetY)
+	if not (C_UnitAuras and C_UnitAuras.AddPrivateAuraAnchor and anchor and unit and index) then return nil end
+	privateAuraArgs.unitToken = unit
+	privateAuraArgs.parent = anchor
+	privateAuraArgs.auraIndex = index
+	privateAuraArgs.showCountdownFrame = showFrame == true
+	privateAuraArgs.showCountdownNumbers = showNumbers == true
+
+	local icon = privateAuraArgs.iconInfo
+	icon.iconWidth = size
+	icon.iconHeight = size
+	icon.borderScale = borderScale
+	local iconAnchor = icon.iconAnchor
+	iconAnchor.relativeTo = anchor
+	iconAnchor.point = "CENTER"
+	iconAnchor.relativePoint = "CENTER"
+	iconAnchor.offsetX = 0
+	iconAnchor.offsetY = 0
+
+	if durationEnabled then
+		privateAuraDuration.relativeTo = anchor
+		privateAuraDuration.point = inversePoint(durationPoint)
+		privateAuraDuration.relativePoint = tostring(durationPoint or "CENTER"):upper()
+		privateAuraDuration.offsetX = durationOffsetX or 0
+		privateAuraDuration.offsetY = durationOffsetY or 0
+		privateAuraArgs.durationAnchor = privateAuraDuration
+	else
+		privateAuraArgs.durationAnchor = nil
+	end
+
+	local ok, anchorID = pcall(C_UnitAuras.AddPrivateAuraAnchor, privateAuraArgs)
+	if ok then return anchorID end
+	return nil
+end
+
+local function updatePrivateAuraShowDispelType(container, enabled)
+	local want = enabled == true
+	if not (C_UnitAuras and C_UnitAuras.TriggerPrivateAuraShowDispelType) then
+		if container then container._eqolPrivateAuraShowDispelType = want end
+		return
+	end
+	local prev = container and container._eqolPrivateAuraShowDispelType == true
+	if prev == want then return end
+	if container then container._eqolPrivateAuraShowDispelType = want end
+	if want then
+		privateAuraShowDispelCount = privateAuraShowDispelCount + 1
+	else
+		privateAuraShowDispelCount = privateAuraShowDispelCount - 1
+		if privateAuraShowDispelCount < 0 then privateAuraShowDispelCount = 0 end
+	end
+	local show = privateAuraShowDispelCount > 0
+	if privateAuraShowDispelType ~= show then
+		privateAuraShowDispelType = show
+		C_UnitAuras.TriggerPrivateAuraShowDispelType(show)
+	end
+end
+
+local function ensurePrivateAuraSampleCooldown(anchor)
+	if not anchor then return nil end
+	local cd = anchor._eqolPrivateAuraSampleCooldown
+	if not cd then
+		cd = CreateFrame("Cooldown", nil, anchor, "CooldownFrameTemplate")
+		cd:SetAllPoints(anchor)
+		anchor._eqolPrivateAuraSampleCooldown = cd
+	end
+	return cd
+end
+
+local function ensurePrivateAuraSampleDuration(anchor)
+	if not anchor then return nil end
+	local fs = anchor._eqolPrivateAuraSampleDuration
+	if not fs then
+		fs = anchor:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		anchor._eqolPrivateAuraSampleDuration = fs
+	end
+	return fs
+end
+
+local function stripCooldownEdge(anchor)
+	if not anchor or not anchor.GetRegions then return end
+	for _, region in ipairs({ anchor:GetRegions() }) do
+		if region and region.GetTexture and region.SetAlpha then
+			local tex = region:GetTexture()
+			if type(tex) == "string" and tex:find("Cooldown") and tex:find("edge") then region:SetAlpha(0) end
+		end
+	end
+end
+
+function H.RemovePrivateAuras(container)
+	if not container then return end
+	updatePrivateAuraShowDispelType(container, false)
+	if container._eqolPrivateAuraFrames then
+		for _, anchor in ipairs(container._eqolPrivateAuraFrames) do
+			removePrivateAuraAnchor(anchor)
+			if anchor.Hide then anchor:Hide() end
+		end
+	end
+	container._eqolPrivateAuraState = nil
+end
+
+function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSample)
+	if not container then return end
+	if not (C_UnitAuras and C_UnitAuras.AddPrivateAuraAnchor) then return end
+	cfg = cfg or {}
+	local enabled = cfg.enabled == true
+	if not enabled or not unit then
+		H.RemovePrivateAuras(container)
+		if container.Hide then container:Hide() end
+		return
+	end
+	if unit == "target" then
+		H.RemovePrivateAuras(container)
+		if container.Hide then container:Hide() end
+		return
+	end
+	if UnitExists and not showSample and not UnitExists(unit) then
+		H.RemovePrivateAuras(container)
+		if container.Hide then container:Hide() end
+		return
+	end
+
+	local effectiveUnit = resolvePrivateAuraUnitToken(unit)
+	local cacheState = unit == "player" or unit == "focus"
+
+	local iconCfg = cfg.icon or {}
+	local parentCfg = cfg.parent or {}
+	local durationCfg = cfg.duration or {}
+
+	local amount = floor(tonumber(iconCfg.amount) or 1)
+	if amount < 1 then amount = 1 end
+	local size = floor(tonumber(iconCfg.size) or 24)
+	if size > 30 then size = 30 end
+	if size < 4 then size = 4 end
+	local iconPoint = tostring(iconCfg.point or "RIGHT"):upper()
+	local iconOffset = tonumber(iconCfg.offset or iconCfg.spacing or 2) or 0
+	local borderScale = tonumber(iconCfg.borderScale)
+	if borderScale == nil then borderScale = 1 end
+
+	local showFrame = cfg.countdownFrame ~= false
+	local showNumbers = cfg.countdownNumbers ~= false
+	local durationEnabled = durationCfg.enable == true
+	local durationPoint = tostring(durationCfg.point or "CENTER"):upper()
+	local durationOffsetX = tonumber(durationCfg.offsetX) or 0
+	local durationOffsetY = tonumber(durationCfg.offsetY) or 0
+
+	local parentPoint = tostring(parentCfg.point or "CENTER"):upper()
+	local parentOffsetX = tonumber(parentCfg.offsetX) or 0
+	local parentOffsetY = tonumber(parentCfg.offsetY) or 0
+	local anchorPoint = inversePoint(parentPoint)
+
+	if parent and container.GetParent and container:GetParent() ~= parent then container:SetParent(parent) end
+	if container.SetFrameStrata and parent and parent.GetFrameStrata then container:SetFrameStrata(parent:GetFrameStrata()) end
+	if levelFrame and container.SetFrameLevel and levelFrame.GetFrameLevel then container:SetFrameLevel((levelFrame:GetFrameLevel() or 0) + 5) end
+	container:ClearAllPoints()
+	container:SetPoint(anchorPoint, parent or container:GetParent() or UIParent, parentPoint, parentOffsetX, parentOffsetY)
+	container:SetSize(size, size)
+	container:Show()
+
+	local state = cacheState and (container._eqolPrivateAuraState or {}) or {}
+	local changed = not cacheState
+		or state.unitToken ~= unit
+		or state.effectiveUnit ~= effectiveUnit
+		or state.amount ~= amount
+		or state.size ~= size
+		or state.countdownFrame ~= showFrame
+		or state.countdownNumbers ~= showNumbers
+		or state.borderScale ~= borderScale
+		or state.durationEnabled ~= durationEnabled
+		or state.durationPoint ~= durationPoint
+		or state.durationOffsetX ~= durationOffsetX
+		or state.durationOffsetY ~= durationOffsetY
+
+	if cacheState then
+		state.unitToken = unit
+		state.effectiveUnit = effectiveUnit
+		state.amount = amount
+		state.size = size
+		state.countdownFrame = showFrame
+		state.countdownNumbers = showNumbers
+		state.borderScale = borderScale
+		state.durationEnabled = durationEnabled
+		state.durationPoint = durationPoint
+		state.durationOffsetX = durationOffsetX
+		state.durationOffsetY = durationOffsetY
+		container._eqolPrivateAuraState = state
+	else
+		container._eqolPrivateAuraState = nil
+	end
+
+	updatePrivateAuraShowDispelType(container, cfg.showDispelType == true)
+
+	container._eqolPrivateAuraFrames = container._eqolPrivateAuraFrames or {}
+	local anchors = container._eqolPrivateAuraFrames
+	local attachPoint = inversePoint(iconPoint)
+	local ox, oy = resolvePrivateAuraOffset(iconPoint, iconOffset)
+
+	for i = 1, amount do
+		local anchor = anchors[i]
+		if not anchor then
+			anchor = CreateFrame("Frame", nil, container)
+			anchor:EnableMouse(false)
+			anchors[i] = anchor
+		end
+		anchor:ClearAllPoints()
+		if i == 1 then
+			anchor:SetPoint("CENTER", container, "CENTER", 0, 0)
+		else
+			anchor:SetPoint(attachPoint, anchors[i - 1], iconPoint, ox, oy)
+		end
+		anchor:SetSize(size, size)
+		anchor:Show()
+		if showSample then
+			local tex = ensurePrivateAuraSampleTexture(anchor)
+			if tex then tex:Show() end
+			local cd = ensurePrivateAuraSampleCooldown(anchor)
+			if cd then
+				cd:SetAllPoints(anchor)
+				if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(not showNumbers) end
+				local start = (GetTime and GetTime() or 0) - 10
+				if CooldownFrame_Set then
+					CooldownFrame_Set(cd, start, 30, true)
+				elseif cd.SetCooldown then
+					cd:SetCooldown(start, 30)
+				end
+				cd:SetShown(showFrame == true)
+			end
+			local dur = ensurePrivateAuraSampleDuration(anchor)
+			if dur then
+				if durationEnabled then
+					dur:ClearAllPoints()
+					dur:SetPoint(inversePoint(durationPoint), anchor, durationPoint, durationOffsetX, durationOffsetY)
+					dur:SetText("12s")
+					dur:Show()
+				else
+					dur:Hide()
+				end
+			end
+		elseif anchor._eqolPrivateAuraSample then
+			anchor._eqolPrivateAuraSample:Hide()
+			if anchor._eqolPrivateAuraSampleCooldown then anchor._eqolPrivateAuraSampleCooldown:Hide() end
+			if anchor._eqolPrivateAuraSampleDuration then anchor._eqolPrivateAuraSampleDuration:Hide() end
+		end
+		if changed or not anchor.anchorID then
+			removePrivateAuraAnchor(anchor)
+			anchor.anchorID = buildPrivateAuraAnchor(anchor, effectiveUnit, i, size, borderScale, showFrame, showNumbers, durationEnabled, durationPoint, durationOffsetX, durationOffsetY)
+		end
+		stripCooldownEdge(anchor)
+	end
+	for i = amount + 1, #anchors do
+		removePrivateAuraAnchor(anchors[i])
+		if anchors[i].Hide then anchors[i]:Hide() end
+	end
 end
 
 local function ensureHighlightFrame(frame)
@@ -1334,7 +1767,7 @@ function H.getUnitLevelText(unit, levelOverride, hideClassificationText)
 	return levelText
 end
 
-function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, missingValue)
+function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, missingValue, roundPercent)
 	if mode == "NONE" then return "" end
 	local joinPrimary, joinSecondary, joinTertiary = H.resolveTextDelimiters(delimiter, delimiter2, delimiter3)
 	local percentSuffix = hidePercentSymbol and "" or "%"
@@ -1372,7 +1805,13 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimi
 			local scur = useShort and H.shortValue(cur) or BreakUpLargeNumbers(cur)
 			local smax = useShort and H.shortValue(maxv) or BreakUpLargeNumbers(maxv)
 			local percentText
-			if percentValue ~= nil then percentText = ("%s%s"):format(tostring(AbbreviateLargeNumbers(percentValue)), percentSuffix) end
+			if percentValue ~= nil then
+				if roundPercent then
+					percentText = ("%s%s"):format(tostring(C_StringUtil.RoundToNearestString(percentValue)), percentSuffix)
+				else
+					percentText = ("%s%s"):format(tostring(AbbreviateLargeNumbers(percentValue)), percentSuffix)
+				end
+			end
 
 			if mode == "CURRENT" then return tostring(scur) end
 			if mode == "MAX" then return tostring(smax) end

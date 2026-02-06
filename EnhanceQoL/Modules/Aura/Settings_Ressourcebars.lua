@@ -2892,6 +2892,13 @@ local function buildSettings()
 					parentCheck = function() return addon.db["enableResourceFrame"] == true end,
 					parentSection = expandable,
 				},
+				{
+					sType = "hint",
+					text = "|cff99e599" .. L["ResourceBarsSpecHint"] .. "|r",
+					parent = true,
+					parentCheck = function() return addon.db["enableResourceFrame"] == true end,
+					parentSection = expandable,
+				},
 			},
 		},
 	}

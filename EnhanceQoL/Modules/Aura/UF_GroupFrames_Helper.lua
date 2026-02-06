@@ -52,6 +52,32 @@ H.CLASS_TOKENS = {
 	"WARRIOR",
 }
 H.CLASS_ORDER = table.concat(H.CLASS_TOKENS, ",")
+H.PREVIEW_SAMPLES = {
+	party = {
+		{ name = "Tank", class = "WARRIOR", role = "TANK", group = 1 },
+		{ name = "Healer", class = "PRIEST", role = "HEALER", group = 1 },
+		{ name = "DPS", class = "MAGE", role = "DAMAGER", group = 1 },
+		{ name = "DPS", class = "HUNTER", role = "DAMAGER", group = 1 },
+		{ name = "DPS", class = "ROGUE", role = "DAMAGER", group = 1 },
+	},
+	raid = {},
+}
+if H.BuildRaidPreviewSamples then
+	H.PREVIEW_SAMPLES.raid = H.BuildRaidPreviewSamples(40) or {}
+end
+
+H.GROUP_NUMBER_FORMAT_OPTIONS = {
+	{ value = "GROUP", label = "Group 1" },
+	{ value = "G", label = "G1" },
+	{ value = "G_SPACE", label = "G 1" },
+	{ value = "NUMBER", label = "1" },
+	{ value = "PARENS", label = "(1)" },
+	{ value = "BRACKETS", label = "[1]" },
+	{ value = "BRACES", label = "{1}" },
+	{ value = "ANGLE", label = "<1>" },
+	{ value = "PIPE", label = "|| 1 ||" },
+	{ value = "HASH", label = "#1" },
+}
 
 H.MELEE_SPECS = {
 	-- Death Knight (all melee)
@@ -118,6 +144,73 @@ local strlower = string.lower
 local CreateFrame = CreateFrame
 local UIParent = UIParent
 local LOCALIZED_CLASS_NAMES_MALE = LOCALIZED_CLASS_NAMES_MALE
+
+function H.GetEffectiveScale(frame)
+	if frame and frame.GetEffectiveScale then
+		local scale = frame:GetEffectiveScale()
+		if scale and scale > 0 then return scale end
+	end
+	local ui = UIParent
+	if ui and ui.GetEffectiveScale then
+		local scale = ui:GetEffectiveScale()
+		if scale and scale > 0 then return scale end
+	end
+	return 1
+end
+
+function H.RoundToPixel(value, scale)
+	value = tonumber(value) or 0
+	scale = scale or 1
+	if scale <= 0 then return value end
+	return (math.floor((value * scale) + 0.5) / scale)
+end
+
+function H.LayoutTexts(bar, leftFS, centerFS, rightFS, cfg, scale)
+	if not bar then return end
+	local leftCfg = (cfg and cfg.offsetLeft) or { x = 6, y = 0 }
+	local centerCfg = (cfg and cfg.offsetCenter) or { x = 0, y = 0 }
+	local rightCfg = (cfg and cfg.offsetRight) or { x = -6, y = 0 }
+	local lx = H.RoundToPixel(leftCfg.x or 0, scale)
+	local ly = H.RoundToPixel(leftCfg.y or 0, scale)
+	local cx = H.RoundToPixel(centerCfg.x or 0, scale)
+	local cy = H.RoundToPixel(centerCfg.y or 0, scale)
+	local rx = H.RoundToPixel(rightCfg.x or 0, scale)
+	local ry = H.RoundToPixel(rightCfg.y or 0, scale)
+	if leftFS then
+		leftFS:ClearAllPoints()
+		leftFS:SetPoint("LEFT", bar, "LEFT", lx, ly)
+		leftFS:SetJustifyH("LEFT")
+	end
+	if centerFS then
+		centerFS:ClearAllPoints()
+		centerFS:SetPoint("CENTER", bar, "CENTER", cx, cy)
+		centerFS:SetJustifyH("CENTER")
+	end
+	if rightFS then
+		rightFS:ClearAllPoints()
+		rightFS:SetPoint("RIGHT", bar, "RIGHT", rx, ry)
+		rightFS:SetJustifyH("RIGHT")
+	end
+end
+
+function H.GetGrowthStartPoint(growth)
+	local g = (growth or "DOWN"):upper()
+	if g == "LEFT" then return "TOPRIGHT" end
+	if g == "UP" then return "BOTTOMLEFT" end
+	return "TOPLEFT"
+end
+
+function H.SetPointFromCfg(frame, cfg)
+	if not frame or not cfg then return end
+	frame:ClearAllPoints()
+	local rel = cfg.relativeTo and _G[cfg.relativeTo] or UIParent
+	local p = cfg.point or "CENTER"
+	local rp = cfg.relativePoint or p
+	local scale = H.GetEffectiveScale(rel)
+	local x = H.RoundToPixel(tonumber(cfg.x) or 0, scale)
+	local y = H.RoundToPixel(tonumber(cfg.y) or 0, scale)
+	frame:SetPoint(p, rel, rp, x, y)
+end
 local LOCALIZED_CLASS_NAMES_FEMALE = LOCALIZED_CLASS_NAMES_FEMALE
 local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 
@@ -1222,6 +1315,7 @@ H.outlineOptions = {
 	{ value = "THICKOUTLINE", label = "Thick Outline", text = "Thick Outline" },
 	{ value = "MONOCHROMEOUTLINE", label = "Monochrome Outline", text = "Monochrome Outline" },
 	{ value = "DROPSHADOW", label = "Drop shadow", text = "Drop shadow" },
+	{ value = "STRONGDROPSHADOW", label = "Strong drop shadow", text = "Strong drop shadow" },
 }
 
 H.auraGrowthXOptions = {

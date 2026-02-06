@@ -19,6 +19,15 @@ local UF = addon.Aura and addon.Aura.UF
 local UFHelper = addon.Aura and addon.Aura.UFHelper
 if not (UF and settingType) then return end
 
+local clampNumber = UFHelper and UFHelper.ClampNumber
+	or function(value, minValue, maxValue, fallback)
+		local v = tonumber(value)
+		if v == nil then return fallback end
+		if minValue ~= nil and v < minValue then v = minValue end
+		if maxValue ~= nil and v > maxValue then v = maxValue end
+		return v
+	end
+
 local MIN_WIDTH = 50
 local OFFSET_RANGE = 400
 local defaultStrata = (_G.PlayerFrame and _G.PlayerFrame.GetFrameStrata and _G.PlayerFrame:GetFrameStrata()) or "MEDIUM"
@@ -112,6 +121,23 @@ local anchorOptions = {
 	{ value = "LEFT", label = "LEFT" },
 	{ value = "CENTER", label = "CENTER" },
 	{ value = "RIGHT", label = "RIGHT" },
+}
+local anchorOptions9 = {
+	{ value = "TOPLEFT", label = "TOPLEFT" },
+	{ value = "TOP", label = "TOP" },
+	{ value = "TOPRIGHT", label = "TOPRIGHT" },
+	{ value = "LEFT", label = "LEFT" },
+	{ value = "CENTER", label = "CENTER" },
+	{ value = "RIGHT", label = "RIGHT" },
+	{ value = "BOTTOMLEFT", label = "BOTTOMLEFT" },
+	{ value = "BOTTOM", label = "BOTTOM" },
+	{ value = "BOTTOMRIGHT", label = "BOTTOMRIGHT" },
+}
+local privateAuraPointOptions = {
+	{ value = "LEFT", label = L["Left"] or "Left" },
+	{ value = "RIGHT", label = L["Right"] or "Right" },
+	{ value = "TOP", label = L["Top"] or "Top" },
+	{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
 }
 
 local classResourceClasses = {
@@ -810,6 +836,11 @@ local function buildUnitSettings(unit)
 		end)
 	end, def.frameLevel or defaultLevel, "frame", true)
 
+	list[#list + 1] = checkbox(L["Smooth fill"] or "Smooth fill", function() return getValue(unit, { "smoothFill" }, def.smoothFill == true) == true end, function(val)
+		setValue(unit, { "smoothFill" }, val and true or false)
+		refreshSelf()
+	end, def.smoothFill == true, "frame")
+
 	list[#list + 1] = checkboxColor({
 		name = L["UFShowBorder"] or "Show border",
 		parentId = "frame",
@@ -1370,6 +1401,17 @@ local function buildUnitSettings(unit)
 		"health"
 	)
 
+	list[#list + 1] = checkbox(
+		L["Round percent values"] or "Round percent values",
+		function() return getValue(unit, { "health", "roundPercent" }, healthDef.roundPercent == true) == true end,
+		function(val)
+			setValue(unit, { "health", "roundPercent" }, val and true or false)
+			refresh()
+		end,
+		healthDef.roundPercent == true,
+		"health"
+	)
+
 	list[#list + 1] = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "health", "fontSize" }, healthDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_healthFontSize", function()
 			setValue(unit, { "health", "fontSize" }, val or healthDef.fontSize or 14)
@@ -1901,6 +1943,18 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "power", "hidePercentSymbol" }, val and true or false)
 		refresh()
 	end, powerDef.hidePercentSymbol == true, "power", isPowerEnabled)
+
+	list[#list + 1] = checkbox(
+		L["Round percent values"] or "Round percent values",
+		function() return getValue(unit, { "power", "roundPercent" }, powerDef.roundPercent == true) == true end,
+		function(val)
+			setValue(unit, { "power", "roundPercent" }, val and true or false)
+			refresh()
+		end,
+		powerDef.roundPercent == true,
+		"power",
+		isPowerEnabled
+	)
 
 	local powerFontSize = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "power", "fontSize" }, powerDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_powerFontSize", function()
@@ -2576,6 +2630,8 @@ local function buildUnitSettings(unit)
 		castIconOffsetX.isEnabled = isCastIconEnabled
 		list[#list + 1] = castIconOffsetX
 
+		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
+
 		list[#list + 1] = checkbox(L["Show spell name"] or "Show spell name", function() return getValue(unit, { "cast", "showName" }, castDef.showName ~= false) ~= false end, function(val)
 			setValue(unit, { "cast", "showName" }, val and true or false)
 			refresh()
@@ -2706,6 +2762,8 @@ local function buildUnitSettings(unit)
 		castNameMaxCharsSetting.isEnabled = isCastNameEnabled
 		list[#list + 1] = castNameMaxCharsSetting
 
+		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
+
 		list[#list + 1] = checkbox(
 			L["Show cast duration"] or "Show cast duration",
 			function() return getValue(unit, { "cast", "showDuration" }, castDef.showDuration ~= false) ~= false end,
@@ -2781,6 +2839,8 @@ local function buildUnitSettings(unit)
 		castTexture.isEnabled = isCastEnabled
 		list[#list + 1] = castTexture
 
+		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
+
 		local castBackdrop = checkboxColor({
 			name = L["UFBarBackdrop"] or "Show bar backdrop",
 			parentId = "cast",
@@ -2818,11 +2878,85 @@ local function buildUnitSettings(unit)
 		castBackdropTexture.isEnabled = isCastEnabled
 		list[#list + 1] = castBackdropTexture
 
+		local function isCastBorderEnabled() return getValue(unit, { "cast", "border", "enabled" }, (castDef.border and castDef.border.enabled) == true) == true end
+
+		list[#list + 1] = checkboxColor({
+			name = L["Cast bar border"] or "Cast bar border",
+			parentId = "cast",
+			defaultChecked = (castDef.border and castDef.border.enabled) == true,
+			isChecked = function() return isCastBorderEnabled() end,
+			onChecked = function(val)
+				setValue(unit, { "cast", "border", "enabled" }, val and true or false)
+				if val and not getValue(unit, { "cast", "border", "color" }) then setValue(unit, { "cast", "border", "color" }, (castDef.border and castDef.border.color) or { 0, 0, 0, 0.8 }) end
+				refresh()
+				refreshSettingsUI()
+			end,
+			getColor = function()
+				local fallback = (castDef.border and castDef.border.color) or { 0, 0, 0, 0.8 }
+				return toRGBA(getValue(unit, { "cast", "border", "color" }, castDef.border and castDef.border.color), fallback)
+			end,
+			onColor = function(color)
+				setColor(unit, { "cast", "border", "color" }, color.r, color.g, color.b, color.a)
+				setValue(unit, { "cast", "border", "enabled" }, true)
+				refresh()
+			end,
+			colorDefault = {
+				r = (castDef.border and castDef.border.color and castDef.border.color[1]) or 0,
+				g = (castDef.border and castDef.border.color and castDef.border.color[2]) or 0,
+				b = (castDef.border and castDef.border.color and castDef.border.color[3]) or 0,
+				a = (castDef.border and castDef.border.color and castDef.border.color[4]) or 0.8,
+			},
+			isEnabled = isCastEnabled,
+		})
+
+		local castBorderTexture = checkboxDropdown(
+			L["Border texture"] or "Border texture",
+			borderOptions,
+			function() return getValue(unit, { "cast", "border", "texture" }, (castDef.border and castDef.border.texture) or "DEFAULT") end,
+			function(val)
+				setValue(unit, { "cast", "border", "texture" }, val or "DEFAULT")
+				refresh()
+			end,
+			(castDef.border and castDef.border.texture) or "DEFAULT",
+			"cast"
+		)
+		castBorderTexture.isEnabled = isCastBorderEnabled
+		list[#list + 1] = castBorderTexture
+
+		local castBorderSize = slider(L["Border size"] or "Border size", 1, 64, 1, function()
+			local border = getValue(unit, { "cast", "border" }, castDef.border or {})
+			return border.edgeSize or 1
+		end, function(val)
+			local border = getValue(unit, { "cast", "border" }, castDef.border or {})
+			border.edgeSize = val or 1
+			setValue(unit, { "cast", "border" }, border)
+			refresh()
+		end, (castDef.border and castDef.border.edgeSize) or 1, "cast", true)
+		castBorderSize.isEnabled = isCastBorderEnabled
+		list[#list + 1] = castBorderSize
+
+		local castBorderOffset = slider(L["Border offset"] or "Border offset", 0, 64, 1, function()
+			local border = getValue(unit, { "cast", "border" }, castDef.border or {})
+			if border.offset == nil then return border.edgeSize or 1 end
+			return border.offset
+		end, function(val)
+			local border = getValue(unit, { "cast", "border" }, castDef.border or {})
+			border.offset = val or 0
+			setValue(unit, { "cast", "border" }, border)
+			refresh()
+		end, (castDef.border and castDef.border.offset) or (castDef.border and castDef.border.edgeSize) or 1, "cast", true)
+		castBorderOffset.isEnabled = isCastBorderEnabled
+		list[#list + 1] = castBorderOffset
+
+		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
+
+		local function isCastColorEnabled() return isCastEnabled() and getValue(unit, { "cast", "useClassColor" }, castDef.useClassColor == true) ~= true end
+
 		list[#list + 1] = {
 			name = L["Cast color"] or "Cast color",
 			kind = settingType.Color,
 			parentId = "cast",
-			isEnabled = isCastEnabled,
+			isEnabled = isCastColorEnabled,
 			get = function() return getValue(unit, { "cast", "color" }, castDef.color or { 0.9, 0.7, 0.2, 1 }) end,
 			set = function(_, color)
 				setColor(unit, { "cast", "color" }, color.r, color.g, color.b, color.a)
@@ -2841,6 +2975,12 @@ local function buildUnitSettings(unit)
 			},
 			hasOpacity = true,
 		}
+
+		list[#list + 1] = checkbox(L["Use class color"] or "Use class color", function() return getValue(unit, { "cast", "useClassColor" }, castDef.useClassColor == true) == true end, function(val)
+			setValue(unit, { "cast", "useClassColor" }, val and true or false)
+			refresh()
+			refreshSettingsUI()
+		end, castDef.useClassColor == true, "cast", isCastEnabled)
 
 		list[#list + 1] = {
 			name = L["Not interruptible color"] or "Not interruptible color",
@@ -2865,6 +3005,18 @@ local function buildUnitSettings(unit)
 			},
 			hasOpacity = true,
 		}
+
+		list[#list + 1] = checkbox(
+			L["Show interrupt feedback"] or "Show interrupt feedback",
+			function() return getValue(unit, { "cast", "showInterruptFeedback" }, castDef.showInterruptFeedback ~= false) ~= false end,
+			function(val)
+				setValue(unit, { "cast", "showInterruptFeedback" }, val and true or false)
+				refresh()
+			end,
+			castDef.showInterruptFeedback ~= false,
+			"cast",
+			isCastEnabled
+		)
 	end
 
 	list[#list + 1] = { name = L["UFStatusLine"] or "Status line", kind = settingType.Collapsible, id = "status", defaultCollapsed = true }
@@ -2981,6 +3133,7 @@ local function buildUnitSettings(unit)
 	)
 	nameOffsetYSetting.isEnabled = isNameEnabled
 	list[#list + 1] = nameOffsetYSetting
+	list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "status" }
 
 	local showLevelToggle = checkbox(L["UFShowLevel"] or "Show level", function() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) end, function(val)
 		setValue(unit, { "status", "levelEnabled" }, val and true or false)
@@ -3093,6 +3246,7 @@ local function buildUnitSettings(unit)
 	)
 	levelOffsetYSetting.isEnabled = isLevelEnabled
 	list[#list + 1] = levelOffsetYSetting
+	list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "status" }
 
 	if not isPlayer then
 		list[#list + 1] = checkbox(L["UFShowClassificationIcon"] or "Show elite/rare icon", isClassificationIconEnabled, function(val)
@@ -3296,6 +3450,7 @@ local function buildUnitSettings(unit)
 		)
 		roleOffsetY.isEnabled = isRoleIndicatorEnabled
 		list[#list + 1] = roleOffsetY
+		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "unitStatus" }
 	end
 
 	list[#list + 1] = checkbox(L["UFUnitStatusEnable"] or "Show unit status", function() return getValue(unit, { "status", "unitStatus", "enabled" }, usDef.enabled == true) == true end, function(val)
@@ -3341,6 +3496,7 @@ local function buildUnitSettings(unit)
 	)
 	unitStatusOffsetY.isEnabled = isUnitStatusEnabled
 	list[#list + 1] = unitStatusOffsetY
+	list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "unitStatus" }
 
 	local unitStatusFontSizeSetting = slider(
 		L["FontSize"] or "Font size",
@@ -3484,6 +3640,7 @@ local function buildUnitSettings(unit)
 			true
 		)
 		list[#list].isEnabled = isGroupEnabled
+		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "unitStatus" }
 
 		local restDef = def.resting or {}
 		local function isRestEnabled() return getValue(unit, { "resting", "enabled" }, restDef.enabled ~= false) ~= false end
@@ -3536,6 +3693,7 @@ local function buildUnitSettings(unit)
 			true
 		)
 		list[#list].isEnabled = isRestEnabled
+		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "unitStatus" }
 	end
 
 	if isPlayer then
@@ -3794,6 +3952,7 @@ local function buildUnitSettings(unit)
 	)
 	combatOffsetY.isEnabled = isCombatFeedbackEnabled
 	list[#list + 1] = combatOffsetY
+	list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "combatFeedback" }
 
 	local function isCombatFeedbackSampleEnabled() return isCombatFeedbackEnabled() and getValue(unit, { "combatFeedback", "sample" }, combatDef.sample == true) == true end
 
@@ -3874,27 +4033,8 @@ local function buildUnitSettings(unit)
 			refreshAuras()
 		end, auraDef.enabled ~= false, "auras")
 
-		list[#list + 1] = slider(L["Aura size"] or "Aura size", 12, 48, 1, function() return getValue(unit, { "auraIcons", "size" }, auraDef.size or 24) end, function(val)
-			setValue(unit, { "auraIcons", "size" }, val or auraDef.size or 24)
-			refresh()
-		end, auraDef.size or 24, "auras", true)
-		list[#list].isEnabled = isAuraEnabled
-
-		list[#list + 1] = slider(
-			L["Aura debuff size"] or "Aura debuff size",
-			12,
-			48,
-			1,
-			function() return getValue(unit, { "auraIcons", "debuffSize" }, auraDef.debuffSize or auraDef.size or 24) end,
-			function(val)
-				setValue(unit, { "auraIcons", "debuffSize" }, val or auraDef.debuffSize or auraDef.size or 24)
-				refresh()
-			end,
-			auraDef.debuffSize or auraDef.size or 24,
-			"auras",
-			true
-		)
-		list[#list].isEnabled = isAuraEnabled
+		local function isShowBuffs() return getValue(unit, { "auraIcons", "showBuffs" }, auraDef.showBuffs ~= false) ~= false end
+		local function isShowDebuffs() return getValue(unit, { "auraIcons", "showDebuffs" }, auraDef.showDebuffs ~= false) ~= false end
 
 		list[#list + 1] = slider(L["Aura spacing"] or "Aura spacing", 0, 10, 1, function() return getValue(unit, { "auraIcons", "padding" }, auraDef.padding or 2) end, function(val)
 			setValue(unit, { "auraIcons", "padding" }, val or 0)
@@ -3931,53 +4071,6 @@ local function buildUnitSettings(unit)
 		)
 		list[#list].isEnabled = isAuraEnabled
 
-		list[#list + 1] = checkbox(L["Show cooldown text (buffs)"] or "Show cooldown text (buffs)", function()
-			local val = getValue(unit, { "auraIcons", "showCooldownBuffs" })
-			if val == nil then val = getValue(unit, { "auraIcons", "showCooldown" }, auraDef.showCooldown ~= false) end
-			return val ~= false
-		end, function(val)
-			setValue(unit, { "auraIcons", "showCooldownBuffs" }, val and true or false)
-			refresh()
-		end, auraDef.showCooldown ~= false, "auras")
-		list[#list].isEnabled = isAuraEnabled
-
-		list[#list + 1] = checkbox(L["Show cooldown text (debuffs)"] or "Show cooldown text (debuffs)", function()
-			local val = getValue(unit, { "auraIcons", "showCooldownDebuffs" })
-			if val == nil then val = getValue(unit, { "auraIcons", "showCooldown" }, auraDef.showCooldown ~= false) end
-			return val ~= false
-		end, function(val)
-			setValue(unit, { "auraIcons", "showCooldownDebuffs" }, val and true or false)
-			refresh()
-		end, auraDef.showCooldown ~= false, "auras")
-		list[#list].isEnabled = isAuraEnabled
-
-		list[#list + 1] = checkbox(L["Show buffs"] or "Show buffs", function() return getValue(unit, { "auraIcons", "showBuffs" }, auraDef.showBuffs ~= false) end, function(val)
-			setValue(unit, { "auraIcons", "showBuffs" }, val and true or false)
-			refresh()
-			refreshAuras()
-		end, auraDef.showBuffs ~= false, "auras")
-		list[#list].isEnabled = isAuraEnabled
-
-		list[#list + 1] = checkbox(L["Show debuffs"] or "Show debuffs", function() return getValue(unit, { "auraIcons", "showDebuffs" }, auraDef.showDebuffs ~= false) end, function(val)
-			setValue(unit, { "auraIcons", "showDebuffs" }, val and true or false)
-			refresh()
-			refreshAuras()
-		end, auraDef.showDebuffs ~= false, "auras")
-		list[#list].isEnabled = isAuraEnabled
-
-		list[#list + 1] = checkbox(
-			L["Highlight dispellable"] or "Highlight dispellable",
-			function() return getValue(unit, { "auraIcons", "blizzardDispelBorder" }, auraDef.blizzardDispelBorder == true) == true end,
-			function(val)
-				setValue(unit, { "auraIcons", "blizzardDispelBorder" }, val and true or false)
-				refresh()
-				refreshAuras()
-			end,
-			auraDef.blizzardDispelBorder == true,
-			"auras"
-		)
-		list[#list].isEnabled = isAuraEnabled
-
 		list[#list + 1] = checkboxDropdown(
 			L["Aura border texture"] or "Aura border texture",
 			borderOptions,
@@ -3989,84 +4082,6 @@ local function buildUnitSettings(unit)
 			end,
 			auraDef.borderTexture or "DEFAULT",
 			"auras"
-		)
-		list[#list].isEnabled = isAuraEnabled
-
-		list[#list + 1] = slider(
-			L["Cooldown text size (buffs)"] or "Cooldown text size (buffs)",
-			0,
-			32,
-			1,
-			function() return getValue(unit, { "auraIcons", "cooldownFontSizeBuff" }, auraDef.cooldownFontSizeBuff or auraDef.cooldownFontSize or 0) end,
-			function(val)
-				val = tonumber(val) or 0
-				if val < 0 then val = 0 end
-				setValue(unit, { "auraIcons", "cooldownFontSizeBuff" }, val)
-				refresh()
-			end,
-			auraDef.cooldownFontSizeBuff or auraDef.cooldownFontSize or 0,
-			"auras",
-			true,
-			function(value)
-				value = tonumber(value) or 0
-				if value <= 0 then return L["Auto"] or "Auto" end
-				return tostring(math.floor(value + 0.5))
-			end
-		)
-		list[#list].isEnabled = isAuraEnabled
-
-		list[#list + 1] = slider(
-			L["Cooldown text size (debuffs)"] or "Cooldown text size (debuffs)",
-			0,
-			32,
-			1,
-			function() return getValue(unit, { "auraIcons", "cooldownFontSizeDebuff" }, auraDef.cooldownFontSizeDebuff or auraDef.cooldownFontSize or 0) end,
-			function(val)
-				val = tonumber(val) or 0
-				if val < 0 then val = 0 end
-				setValue(unit, { "auraIcons", "cooldownFontSizeDebuff" }, val)
-				refresh()
-			end,
-			auraDef.cooldownFontSizeDebuff or auraDef.cooldownFontSize or 0,
-			"auras",
-			true,
-			function(value)
-				value = tonumber(value) or 0
-				if value <= 0 then return L["Auto"] or "Auto" end
-				return tostring(math.floor(value + 0.5))
-			end
-		)
-		list[#list].isEnabled = isAuraEnabled
-
-		list[#list + 1] = slider(
-			L["Aura stack size (buffs)"] or "Aura stack size (buffs)",
-			8,
-			32,
-			1,
-			function() return getValue(unit, { "auraIcons", "countFontSizeBuff" }, auraDef.countFontSizeBuff or auraDef.countFontSize or 14) end,
-			function(val)
-				setValue(unit, { "auraIcons", "countFontSizeBuff" }, val or 14)
-				refresh()
-			end,
-			auraDef.countFontSizeBuff or auraDef.countFontSize or 14,
-			"auras",
-			true
-		)
-		list[#list].isEnabled = isAuraEnabled
-
-		list[#list + 1] = slider(
-			L["Aura stack size (debuffs)"] or "Aura stack size (debuffs)",
-			8,
-			32,
-			1,
-			function() return getValue(unit, { "auraIcons", "countFontSizeDebuff" }, auraDef.countFontSizeDebuff or auraDef.countFontSize or 14) end,
-			function(val)
-				setValue(unit, { "auraIcons", "countFontSizeDebuff" }, val or 14)
-				refresh()
-			end,
-			auraDef.countFontSizeDebuff or auraDef.countFontSize or 14,
-			"auras",
-			true
 		)
 		list[#list].isEnabled = isAuraEnabled
 
@@ -4219,6 +4234,159 @@ local function buildUnitSettings(unit)
 		end, (auraDef.offset and auraDef.offset.y) or defaultAuraOffsetY(auraDef.anchor or "BOTTOM"), "auras", true)
 		list[#list].isEnabled = isAuraEnabled
 
+		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "auras" }
+
+		list[#list + 1] = checkbox(L["Show buffs"] or "Show buffs", function() return isShowBuffs() end, function(val)
+			setValue(unit, { "auraIcons", "showBuffs" }, val and true or false)
+			refresh()
+			refreshAuras()
+		end, auraDef.showBuffs ~= false, "auras")
+		list[#list].isEnabled = isAuraEnabled
+
+		list[#list + 1] = slider(L["Aura size"] or "Aura size", 12, 48, 1, function() return getValue(unit, { "auraIcons", "size" }, auraDef.size or 24) end, function(val)
+			setValue(unit, { "auraIcons", "size" }, val or auraDef.size or 24)
+			refresh()
+		end, auraDef.size or 24, "auras", true)
+		list[#list].isEnabled = function() return isAuraEnabled() and isShowBuffs() end
+
+		local function isShowCooldownBuffs()
+			local val = getValue(unit, { "auraIcons", "showCooldownBuffs" })
+			if val == nil then val = getValue(unit, { "auraIcons", "showCooldown" }, auraDef.showCooldown ~= false) end
+			return val ~= false
+		end
+		list[#list + 1] = checkbox(L["Show cooldown text (buffs)"] or "Show cooldown text (buffs)", function() return isShowCooldownBuffs() end, function(val)
+			setValue(unit, { "auraIcons", "showCooldownBuffs" }, val and true or false)
+			refresh()
+		end, auraDef.showCooldown ~= false, "auras")
+		list[#list].isEnabled = function() return isAuraEnabled() and isShowBuffs() end
+
+		list[#list + 1] = slider(
+			L["Cooldown text size (buffs)"] or "Cooldown text size (buffs)",
+			0,
+			32,
+			1,
+			function() return getValue(unit, { "auraIcons", "cooldownFontSizeBuff" }, auraDef.cooldownFontSizeBuff or auraDef.cooldownFontSize or 0) end,
+			function(val)
+				val = tonumber(val) or 0
+				if val < 0 then val = 0 end
+				setValue(unit, { "auraIcons", "cooldownFontSizeBuff" }, val)
+				refresh()
+			end,
+			auraDef.cooldownFontSizeBuff or auraDef.cooldownFontSize or 0,
+			"auras",
+			true,
+			function(value)
+				value = tonumber(value) or 0
+				if value <= 0 then return L["Auto"] or "Auto" end
+				return tostring(math.floor(value + 0.5))
+			end
+		)
+		list[#list].isEnabled = function() return isAuraEnabled() and isShowBuffs() and isShowCooldownBuffs() end
+
+		list[#list + 1] = slider(
+			L["Aura stack size (buffs)"] or "Aura stack size (buffs)",
+			8,
+			32,
+			1,
+			function() return getValue(unit, { "auraIcons", "countFontSizeBuff" }, auraDef.countFontSizeBuff or auraDef.countFontSize or 14) end,
+			function(val)
+				setValue(unit, { "auraIcons", "countFontSizeBuff" }, val or 14)
+				refresh()
+			end,
+			auraDef.countFontSizeBuff or auraDef.countFontSize or 14,
+			"auras",
+			true
+		)
+		list[#list].isEnabled = function() return isAuraEnabled() and isShowBuffs() end
+
+		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "auras" }
+
+		list[#list + 1] = checkbox(L["Show debuffs"] or "Show debuffs", function() return isShowDebuffs() end, function(val)
+			setValue(unit, { "auraIcons", "showDebuffs" }, val and true or false)
+			refresh()
+			refreshAuras()
+		end, auraDef.showDebuffs ~= false, "auras")
+		list[#list].isEnabled = isAuraEnabled
+
+		list[#list + 1] = slider(
+			L["Aura debuff size"] or "Aura debuff size",
+			12,
+			48,
+			1,
+			function() return getValue(unit, { "auraIcons", "debuffSize" }, auraDef.debuffSize or auraDef.size or 24) end,
+			function(val)
+				setValue(unit, { "auraIcons", "debuffSize" }, val or auraDef.debuffSize or auraDef.size or 24)
+				refresh()
+			end,
+			auraDef.debuffSize or auraDef.size or 24,
+			"auras",
+			true
+		)
+		list[#list].isEnabled = function() return isAuraEnabled() and isShowDebuffs() end
+
+		local function isShowCooldownDebuffs()
+			local val = getValue(unit, { "auraIcons", "showCooldownDebuffs" })
+			if val == nil then val = getValue(unit, { "auraIcons", "showCooldown" }, auraDef.showCooldown ~= false) end
+			return val ~= false
+		end
+		list[#list + 1] = checkbox(L["Show cooldown text (debuffs)"] or "Show cooldown text (debuffs)", function() return isShowCooldownDebuffs() end, function(val)
+			setValue(unit, { "auraIcons", "showCooldownDebuffs" }, val and true or false)
+			refresh()
+		end, auraDef.showCooldown ~= false, "auras")
+		list[#list].isEnabled = function() return isAuraEnabled() and isShowDebuffs() end
+
+		list[#list + 1] = slider(
+			L["Cooldown text size (debuffs)"] or "Cooldown text size (debuffs)",
+			0,
+			32,
+			1,
+			function() return getValue(unit, { "auraIcons", "cooldownFontSizeDebuff" }, auraDef.cooldownFontSizeDebuff or auraDef.cooldownFontSize or 0) end,
+			function(val)
+				val = tonumber(val) or 0
+				if val < 0 then val = 0 end
+				setValue(unit, { "auraIcons", "cooldownFontSizeDebuff" }, val)
+				refresh()
+			end,
+			auraDef.cooldownFontSizeDebuff or auraDef.cooldownFontSize or 0,
+			"auras",
+			true,
+			function(value)
+				value = tonumber(value) or 0
+				if value <= 0 then return L["Auto"] or "Auto" end
+				return tostring(math.floor(value + 0.5))
+			end
+		)
+		list[#list].isEnabled = function() return isAuraEnabled() and isShowDebuffs() and isShowCooldownDebuffs() end
+
+		list[#list + 1] = slider(
+			L["Aura stack size (debuffs)"] or "Aura stack size (debuffs)",
+			8,
+			32,
+			1,
+			function() return getValue(unit, { "auraIcons", "countFontSizeDebuff" }, auraDef.countFontSizeDebuff or auraDef.countFontSize or 14) end,
+			function(val)
+				setValue(unit, { "auraIcons", "countFontSizeDebuff" }, val or 14)
+				refresh()
+			end,
+			auraDef.countFontSizeDebuff or auraDef.countFontSize or 14,
+			"auras",
+			true
+		)
+		list[#list].isEnabled = function() return isAuraEnabled() and isShowDebuffs() end
+
+		list[#list + 1] = checkbox(
+			L["Highlight dispellable"] or "Highlight dispellable",
+			function() return getValue(unit, { "auraIcons", "blizzardDispelBorder" }, auraDef.blizzardDispelBorder == true) == true end,
+			function(val)
+				setValue(unit, { "auraIcons", "blizzardDispelBorder" }, val and true or false)
+				refresh()
+				refreshAuras()
+			end,
+			auraDef.blizzardDispelBorder == true,
+			"auras"
+		)
+		list[#list].isEnabled = function() return isAuraEnabled() and isShowDebuffs() end
+
 		list[#list + 1] = checkbox(
 			L["UFSeparateDebuffAnchor"] or "Separate debuff anchor",
 			function() return getValue(unit, { "auraIcons", "separateDebuffAnchor" }, auraDef.separateDebuffAnchor == true) end,
@@ -4230,9 +4398,9 @@ local function buildUnitSettings(unit)
 			auraDef.separateDebuffAnchor == true,
 			"auras"
 		)
-		list[#list].isEnabled = isAuraEnabled
+		list[#list].isEnabled = function() return isAuraEnabled() and isShowDebuffs() end
 
-		local function isSeparateDebuffEnabled() return isAuraEnabled() and getValue(unit, { "auraIcons", "separateDebuffAnchor" }, auraDef.separateDebuffAnchor == true) == true end
+		local function isSeparateDebuffEnabled() return isAuraEnabled() and isShowDebuffs() and getValue(unit, { "auraIcons", "separateDebuffAnchor" }, auraDef.separateDebuffAnchor == true) == true end
 
 		local debuffAnchorSetting = radioDropdown(L["UFDebuffAnchor"] or "Debuff anchor", anchorOpts, function() return debuffAnchorValue() end, function(val)
 			setValue(unit, { "auraIcons", "debuffAnchor" }, val or nil)
@@ -4301,6 +4469,229 @@ local function buildUnitSettings(unit)
 			true
 		)
 		list[#list].isEnabled = isSeparateDebuffEnabled
+	end
+
+	if unit ~= "target" then
+		list[#list + 1] = { name = L["UFPrivateAuras"] or "Private Auras", kind = settingType.Collapsible, id = "privateAuras", defaultCollapsed = true }
+		local paDef = def.privateAuras
+			or {
+				enabled = false,
+				countdownFrame = true,
+				countdownNumbers = false,
+				showDispelType = false,
+				icon = { amount = 2, size = 24, point = "LEFT", offset = 3 },
+				parent = { point = "BOTTOM", offsetX = 0, offsetY = -4 },
+				duration = { enable = false, point = "BOTTOM", offsetX = 0, offsetY = -1 },
+			}
+		local function isPrivateAurasEnabled() return getValue(unit, { "privateAuras", "enabled" }, paDef.enabled == true) == true end
+		local function isPrivateCountdownEnabled() return isPrivateAurasEnabled() and (getValue(unit, { "privateAuras", "countdownFrame" }, paDef.countdownFrame ~= false) ~= false) end
+		local function isPrivateDurationEnabled()
+			return isPrivateAurasEnabled() and (getValue(unit, { "privateAuras", "duration", "enable" }, (paDef.duration and paDef.duration.enable) == true) == true)
+		end
+
+		list[#list + 1] = checkbox(L["UFPrivateAurasEnable"] or "Enable private auras", isPrivateAurasEnabled, function(val)
+			setValue(unit, { "privateAuras", "enabled" }, val and true or false)
+			refresh()
+		end, paDef.enabled == true, "privateAuras")
+
+		list[#list + 1] = slider(
+			L["UFPrivateAurasAmount"] or "Private aura amount",
+			1,
+			10,
+			1,
+			function() return getValue(unit, { "privateAuras", "icon", "amount" }, (paDef.icon and paDef.icon.amount) or 2) end,
+			function(val)
+				setValue(unit, { "privateAuras", "icon", "amount" }, clampNumber(val or 1, 1, 10, 2))
+				refresh()
+			end,
+			(paDef.icon and paDef.icon.amount) or 2,
+			"privateAuras",
+			true
+		)
+		list[#list].isEnabled = isPrivateAurasEnabled
+
+		list[#list + 1] = slider(
+			L["UFPrivateAurasSize"] or "Private aura size",
+			8,
+			30,
+			1,
+			function() return getValue(unit, { "privateAuras", "icon", "size" }, (paDef.icon and paDef.icon.size) or 24) end,
+			function(val)
+				setValue(unit, { "privateAuras", "icon", "size" }, clampNumber(val or 24, 8, 30, 24))
+				refresh()
+			end,
+			(paDef.icon and paDef.icon.size) or 24,
+			"privateAuras",
+			true
+		)
+		list[#list].isEnabled = isPrivateAurasEnabled
+
+		list[#list + 1] = radioDropdown(
+			L["UFPrivateAurasPoint"] or "Icon direction",
+			privateAuraPointOptions,
+			function() return getValue(unit, { "privateAuras", "icon", "point" }, (paDef.icon and paDef.icon.point) or "LEFT") end,
+			function(val)
+				setValue(unit, { "privateAuras", "icon", "point" }, val or "LEFT")
+				refresh()
+			end,
+			(paDef.icon and paDef.icon.point) or "LEFT",
+			"privateAuras"
+		)
+		list[#list].isEnabled = isPrivateAurasEnabled
+
+		list[#list + 1] = slider(
+			L["UFPrivateAurasOffset"] or "Icon spacing",
+			0,
+			20,
+			1,
+			function() return getValue(unit, { "privateAuras", "icon", "offset" }, (paDef.icon and paDef.icon.offset) or 2) end,
+			function(val)
+				setValue(unit, { "privateAuras", "icon", "offset" }, clampNumber(val or 0, 0, 20, 2))
+				refresh()
+			end,
+			(paDef.icon and paDef.icon.offset) or 2,
+			"privateAuras",
+			true
+		)
+		list[#list].isEnabled = isPrivateAurasEnabled
+
+		list[#list + 1] = radioDropdown(
+			L["UFPrivateAurasParentPoint"] or "Anchor point",
+			anchorOptions9,
+			function() return getValue(unit, { "privateAuras", "parent", "point" }, (paDef.parent and paDef.parent.point) or "BOTTOM") end,
+			function(val)
+				setValue(unit, { "privateAuras", "parent", "point" }, val or "BOTTOM")
+				refresh()
+			end,
+			(paDef.parent and paDef.parent.point) or "BOTTOM",
+			"privateAuras"
+		)
+		list[#list].isEnabled = isPrivateAurasEnabled
+
+		list[#list + 1] = slider(
+			L["UFPrivateAurasParentOffsetX"] or "Anchor offset X",
+			-OFFSET_RANGE,
+			OFFSET_RANGE,
+			1,
+			function() return getValue(unit, { "privateAuras", "parent", "offsetX" }, (paDef.parent and paDef.parent.offsetX) or 0) end,
+			function(val)
+				setValue(unit, { "privateAuras", "parent", "offsetX" }, val or 0)
+				refresh()
+			end,
+			(paDef.parent and paDef.parent.offsetX) or 0,
+			"privateAuras",
+			true
+		)
+		list[#list].isEnabled = isPrivateAurasEnabled
+
+		list[#list + 1] = slider(
+			L["UFPrivateAurasParentOffsetY"] or "Anchor offset Y",
+			-OFFSET_RANGE,
+			OFFSET_RANGE,
+			1,
+			function() return getValue(unit, { "privateAuras", "parent", "offsetY" }, (paDef.parent and paDef.parent.offsetY) or 0) end,
+			function(val)
+				setValue(unit, { "privateAuras", "parent", "offsetY" }, val or 0)
+				refresh()
+			end,
+			(paDef.parent and paDef.parent.offsetY) or 0,
+			"privateAuras",
+			true
+		)
+		list[#list].isEnabled = isPrivateAurasEnabled
+
+		list[#list + 1] = checkbox(
+			L["UFPrivateAurasCountdownFrame"] or "Show countdown frame",
+			function() return getValue(unit, { "privateAuras", "countdownFrame" }, paDef.countdownFrame ~= false) ~= false end,
+			function(val)
+				setValue(unit, { "privateAuras", "countdownFrame" }, val and true or false)
+				refresh()
+			end,
+			paDef.countdownFrame ~= false,
+			"privateAuras"
+		)
+		list[#list].isEnabled = isPrivateAurasEnabled
+
+		list[#list + 1] = checkbox(
+			L["UFPrivateAurasCountdownNumbers"] or "Show countdown numbers",
+			function() return getValue(unit, { "privateAuras", "countdownNumbers" }, paDef.countdownNumbers ~= false) ~= false end,
+			function(val)
+				setValue(unit, { "privateAuras", "countdownNumbers" }, val and true or false)
+				refresh()
+			end,
+			paDef.countdownNumbers ~= false,
+			"privateAuras"
+		)
+		list[#list].isEnabled = isPrivateCountdownEnabled
+
+		list[#list + 1] = checkbox(
+			L["UFPrivateAurasShowDispelType"] or "Show dispel type",
+			function() return getValue(unit, { "privateAuras", "showDispelType" }, paDef.showDispelType == true) == true end,
+			function(val)
+				setValue(unit, { "privateAuras", "showDispelType" }, val and true or false)
+				refresh()
+			end,
+			paDef.showDispelType == true,
+			"privateAuras"
+		)
+		list[#list].isEnabled = isPrivateAurasEnabled
+
+		list[#list + 1] = checkbox(
+			L["UFPrivateAurasDurationEnable"] or "Show duration",
+			function() return getValue(unit, { "privateAuras", "duration", "enable" }, (paDef.duration and paDef.duration.enable) == true) == true end,
+			function(val)
+				setValue(unit, { "privateAuras", "duration", "enable" }, val and true or false)
+				refresh()
+			end,
+			(paDef.duration and paDef.duration.enable) == true,
+			"privateAuras"
+		)
+		list[#list].isEnabled = isPrivateAurasEnabled
+
+		list[#list + 1] = radioDropdown(
+			L["UFPrivateAurasDurationPoint"] or "Duration anchor",
+			anchorOptions9,
+			function() return getValue(unit, { "privateAuras", "duration", "point" }, (paDef.duration and paDef.duration.point) or "BOTTOM") end,
+			function(val)
+				setValue(unit, { "privateAuras", "duration", "point" }, val or "BOTTOM")
+				refresh()
+			end,
+			(paDef.duration and paDef.duration.point) or "BOTTOM",
+			"privateAuras"
+		)
+		list[#list].isEnabled = isPrivateDurationEnabled
+
+		list[#list + 1] = slider(
+			L["UFPrivateAurasDurationOffsetX"] or "Duration offset X",
+			-OFFSET_RANGE,
+			OFFSET_RANGE,
+			1,
+			function() return getValue(unit, { "privateAuras", "duration", "offsetX" }, (paDef.duration and paDef.duration.offsetX) or 0) end,
+			function(val)
+				setValue(unit, { "privateAuras", "duration", "offsetX" }, val or 0)
+				refresh()
+			end,
+			(paDef.duration and paDef.duration.offsetX) or 0,
+			"privateAuras",
+			true
+		)
+		list[#list].isEnabled = isPrivateDurationEnabled
+
+		list[#list + 1] = slider(
+			L["UFPrivateAurasDurationOffsetY"] or "Duration offset Y",
+			-OFFSET_RANGE,
+			OFFSET_RANGE,
+			1,
+			function() return getValue(unit, { "privateAuras", "duration", "offsetY" }, (paDef.duration and paDef.duration.offsetY) or 0) end,
+			function(val)
+				setValue(unit, { "privateAuras", "duration", "offsetY" }, val or 0)
+				refresh()
+			end,
+			(paDef.duration and paDef.duration.offsetY) or 0,
+			"privateAuras",
+			true
+		)
+		list[#list].isEnabled = isPrivateDurationEnabled
 	end
 
 	return list

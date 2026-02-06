@@ -68,8 +68,6 @@ local ResourcebarVars = {
 	DEFAULT_POWER_WIDTH = 200,
 	DEFAULT_POWER_HEIGHT = 20,
 	BLIZZARD_TEX = "Interface\\TargetingFrame\\UI-StatusBar",
-	SMOOTH_SPEED = 12,
-	DEFAULT_SMOOTH_DEADZONE = 0.75,
 	RUNE_UPDATE_INTERVAL = 0.1,
 	ESSENCE_UPDATE_INTERVAL = 0.1,
 	REFRESH_DEBOUNCE = 0.05,
@@ -90,7 +88,6 @@ local ResourcebarVars = {
 }
 local RB = ResourcebarVars
 
-local tryActivateSmooth
 local requestActiveRefresh
 local getStatusbarDropdownLists
 local ensureRelativeFrameHooks
@@ -143,7 +140,6 @@ local COSMETIC_BAR_KEYS = {
 	"reverseFill",
 	"verticalFill",
 	"smoothFill",
-	"smoothDeadzone",
 	"showSeparator",
 	"separatorColor",
 	"separatorThickness",
@@ -497,71 +493,15 @@ function ResourceBars.RefreshTextureDropdown()
 	dd:SetValue(cur)
 end
 
-local function stopSmoothUpdater(bar)
-	if not bar then return end
-	if bar._smoothUpdater and bar:GetScript("OnUpdate") == bar._smoothUpdater then bar:SetScript("OnUpdate", nil) end
-	bar._smoothActive = false
-end
+local STATUSBAR_INTERP = Enum and Enum.StatusBarInterpolation
+local INTERP_EASE = STATUSBAR_INTERP and STATUSBAR_INTERP.ExponentialEaseOut
 
-local function ensureSmoothUpdater(bar)
-	if not bar then return end
-	if not bar._smoothUpdater then
-		bar._smoothUpdater = function(self, elapsed)
-			if not self:IsShown() then
-				stopSmoothUpdater(self)
-				return
-			end
-			local target = self._smoothTarget
-			if target == nil then
-				stopSmoothUpdater(self)
-				return
-			end
-			local current = self:GetValue() or 0
-			local dz = self._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-			local diff = target - current
-			if abs(diff) <= dz then
-				self:SetValue(target)
-				stopSmoothUpdater(self)
-				return
-			end
-			local speed = self._smoothSpeed or RB.SMOOTH_SPEED
-			local step = diff * min(1, (elapsed or 0) * speed)
-			self:SetValue(current + step)
-		end
-	end
-end
-
-local function ensureSmoothVisibilityHooks(bar)
-	if not bar or bar._smoothVisibilityHooks then return end
-	bar:HookScript("OnHide", function(self) stopSmoothUpdater(self) end)
-	bar:HookScript("OnShow", function(self) tryActivateSmooth(self) end)
-	bar._smoothVisibilityHooks = true
-end
-
-tryActivateSmooth = function(bar)
-	if not bar or not bar._smoothEnabled then
-		stopSmoothUpdater(bar)
-		return
-	end
-	if addon.variables.isMidnight then return end
-	ensureSmoothUpdater(bar)
-	ensureSmoothVisibilityHooks(bar)
-	bar._smoothSpeed = bar._smoothSpeed or RB.SMOOTH_SPEED
-	bar._smoothDeadzone = bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-	if not bar._smoothTarget then
-		stopSmoothUpdater(bar)
-		return
-	end
-	if not bar:IsShown() then return end
-	local current = bar:GetValue() or 0
-	local diff = bar._smoothTarget - current
-	local dz = bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-	if abs(diff) > dz then
-		if bar:GetScript("OnUpdate") ~= bar._smoothUpdater then bar:SetScript("OnUpdate", bar._smoothUpdater) end
-		bar._smoothActive = true
+local function setBarValue(bar, value, smooth)
+	if not bar or value == nil then return end
+	if smooth and INTERP_EASE then
+		bar:SetValue(value, INTERP_EASE)
 	else
-		if abs(diff) > 0 then bar:SetValue(bar._smoothTarget) end
-		stopSmoothUpdater(bar)
+		bar:SetValue(value)
 	end
 end
 
@@ -1786,24 +1726,6 @@ local function configureBarBehavior(bar, cfg, pType)
 		applyAbsorbLayout(bar, cfg)
 	end
 
-	if pType ~= "RUNES" then
-		ensureSmoothVisibilityHooks(bar)
-		if cfg.smoothFill then
-			bar._smoothEnabled = true
-			bar._smoothDeadzone = cfg.smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-			bar._smoothSpeed = RB.SMOOTH_SPEED
-			ensureSmoothUpdater(bar)
-		else
-			bar._smoothEnabled = false
-			bar._smoothDeadzone = cfg.smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-			bar._smoothSpeed = RB.SMOOTH_SPEED
-			bar._smoothTarget = nil
-			stopSmoothUpdater(bar)
-		end
-	else
-		stopSmoothUpdater(bar)
-	end
-
 	if bar._rbBackdropState and bar._rbBackdropState.insets then applyStatusBarInsets(bar, bar._rbBackdropState.insets, true) end
 end
 
@@ -2059,40 +1981,14 @@ function updateHealthBar(evt)
 		if previousMax ~= newMax then
 			healthBar._lastMax = newMax
 			healthBar:SetMinMaxValues(0, newMax)
-			if not addon.variables.isMidnight then
-				local currentValue = healthBar:GetValue() or 0
-				if currentValue > newMax then healthBar:SetValue(newMax) end
-				if healthBar._smoothTarget and healthBar._smoothTarget > newMax then
-					healthBar._smoothTarget = newMax
-					if healthBar._smoothEnabled then tryActivateSmooth(healthBar) end
-				end
-			else
-				healthBar:SetValue(newMax)
-			end
+			local currentValue = healthBar:GetValue() or 0
+			if currentValue > newMax then healthBar:SetValue(newMax) end
 		end
 		local maxHealth = healthBar._lastMax or newMax or 1
 		local curHealth = UnitHealth("player")
 		local settings = getBarSettings("HEALTH") or {}
 		local smooth = settings.smoothFill == true
-		if not addon.variables.isMidnight and smooth then
-			healthBar._smoothTarget = curHealth
-			healthBar._smoothDeadzone = settings.smoothDeadzone or healthBar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-			healthBar._smoothSpeed = RB.SMOOTH_SPEED
-			if not healthBar._smoothInitialized then
-				healthBar:SetValue(curHealth)
-				healthBar._smoothInitialized = true
-			end
-			healthBar._smoothEnabled = true
-			tryActivateSmooth(healthBar)
-		else
-			healthBar._smoothTarget = nil
-			healthBar._smoothDeadzone = settings.smoothDeadzone or healthBar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-			healthBar._smoothSpeed = RB.SMOOTH_SPEED
-			healthBar:SetValue(curHealth)
-			healthBar._smoothInitialized = nil
-			healthBar._smoothEnabled = false
-			stopSmoothUpdater(healthBar)
-		end
+		setBarValue(healthBar, curHealth, smooth)
 		healthBar._lastVal = curHealth
 
 		local percent = getHealthPercent("player", curHealth, maxHealth)
@@ -2205,7 +2101,7 @@ function updateHealthBar(evt)
 			local absorbEnabled = settings.absorbEnabled ~= false
 			if not absorbEnabled or maxHealth <= 0 then
 				absorbBar:Hide()
-				absorbBar:SetValue(0)
+				setBarValue(absorbBar, 0, smooth)
 				absorbBar._lastVal = 0
 			else
 				if not absorbBar:IsShown() then absorbBar:Show() end
@@ -2226,15 +2122,15 @@ function updateHealthBar(evt)
 				if settings.absorbSample then abs = maxHealth * 0.6 end
 				if settings.absorbOverfill then applyAbsorbLayout(healthBar, settings) end
 				if addon.variables.isMidnight then
-					absorbBar:SetValue(abs)
 					absorbBar:SetMinMaxValues(0, maxHealth)
+					setBarValue(absorbBar, abs, smooth)
 				else
 					if abs > maxHealth then abs = maxHealth end
 					if absorbBar._lastMax ~= maxHealth then
 						absorbBar:SetMinMaxValues(0, maxHealth)
 						absorbBar._lastMax = maxHealth
 					end
-					absorbBar:SetValue(abs)
+					setBarValue(absorbBar, abs, smooth)
 					absorbBar._lastVal = abs
 				end
 			end
@@ -2323,10 +2219,7 @@ function createHealthBar()
 		healthBar:SetSize(w, h)
 	end
 	if not healthBar._rbRefreshOnShow then
-		healthBar:HookScript("OnShow", function(self)
-			self._smoothInitialized = nil
-			updateHealthBar("ON_SHOW")
-		end)
+		healthBar:HookScript("OnShow", function(self) updateHealthBar("ON_SHOW") end)
 		healthBar._rbRefreshOnShow = true
 	end
 	do
@@ -2952,25 +2845,7 @@ function updatePowerBar(type, runeSlot)
 
 		local style = bar._style or "PERCENT"
 		local smooth = cfg.smoothFill == true
-		if not addon.variables.isMidnight and smooth then
-			bar._smoothTarget = curPower
-			bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-			bar._smoothSpeed = RB.SMOOTH_SPEED
-			if not bar._smoothInitialized then
-				bar:SetValue(curPower)
-				bar._smoothInitialized = true
-			end
-			bar._smoothEnabled = true
-			tryActivateSmooth(bar)
-		else
-			bar._smoothTarget = nil
-			bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-			bar._smoothSpeed = RB.SMOOTH_SPEED
-			bar:SetValue(curPower)
-			bar._smoothInitialized = nil
-			bar._smoothEnabled = false
-			stopSmoothUpdater(bar)
-		end
+		setBarValue(bar, curPower, smooth)
 		bar._lastVal = curPower
 
 		local percent = maxHealth > 0 and (curPower / maxHealth) or 0
@@ -3069,25 +2944,7 @@ function updatePowerBar(type, runeSlot)
 		local style = bar._style or "CURMAX"
 		local smooth = cfg.smoothFill == true
 		local shownStacks = (visualMax and visualMax > 0) and ((stacks <= 0) and 0 or (((stacks - 1) % visualMax) + 1)) or stacks
-		if not addon.variables.isMidnight and smooth then
-			bar._smoothTarget = shownStacks
-			bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-			bar._smoothSpeed = RB.SMOOTH_SPEED
-			if not bar._smoothInitialized then
-				bar:SetValue(shownStacks)
-				bar._smoothInitialized = true
-			end
-			bar._smoothEnabled = true
-			tryActivateSmooth(bar)
-		else
-			bar._smoothTarget = nil
-			bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-			bar._smoothSpeed = RB.SMOOTH_SPEED
-			bar:SetValue(shownStacks)
-			bar._smoothInitialized = nil
-			bar._smoothEnabled = false
-			stopSmoothUpdater(bar)
-		end
+		setBarValue(bar, shownStacks, smooth)
 		bar._lastVal = shownStacks
 
 		local percent = logicalMax > 0 and (stacks / logicalMax * 100) or 0
@@ -3208,25 +3065,7 @@ function updatePowerBar(type, runeSlot)
 
 	local style = bar._style or ((type == "MANA") and "PERCENT" or "CURMAX")
 	local smooth = cfg.smoothFill == true and type ~= "ESSENCE"
-	if not addon.variables.isMidnight and smooth then
-		bar._smoothTarget = barValue
-		bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-		bar._smoothSpeed = RB.SMOOTH_SPEED
-		if not bar._smoothInitialized then
-			bar:SetValue(barValue)
-			bar._smoothInitialized = true
-		end
-		bar._smoothEnabled = true
-		tryActivateSmooth(bar)
-	else
-		bar._smoothTarget = nil
-		bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
-		bar._smoothSpeed = RB.SMOOTH_SPEED
-		bar:SetValue(barValue)
-		bar._smoothInitialized = nil
-		bar._smoothEnabled = false
-		stopSmoothUpdater(bar)
-	end
+	setBarValue(bar, barValue, smooth)
 	bar._lastVal = barValue
 	local percent = getPowerPercent("player", pType, curPower, maxPower)
 	local percentText = formatPercentText(percent, cfg)
@@ -3845,9 +3684,6 @@ local function createPowerBar(type, anchor)
 			-- Force re-read of max (fixes “cap changed while hidden”)
 			self._lastMax = nil
 			self._lastMaxRaw = nil
-
-			-- Optional: makes smooth bars snap correctly on first show
-			self._smoothInitialized = nil
 
 			updatePowerBar(self._rbType)
 
