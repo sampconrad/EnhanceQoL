@@ -507,7 +507,7 @@ local defaults = {
 			countFontSizeBuff = nil,
 			countFontSizeDebuff = nil,
 			countFontOutline = nil,
-			cooldownFontSize = 0,
+			cooldownFontSize = 12,
 			cooldownFontSizeBuff = nil,
 			cooldownFontSizeDebuff = nil,
 		},
@@ -1769,6 +1769,7 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 		if ac.showCooldownTextBuffs ~= nil then showCooldownText = ac.showCooldownTextBuffs end
 	end
 	local cooldownFontSize = isDebuff and ac.cooldownFontSizeDebuff or ac.cooldownFontSizeBuff
+	if cooldownFontSize ~= nil and cooldownFontSize < 1 then cooldownFontSize = nil end
 	if cooldownFontSize == nil then cooldownFontSize = ac.cooldownFontSize end
 	local countFontSize = isDebuff and ac.countFontSizeDebuff or ac.countFontSizeBuff
 	if countFontSize == nil then countFontSize = ac.countFontSize end
@@ -2168,7 +2169,7 @@ function AuraUtil.updateTargetAuraIcons(startIndex, unit)
 	ac.padding = ac.padding or 0
 	ac.max = ac.max or 16
 	if ac.showTooltip == nil then ac.showTooltip = true end
-	if ac.cooldownFontSize == nil then ac.cooldownFontSize = 0 end
+	if ac.cooldownFontSize == nil or ac.cooldownFontSize < 1 then ac.cooldownFontSize = 12 end
 	if ac.max < 1 then ac.max = 1 end
 	local showBuffs = ac.showBuffs ~= false
 	local showDebuffs = ac.showDebuffs ~= false
@@ -2610,7 +2611,7 @@ do
 		countFontSizeBuff = nil,
 		countFontSizeDebuff = nil,
 		countFontOutline = nil,
-		cooldownFontSize = 0,
+		cooldownFontSize = 12,
 		cooldownFontSizeBuff = nil,
 		cooldownFontSizeDebuff = nil,
 	}

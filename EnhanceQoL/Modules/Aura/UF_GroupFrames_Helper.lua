@@ -304,12 +304,14 @@ local function normalizeGroupBy(value)
 	local v = trim(value):upper()
 	if v == "" then return nil end
 	if v == "ROLE" then v = "ASSIGNEDROLE" end
-	if v == "GROUP" or v == "CLASS" or v == "ASSIGNEDROLE" then return v end
+	if v == "CLASS" then v = "GROUP" end
+	if v == "GROUP" or v == "ASSIGNEDROLE" then return v end
 	return nil
 end
 
 function H.NormalizeSortMethod(value)
 	local v = trim(value):upper()
+	if v == "CUSTOM" then v = "NAMELIST" end
 	if v == "NAME" then return "NAME" end
 	if v == "NAMELIST" then return "NAMELIST" end
 	return "INDEX"
@@ -835,7 +837,7 @@ end
 
 function H.BuildCustomSortNameList(cfg)
 	local custom = H.EnsureCustomSortConfig(cfg)
-	if not (custom and custom.enabled == true) then return "" end
+	if not custom then return "" end
 
 	local separate = custom.separateMeleeRanged == true
 	local roleOrder = H.ExpandRoleOrder(custom.roleOrder, separate)
@@ -889,6 +891,78 @@ function H.BuildCustomSortNameList(cfg)
 	end
 	if #names == 0 then return "" end
 	return table.concat(names, ",")
+end
+
+function H.BuildCustomSortNameListsByGroup(cfg)
+	local custom = H.EnsureCustomSortConfig(cfg)
+	if not custom then return {} end
+
+	local separate = custom.separateMeleeRanged == true
+	local roleOrder = H.ExpandRoleOrder(custom.roleOrder, separate)
+	local classOrder = custom.classOrder or H.CLASS_TOKENS
+	local roleMap = H.BuildOrderMapFromList(roleOrder)
+	local classMap = H.BuildOrderMapFromList(classOrder)
+
+	local entriesByGroup = {}
+	local num = (GetNumGroupMembers and GetNumGroupMembers()) or 0
+	for i = 1, num do
+		local unit = "raid" .. i
+		if UnitExists and UnitExists(unit) then
+			local name = H.GetUnitFullName(unit)
+			if name then
+				local _, classToken = UnitClass(unit)
+				local role = UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit) or nil
+				if role == "NONE" or role == nil then role = "DAMAGER" end
+				local sortRole = role
+				if separate and role == "DAMAGER" then
+					local specId = H.GetUnitSpecIdCached(unit)
+					sortRole = H.GetDpsRangeRole(specId, classToken)
+				end
+				local _, _, subgroup = GetRaidRosterInfo(i)
+				subgroup = tonumber(subgroup) or 1
+				local list = entriesByGroup[subgroup]
+				if not list then
+					list = {}
+					entriesByGroup[subgroup] = list
+				end
+				list[#list + 1] = {
+					name = name,
+					role = role,
+					sortRole = sortRole,
+					class = classToken,
+				}
+			end
+		end
+	end
+
+	local function compare(a, b)
+		local roleA = roleMap[a.sortRole or a.role] or 999
+		local roleB = roleMap[b.sortRole or b.role] or 999
+		if roleA ~= roleB then return roleA < roleB end
+		local classA = classMap[a.class] or 999
+		local classB = classMap[b.class] or 999
+		if classA ~= classB then return classA < classB end
+		return tostring(a.name or "") < tostring(b.name or "")
+	end
+
+	local result = {}
+	for group = 1, 8 do
+		local entries = entriesByGroup[group]
+		if entries and #entries > 0 then
+			table.sort(entries, compare)
+			local names = {}
+			local seen = {}
+			for _, entry in ipairs(entries) do
+				local name = entry.name
+				if name and not seen[name] then
+					seen[name] = true
+					names[#names + 1] = name
+				end
+			end
+			if #names > 0 then result[group] = table.concat(names, ",") end
+		end
+	end
+	return result
 end
 
 local function applyRoleQuotaWithLimit(list, limit, maxTanks, maxHealers)
@@ -973,18 +1047,29 @@ function H.BuildRaidPreviewSamples(count)
 
 	local tanks = { "WARRIOR", "PALADIN" }
 	local healers = { "PRIEST", "DRUID", "SHAMAN", "MONK", "EVOKER", "PALADIN" }
-	for _, class in ipairs(tanks) do
-		addSample(class, "TANK")
-	end
-	for _, class in ipairs(healers) do
-		addSample(class, "HEALER")
-	end
+	local dpsClasses = H.CLASS_TOKENS
+	local target = tonumber(count) or 0
+	local tankIdx = 1
+	local healerIdx = 1
+	local dpsIdx = 1
 
-	local i = 1
-	while #samples < (tonumber(count) or 0) do
-		local class = H.CLASS_TOKENS[((i - 1) % #H.CLASS_TOKENS) + 1]
-		addSample(class, "DAMAGER")
-		i = i + 1
+	while #samples < target do
+		local class = tanks[((tankIdx - 1) % #tanks) + 1]
+		addSample(class, "TANK")
+		tankIdx = tankIdx + 1
+		if #samples >= target then break end
+
+		class = healers[((healerIdx - 1) % #healers) + 1]
+		addSample(class, "HEALER")
+		healerIdx = healerIdx + 1
+		if #samples >= target then break end
+
+		for _ = 1, 3 do
+			if #samples >= target then break end
+			class = dpsClasses[((dpsIdx - 1) % #dpsClasses) + 1]
+			addSample(class, "DAMAGER")
+			dpsIdx = dpsIdx + 1
+		end
 	end
 
 	return samples
@@ -995,47 +1080,6 @@ if not H.PREVIEW_SAMPLES.raid or #H.PREVIEW_SAMPLES.raid == 0 then H.PREVIEW_SAM
 function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quotaHealers)
 	local base = baseSamples or {}
 	if kind ~= "raid" then return base end
-
-	local customSort = cfg and cfg.customSort
-	if customSort and customSort.enabled == true then
-		local separate = customSort.separateMeleeRanged == true
-		local roleOrder = H.ExpandRoleOrder(customSort.roleOrder, separate)
-		local classOrder = H.NormalizeOrderList(customSort.classOrder, H.CLASS_TOKENS)
-		local roleMap = buildOrderMap(table.concat(roleOrder, ","))
-		local classMap = buildOrderMap(table.concat(classOrder, ","))
-		local sortDir = H.NormalizeSortDir(cfg and cfg.sortDir)
-		local list = {}
-		for i, sample in ipairs(base) do
-			list[#list + 1] = { sample = sample, index = i }
-		end
-		table.sort(list, function(a, b)
-			local roleA = a.sample and (a.sample.assignedRole or a.sample.role) or nil
-			local roleB = b.sample and (b.sample.assignedRole or b.sample.role) or nil
-			if separate and roleA == "DAMAGER" then roleA = H.GetDpsRangeRole(nil, a.sample and a.sample.class) end
-			if separate and roleB == "DAMAGER" then roleB = H.GetDpsRangeRole(nil, b.sample and b.sample.class) end
-			local orderA = roleMap[roleA] or 999
-			local orderB = roleMap[roleB] or 999
-			if orderA ~= orderB then return orderA < orderB end
-			local classA = a.sample and a.sample.class or nil
-			local classB = b.sample and b.sample.class or nil
-			local classOrderA = classMap[classA] or 999
-			local classOrderB = classMap[classB] or 999
-			if classOrderA ~= classOrderB then return classOrderA < classOrderB end
-			return (a.sample.name or "") < (b.sample.name or "")
-		end)
-		if sortDir == "DESC" then
-			for i = 1, floor(#list / 2) do
-				local j = #list - i + 1
-				list[i], list[j] = list[j], list[i]
-			end
-		end
-		list = applyRoleQuotaWithLimit(list, limit, quotaTanks or 0, quotaHealers or 0)
-		local result = {}
-		for _, entry in ipairs(list) do
-			result[#result + 1] = entry.sample
-		end
-		return result
-	end
 
 	local groupFilter = cfg and cfg.groupFilter
 	local roleFilter = cfg and cfg.roleFilter
@@ -1050,6 +1094,44 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 
 	local list = {}
 	local nameOrder = {}
+	local customComparator
+
+	if sortMethod == "NAMELIST" then
+		local customSort = (H.EnsureCustomSortConfig and H.EnsureCustomSortConfig(cfg)) or (cfg and cfg.customSort)
+		if customSort then
+			local separate = customSort.separateMeleeRanged == true
+			local roleOrder = H.ExpandRoleOrder(customSort.roleOrder, separate)
+			local classOrder = H.NormalizeOrderList(customSort.classOrder, H.CLASS_TOKENS)
+			local roleMap = buildOrderMap(table.concat(roleOrder, ","))
+			local classMap = buildOrderMap(table.concat(classOrder, ","))
+			customComparator = function(a, b)
+				local roleA = a.sample and (a.sample.assignedRole or a.sample.role) or nil
+				local roleB = b.sample and (b.sample.assignedRole or b.sample.role) or nil
+				if separate and roleA == "DAMAGER" then roleA = H.GetDpsRangeRole(nil, a.sample and a.sample.class) end
+				if separate and roleB == "DAMAGER" then roleB = H.GetDpsRangeRole(nil, b.sample and b.sample.class) end
+				local orderA = roleMap[roleA] or 999
+				local orderB = roleMap[roleB] or 999
+				if orderA ~= orderB then return orderA < orderB end
+				local classA = a.sample and a.sample.class or nil
+				local classB = b.sample and b.sample.class or nil
+				local classOrderA = classMap[classA] or 999
+				local classOrderB = classMap[classB] or 999
+				if classOrderA ~= classOrderB then return classOrderA < classOrderB end
+				return (a.sample.name or "") < (b.sample.name or "")
+			end
+		end
+	end
+
+	if nameList then
+		local idx = 0
+		for token in tostring(nameList):gmatch("[^,]+") do
+			local name = trim(token)
+			if name ~= "" then
+				idx = idx + 1
+				nameOrder[name] = idx
+			end
+		end
+	end
 
 	if groupFilter or roleFilter then
 		local tokenTable = {}
@@ -1083,20 +1165,14 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 			if include then list[#list + 1] = { sample = sample, index = i } end
 		end
 	else
-		if nameList then
-			local idx = 0
-			for token in tostring(nameList):gmatch("[^,]+") do
-				local name = trim(token)
-				if name ~= "" then
-					idx = idx + 1
-					nameOrder[name] = idx
-				end
-			end
-		end
 		for i, sample in ipairs(base) do
 			if not nameList or nameOrder[sample.name or ""] then list[#list + 1] = { sample = sample, index = i } end
 		end
 	end
+
+	local function compareByIndex(a, b) return a.index < b.index end
+	local function compareByName(a, b) return (a.sample.name or "") < (b.sample.name or "") end
+	local function compareByNameOrder(a, b) return (nameOrder[a.sample.name or ""] or 999) < (nameOrder[b.sample.name or ""] or 999) end
 
 	if groupBy then
 		if not groupingOrder or groupingOrder == "" then
@@ -1123,37 +1199,42 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 			return nil
 		end
 
-		if sortMethod == "NAME" then
+		local function sortWithGroup(compareWithin)
 			table.sort(list, function(a, b)
 				local order1 = orderMap[groupKey(a.sample)]
 				local order2 = orderMap[groupKey(b.sample)]
 				if order1 then
 					if not order2 then return true end
-					if order1 == order2 then return (a.sample.name or "") < (b.sample.name or "") end
+					if order1 == order2 then return compareWithin(a, b) end
 					return order1 < order2
 				else
 					if order2 then return false end
-					return (a.sample.name or "") < (b.sample.name or "")
-				end
-			end)
-		else
-			table.sort(list, function(a, b)
-				local order1 = orderMap[groupKey(a.sample)]
-				local order2 = orderMap[groupKey(b.sample)]
-				if order1 then
-					if not order2 then return true end
-					if order1 == order2 then return a.index < b.index end
-					return order1 < order2
-				else
-					if order2 then return false end
-					return a.index < b.index
+					return compareWithin(a, b)
 				end
 			end)
 		end
+
+		if sortMethod == "NAME" then
+			sortWithGroup(compareByName)
+		elseif sortMethod == "NAMELIST" then
+			if customComparator then
+				sortWithGroup(customComparator)
+			elseif next(nameOrder) then
+				sortWithGroup(compareByNameOrder)
+			else
+				sortWithGroup(compareByIndex)
+			end
+		else
+			sortWithGroup(compareByIndex)
+		end
 	elseif sortMethod == "NAME" then
-		table.sort(list, function(a, b) return (a.sample.name or "") < (b.sample.name or "") end)
-	elseif sortMethod == "NAMELIST" and next(nameOrder) then
-		table.sort(list, function(a, b) return (nameOrder[a.sample.name or ""] or 0) < (nameOrder[b.sample.name or ""] or 0) end)
+		table.sort(list, compareByName)
+	elseif sortMethod == "NAMELIST" then
+		if customComparator then
+			table.sort(list, customComparator)
+		elseif next(nameOrder) then
+			table.sort(list, compareByNameOrder)
+		end
 	end
 
 	if sortDir == "DESC" then
@@ -1164,6 +1245,10 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 	end
 	local qT = quotaTanks or 0
 	local qH = quotaHealers or 0
+	if groupBy == "GROUP" then
+		qT = 0
+		qH = 0
+	end
 	list = applyRoleQuotaWithLimit(list, limit, qT, qH)
 
 	local result = {}

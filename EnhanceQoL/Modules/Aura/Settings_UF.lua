@@ -4303,27 +4303,18 @@ local function buildUnitSettings(unit)
 		end, auraDef.showCooldown ~= false, "auras")
 		list[#list].isEnabled = function() return isAuraEnabled() and isShowBuffs() end
 
-		list[#list + 1] = slider(
-			L["Cooldown text size (buffs)"] or "Cooldown text size (buffs)",
-			0,
-			32,
-			1,
-			function() return getValue(unit, { "auraIcons", "cooldownFontSizeBuff" }, auraDef.cooldownFontSizeBuff or auraDef.cooldownFontSize or 0) end,
-			function(val)
-				val = tonumber(val) or 0
-				if val < 0 then val = 0 end
-				setValue(unit, { "auraIcons", "cooldownFontSizeBuff" }, val)
-				refresh()
-			end,
-			auraDef.cooldownFontSizeBuff or auraDef.cooldownFontSize or 0,
-			"auras",
-			true,
-			function(value)
-				value = tonumber(value) or 0
-				if value <= 0 then return L["Auto"] or "Auto" end
-				return tostring(math.floor(value + 0.5))
-			end
-		)
+		list[#list + 1] = slider(L["Cooldown text size (buffs)"] or "Cooldown text size (buffs)", 1, 32, 1, function()
+			local fallback = auraDef.cooldownFontSizeBuff or auraDef.cooldownFontSize or 14
+			local val = getValue(unit, { "auraIcons", "cooldownFontSizeBuff" }, fallback)
+			val = tonumber(val) or 0
+			if val < 1 then val = fallback end
+			return val
+		end, function(val)
+			val = tonumber(val) or 0
+			if val < 1 then val = 1 end
+			setValue(unit, { "auraIcons", "cooldownFontSizeBuff" }, val)
+			refresh()
+		end, auraDef.cooldownFontSizeBuff or auraDef.cooldownFontSize or 14, "auras", true)
 		list[#list].isEnabled = function() return isAuraEnabled() and isShowBuffs() and isShowCooldownBuffs() end
 
 		list[#list + 1] = slider(
@@ -4378,27 +4369,18 @@ local function buildUnitSettings(unit)
 		end, auraDef.showCooldown ~= false, "auras")
 		list[#list].isEnabled = function() return isAuraEnabled() and isShowDebuffs() end
 
-		list[#list + 1] = slider(
-			L["Cooldown text size (debuffs)"] or "Cooldown text size (debuffs)",
-			0,
-			32,
-			1,
-			function() return getValue(unit, { "auraIcons", "cooldownFontSizeDebuff" }, auraDef.cooldownFontSizeDebuff or auraDef.cooldownFontSize or 0) end,
-			function(val)
-				val = tonumber(val) or 0
-				if val < 0 then val = 0 end
-				setValue(unit, { "auraIcons", "cooldownFontSizeDebuff" }, val)
-				refresh()
-			end,
-			auraDef.cooldownFontSizeDebuff or auraDef.cooldownFontSize or 0,
-			"auras",
-			true,
-			function(value)
-				value = tonumber(value) or 0
-				if value <= 0 then return L["Auto"] or "Auto" end
-				return tostring(math.floor(value + 0.5))
-			end
-		)
+		list[#list + 1] = slider(L["Cooldown text size (debuffs)"] or "Cooldown text size (debuffs)", 1, 32, 1, function()
+			local fallback = auraDef.cooldownFontSizeDebuff or auraDef.cooldownFontSize or 14
+			local val = getValue(unit, { "auraIcons", "cooldownFontSizeDebuff" }, fallback)
+			val = tonumber(val) or 0
+			if val < 1 then val = fallback end
+			return val
+		end, function(val)
+			val = tonumber(val) or 0
+			if val < 1 then val = 1 end
+			setValue(unit, { "auraIcons", "cooldownFontSizeDebuff" }, val)
+			refresh()
+		end, auraDef.cooldownFontSizeDebuff or auraDef.cooldownFontSize or 14, "auras", true)
 		list[#list].isEnabled = function() return isAuraEnabled() and isShowDebuffs() and isShowCooldownDebuffs() end
 
 		list[#list + 1] = slider(
