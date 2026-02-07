@@ -27,6 +27,7 @@
 ### 🔄 Changed
 
 - Data Panels: **Hide Border** now hides only the border. Migration sets background alpha to 0 if Hide Border was previously enabled, so you may need to re-adjust background alpha.
+- Unit Frames: Increased offset slider range in UF settings from ±400 to ±1000.
 
 ### ⚡ Performance
 
