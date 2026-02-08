@@ -805,7 +805,7 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 			addon.functions.ApplyBagItemLevelPosition(itemButton.ItemLevelText, itemButton, pos)
 			if nil ~= addon.variables.allowedEquipSlotsBagIlvl[itemEquipLoc] then
 				local r, g, b = C_Item.GetItemQualityColor(itemQuality)
-				local itemLevelText = C_Item.GetDetailedItemLevelInfo(itemLink)
+				local itemLevelText = C_Item.GetCurrentItemLevel(ItemLocation:CreateFromBagAndSlot(bag, slot))
 
 				itemButton.ItemLevelText:SetFormattedText(itemLevelText)
 				itemButton.ItemLevelText:SetTextColor(r, g, b, 1)

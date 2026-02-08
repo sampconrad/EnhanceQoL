@@ -1,10 +1,62 @@
--- luacheck: globals EnhanceQoL MenuUtil MenuResponse C_EquipmentSet UnitCastingInfo UIErrorsFrame ERR_CLIENT_LOCKED_OUT EQUIPMENT_SETS GameTooltip UNKNOWN
+-- luacheck: globals EnhanceQoL MenuUtil MenuResponse C_EquipmentSet UnitCastingInfo UIErrorsFrame ERR_CLIENT_LOCKED_OUT EQUIPMENT_SETS GameTooltip UNKNOWN GAMEMENU_OPTIONS FONT_SIZE UIParent NORMAL_FONT_COLOR RAID_CLASS_COLORS CUSTOM_CLASS_COLORS UnitClass
 local addonName, addon = ...
 local L = addon.L
 
+local AceGUI = addon.AceGUI
 local format = string.format
 
 local sets = {}
+local db
+local stream
+local aceWindow
+
+local function getOptionsHint()
+	if addon.DataPanel and addon.DataPanel.GetOptionsHintText then
+		local text = addon.DataPanel.GetOptionsHintText()
+		if text ~= nil then return text end
+		return nil
+	end
+	return L["Right-Click for options"]
+end
+
+local function ensureDB()
+	addon.db.datapanel = addon.db.datapanel or {}
+	addon.db.datapanel.equipmentsets = addon.db.datapanel.equipmentsets or {}
+	db = addon.db.datapanel.equipmentsets
+	db.fontSize = db.fontSize or 14
+	if db.useTextColor == nil then db.useTextColor = false end
+	if db.useClassColor == nil then db.useClassColor = false end
+	if not db.textColor then
+		local r, g, b = 1, 1, 1
+		if NORMAL_FONT_COLOR and NORMAL_FONT_COLOR.GetRGB then
+			r, g, b = NORMAL_FONT_COLOR:GetRGB()
+		end
+		db.textColor = { r = r, g = g, b = b }
+	end
+end
+
+local function getClassColor()
+	local classToken = UnitClass and select(2, UnitClass("player"))
+	if not classToken then return nil end
+	local colors = CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS
+	if not colors then return nil end
+	return colors[classToken]
+end
+
+local function colorizeText(text)
+	if not text or text == "" then return text end
+	if db and db.useClassColor then
+		local color = getClassColor()
+		if color and color.r and color.g and color.b then
+			return format("|cff%02x%02x%02x%s|r", math.floor(color.r * 255 + 0.5), math.floor(color.g * 255 + 0.5), math.floor(color.b * 255 + 0.5), text)
+		end
+	end
+	if db and db.useTextColor and db.textColor then
+		local c = db.textColor
+		return format("|cff%02x%02x%02x%s|r", math.floor(c.r * 255 + 0.5), math.floor(c.g * 255 + 0.5), math.floor(c.b * 255 + 0.5), text)
+	end
+	return text
+end
 
 local function sortSetIDs(ids)
 	if not C_EquipmentSet or not C_EquipmentSet.GetEquipmentSetAssignedSpec then return ids end
@@ -51,16 +103,18 @@ local function buildStreamText()
 	end
 	if not equippedName then return L["No Set Equipped"] or "No Set Equipped" end
 
+	local iconSize = (db and db.fontSize) or 14
 	local iconText = ""
-	if equippedIcon then iconText = format(" |T%d:16:16:0:0:64:64:4:60:4:60|t", equippedIcon) end
+	if equippedIcon then iconText = format(" |T%d:%d:%d:0:0:64:64:4:60:4:60|t", equippedIcon, iconSize, iconSize) end
 	return format("%s %s%s", label, equippedName, iconText)
 end
 
 local function updateSets(s)
-	local ids = collectSets()
+	ensureDB()
+	collectSets()
 
-	s.snapshot.text = buildStreamText()
-	s.snapshot.fontSize = 14
+	s.snapshot.text = colorizeText(buildStreamText())
+	s.snapshot.fontSize = db.fontSize or 14
 end
 
 local function showSetMenu(owner)
@@ -95,6 +149,72 @@ local function showSetMenu(owner)
 	end)
 end
 
+local function restorePosition(frame)
+	if db and db.point and db.x and db.y then
+		frame:ClearAllPoints()
+		frame:SetPoint(db.point, UIParent, db.point, db.x, db.y)
+	end
+end
+
+local function createAceWindow()
+	if aceWindow then
+		aceWindow:Show()
+		return
+	end
+	ensureDB()
+	local frame = AceGUI:Create("Window")
+	aceWindow = frame.frame
+	frame:SetWidth(320)
+	frame:SetHeight(260)
+	frame:SetLayout("List")
+	frame:SetTitle((addon.DataPanel and addon.DataPanel.GetStreamOptionsTitle and addon.DataPanel.GetStreamOptionsTitle(stream and stream.meta and stream.meta.title)) or GAMEMENU_OPTIONS)
+
+	frame.frame:SetScript("OnShow", function(self) restorePosition(self) end)
+	frame.frame:SetScript("OnHide", function(self)
+		local point, _, _, xOfs, yOfs = self:GetPoint()
+		db.point = point
+		db.x = xOfs
+		db.y = yOfs
+	end)
+
+	local fontSize = AceGUI:Create("Slider")
+	fontSize:SetLabel(FONT_SIZE)
+	fontSize:SetSliderValues(8, 32, 1)
+	fontSize:SetValue(db.fontSize or 14)
+	fontSize:SetCallback("OnValueChanged", function(_, _, val)
+		db.fontSize = val
+		if stream then addon.DataHub:RequestUpdate(stream) end
+	end)
+	frame:AddChild(fontSize)
+
+	local useClassColor = AceGUI:Create("CheckBox")
+	useClassColor:SetLabel(L["DataPanelUseClassTextColor"] or "Use class text color")
+	useClassColor:SetValue(db.useClassColor and true or false)
+	useClassColor:SetCallback("OnValueChanged", function(_, _, val)
+		db.useClassColor = val and true or false
+		if stream then addon.DataHub:RequestUpdate(stream) end
+	end)
+	frame:AddChild(useClassColor)
+
+	local useTextColor = AceGUI:Create("CheckBox")
+	useTextColor:SetLabel(L["goldPanelUseTextColor"] or "Use custom text color")
+	useTextColor:SetValue(db.useTextColor and true or false)
+	useTextColor:SetCallback("OnValueChanged", function(_, _, val)
+		db.useTextColor = val and true or false
+		if stream then addon.DataHub:RequestUpdate(stream) end
+	end)
+	frame:AddChild(useTextColor)
+
+	local textColor = AceGUI:Create("ColorPicker")
+	textColor:SetLabel(L["Text color"] or "Text color")
+	textColor:SetColor(db.textColor.r, db.textColor.g, db.textColor.b)
+	textColor:SetCallback("OnValueChanged", function(_, _, r, g, b)
+		db.textColor = { r = r, g = g, b = b }
+		if stream and db.useTextColor and not db.useClassColor then addon.DataHub:RequestUpdate(stream) end
+	end)
+	frame:AddChild(textColor)
+end
+
 local function showTooltip(btn)
 	local tip = GameTooltip
 	tip:ClearLines()
@@ -122,12 +242,18 @@ local function showTooltip(btn)
 		end
 	end
 
+	local hint = getOptionsHint()
+	if hint then
+		tip:AddLine(" ")
+		tip:AddLine(hint, 0.7, 0.7, 0.7)
+	end
+
 	tip:Show()
 end
 
 local provider = {
 	id = "equipmentsets",
-	version = 1,
+	version = 2,
 	title = L["Equipment Sets"] or "Equipment Sets",
 	update = updateSets,
 	events = {
@@ -137,11 +263,15 @@ local provider = {
 		PLAYER_ENTERING_WORLD = function(s) addon.DataHub:RequestUpdate(s) end,
 	},
 	OnClick = function(button, btn)
-		if btn == "LeftButton" then showSetMenu(button) end
+		if btn == "LeftButton" then
+			showSetMenu(button)
+		elseif btn == "RightButton" then
+			createAceWindow()
+		end
 	end,
 	OnMouseEnter = function(btn) showTooltip(btn) end,
 }
 
-EnhanceQoL.DataHub.RegisterStream(provider)
+stream = EnhanceQoL.DataHub.RegisterStream(provider)
 
 return provider

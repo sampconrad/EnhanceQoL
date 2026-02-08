@@ -598,6 +598,12 @@ function EditMode:RegisterFrame(id, opts)
 	end
 
 	self:ApplyLayout(id, self:GetActiveLayoutName())
+	-- self.lib:AddManagerCheckbox({
+    --     label = frame.editModeName,
+    --     frames = frame,
+    --     category = "EnhanceQoL",
+    --     id = id,
+    -- })
 
 	return frame
 end

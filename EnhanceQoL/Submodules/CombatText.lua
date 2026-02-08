@@ -82,7 +82,7 @@ local function fontFaceOptions()
 			end
 		end
 	end
-	if defaultPath and not hasDefault then list[#list + 1] = { value = defaultPath, label = L["Default"] or "Default" } end
+	if defaultPath and not hasDefault then list[#list + 1] = { value = defaultPath, label = DEFAULT } end
 	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	return list
 end

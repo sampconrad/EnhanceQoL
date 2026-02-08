@@ -86,6 +86,23 @@ local function applyCharIlvlPosition(element)
 	element.ilvl:SetPoint(anchor.textPoint, element.ilvlBackground, anchor.textPoint, anchor.textX, anchor.textY)
 end
 
+local function getMissingEnchantOverlayColor()
+	local c = addon.db and addon.db["missingEnchantOverlayColor"]
+	local r = (c and c.r) or 1
+	local g = (c and c.g) or 0
+	local b = (c and c.b) or 0
+	local a = (c and c.a)
+	if a == nil then a = 0.6 end
+	return r, g, b, a
+end
+
+local function applyMissingEnchantOverlayStyle(texture)
+	if not texture then return end
+	local r, g, b, a = getMissingEnchantOverlayColor()
+	texture:SetColorTexture(r, g, b, a)
+	texture:SetGradient("VERTICAL", CreateColor(r, g, b, math.min(1, a + 0.35)), CreateColor(r, g, b, math.max(0, a - 0.15)))
+end
+
 local function CheckItemGems(element, itemLink, emptySocketsCount, key, pdElement, attempts)
 	attempts = attempts or 1 -- Anzahl der Versuche
 	if attempts > 10 then -- Abbruch nach 5 Versuchen, um Endlosschleifen zu vermeiden
@@ -162,13 +179,8 @@ local function getTooltipInfoFromLink(link)
 	return enchantText
 end
 
-local itemCount = 0
-local ilvlSum = 0
-
 local function removeInspectElements()
 	if nil == InspectPaperDollFrame then return end
-	itemCount = 0
-	ilvlSum = 0
 	if InspectPaperDollFrame.ilvl then InspectPaperDollFrame.ilvl:SetText("") end
 	local itemSlotsInspectList = {
 		[1] = InspectHeadSlot,
@@ -264,7 +276,12 @@ local function onInspect(arg1)
 		pdElement.ilvl:SetPoint("TOPRIGHT", pdElement.ilvlBackground, "TOPRIGHT", -1, -1) -- Position des Textes im Zentrum des Hintergrunds
 		pdElement.ilvl:SetFont(addon.variables.defaultFont, 16, "OUTLINE") -- Setzt die Schriftart, -größe und -stil (OUTLINE)
 
-		pdElement.ilvl:SetFormattedText("")
+		if C_PaperDollInfo and C_PaperDollInfo.GetInspectItemLevel then
+			local ilvl = C_PaperDollInfo.GetInspectItemLevel(unit)
+			if ilvl then pdElement.ilvl:SetFormattedText(string.format("%.1f", ilvl)) end
+		else
+			pdElement.ilvl:SetFormattedText("")
+		end
 		pdElement.ilvl:SetTextColor(1, 1, 1, 1)
 
 		local textWidth = pdElement.ilvl:GetStringWidth()
@@ -296,6 +313,7 @@ local function onInspect(arg1)
 	}
 
 	for key, element in pairs(itemSlotsInspectList) do
+		if element.borderGradient then applyMissingEnchantOverlayStyle(element.borderGradient) end
 		if nil == inspectDone[key] then
 			if element.ilvl then element.ilvl:SetFormattedText("") end
 			if element.ilvlBackground then element.ilvlBackground:Hide() end
@@ -365,13 +383,6 @@ local function onInspect(arg1)
 						end
 
 						if InspectOpt("ilvl") then
-							local double = false
-							if key == 16 then
-								local offhandLink = GetInventoryItemLink(unit, 17)
-								local _, _, _, itemEquipLoc = C_Item.GetItemInfoInstant(itemLink)
-								if not offhandLink and twoHandLocs[itemEquipLoc] then double = true end
-							end
-							itemCount = itemCount + (double and 2 or 1)
 							if not element.ilvlBackground then
 								element.ilvlBackground = element:CreateTexture(nil, "BACKGROUND")
 								element.ilvlBackground:SetColorTexture(0, 0, 0, 0.8) -- Schwarzer Hintergrund mit 80% Transparenz
@@ -383,9 +394,17 @@ local function onInspect(arg1)
 							element.ilvlBackground:SetSize(30, 16) -- Größe des Hintergrunds (muss ggf. angepasst werden)
 
 							local color = eItem:GetItemQualityColor()
-							local itemLevelText = eItem:GetCurrentItemLevel()
 
-							ilvlSum = ilvlSum + itemLevelText * (double and 2 or 1)
+							local itemLevelText
+
+							local ttData = C_TooltipInfo.GetInventoryItem(unit, key, true)
+							if ttData and ttData.lines then
+								for i, v in pairs(ttData.lines) do
+									if v.type == 41 then itemLevelText = v.itemLevel end
+								end
+							end
+							if not itemLevelText then itemLevelText = eItem:GetCurrentItemLevel() end
+
 							element.ilvl:SetFormattedText(itemLevelText)
 							element.ilvl:SetTextColor(color.r, color.g, color.b, 1)
 
@@ -406,13 +425,13 @@ local function onInspect(arg1)
 									element.borderGradient = element:CreateTexture(nil, "ARTWORK")
 									element.borderGradient:SetPoint("TOPLEFT", element, "TOPLEFT", -2, 2)
 									element.borderGradient:SetPoint("BOTTOMRIGHT", element, "BOTTOMRIGHT", 2, -2)
-									element.borderGradient:SetColorTexture(1, 0, 0, 0.6) -- Grundfarbe Rot
-									element.borderGradient:SetGradient("VERTICAL", CreateColor(1, 0, 0, 1), CreateColor(1, 0.3, 0.3, 0.5))
+									applyMissingEnchantOverlayStyle(element.borderGradient)
 									element.borderGradient:Hide()
 								end
 								element.enchant:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
 							end
 							if element.borderGradient then
+								applyMissingEnchantOverlayStyle(element.borderGradient)
 								element.borderGradient:Hide()
 								local showMissingOverlay = addon.db["showMissingEnchantOverlayOnCharframe"] ~= false
 								local enchantText = getTooltipInfoFromLink(itemLink)
@@ -458,7 +477,13 @@ local function onInspect(arg1)
 			end
 		end
 	end
-	if InspectOpt("ilvl") and ilvlSum > 0 then pdElement.ilvl:SetText("" .. (math.floor((ilvlSum / 16) * 100 + 0.5) / 100)) end
+
+	if C_PaperDollInfo and C_PaperDollInfo.GetInspectItemLevel then
+		local ilvl = C_PaperDollInfo.GetInspectItemLevel(unit)
+		if ilvl then pdElement.ilvl:SetFormattedText(string.format("%.1f", ilvl)) end
+	else
+		pdElement.ilvl:SetFormattedText("")
+	end
 end
 
 addon.functions.onInspect = onInspect
@@ -583,6 +608,7 @@ local function setIlvlText(element, slot)
 				end
 
 				if CharOpt("enchants") and element.borderGradient then
+					applyMissingEnchantOverlayStyle(element.borderGradient)
 					element.borderGradient:Hide()
 					local showMissingOverlay = addon.db["showMissingEnchantOverlayOnCharframe"] ~= false
 					local foundEnchant = enchantText ~= nil
@@ -771,7 +797,7 @@ local function updateFlyoutButtonInfo(button)
 		if not location then return end
 
 		-- TODO 12.0: EquipmentManager_UnpackLocation will change once Void Storage is removed
-		local itemLink, _, _, bags, _, slot, bag
+		local itemLink, _, _, bags, _, slot, bag, itemLevel
 		if type(button.location) == "number" then
 			local locationData = EquipmentManager_GetLocationData(location)
 			bags = locationData.isBags or false
@@ -790,7 +816,14 @@ local function updateFlyoutButtonInfo(button)
 			local eItem = Item:CreateFromItemLink(itemLink)
 			if eItem and not eItem:IsItemEmpty() then
 				eItem:ContinueOnItemLoad(function()
-					local itemLevel = eItem:GetCurrentItemLevel()
+					if bags then
+						local loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
+						if loc then itemLevel = C_Item.GetCurrentItemLevel(loc) end
+					elseif slot then
+						local loc = ItemLocation:CreateFromEquipmentSlot(slot)
+						if loc then itemLevel = C_Item.GetCurrentItemLevel(loc) end
+					end
+					if not itemLevel then itemLevel = eItem:GetCurrentItemLevel() end
 					local quality = eItem:GetItemQualityColor()
 
 					if not button.ItemLevelText then
@@ -1475,6 +1508,7 @@ function addon.functions.initItemInventory()
 	addon.functions.InitDBValue("showGemsTooltipOnCharframe", false)
 	addon.functions.InitDBValue("showEnchantOnCharframe", false)
 	addon.functions.InitDBValue("showMissingEnchantOverlayOnCharframe", true)
+	addon.functions.InitDBValue("missingEnchantOverlayColor", { r = 1, g = 0, b = 0, a = 0.6 })
 	addon.functions.InitDBValue("showCatalystChargesOnCharframe", false)
 	addon.functions.InitDBValue("movementSpeedStatEnabled", false)
 	addon.functions.InitDBValue("characterStatsFormattingEnabled", false)
@@ -1556,8 +1590,7 @@ function addon.functions.initItemInventory()
 			value.borderGradient = value:CreateTexture(nil, "ARTWORK")
 			value.borderGradient:SetPoint("TOPLEFT", value, "TOPLEFT", -2, 2)
 			value.borderGradient:SetPoint("BOTTOMRIGHT", value, "BOTTOMRIGHT", 2, -2)
-			value.borderGradient:SetColorTexture(1, 0, 0, 0.6) -- Grundfarbe Rot
-			value.borderGradient:SetGradient("VERTICAL", CreateColor(1, 0, 0, 1), CreateColor(1, 0.3, 0.3, 0.5))
+			applyMissingEnchantOverlayStyle(value.borderGradient)
 			value.borderGradient:Hide()
 		end
 		-- Text für das Item-Level
@@ -1599,7 +1632,6 @@ function addon.functions.initItemInventory()
 			value.gems[i]:Hide()
 		end
 	end
-
 end
 
 ---- END REGION
@@ -2004,6 +2036,4 @@ registerEvents(frameLoad)
 frameLoad:SetScript("OnEvent", eventHandler)
 
 -- If Blizzard_UIPanels_Game is already loaded, wire up immediately.
-if _G.PaperDollFrame then
-	ensureCharFrameOnShowHook()
-end
+if _G.PaperDollFrame then ensureCharFrameOnShowHook() end

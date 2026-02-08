@@ -105,7 +105,7 @@ local function createAceWindow()
 	ensureDB()
 	local frame = AceGUI:Create("Window")
 	aceWindow = frame.frame
-	frame:SetTitle(GAMEMENU_OPTIONS)
+	frame:SetTitle((addon.DataPanel and addon.DataPanel.GetStreamOptionsTitle and addon.DataPanel.GetStreamOptionsTitle(stream and stream.meta and stream.meta.title)) or GAMEMENU_OPTIONS)
 	frame:SetWidth(360)
 	frame:SetHeight(420)
 	frame:SetLayout("Fill")

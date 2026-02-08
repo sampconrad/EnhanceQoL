@@ -7,6 +7,5 @@ L["teleportsWorldMapEnabled"] = "World-Map-Teleportpanel aktivieren"
 L["teleportsWorldMapEnabledDesc"] = "Fügt der Weltkarte einen neuen Tab hinzu mit allen verfügbaren Teleport-Optionen"
 L["portalHideMissing"] = "Fehlende Teleporte ausblenden"
 L["portalShowTooltip"] = "Tooltip auf Teleport-Schaltflächen anzeigen"
-if not L then return end
 
 --@localization(locale="deDE", namespace="MythicPlus", format="lua_additive_table")@

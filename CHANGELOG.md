@@ -1,17 +1,44 @@
 # Changelog
 
-## [7.10.0] - 2026-02-06
+## [7.11.0] - 2026-02-08
+
+### ✨ Added
+
+- Data Panels: Panel-wide stream text scale option in Edit Mode.
+- Data Panels: Panel-wide class text color option for stream payload text.
+- Data Panels: Equipment Sets stream now has right-click options for text size and class/custom text color.
+
+### 🔄 Changed
+
+- Data Panels: Stream options windows now show the active stream name in the header instead of only "Options".
+- Data Panels: Equipment Sets stream icon size now follows the configured text size.
+- Mounts: Added tooltip hints for class/race-specific mount options (Mage/Priest/Dracthyr) when shown globally in settings.
+
+### 🐛 Fixed
+
+- Action Tracker: Removed some DK, Evoker and Priest fake spells
+- Cooldown Panels: Improved reliability when changing spec and entering/leaving instances.
+- Cooldown Panels: Fixed cases where hidden panels or cursor overlays could remain visible.
+- Cooldown Panels: Improved static text behavior for multi-entry panels.
+- Cooldown Panels: Simplified Static Text options in Edit Mode to reduce confusion.
+- Unit Frames: Raid frame color change was wrong
+
+---
+
+## [7.10.0] - 2026-02-07
 
 ### ✨ Added
 
 - Unit Frames: Aura icons can use custom border textures (boss frames included)
 - Mount Keybinding: Random mount can shift into Ghost Wolf for shamans while moving (requires Ghost Wolf known).
+- MythicPlus: Added a keybind for random Hearthstone usage (picks from available Hearthstone items/toys).
 - Unit Frames: Option to round percent values for health/power text
 - Unit Frames: Castbar border options (texture/color/size/offset)
 - Unit Frames: Option to disable interrupt feedback on castbars
 - Unit Frames: Castbar can use class color instead of custom cast color
 - Unit Frames: Per-frame smooth fill option for health/power/absorb bars (default off)
 - Group Frames (Party/Raid): **BETA** (performance test) for feedback on missing features or breakage. Aura filters require 12.0.1; on 12.0.0 you will see more auras (e.g., Externals filtering won’t work yet).
+- Group Frames (Raid): Optional split blocks for Main Tank and Main Assist with separate anchors and full raid-style appearance settings.
 - Cooldown Panels: Optional radial layout with radius/rotation controls (layout fields auto-hide on switch)
 - Cooldown Panels: Cursor anchor mode with Edit Mode preview and live cursor follow
 - Cooldown Panels: Hide on CD option for cooldown icons
@@ -21,10 +48,14 @@
 - Unit Frames: Combat feedback text with configurable font/anchor/events
 - Skinner: Character Frame flat skin (buttons, dropdowns, title pane hover/selection)
 - Data Panels: Background and border textures/colors are now configurable via SharedMedia.
+- Data Panels: Durability stream now has an option to hide the critical warning text (`Items < 50%`).
+- Data Panels: Gold stream now supports a custom text color and optional silver/copper display in addition to gold.
+- Data Panels: Durability stream now has customizable high/mid/low colors.
 
 ### 🔄 Changed
 
 - Data Panels: **Hide Border** now hides only the border. Migration sets background alpha to 0 if Hide Border was previously enabled, so you may need to re-adjust background alpha.
+- Unit Frames: Increased offset slider range in UF settings from ±400 to ±1000.
 
 ### ⚡ Performance
 
@@ -52,6 +83,11 @@
 - Vendor: Disable destroy-queue Add button when the feature is off
 - MythicPlus: ConsolePort left-click on World Map teleports now triggers the cast correctly
 - Visibility: Skyriding stance check no longer triggers for non-druids (e.g., paladin auras)
+- World Map Teleport: Mixed Alliance and Horde for Tol Barad Portal
+- World Map Teleport: Tab selector was hidden
+- Cooldown Panels: Specs were not correctly checked
+- Itemlevel in Bags and Characterpanel are now correct
+- Missing locales
 
 ---
 

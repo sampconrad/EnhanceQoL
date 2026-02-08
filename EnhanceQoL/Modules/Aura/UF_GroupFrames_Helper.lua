@@ -60,6 +60,14 @@ H.PREVIEW_SAMPLES = {
 		{ name = "DPS", class = "HUNTER", role = "DAMAGER", group = 1 },
 		{ name = "DPS", class = "ROGUE", role = "DAMAGER", group = 1 },
 	},
+	mt = {
+		{ name = "MT", class = "WARRIOR", role = "TANK", group = 1 },
+		{ name = "MT", class = "PALADIN", role = "TANK", group = 2 },
+	},
+	ma = {
+		{ name = "MA", class = "HUNTER", role = "DAMAGER", group = 1 },
+		{ name = "MA", class = "ROGUE", role = "DAMAGER", group = 2 },
+	},
 	raid = nil,
 }
 

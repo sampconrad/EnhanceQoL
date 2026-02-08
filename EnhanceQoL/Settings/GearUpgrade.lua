@@ -98,18 +98,25 @@ local charDisplayDropdown = addon.functions.SettingsCreateMultiDropdown(cGearUpg
 	setSelectedFunc = function(key, selected) setCharDisplayOption(key, selected) end,
 	setSelection = applyCharDisplaySelection,
 	parentSection = expandable,
+	notify = "showMissingEnchantOverlayOnCharframe",
 })
 
-addon.functions.SettingsCreateCheckbox(cGearUpgrade, {
+local missingOverlayCheckbox = addon.functions.SettingsCreateCheckbox(cGearUpgrade, {
 	var = "showMissingEnchantOverlayOnCharframe",
 	text = L["gearDisplayOptionMissingEnchantOverlay"] or "Show missing enchant overlay",
-	func = function(value)
-		addon.db["showMissingEnchantOverlayOnCharframe"] = value and true or false
-		if addon.functions and addon.functions.setCharFrame then addon.functions.setCharFrame() end
-	end,
+	func = function(value) addon.db["showMissingEnchantOverlayOnCharframe"] = value and true or false end,
 	default = true,
 	parent = charDisplayDropdown,
 	parentCheck = function() return isCharDisplaySelected("enchants") end,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateColorPicker(cGearUpgrade, {
+	var = "missingEnchantOverlayColor",
+	text = L["gearDisplayOptionMissingEnchantOverlayColor"] or "Missing enchant overlay color",
+	hasOpacity = true,
+	element = missingOverlayCheckbox and missingOverlayCheckbox.element,
+	parentCheck = function() return isCharDisplaySelected("enchants") and addon.db["showMissingEnchantOverlayOnCharframe"] == true end,
 	parentSection = expandable,
 })
 
@@ -249,6 +256,7 @@ addon.functions.SettingsCreateCheckboxes(cGearUpgrade, data)
 function addon.functions.initGearUpgrade()
 	addon.functions.InitDBValue("charDisplayOptions", {})
 	addon.functions.InitDBValue("inspectDisplayOptions", {})
+	addon.functions.InitDBValue("missingEnchantOverlayColor", { r = 1, g = 0, b = 0, a = 0.6 })
 end
 
 local eventHandlers = {}

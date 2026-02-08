@@ -12,6 +12,9 @@ addon.MythicPlus.functions = addon.MythicPlus.functions or {}
 addon.MythicPlus.Buttons = addon.MythicPlus.Buttons or {}
 addon.MythicPlus.nrOfButtons = addon.MythicPlus.nrOfButtons or 0
 addon.MythicPlus.variables = addon.MythicPlus.variables or {}
+local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_MythicPlus")
+
+_G["BINDING_NAME_CLICK EQOLRandomHearthstoneButton:LeftButton"] = L["teleportsRandomHearthstoneBinding"] or "Random Hearthstone"
 
 function addon.MythicPlus.functions.InitDB()
 	if addon.MythicPlus.variables.dbInitialized then return end
@@ -750,9 +753,9 @@ addon.MythicPlus.variables.portalCompendium = {
 			[410080] = { text = "VP", cId = { [438] = true }, x = 0.7656, y = 0.8428, zoneID = 325, locID = 1527 },
 			-- Tol Barad (Cata)
 			[88342] = { text = "TolB", isClassTP = "MAGE", faction = FACTION_ALLIANCE, x = 0.7357, y = 0.6079, zoneID = 245, locID = 245 },
-			[88346] = { text = "TolB", isMagePortal = true, faction = FACTION_ALLIANCE, x = 0.7357, y = 0.6079, zoneID = 245, locID = 245 },
+			[88345] = { text = "TolB", isMagePortal = true, faction = FACTION_ALLIANCE, x = 0.5480, y = 0.7819, zoneID = 245, locID = 245 },
 			[88344] = { text = "TolB", isClassTP = "MAGE", faction = FACTION_HORDE, x = 0.5480, y = 0.7819, zoneID = 245, locID = 245 },
-			[88345] = { text = "TolB", isMagePortal = true, faction = FACTION_HORDE, x = 0.5480, y = 0.7819, zoneID = 245, locID = 245 },
+			[88346] = { text = "TolB", isMagePortal = true, faction = FACTION_HORDE, x = 0.7357, y = 0.6079, zoneID = 245, locID = 245 },
 
 			[80256] = { text = "DH", isItem = true, itemID = 58487, isHearthstone = true, icon = 463898, x = 0.4978, y = 0.5523, zoneID = 207, locID = 207 },
 			[59317] = { text = "VC", isToy = true, toyID = 43824, isHearthstone = true, icon = 133743, map = 125, x = 0.2372, y = 0.4670, zoneID = 125, locID = 125 },
@@ -1036,8 +1039,8 @@ local function setAvailableHearthstone()
 	end
 end
 
-function addon.MythicPlus.functions.setRandomHearthstone()
-	if #availableHearthstones == 0 then
+function addon.MythicPlus.functions.setRandomHearthstone(forceRefresh)
+	if forceRefresh or #availableHearthstones == 0 then
 		setAvailableHearthstone() -- recheck hearthstones
 		if #availableHearthstones == 0 then return nil end
 	end
@@ -1062,6 +1065,43 @@ function addon.MythicPlus.functions.setRandomHearthstone()
 		isHearthstone = true,
 		icon = hs.icon,
 	}
+	return homeSection.spells[RANDOM_HS_ID]
+end
+
+function addon.MythicPlus.functions.EnsureRandomHearthstoneButton()
+	local btn = _G.EQOLRandomHearthstoneButton
+	if not btn then btn = CreateFrame("Button", "EQOLRandomHearthstoneButton", UIParent, "SecureActionButtonTemplate") end
+	btn:RegisterForClicks("AnyDown")
+	btn:SetAttribute("type1", "macro")
+	btn:SetAttribute("type", "macro")
+	-- Trigger action on key down regardless of ActionButtonUseKeyDown.
+	btn:SetAttribute("pressAndHoldAction", true)
+	if not btn._eqolRandomHearthMacro then
+		btn:SetAttribute("macrotext1", "/use item:6948")
+		btn:SetAttribute("macrotext", "/use item:6948")
+		btn._eqolRandomHearthMacro = true
+	end
+	if not btn._eqolRandomHearthPreClick then
+		btn:SetScript("PreClick", function(self)
+			if InCombatLockdown and InCombatLockdown() then return end
+			local entry = addon.MythicPlus.functions.setRandomHearthstone(true)
+			local itemID = entry and ((entry.isToy and entry.toyID) or entry.itemID)
+			if not itemID then itemID = 6948 end
+			local macro = "/use item:" .. tostring(itemID)
+			self:SetAttribute("macrotext1", macro)
+			self:SetAttribute("macrotext", macro)
+		end)
+		btn._eqolRandomHearthPreClick = true
+	end
+	return btn
+end
+
+do
+	local initFrame = CreateFrame("Frame")
+	initFrame:RegisterEvent("PLAYER_LOGIN")
+	initFrame:SetScript("OnEvent", function()
+		if addon and addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.EnsureRandomHearthstoneButton then addon.MythicPlus.functions.EnsureRandomHearthstoneButton() end
+	end)
 end
 
 addon.MythicPlus.variables.collapseFrames = {

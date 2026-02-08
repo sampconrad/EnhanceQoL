@@ -812,7 +812,7 @@ local function EnsureTab(parent, anchorTo)
 
 	-- make sure we're not selected by default
 	if tabButton.SetChecked then tabButton:SetChecked(false) end
-	if tabButton.SelectedTexture then tabButton.SelectedTexture:SetAlpha(0) end
+	if tabButton.SelectedTexture then tabButton.SelectedTexture:SetAlpha(1) end
 	SafeSetVisible(tabButton, true)
 
 	-- Keep custom icon clear on state changes

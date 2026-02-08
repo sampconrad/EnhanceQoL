@@ -764,12 +764,12 @@ getPlayerSpecId = function()
 	if not specIndex then return nil end
 	if GetSpecializationInfo then
 		local specId = GetSpecializationInfo(specIndex)
-		if specId then return specId end
+		if type(specId) == "number" and specId > 0 then return specId end
 	end
 	if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo then
 		local info = C_SpecializationInfo.GetSpecializationInfo(specIndex)
-		if type(info) == "table" and info.specID then return info.specID end
-		if type(info) == "number" then return info end
+		if type(info) == "table" and type(info.specID) == "number" and info.specID > 0 then return info.specID end
+		if type(info) == "number" and info > 0 then return info end
 	end
 	return nil
 end
@@ -2192,7 +2192,6 @@ local function copyPanelSettings(targetPanelId, sourcePanelId)
 	target.point = source.point
 	target.x = source.x
 	target.y = source.y
-	target.specFilter = copier(source.specFilter or {})
 
 	Helper.NormalizePanel(target, root.defaults)
 	CooldownPanels:RebuildSpellIndex()
@@ -2708,17 +2707,28 @@ local function ensureEditor()
 
 	slotButton:SetScript("OnClick", function(self) showSlotMenu(self, editor.selectedPanelId) end)
 
-	panelNameBox:SetScript("OnEnterPressed", function(self)
+	local function commitPanelNameChange(self)
 		local panelId = editor.selectedPanelId
 		local panel = panelId and CooldownPanels:GetPanel(panelId)
 		local text = self:GetText()
-		if panel and text and text ~= "" then
+		if panel and text and text ~= "" and text ~= panel.name then
 			panel.name = text
-			CooldownPanels:RefreshPanel(panelId)
 			local runtimePanel = CooldownPanels.runtime and CooldownPanels.runtime[panelId]
+			if runtimePanel and runtimePanel.frame then runtimePanel.frame.editModeName = text end
+			if runtimePanel and runtimePanel.editModeId and EditMode and EditMode.frames and EditMode.frames[runtimePanel.editModeId] then EditMode.frames[runtimePanel.editModeId].title = text end
 			if runtimePanel and runtimePanel.editModeId and EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(runtimePanel.editModeId) end
+			refreshEditModeSettings()
+			CooldownPanels:RefreshPanel(panelId)
 		end
+	end
+
+	panelNameBox:SetScript("OnEnterPressed", function(self)
+		commitPanelNameChange(self)
 		self:ClearFocus()
+		CooldownPanels:RefreshEditor()
+	end)
+	panelNameBox:SetScript("OnEditFocusLost", function(self)
+		commitPanelNameChange(self)
 		CooldownPanels:RefreshEditor()
 	end)
 	panelNameBox:SetScript("OnEscapePressed", function(self)
@@ -3239,7 +3249,8 @@ local function refreshPreview(editor, panel)
 		return
 	end
 
-	if editor.previewHintLabel then editor.previewHintLabel:Show() end
+	local hasEntries = (panel.order and #panel.order or 0) > 0
+	if editor.previewHintLabel then editor.previewHintLabel:SetShown(hasEntries) end
 	local baseLayout = (panel and panel.layout) or Helper.PANEL_LAYOUT_DEFAULTS
 	local count = getEditorPreviewCount(panel, preview, baseLayout)
 	local layout = getPreviewLayout(panel, preview, count)
@@ -3298,10 +3309,7 @@ local function refreshPreview(editor, panel)
 		end
 	end
 
-	if preview.dropHint then
-		preview.dropHint:SetText(L["CooldownPanelDropHint"] or "Drop spells or items here")
-		preview.dropHint:SetShown((panel.order and #panel.order or 0) == 0)
-	end
+	if preview.dropHint then preview.dropHint:Hide() end
 end
 
 local function layoutInspectorToggles(inspector, entry)
@@ -4309,9 +4317,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			end
 		end
 		local staticTextCooldown = false
-		if data.entry and data.entry.staticTextShowOnCooldown == true then
-			staticTextCooldown = durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))
-		end
+		if data.entry and data.entry.staticTextShowOnCooldown == true then staticTextCooldown = durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration)) end
 		applyStaticText(icon, data.entry, staticFontPath, staticFontSize, staticFontStyle, staticTextCooldown)
 		if icon.rangeOverlay then
 			if data.rangeOverlay then
@@ -4495,12 +4501,36 @@ function CooldownPanels:RefreshPanel(panelId)
 	self:UpdateVisibility(panelId)
 end
 
+function CooldownPanels:HideAllRuntimePanels()
+	local root = ensureRoot()
+	if not root or not root.panels then return end
+	local allRuntime = self.runtime
+	if not allRuntime then return end
+	for panelId in pairs(root.panels) do
+		local runtime = allRuntime[panelId]
+		if runtime then
+			runtime.visibleCount = 0
+			runtime._eqolHiddenByEligibility = true
+			if runtime.visibleEntries then
+				for i = 1, #runtime.visibleEntries do
+					runtime.visibleEntries[i] = nil
+				end
+			end
+			if runtime.frame then runtime.frame:Hide() end
+		end
+	end
+end
+
 function CooldownPanels:RefreshAllPanels()
 	local root = ensureRoot()
 	if not root then return end
 	if self:IsInEditMode() ~= true then
 		local enabledPanels = self.runtime and self.runtime.enabledPanels
-		if not enabledPanels or not next(enabledPanels) then return end
+		if not enabledPanels or not next(enabledPanels) then
+			self:HideAllRuntimePanels()
+			self:UpdateCursorAnchorState()
+			return
+		end
 	end
 	syncRootOrderIfDirty(root)
 	for _, panelId in ipairs(root.order) do
@@ -4800,9 +4830,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 	local chargesFontPath, chargesFontSize, chargesFontStyle = Helper.GetChargesFontDefaults(frame)
 	local fontOptions = Helper.GetFontOptions(countFontPath)
 	local chargesFontOptions = Helper.GetFontOptions(chargesFontPath)
-	local function hasStaticTextEntries()
-		return panel and panel.entries and next(panel.entries) ~= nil
-	end
+	local function hasStaticTextEntries() return panel and panel.entries and next(panel.entries) ~= nil end
 	local function setStaticTextEntryId(entryId)
 		local runtimePanel = getRuntime(panelId)
 		if runtimePanel then runtimePanel.editModeEntryId = normalizeId(entryId) end
@@ -4839,10 +4867,30 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 		local entryId = getStaticTextEntryId()
 		return entryId and panel.entries and panel.entries[entryId] or nil, entryId
 	end
+	local staticTextSharedFields = {
+		staticTextFont = true,
+		staticTextSize = true,
+		staticTextStyle = true,
+		staticTextAnchor = true,
+		staticTextX = true,
+		staticTextY = true,
+	}
 	local function updateStaticTextEntry(entry, field, value)
 		if not entry then return end
-		if entry[field] == value then return end
-		entry[field] = value
+		local changed = false
+		if staticTextSharedFields[field] then
+			for _, other in pairs(panel.entries or {}) do
+				if other and other[field] ~= value then
+					other[field] = value
+					changed = true
+				end
+			end
+		else
+			if entry[field] == value then return end
+			entry[field] = value
+			changed = true
+		end
+		if not changed then return end
 		CooldownPanels:RefreshPanel(panelId)
 		CooldownPanels:RefreshEditor()
 	end
@@ -5611,23 +5659,6 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				id = "cooldownPanelStaticText",
 				defaultCollapsed = true,
 				isShown = function() return hasStaticTextEntries() end,
-			},
-			{
-				name = L["CooldownPanelStaticText"] or "Static text",
-				kind = SettingType.Input,
-				parentId = "cooldownPanelStaticText",
-				inputWidth = 220,
-				maxChars = 120,
-				isShown = function() return hasStaticTextEntries() end,
-				get = function()
-					local entry = getStaticTextEntry()
-					return entry and entry.staticText or ""
-				end,
-				set = function(_, value)
-					local entry = getStaticTextEntry()
-					if not entry then return end
-					updateStaticTextEntry(entry, "staticText", tostring(value or ""))
-				end,
 			},
 			{
 				name = L["Font"] or "Font",
@@ -6745,6 +6776,27 @@ local function setRangeOverlayForSpell(spellIdentifier, isInRange, checksRange)
 	return true
 end
 
+local function runRebuild()
+	local rt = CooldownPanels.runtime
+	if not rt then return end
+	rt.specRebuildPending = nil
+	local cause = rt.specRebuildCause
+	rt.specRebuildCause = nil
+	CooldownPanels:RebuildSpellIndex()
+	Keybinds.InvalidateCache()
+	CooldownPanels:RequestUpdate(cause)
+end
+
+local function scheduleSpecAwareRebuild(event)
+	CooldownPanels.runtime = CooldownPanels.runtime or {}
+	local runtime = CooldownPanels.runtime
+	runtime.specRebuildCause = "Event:" .. tostring(event or "Unknown")
+	if runtime.specRebuildPending then return end
+	runtime.specRebuildPending = true
+
+	C_Timer.After(1, runRebuild)
+end
+
 local UPDATE_FRAME_EVENTS = {
 	"PLAYER_ENTERING_WORLD",
 	"PLAYER_LOGIN",
@@ -6755,6 +6807,8 @@ local UPDATE_FRAME_EVENTS = {
 	"SPELL_UPDATE_USES",
 	"SPELLS_CHANGED",
 	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+	"PLAYER_SPECIALIZATION_CHANGED",
+	"ACTIVE_TALENT_GROUP_CHANGED",
 	"PLAYER_TALENT_UPDATE",
 	"PLAYER_EQUIPMENT_CHANGED",
 	"BAG_UPDATE_DELAYED",
@@ -6776,9 +6830,18 @@ local function hasEnabledPanels()
 	return enabledPanels and next(enabledPanels) ~= nil
 end
 
+local function hasConfiguredEnabledPanels()
+	local root = ensureRoot()
+	if not root or not root.panels then return false end
+	for _, panel in pairs(root.panels) do
+		if panel and panel.enabled ~= false then return true end
+	end
+	return false
+end
+
 local function shouldEnableUpdateFrame()
 	if CooldownPanels and CooldownPanels.IsInEditMode and CooldownPanels:IsInEditMode() then return true end
-	return hasEnabledPanels()
+	return hasEnabledPanels() or hasConfiguredEnabledPanels()
 end
 
 local function setUpdateFrameEnabled(frame, enabled)
@@ -6870,14 +6933,18 @@ local function ensureUpdateFrame()
 			return
 		end
 		if event == "SPELLS_CHANGED" then
-			CooldownPanels:RebuildSpellIndex()
-			Keybinds.InvalidateCache()
-			CooldownPanels:RequestUpdate("Event:" .. event)
+			scheduleSpecAwareRebuild(event)
+			return
 		end
-		if event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_TALENT_UPDATE" then
-			CooldownPanels:RebuildSpellIndex()
-			Keybinds.InvalidateCache()
-			CooldownPanels:RequestUpdate("Event:" .. event)
+		if event == "PLAYER_SPECIALIZATION_CHANGED" then
+			local unit = ...
+			if unit and unit ~= "player" then return end
+			scheduleSpecAwareRebuild(event)
+			return
+		end
+		if event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
+			scheduleSpecAwareRebuild(event)
+			return
 		end
 		-- if event == "UNIT_AURA" then
 		-- 	local unit = ...
@@ -6912,6 +6979,11 @@ local function ensureUpdateFrame()
 			refreshPanelsForCharges()
 			return
 		end
+		if event == "PLAYER_ENTERING_WORLD" then
+			updateItemCountCache()
+			scheduleSpecAwareRebuild(event)
+			return
+		end
 		if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_ENTERING_WORLD" then updateItemCountCache() end
 		CooldownPanels:RequestUpdate("Event:" .. event)
 	end)
@@ -6924,7 +6996,10 @@ function CooldownPanels:RequestUpdate(cause)
 	self.runtime = self.runtime or {}
 	if self:IsInEditMode() ~= true then
 		local enabledPanels = self.runtime.enabledPanels
-		if not enabledPanels or not next(enabledPanels) then return end
+		if not enabledPanels or not next(enabledPanels) then
+			self:RefreshAllPanels()
+			return
+		end
 	end
 	if self.runtime.updatePending then
 		if cause then self.runtime.updateCause = cause end

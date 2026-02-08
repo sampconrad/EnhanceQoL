@@ -461,7 +461,7 @@ function Helper.GetFontOptions(defaultPath)
 			add(path, tostring(name))
 		end
 	end
-	if defaultPath then add(defaultPath, L["Default"] or "Default") end
+	if defaultPath then add(defaultPath, DEFAULT) end
 	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	return list
 end

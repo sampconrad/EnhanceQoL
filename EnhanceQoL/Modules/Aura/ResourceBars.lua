@@ -1981,8 +1981,12 @@ function updateHealthBar(evt)
 		if previousMax ~= newMax then
 			healthBar._lastMax = newMax
 			healthBar:SetMinMaxValues(0, newMax)
-			local currentValue = healthBar:GetValue() or 0
-			if currentValue > newMax then healthBar:SetValue(newMax) end
+			local currentValue = healthBar:GetValue()
+			local canClamp = not (issecretvalue and (issecretvalue(currentValue) or issecretvalue(newMax)))
+			if canClamp then
+				currentValue = currentValue or 0
+				if currentValue > newMax then healthBar:SetValue(newMax) end
+			end
 		end
 		local maxHealth = healthBar._lastMax or newMax or 1
 		local curHealth = UnitHealth("player")

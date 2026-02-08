@@ -373,6 +373,7 @@ local defaults = {
 		},
 		cast = {
 			enabled = false,
+			standalone = false,
 			width = 220,
 			height = 16,
 			anchor = "BOTTOM", -- or "TOP"
@@ -4752,13 +4753,13 @@ local function applyBars(cfg, unit)
 			UFHelper.configureSpecialTexture(st.absorb2, "HEALTH", absorbTextureKey, hc)
 			if st.absorb2.SetOrientation then st.absorb2:SetOrientation("HORIZONTAL") end
 			if UFHelper and UFHelper.applyAbsorbClampLayout then
-				UFHelper.applyAbsorbClampLayout(st.absorb2, st.health, absorbHeight, healthHeight)
 				if reverseHealth then
 					if UFHelper.setupAbsorbClampReverseAware then UFHelper.setupAbsorbClampReverseAware(st.health, st.absorb2) end
 				else
 					if UFHelper.setupAbsorbClamp then UFHelper.setupAbsorbClamp(st.health, st.absorb2) end
-					if UFHelper.setupAbsorbOverShift then UFHelper.setupAbsorbOverShift(st.health, st.absorb) end
+					if UFHelper.setupAbsorbOverShift then UFHelper.setupAbsorbOverShift(st.health, st.absorb, absorbHeight, healthHeight) end
 				end
+				UFHelper.applyAbsorbClampLayout(st.absorb2, st.health, absorbHeight, healthHeight, reverseHealth)
 				syncTextFrameLevels(st)
 			end
 			setFrameLevelAbove(st.absorb2, st.health, 1)
@@ -6198,6 +6199,11 @@ local function ensureEventHandling()
 	if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
 end
 
+local function refreshStandaloneCastbar()
+	local standalone = addon.Aura and addon.Aura.UFStandaloneCastbar
+	if standalone and standalone.Refresh then standalone.Refresh() end
+end
+
 function UF.Enable()
 	local cfg = ensureDB("player")
 	cfg.enabled = true
@@ -6216,6 +6222,7 @@ function UF.Enable()
 	if addon.functions and addon.functions.UpdateClassResourceVisibility then addon.functions.UpdateClassResourceVisibility() end
 	-- hideBlizzardPlayerFrame()
 	-- hideBlizzardTargetFrame()
+	refreshStandaloneCastbar()
 end
 
 function UF.Disable()
@@ -6234,6 +6241,7 @@ function UF.Disable()
 	end
 	ensureEventHandling()
 	if addon.functions and addon.functions.UpdateClassResourceVisibility then addon.functions.UpdateClassResourceVisibility() end
+	refreshStandaloneCastbar()
 end
 
 function UF.Refresh()
@@ -6274,6 +6282,7 @@ function UF.Refresh()
 		hideBossFrames()
 		applyVisibilityRules("boss")
 	end
+	refreshStandaloneCastbar()
 end
 
 function UF.RefreshUnit(unit)
@@ -6310,6 +6319,7 @@ function UF.RefreshUnit(unit)
 	else
 		applyConfig(UNIT.PLAYER)
 	end
+	if unit == nil or unit == UNIT.PLAYER then refreshStandaloneCastbar() end
 end
 
 function UF.Initialize()
@@ -6352,6 +6362,7 @@ function UF.Initialize()
 		updateBossFrames(true)
 	end
 	if isBossFrameSettingEnabled() then DisableBossFrames() end
+	refreshStandaloneCastbar()
 end
 
 addon.Aura.functions = addon.Aura.functions or {}

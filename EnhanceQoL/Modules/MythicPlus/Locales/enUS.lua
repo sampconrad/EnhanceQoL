@@ -34,6 +34,7 @@ L["teleportsWorldMapHelp"] = "Right-click to display the teleport destination\nS
 L["teleportsWorldMapShowSeason"] = "Show current season dungeons on World Map"
 L["teleportsWorldMapShowSeasonDesc"] = "Adds the classic current-season list to the World Map panel (duplicates teleports)."
 L["teleportsWorldMapBinding"] = "Toggle World Map Teleport panel"
+L["teleportsRandomHearthstoneBinding"] = "Random Hearthstone"
 
 L["teleportsHeadline"] = "This adds a frame with Dungeon Teleports to your PVEFrame"
 L["teleportCompendiumHeadline"] = "Hide teleports from specific expansions"

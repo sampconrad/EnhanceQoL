@@ -14,6 +14,11 @@
              >
     </Binding>
 
+    <Binding name="CLICK EQOLRandomHearthstoneButton:LeftButton"
+             category="Enhance QoL"
+             >
+    </Binding>
+
     <Binding name="CLICK EQOLRepairMountButton:LeftButton"
              category="Enhance QoL"
              >

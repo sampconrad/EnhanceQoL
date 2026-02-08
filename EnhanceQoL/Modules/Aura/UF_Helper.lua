@@ -273,7 +273,7 @@ function H.setupAbsorbClampReverseAware(health, absorb)
 	absorb:SetHeight(health:GetHeight())
 end
 
-function H.setupAbsorbOverShift(healthBar, overAbsorbBar)
+function H.setupAbsorbOverShift(healthBar, overAbsorbBar, height, maxHeight)
 	if not (healthBar and overAbsorbBar) then return end
 
 	local htex = healthBar:GetStatusBarTexture()
@@ -303,24 +303,38 @@ function H.setupAbsorbOverShift(healthBar, overAbsorbBar)
 	overAbsorbBar:SetParent(clip)
 	overAbsorbBar:ClearAllPoints()
 
-	overAbsorbBar:SetPoint("TOPLEFT", healthBar, "TOPLEFT", 0, 0)
-	overAbsorbBar:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", 0, 0)
+	local desired = tonumber(height)
+	local limit = tonumber(maxHeight)
+	if not limit or limit <= 0 then limit = healthBar.GetHeight and healthBar:GetHeight() or 0 end
+	if not desired or desired <= 0 then
+		overAbsorbBar:SetPoint("TOPLEFT", healthBar, "TOPLEFT", 0, 0)
+		overAbsorbBar:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", 0, 0)
+	else
+		if limit and limit > 0 and desired > limit then desired = limit end
+		overAbsorbBar:SetPoint("BOTTOMLEFT", healthBar, "BOTTOMLEFT", 0, 0)
+		overAbsorbBar:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", 0, 0)
+		overAbsorbBar:SetHeight(desired)
+	end
 
 	overAbsorbBar:SetOrientation("HORIZONTAL")
 
 	overAbsorbBar:SetReverseFill(not healthBar:GetReverseFill())
 end
 
-function H.applyAbsorbClampLayout(bar, healthBar, height, maxHeight)
+function H.applyAbsorbClampLayout(bar, healthBar, height, maxHeight, reverseHealth)
 	if not bar or not healthBar then return end
 	bar:ClearAllPoints()
 	local anchor = (healthBar.GetStatusBarTexture and healthBar:GetStatusBarTexture()) or healthBar
-	bar:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 0, 0)
+	local bottomPoint = reverseHealth and "BOTTOMRIGHT" or "BOTTOMLEFT"
+	local bottomAnchor = reverseHealth and "BOTTOMLEFT" or "BOTTOMRIGHT"
+	local topPoint = reverseHealth and "TOPRIGHT" or "TOPLEFT"
+	local topAnchor = reverseHealth and "TOPLEFT" or "TOPRIGHT"
+	bar:SetPoint(bottomPoint, anchor, bottomAnchor, 0, 0)
 	local desired = tonumber(height)
 	local limit = tonumber(maxHeight)
 	if not limit or limit <= 0 then limit = healthBar.GetHeight and healthBar:GetHeight() or 0 end
 	if not desired or desired <= 0 then
-		bar:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 0, 0)
+		bar:SetPoint(topPoint, anchor, topAnchor, 0, 0)
 	else
 		if limit and limit > 0 and desired > limit then desired = limit end
 		bar:SetHeight(desired)

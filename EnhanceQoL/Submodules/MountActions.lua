@@ -14,6 +14,11 @@ local issecretvalue = _G.issecretvalue
 
 local RANDOM_FAVORITE_SPELL_ID = 150544
 local GHOST_WOLF_SPELL_ID = 2645
+local SLOW_FALL_SPELL_ID = 130
+local LEVITATE_SPELL_ID = 1706
+local DRACTHYR_RACE_TAG = "Dracthyr"
+local DRACTHYR_VISAGE_AURA_CHECK_SPELL_ID = 372014
+local DRACTHYR_VISAGE_SPELL_ID = 351239
 local REPAIR_MOUNT_SPELLS = { 457485, 122708, 61425, 61447 }
 local AH_MOUNT_SPELLS = { 264058, 465235 }
 local MOUNT_TYPE_CATEGORIES = {
@@ -153,6 +158,47 @@ local function getSpellNameByID(spellID)
 	return name
 end
 
+local function isSpellKnown(spellID)
+	if not spellID then return false end
+	if C_SpellBook and C_SpellBook.IsSpellKnown then return C_SpellBook.IsSpellKnown(spellID) == true end
+	if IsSpellKnown then return IsSpellKnown(spellID) == true end
+	return false
+end
+
+local function getFallingSafetySpellID()
+	if not addon.db or addon.db.randomMountCastSlowFallWhenFalling ~= true then return nil end
+	if not (IsFalling and IsFalling()) then return nil end
+
+	local classTag = (addon.variables and addon.variables.unitClass) or select(2, UnitClass("player"))
+	if classTag == "PRIEST" and isSpellKnown(LEVITATE_SPELL_ID) then return LEVITATE_SPELL_ID end
+	if classTag == "MAGE" and isSpellKnown(SLOW_FALL_SPELL_ID) then return SLOW_FALL_SPELL_ID end
+	return nil
+end
+
+local function getFallingSafetyMacro()
+	local spellID = getFallingSafetySpellID()
+	if not spellID then return nil end
+	local name = getSpellNameByID(spellID)
+	if not name or name == "" then return nil end
+	return "/cast [@player] " .. name
+end
+
+local function shouldUseDracthyrVisageBeforeMount()
+	if not addon.db or addon.db.randomMountDracthyrVisageBeforeMount ~= true then return false end
+	local raceTag = (addon.variables and addon.variables.unitRace) or select(2, UnitRace("player"))
+	if raceTag ~= DRACTHYR_RACE_TAG then return false end
+	if not (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID) then return false end
+	local aura = C_UnitAuras.GetPlayerAuraBySpellID(DRACTHYR_VISAGE_AURA_CHECK_SPELL_ID)
+	return aura == nil
+end
+
+local function getDracthyrVisageMacroLine()
+	if not shouldUseDracthyrVisageBeforeMount() then return nil end
+	local spellName = getSpellNameByID(DRACTHYR_VISAGE_SPELL_ID)
+	if not spellName or spellName == "" then return nil end
+	return "/cast " .. spellName
+end
+
 local function getDruidMoveFormMacro()
 	local travelName = getSpellNameByID(783)
 	local catName = getSpellNameByID(768)
@@ -172,11 +218,12 @@ end
 local function buildMountMacro(spellID)
 	local name = getSpellNameByID(spellID)
 	if not name or name == "" then return nil end
-	if addon.variables.unitClass == "DRUID" then
-		return "/cancelform\n/cast " .. name
-	else
-		return "/cast " .. name
-	end
+	local lines = {}
+	if addon.variables.unitClass == "DRUID" then lines[#lines + 1] = "/cancelform" end
+	local visageLine = getDracthyrVisageMacroLine()
+	if visageLine then lines[#lines + 1] = visageLine end
+	lines[#lines + 1] = "/cast " .. name
+	return table.concat(lines, "\n")
 end
 
 local function getMountDebugInfo(spellID)
@@ -295,6 +342,14 @@ function MountActions:PrepareActionButton(btn)
 		btn:SetAttribute("macrotext", "/dismount")
 		return
 	end
+
+	local fallingMacro = getFallingSafetyMacro()
+	if fallingMacro then
+		btn:SetAttribute("macrotext1", fallingMacro)
+		btn:SetAttribute("macrotext", fallingMacro)
+		return
+	end
+
 	if btn._eqolAction == "random" then
 		if addon.variables.unitClass == "SHAMAN" and IsPlayerMoving() and C_SpellBook.IsSpellKnown(GHOST_WOLF_SPELL_ID) then
 			local macro = getShamanGhostWolfMacro()

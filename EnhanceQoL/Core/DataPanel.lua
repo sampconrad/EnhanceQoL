@@ -15,6 +15,7 @@ local DEFAULT_BORDER_OFFSET = 0
 local DEFAULT_FONT_OUTLINE = true
 local DEFAULT_FONT_SHADOW = false
 local DEFAULT_STREAM_GAP = 5
+local DEFAULT_STREAM_FONT_SCALE = 100
 local SHADOW_OFFSET_X = 1
 local SHADOW_OFFSET_Y = -1
 local SHADOW_ALPHA = 0.8
@@ -87,6 +88,15 @@ local function normalizeStreamGap(value, fallback)
 	if not num then return DEFAULT_STREAM_GAP end
 	if num < 0 then return 0 end
 	if num > 100 then return 100 end
+	return num
+end
+
+local function normalizeStreamFontScale(value, fallback)
+	local num = tonumber(value)
+	if not num then num = tonumber(fallback) end
+	if not num then return DEFAULT_STREAM_FONT_SCALE end
+	if num < 50 then return 50 end
+	if num > 200 then return 200 end
 	return num
 end
 
@@ -175,7 +185,7 @@ local function fontFaceOptions()
 			end
 		end
 	end
-	if defaultPath and not hasDefault then list[#list + 1] = { value = defaultPath, label = L["Default"] or "Default" } end
+	if defaultPath and not hasDefault then list[#list + 1] = { value = defaultPath, label = DEFAULT } end
 	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	return list
 end
@@ -339,6 +349,12 @@ function DataPanel.GetOptionsHintText()
 	if shouldShowOptionsHint() then return L["Right-Click for options"] end
 end
 
+function DataPanel.GetStreamOptionsTitle(streamTitle)
+	local optionsTitle = GAMEMENU_OPTIONS or OPTIONS or "Options"
+	if streamTitle and streamTitle ~= "" then return tostring(streamTitle) .. " - " .. optionsTitle end
+	return optionsTitle
+end
+
 local function partsOnEnter(b)
 	local s = b.slot
 	if not s then return end
@@ -435,6 +451,8 @@ local function registerEditModePanel(panel)
 		streamGap = normalizeStreamGap(panel.info.streamGap, DEFAULT_STREAM_GAP),
 		fontOutline = panel.info.fontOutline ~= false,
 		fontShadow = panel.info.fontShadow == true,
+		streamFontScale = normalizeStreamFontScale(panel.info.streamFontScale, DEFAULT_STREAM_FONT_SCALE),
+		useClassTextColor = panel.info.useClassTextColor == true,
 		fontFace = normalizeFontFace(panel.info.fontFace) or defaultFontFace(),
 		backgroundTexture = normalizeMediaKey(panel.info.backgroundTexture, "DEFAULT"),
 		backgroundColor = normalizeColorTable(panel.info.backgroundColor, DEFAULT_BACKDROP_COLOR),
@@ -732,6 +750,22 @@ local function registerEditModePanel(panel)
 				default = defaults.fontShadow,
 			},
 			{
+				name = L["DataPanelTextScale"] or "Text scale",
+				kind = SettingType.Slider,
+				field = "streamFontScale",
+				default = defaults.streamFontScale,
+				minValue = 50,
+				maxValue = 200,
+				valueStep = 1,
+				formatter = function(value) return string.format("%d%%", math.floor((tonumber(value) or 100) + 0.5)) end,
+			},
+			{
+				name = L["DataPanelUseClassTextColor"] or "Use class text color",
+				kind = SettingType.Checkbox,
+				field = "useClassTextColor",
+				default = defaults.useClassTextColor,
+			},
+			{
 				name = L["DataPanelOpacityInCombat"] or "Opacity in combat",
 				kind = SettingType.Slider,
 				field = "textAlphaInCombat",
@@ -854,6 +888,8 @@ local function ensureSettings(id, name)
 			streamGap = DEFAULT_STREAM_GAP,
 			fontOutline = DEFAULT_FONT_OUTLINE,
 			fontShadow = DEFAULT_FONT_SHADOW,
+			streamFontScale = DEFAULT_STREAM_FONT_SCALE,
+			useClassTextColor = false,
 			fontFace = defaultFontFace(),
 			backgroundTexture = "DEFAULT",
 			backgroundColor = { r = 0, g = 0, b = 0, a = DEFAULT_BACKDROP_ALPHA },
@@ -887,6 +923,8 @@ local function ensureSettings(id, name)
 		info.streamGap = normalizeStreamGap(info.streamGap, DEFAULT_STREAM_GAP)
 		if info.fontOutline == nil then info.fontOutline = DEFAULT_FONT_OUTLINE end
 		if info.fontShadow == nil then info.fontShadow = DEFAULT_FONT_SHADOW end
+		info.streamFontScale = normalizeStreamFontScale(info.streamFontScale, DEFAULT_STREAM_FONT_SCALE)
+		if info.useClassTextColor == nil then info.useClassTextColor = false end
 		if not info.fontFace or info.fontFace == "" then info.fontFace = defaultFontFace() end
 		info.backgroundTexture = normalizeMediaKey(info.backgroundTexture, "DEFAULT")
 		info.backgroundColor = normalizeColorTable(info.backgroundColor, DEFAULT_BACKDROP_COLOR)
@@ -1080,6 +1118,36 @@ function DataPanel.Create(id, name, existingOnly)
 		end
 	end
 
+	function panel:GetStreamFontScale() return normalizeStreamFontScale(self.info and self.info.streamFontScale, DEFAULT_STREAM_FONT_SCALE) end
+
+	function panel:GetClassTextColorHex()
+		if not (self.info and self.info.useClassTextColor) then return nil end
+		local classToken = UnitClass and select(2, UnitClass("player"))
+		if not classToken then return nil end
+		local color = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS) and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[classToken]
+		if not color then return nil end
+		return string.format("%02x%02x%02x", math.floor((color.r or 1) * 255 + 0.5), math.floor((color.g or 1) * 255 + 0.5), math.floor((color.b or 1) * 255 + 0.5))
+	end
+
+	function panel:ApplyClassTextColor(text, skip)
+		if skip or type(text) ~= "string" or text == "" then return text end
+		local hex = self:GetClassTextColorHex()
+		if not hex then return text end
+		return "|cff" .. hex .. text .. "|r"
+	end
+
+	function panel:ApplyStreamFontScale(size)
+		local baseSize = tonumber(size) or 14
+		local scale = self:GetStreamFontScale() / 100
+		return math.max(6, math.floor(baseSize * scale + 0.5))
+	end
+
+	function panel:ReapplyPayloads()
+		for _, data in pairs(self.streams) do
+			if data and data.applyPayload and data.lastPayload then data.applyPayload(data.lastPayload, true) end
+		end
+	end
+
 	function panel:GetTextAlpha(inCombat)
 		local info = self.info or {}
 		local value = (inCombat or false) and info.textAlphaInCombat or info.textAlphaOutOfCombat
@@ -1193,6 +1261,8 @@ function DataPanel.Create(id, name, existingOnly)
 			or field == "fontFace"
 			or field == "fontOutline"
 			or field == "fontShadow"
+			or field == "streamFontScale"
+			or field == "useClassTextColor"
 			or field == "showTooltips"
 			or field == "textAlphaInCombat"
 			or field == "textAlphaOutOfCombat"
@@ -1267,6 +1337,7 @@ function DataPanel.Create(id, name, existingOnly)
 		local alphaChanged = false
 		local fontStyleChanged = false
 		local fontFaceChanged = false
+		local payloadStyleChanged = false
 		local backdropChanged = false
 		local backdropColorChanged = false
 		local layoutChanged = false
@@ -1367,6 +1438,20 @@ function DataPanel.Create(id, name, existingOnly)
 				fontStyleChanged = true
 			end
 		end
+		if data.streamFontScale ~= nil then
+			local desired = normalizeStreamFontScale(data.streamFontScale, info.streamFontScale)
+			if info.streamFontScale ~= desired then
+				info.streamFontScale = desired
+				payloadStyleChanged = true
+			end
+		end
+		if data.useClassTextColor ~= nil then
+			local desired = data.useClassTextColor and true or false
+			if info.useClassTextColor ~= desired then
+				info.useClassTextColor = desired
+				payloadStyleChanged = true
+			end
+		end
 		if data.showTooltips ~= nil then
 			local desired = data.showTooltips and true or false
 			if info.showTooltips ~= desired then
@@ -1393,7 +1478,8 @@ function DataPanel.Create(id, name, existingOnly)
 			self:ApplyStreams(data.streams)
 			self.applyingFromEditMode = nil
 		end
-		if fontStyleChanged or fontFaceChanged then self:ApplyTextStyle() end
+		if payloadStyleChanged then self:ReapplyPayloads() end
+		if fontStyleChanged or fontFaceChanged or payloadStyleChanged then self:ApplyTextStyle() end
 		if backdropChanged then
 			self:ApplyBorder()
 		elseif backdropColorChanged then
@@ -1516,6 +1602,7 @@ function DataPanel.Create(id, name, existingOnly)
 
 		local function cb(payload)
 			payload = payload or {}
+			data.lastPayload = payload
 			local layoutNeedsRefresh = false
 			local hasSecureParts = payloadHasSecureParts(payload)
 			if hasSecureParts then data.secureParts = true end
@@ -1525,7 +1612,8 @@ function DataPanel.Create(id, name, existingOnly)
 				return
 			end
 			local font = panel:GetFontFace() or select(1, data.text:GetFont())
-			local size = payload.fontSize or data.fontSize or 14
+			local baseSize = payload.fontSize or data.fontSize or 14
+			local size = panel:ApplyStreamFontScale(baseSize)
 			local fontFlags = panel:GetFontFlags()
 			local fontShadow = panel.info and panel.info.fontShadow == true
 			local clickEnabled = not (panel.info and panel.info.clickThrough)
@@ -1724,7 +1812,8 @@ function DataPanel.Create(id, name, existingOnly)
 							if child.iconOverlay then child.iconOverlay:Hide() end
 							child.text:Show()
 						end
-						local text = part.text or ""
+						local rawText = part.text or ""
+						local text = panel:ApplyClassTextColor(rawText, part.skipPanelClassColor == true or payload.skipPanelClassColor == true)
 						local textChanged = text ~= child.lastText
 						if isNew or textChanged then
 							child.text:SetText(text)
@@ -1735,7 +1824,7 @@ function DataPanel.Create(id, name, existingOnly)
 							child.lastWidth = w
 							child:SetWidth(w)
 						end
-						if (isNew or textChanged or partsFontChanged) and hasInlineTexture(text) then panel:ScheduleTextReflow() end
+						if (isNew or textChanged or partsFontChanged) and hasInlineTexture(rawText) then panel:ScheduleTextReflow() end
 					end
 					child.currencyID = part.id
 					totalWidth = totalWidth + (child.lastWidth or 0) + (i > 1 and 5 or 0)
@@ -1759,14 +1848,15 @@ function DataPanel.Create(id, name, existingOnly)
 					end
 				end
 				data.text:Show()
-				local text = payload.text or ""
+				local rawText = payload.text or ""
+				local text = panel:ApplyClassTextColor(rawText, payload.skipPanelClassColor == true)
 				local textChanged = text ~= data.lastText
 				if textChanged or wasParts then
 					data.text:SetText(text)
 					data.lastText = text
 					textChanged = true
 				end
-				local newSize = payload.fontSize or data.fontSize
+				local newSize = panel:ApplyStreamFontScale(payload.fontSize or data.fontSize or 14)
 				local fontChanged = newSize and (data.fontSize ~= newSize or data.fontFlags ~= fontFlags or data.fontShadow ~= fontShadow)
 				if fontChanged then
 					panel:ApplyFontStyle(data.text, font, newSize)
@@ -1782,11 +1872,11 @@ function DataPanel.Create(id, name, existingOnly)
 						if self.lastWidths and self.lastWidths[name] then self.lastWidths[name] = width end
 						layoutNeedsRefresh = true
 					end
-					if hasInlineTexture(text) then panel:ScheduleTextReflow() end
+					if hasInlineTexture(rawText) then panel:ScheduleTextReflow() end
 				end
 			end
 			if payload.parts then
-				local newSize = payload.fontSize or data.fontSize
+				local newSize = panel:ApplyStreamFontScale(payload.fontSize or data.fontSize or 14)
 				if newSize and (data.fontSize ~= newSize or data.fontFlags ~= fontFlags or data.fontShadow ~= fontShadow) then
 					panel:ApplyFontStyle(data.text, font, newSize)
 					data.fontSize = newSize

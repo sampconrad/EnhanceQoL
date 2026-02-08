@@ -552,33 +552,48 @@ function addon.functions.initDungeonFrame()
 		parentSection = expandable,
 	})
 
-	local classTag = (addon.variables and addon.variables.unitClass) or select(2, UnitClass("player"))
-	if classTag == "DRUID" then
-		addon.functions.SettingsCreateCheckbox(addon.SettingsLayout.characterInspectCategory, {
-			var = "randomMountDruidNoShiftWhileMounted",
-			text = L["randomMountDruidNoShiftWhileMounted"],
-			func = function(value) addon.db["randomMountDruidNoShiftWhileMounted"] = value and true or false end,
-			default = false,
+	addon.functions.SettingsCreateCheckbox(addon.SettingsLayout.characterInspectCategory, {
+		var = "randomMountDracthyrVisageBeforeMount",
+		text = L["randomMountDracthyrVisageBeforeMount"] or "Turn to Visage form as Dracthyr before mounting",
+		desc = L["randomMountDracthyrVisageBeforeMountDesc"] or "Only applies to Dracthyr characters.",
+		func = function(value) addon.db["randomMountDracthyrVisageBeforeMount"] = value and true or false end,
+		default = false,
+		parentSection = expandable,
+	})
+
+	addon.functions.SettingsCreateCheckbox(addon.SettingsLayout.characterInspectCategory, {
+		var = "randomMountCastSlowFallWhenFalling",
+		text = L["randomMountCastSlowFallWhenFalling"] or "Cast Slow Fall/Levitate while falling",
+		desc = L["randomMountCastSlowFallWhenFallingDesc"] or "Only applies to Mages (Slow Fall) and Priests (Levitate).",
+		func = function(value) addon.db["randomMountCastSlowFallWhenFalling"] = value and true or false end,
+		default = false,
+		parentSection = expandable,
+	})
+
+	addon.functions.SettingsCreateCheckbox(addon.SettingsLayout.characterInspectCategory, {
+		var = "randomMountDruidNoShiftWhileMounted",
+		text = L["randomMountDruidNoShiftWhileMounted"],
+		func = function(value) addon.db["randomMountDruidNoShiftWhileMounted"] = value and true or false end,
+		default = false,
+		parentSection = expandable,
+	})
+
+	addon.functions.SettingsCreateHeadline(addon.SettingsLayout.characterInspectCategory, select(1, UnitClass("player")), { parentSection = expandable })
+
+	local data = {
+		{
+			var = "autoCancelDruidFlightForm",
+			text = L["autoCancelDruidFlightForm"],
+			desc = L["autoCancelDruidFlightFormDesc"],
+			func = function(value)
+				addon.db["autoCancelDruidFlightForm"] = value and true or false
+				if addon.functions.updateDruidFlightFormWatcher then addon.functions.updateDruidFlightFormWatcher() end
+			end,
 			parentSection = expandable,
-		})
+		},
+	}
 
-		addon.functions.SettingsCreateHeadline(addon.SettingsLayout.characterInspectCategory, select(1, UnitClass("player")), { parentSection = expandable })
-
-		local data = {
-			{
-				var = "autoCancelDruidFlightForm",
-				text = L["autoCancelDruidFlightForm"],
-				desc = L["autoCancelDruidFlightFormDesc"],
-				func = function(value)
-					addon.db["autoCancelDruidFlightForm"] = value and true or false
-					if addon.functions.updateDruidFlightFormWatcher then addon.functions.updateDruidFlightFormWatcher() end
-				end,
-				parentSection = expandable,
-			},
-		}
-
-		addon.functions.SettingsCreateCheckboxes(addon.SettingsLayout.characterInspectCategory, data)
-	end
+	addon.functions.SettingsCreateCheckboxes(addon.SettingsLayout.characterInspectCategory, data)
 end
 
 ---- END REGION

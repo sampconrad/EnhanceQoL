@@ -21,7 +21,11 @@ local function ensureDB()
 	db = addon.db.datapanel.durability
 	db.fontSize = db.fontSize or 13
 	if db.showIcon == nil then db.showIcon = true end
+	if db.showCritical == nil then db.showCritical = true end
 	if db.useTextColor == nil then db.useTextColor = false end
+	db.highColor = db.highColor or { r = 0, g = 1, b = 0 }
+	db.midColor = db.midColor or { r = 1, g = 1, b = 0 }
+	db.lowColor = db.lowColor or { r = 1, g = 0, b = 0 }
 	if not db.textColor then
 		local r, g, b = 1, 0.82, 0
 		if NORMAL_FONT_COLOR and NORMAL_FONT_COLOR.GetRGB then
@@ -47,9 +51,9 @@ local function createAceWindow()
 	ensureDB()
 	local frame = AceGUI:Create("Window")
 	aceWindow = frame.frame
-	frame:SetTitle(GAMEMENU_OPTIONS)
+	frame:SetTitle((addon.DataPanel and addon.DataPanel.GetStreamOptionsTitle and addon.DataPanel.GetStreamOptionsTitle(stream and stream.meta and stream.meta.title)) or GAMEMENU_OPTIONS)
 	frame:SetWidth(300)
-	frame:SetHeight(200)
+	frame:SetHeight(400)
 	frame:SetLayout("List")
 
 	frame.frame:SetScript("OnShow", function(self) RestorePosition(self) end)
@@ -79,6 +83,15 @@ local function createAceWindow()
 	end)
 	frame:AddChild(showIcon)
 
+	local showCritical = AceGUI:Create("CheckBox")
+	showCritical:SetLabel(L["durabilityShowCritical"] or "Show critical warning")
+	showCritical:SetValue(db.showCritical)
+	showCritical:SetCallback("OnValueChanged", function(_, _, val)
+		db.showCritical = val and true or false
+		addon.DataHub:RequestUpdate(stream)
+	end)
+	frame:AddChild(showCritical)
+
 	local useColor = AceGUI:Create("CheckBox")
 	useColor:SetLabel(L["durabilityUseTextColor"] or "Use custom text color")
 	useColor:SetValue(db.useTextColor)
@@ -96,6 +109,33 @@ local function createAceWindow()
 		if db.useTextColor then addon.DataHub:RequestUpdate(stream) end
 	end)
 	frame:AddChild(textColor)
+
+	local highColor = AceGUI:Create("ColorPicker")
+	highColor:SetLabel(L["durabilityHighColor"] or "High durability color")
+	highColor:SetColor(db.highColor.r, db.highColor.g, db.highColor.b)
+	highColor:SetCallback("OnValueChanged", function(_, _, r, g, b)
+		db.highColor = { r = r, g = g, b = b }
+		addon.DataHub:RequestUpdate(stream)
+	end)
+	frame:AddChild(highColor)
+
+	local midColor = AceGUI:Create("ColorPicker")
+	midColor:SetLabel(L["durabilityMidColor"] or "Medium durability color")
+	midColor:SetColor(db.midColor.r, db.midColor.g, db.midColor.b)
+	midColor:SetCallback("OnValueChanged", function(_, _, r, g, b)
+		db.midColor = { r = r, g = g, b = b }
+		addon.DataHub:RequestUpdate(stream)
+	end)
+	frame:AddChild(midColor)
+
+	local lowColor = AceGUI:Create("ColorPicker")
+	lowColor:SetLabel(L["durabilityLowColor"] or "Low durability color")
+	lowColor:SetColor(db.lowColor.r, db.lowColor.g, db.lowColor.b)
+	lowColor:SetCallback("OnValueChanged", function(_, _, r, g, b)
+		db.lowColor = { r = r, g = g, b = b }
+		addon.DataHub:RequestUpdate(stream)
+	end)
+	frame:AddChild(lowColor)
 
 	frame.frame:Show()
 end
@@ -129,16 +169,18 @@ local itemSlots = {
 	[17] = INVTYPE_WEAPONOFFHAND,
 }
 
+local function colorToHex(color)
+	local r = math.floor(((color and color.r) or 1) * 255 + 0.5)
+	local g = math.floor(((color and color.g) or 1) * 255 + 0.5)
+	local b = math.floor(((color and color.b) or 1) * 255 + 0.5)
+	return ("%02x%02x%02x"):format(r, g, b)
+end
+
 local function getPercentColor(percent)
-	local color
-	if tonumber(string.format("%." .. 0 .. "f", percent)) > 80 then
-		color = "00FF00"
-	elseif tonumber(string.format("%." .. 0 .. "f", percent)) > 50 then
-		color = "FFFF00"
-	else
-		color = "FF0000"
-	end
-	return color
+	local rounded = floor((percent or 0) + 0.5)
+	if rounded > 80 then return colorToHex(db and db.highColor) end
+	if rounded > 50 then return colorToHex(db and db.midColor) end
+	return colorToHex(db and db.lowColor)
 end
 
 -- Feste Reihenfolge für den Tooltip (anpassen, wenn du willst)
@@ -150,7 +192,7 @@ local function formatPercentColored(percent) return ("|cff%s%d%%|r"):format(getP
 
 local function colorizeValue(text, color)
 	if not text or text == "" then return text end
-	if color and color.r and color.g and color.b then return ("|cff%02x%02x%02x%s|r"):format(color.r * 255, color.g * 255, color.b * 255, text) end
+	if color and color.r and color.g and color.b then return ("|cff%02x%02x%02x%s|r"):format(floor(color.r * 255 + 0.5), floor(color.g * 255 + 0.5), floor(color.b * 255 + 0.5), text) end
 	return text
 end
 
@@ -259,11 +301,12 @@ local function calculateDurability(stream)
 
 	local useTextColor = db and db.useTextColor and db.textColor
 	local critDuraText = ""
-	if critDura > 0 then
+	local showCritical = db and db.showCritical ~= false
+	if showCritical and critDura > 0 then
 		if useTextColor then
 			critDuraText = ("%d %s < 50%%"):format(critDura, ITEMS)
 		else
-			critDuraText = "|cffff0000" .. critDura .. "|r " .. ITEMS .. " < 50%"
+			critDuraText = ("|cff%s%d|r %s < 50%%"):format(getPercentColor(0), critDura, ITEMS)
 		end
 	end
 
@@ -272,7 +315,7 @@ local function calculateDurability(stream)
 	if useTextColor then
 		percentText = ("%.0f%%"):format(durValue)
 	else
-		percentText = ("|cff%s%.0f|r%%"):format(color, durValue)
+		percentText = ("|cff%s%.0f%%|r"):format(color, durValue)
 	end
 	local text = percentText
 	if critDuraText ~= "" then text = text .. " " .. critDuraText end
@@ -289,7 +332,7 @@ end
 
 local provider = {
 	id = "durability",
-	version = 1,
+	version = 2,
 	title = DURABILITY,
 	update = calculateDurability,
 	events = {
@@ -321,7 +364,9 @@ local provider = {
 		end
 		tip:AddLine(" ")
 		tip:AddDoubleLine(TOTAL or "Total", formatPercentColored(math.floor((summary.totalPercent or 0) + 0.5)))
-		if summary.critCount and summary.critCount > 0 then tip:AddDoubleLine(ITEMS .. " < 50%", tostring(summary.critCount)) end
+		if db and db.showCritical ~= false and summary.critCount and summary.critCount > 0 then
+			tip:AddDoubleLine(ITEMS .. " < 50%", ("|cff%s%s|r"):format(getPercentColor(0), tostring(summary.critCount)))
+		end
 		local hint = getOptionsHint()
 		if hint then tip:AddLine(hint) end
 		tip:Show()
