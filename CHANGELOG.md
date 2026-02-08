@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.11.1] - 2026-02-08
+
+### 🐛 Fixed
+- Cooldown Panels: Anchoring to other addons wasn't working
+
+---
+
 ## [7.11.0] - 2026-02-08
 
 ### ✨ Added
