@@ -1773,14 +1773,32 @@ end
 
 local function hideFrameLocked(frame)
 	if not frame or frame._eqolHidden then return end
+
+	local function enforceHidden(target)
+		if not target then return end
+		local canHide = true
+		if InCombatLockdown and InCombatLockdown() then
+			if target.IsProtected and target:IsProtected() then canHide = false end
+		end
+		if canHide then
+			if target.Hide then pcall(target.Hide, target) end
+		elseif target.SetAlpha then
+			target:SetAlpha(0)
+			target._eqolAlphaHidden = true
+		end
+	end
+
 	if frame.UnregisterAllEvents then frame:UnregisterAllEvents() end
-	if frame.Hide then pcall(frame.Hide, frame) end
+	enforceHidden(frame)
 	frame._eqolHidden = true
 	if frame.SetParent then pcall(frame.SetParent, frame, getHiddenParent()) end
-	if frame.Show then hooksecurefunc(frame, "Show", frame.Hide) end
-	if frame.SetShown then hooksecurefunc(frame, "SetShown", function(f, shown)
-		if shown and f.Hide then f:Hide() end
-	end) end
+	if not frame._eqolHiddenHooks then
+		frame._eqolHiddenHooks = true
+		if frame.Show then hooksecurefunc(frame, "Show", function(f) enforceHidden(f) end) end
+		if frame.SetShown then hooksecurefunc(frame, "SetShown", function(f, shown)
+			if shown then enforceHidden(f) end
+		end) end
+	end
 end
 
 function GF:DisableBlizzardFrames()
@@ -4929,6 +4947,38 @@ end
 
 local setPointFromCfg = GFH.SetPointFromCfg
 
+local function cancelQueuedGroupIndicatorRefresh()
+	local timer = GF._groupIndicatorRefreshTimer
+	if timer and timer.Cancel then timer:Cancel() end
+	GF._groupIndicatorRefreshTimer = nil
+end
+
+local function queueGroupIndicatorRefresh(delay, repeats)
+	if not isFeatureEnabled() then return end
+	cancelQueuedGroupIndicatorRefresh()
+	local wait = tonumber(delay) or 0
+	local remaining = tonumber(repeats) or 1
+	if remaining < 1 then remaining = 1 end
+
+	local function run()
+		GF._groupIndicatorRefreshTimer = nil
+		if not isFeatureEnabled() then return end
+		if InCombatLockdown and InCombatLockdown() then
+			GF._pendingRefresh = true
+			return
+		end
+		GF:RefreshGroupIndicators()
+		remaining = remaining - 1
+		if remaining > 0 and C_Timer and C_Timer.NewTimer then GF._groupIndicatorRefreshTimer = C_Timer.NewTimer(0.12, run) end
+	end
+
+	if C_Timer and C_Timer.NewTimer then
+		GF._groupIndicatorRefreshTimer = C_Timer.NewTimer(wait, run)
+	else
+		run()
+	end
+end
+
 local function nudgeHeaderLayout(header)
 	if not header or not header.SetAttribute then return end
 	if InCombatLockdown and InCombatLockdown() then
@@ -4938,6 +4988,7 @@ local function nudgeHeaderLayout(header)
 	local nonce = (header:GetAttribute("eqolLayoutNonce") or 0) + 1
 	header:SetAttribute("eqolLayoutNonce", nonce)
 	header._eqolPendingLayout = nil
+	if header._eqolKind == "raid" then queueGroupIndicatorRefresh(0, 4) end
 end
 
 local getGrowthStartPoint = GFH.GetGrowthStartPoint
@@ -6161,6 +6212,7 @@ function GF:DisableFeature()
 		GF._pendingDisable = true
 		return
 	end
+	cancelQueuedGroupIndicatorRefresh()
 	GF._pendingDisable = nil
 	GF:CancelPostEnterWorldRefreshTicker()
 	unregisterFeatureEvents(GF._eventFrame)
@@ -15607,6 +15659,7 @@ function GF:RunPostEnterWorldRefreshPass()
 	self:RefreshStatusText()
 	self:RefreshGroupIndicators()
 	self:RefreshCustomSortNameList()
+	queueGroupIndicatorRefresh(0.05, 4)
 end
 
 function GF:SchedulePostEnterWorldRefresh()
@@ -15677,6 +15730,7 @@ do
 			if event == "GROUP_ROSTER_UPDATE" then
 				GF:RefreshStatusText()
 				GF:RefreshGroupIndicators()
+				queueGroupIndicatorRefresh(0, 4)
 			end
 			local cfg = getCfg("raid")
 			local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
