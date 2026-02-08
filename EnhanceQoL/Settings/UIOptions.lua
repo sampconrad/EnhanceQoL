@@ -20,7 +20,6 @@ local SetCooldownViewerVisibility = addon.functions.SetCooldownViewerVisibility 
 local GetCooldownViewerVisibility = addon.functions.GetCooldownViewerVisibility or function() return nil end
 local SetSpellActivationOverlayVisibility = addon.functions.SetSpellActivationOverlayVisibility or function() end
 local GetSpellActivationOverlayVisibility = addon.functions.GetSpellActivationOverlayVisibility or function() return nil end
-local IsCooldownViewerEnabled = addon.functions.IsCooldownViewerEnabled or function() return false end
 local getCVarOptionState = addon.functions.GetCVarOptionState or function() return false end
 local setCVarOptionState = addon.functions.SetCVarOptionState or function() end
 
@@ -887,8 +886,7 @@ local function createCooldownViewerDropdowns(category, expandable)
 		BuffIconCooldownViewer = L["cooldownViewerBuffIcon"] or "Buff Icon Cooldowns",
 	}
 
-	local function dropdownEnabled() return IsCooldownViewerEnabled() end
-	local desc = L["cooldownManagerShowDesc"] or "Requires the Blizzard Cooldown Viewer to be enabled in the in-game options. Visible while any selected condition is true."
+	local desc = L["cooldownManagerShowDesc"] or "Visible while any selected condition is true."
 
 	for _, frameName in ipairs(COOLDOWN_VIEWER_FRAMES) do
 		local exp = expandable
@@ -911,7 +909,6 @@ local function createCooldownViewerDropdowns(category, expandable)
 					SetCooldownViewerVisibility(frameName, key, desired)
 				end
 			end,
-			isEnabled = dropdownEnabled,
 			desc = desc,
 			parentSection = exp,
 		})
@@ -940,7 +937,6 @@ local function createCooldownViewerDropdowns(category, expandable)
 			addon.db.cooldownViewerFadeStrength = pct / 100
 			if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
 		end,
-		parentCheck = dropdownEnabled,
 		parentSection = expandable,
 	})
 
@@ -954,7 +950,6 @@ local function createCooldownViewerDropdowns(category, expandable)
 			if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
 		end,
 		desc = L["cooldownManagerSharedHoverDesc"],
-		parentCheck = dropdownEnabled,
 		parentSection = expandable,
 	})
 end

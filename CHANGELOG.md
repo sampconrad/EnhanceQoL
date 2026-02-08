@@ -5,6 +5,18 @@
 ### 🐛 Fixed
 
 - Unit Frames: Power colors/textures now resolve by numeric power type first (e.g. `3` = `ENERGY`).
+- Item Inventory (Inspect): Improved `INSPECT_READY` handling and reliability.
+- Item Inventory (Inspect): Performance improvements for inspect updates.
+- Tooltip: Fixed an error when showing additional unit info in restricted situations.
+- Chat: `Chat window history: 2000 lines` now reapplies correctly after reload.
+
+---
+
+## [7.11.3] - 2026-02-08
+
+### 🐛 Fixed
+
+- Missing locale
 
 ---
 
