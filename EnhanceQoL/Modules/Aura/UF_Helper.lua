@@ -960,9 +960,93 @@ function H.resolveCastTexture(key)
 	return key
 end
 
-function H.configureSpecialTexture(bar, pType, texKey, cfg)
-	if not bar or not pType then return end
-	local atlas = atlasByPower[pType]
+local function normalizePowerToken(powerToken)
+	if type(powerToken) ~= "string" then return powerToken end
+	if powerToken:sub(1, 11) == "POWER_TYPE_" then return powerToken:sub(12) end
+	return powerToken
+end
+
+local canonicalPowerTokenByEnum = {
+	[0] = "MANA",
+	[1] = "RAGE",
+	[2] = "FOCUS",
+	[3] = "ENERGY",
+	[4] = "CHI",
+	[5] = "RUNES",
+	[6] = "RUNIC_POWER",
+	[7] = "SOUL_SHARDS",
+	[8] = "LUNAR_POWER",
+	[9] = "HOLY_POWER",
+	[11] = "MAELSTROM",
+	[13] = "INSANITY",
+	[17] = "FURY",
+	[18] = "PAIN",
+}
+
+local function getCanonicalPowerToken(powerEnum, powerToken)
+	local enumKey = tonumber(powerEnum)
+	if enumKey ~= nil then
+		local canonical = canonicalPowerTokenByEnum[enumKey]
+		if canonical and canonical ~= "" then return canonical end
+	end
+	local token = normalizePowerToken(powerToken)
+	if type(token) == "string" and token ~= "" then return token end
+	return nil
+end
+
+local function getPowerColorEntry(powerEnum, powerToken)
+	if not PowerBarColor then return nil end
+	local canonicalToken = getCanonicalPowerToken(powerEnum, powerToken)
+	if canonicalToken then
+		local entry = PowerBarColor[canonicalToken]
+		if entry then return entry end
+		entry = PowerBarColor["POWER_TYPE_" .. canonicalToken]
+		if entry then return entry end
+	end
+	local enumKey = tonumber(powerEnum)
+	if enumKey ~= nil then
+		local entry = PowerBarColor[enumKey] or PowerBarColor[tostring(enumKey)]
+		if entry then return entry end
+	end
+	local token = normalizePowerToken(powerToken)
+	if type(token) == "string" and token ~= "" and token ~= canonicalToken then
+		local entry = PowerBarColor[token]
+		if entry then return entry end
+		entry = PowerBarColor["POWER_TYPE_" .. token]
+		if entry then return entry end
+	end
+	return nil
+end
+
+local function getPowerOverrideEntry(overrides, powerEnum, powerToken)
+	if not overrides then return nil end
+	local enumKey = tonumber(powerEnum)
+	if enumKey ~= nil then
+		local override = overrides[enumKey] or overrides[tostring(enumKey)]
+		if override then return override end
+	end
+	local canonicalToken = getCanonicalPowerToken(powerEnum, powerToken)
+	if type(canonicalToken) == "string" and canonicalToken ~= "" then
+		local override = overrides[canonicalToken]
+		if override then return override end
+		override = overrides["POWER_TYPE_" .. canonicalToken]
+		if override then return override end
+	end
+	local token = normalizePowerToken(powerToken)
+	if type(token) == "string" and token ~= "" and token ~= canonicalToken then
+		local override = overrides[token]
+		if override then return override end
+		override = overrides["POWER_TYPE_" .. token]
+		if override then return override end
+	end
+	return nil
+end
+
+function H.configureSpecialTexture(bar, pType, texKey, cfg, powerEnum)
+	if not bar then return end
+	if not pType and powerEnum == nil then return end
+	local resolvedToken = getCanonicalPowerToken(powerEnum, pType)
+	local atlas = atlasByPower[resolvedToken]
 	if not atlas then return end
 	if texKey and texKey ~= "" and texKey ~= "DEFAULT" then return end
 	cfg = cfg or bar._cfg
@@ -974,6 +1058,8 @@ function H.configureSpecialTexture(bar, pType, texKey, cfg)
 		if tex.SetVertTile then tex:SetVertTile(false) end
 	end
 end
+
+H.getCanonicalPowerToken = getCanonicalPowerToken
 
 local reverseStyle = Enum.StatusBarFillStyle and Enum.StatusBarFillStyle.Reverse or "REVERSE"
 local standardStyle = Enum.StatusBarFillStyle and Enum.StatusBarFillStyle.Standard or "STANDARD"
@@ -2384,28 +2470,41 @@ function H.disableCombatFeedbackAll(states)
 	end
 end
 
-function H.getPowerColor(pToken)
-	if not pToken then pToken = EnumPowerType.MANA end
+function H.getPowerColor(powerEnum, powerToken)
+	if powerToken == nil and type(powerEnum) == "string" then
+		powerToken = powerEnum
+		powerEnum = nil
+	end
+	if powerEnum == nil and powerToken == nil then
+		powerEnum = EnumPowerType and EnumPowerType.MANA or nil
+		powerToken = "MANA"
+	end
 	local overrides = addon.db and addon.db.ufPowerColorOverrides
-	local override = overrides and overrides[pToken]
+	local override = getPowerOverrideEntry(overrides, powerEnum, powerToken)
 	if override then
 		if override.r then return override.r, override.g, override.b, override.a or 1 end
 		if override[1] then return override[1], override[2], override[3], override[4] or 1 end
 	end
-	if PowerBarColor then
-		local c = PowerBarColor[pToken]
-		if c then
-			if c.r then return c.r, c.g, c.b, c.a or 1 end
-			if c[1] then return c[1], c[2], c[3], c[4] or 1 end
-		end
+	local c = getPowerColorEntry(powerEnum, powerToken)
+	if c then
+		if c.r then return c.r, c.g, c.b, c.a or 1 end
+		if c[1] then return c[1], c[2], c[3], c[4] or 1 end
+	end
+	local manaColor = getPowerColorEntry(EnumPowerType and EnumPowerType.MANA or nil, "MANA")
+	if manaColor then
+		if manaColor.r then return manaColor.r, manaColor.g, manaColor.b, manaColor.a or 1 end
+		if manaColor[1] then return manaColor[1], manaColor[2], manaColor[3], manaColor[4] or 1 end
 	end
 	return 0.1, 0.45, 1, 1
 end
 
-function H.isPowerDesaturated(pToken)
-	if not pToken then return false end
+function H.isPowerDesaturated(powerEnum, powerToken)
+	if powerToken == nil and type(powerEnum) == "string" then
+		powerToken = powerEnum
+		powerEnum = nil
+	end
 	local overrides = addon.db and addon.db.ufPowerColorOverrides
-	return overrides and overrides[pToken] ~= nil
+	return getPowerOverrideEntry(overrides, powerEnum, powerToken) ~= nil
 end
 
 function H.getAbsorbColor(hc, defH)

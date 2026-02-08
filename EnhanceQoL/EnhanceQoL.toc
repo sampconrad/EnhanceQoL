@@ -22,6 +22,7 @@
 ## Retail: true
 ## X-Compatible-With: retail
 ## X-WoWI-ID: 26888
+## OptionalDeps: MidnightSimpleUnitFrames, UnhaltedUnitFrames, ElvUI
 
 libs\LibStub\LibStub.lua
 libs\AceLocale-3.0\AceLocale-3.0.xml

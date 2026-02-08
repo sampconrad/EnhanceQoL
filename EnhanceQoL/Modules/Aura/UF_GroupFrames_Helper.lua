@@ -251,12 +251,52 @@ function H.GetOuterAnchorPoint(anchor)
 	return point, a
 end
 
+function H.NormalizeGrowthDirection(value, fallback)
+	local v = tostring(value or ""):upper()
+	if v == "UP" or v == "DOWN" or v == "LEFT" or v == "RIGHT" then return v end
+	return fallback
+end
+
+function H.DefaultGroupGrowthForUnitGrowth(unitGrowth)
+	local growth = H.NormalizeGrowthDirection(unitGrowth, "DOWN")
+	if growth == "RIGHT" or growth == "LEFT" then return "DOWN" end
+	return "RIGHT"
+end
+
+function H.GetAllowedGroupGrowthDirections(unitGrowth)
+	local growth = H.NormalizeGrowthDirection(unitGrowth, "DOWN")
+	if growth == "RIGHT" or growth == "LEFT" then return "DOWN", "UP" end
+	return "RIGHT", "LEFT"
+end
+
+local function isPerpendicularGroupGrowth(groupGrowth, unitGrowth)
+	local group = H.NormalizeGrowthDirection(groupGrowth, nil)
+	local unit = H.NormalizeGrowthDirection(unitGrowth, "DOWN")
+	if not group then return false end
+	local unitIsHorizontal = (unit == "LEFT" or unit == "RIGHT")
+	local groupIsHorizontal = (group == "LEFT" or group == "RIGHT")
+	return unitIsHorizontal ~= groupIsHorizontal
+end
+
+function H.ResolveGroupGrowthDirection(groupGrowth, unitGrowth, fallback)
+	local unit = H.NormalizeGrowthDirection(unitGrowth, "DOWN")
+	local value = H.NormalizeGrowthDirection(groupGrowth, nil)
+	if isPerpendicularGroupGrowth(value, unit) then return value end
+
+	local resolvedFallback = H.NormalizeGrowthDirection(fallback, nil)
+	if isPerpendicularGroupGrowth(resolvedFallback, unit) then return resolvedFallback end
+
+	return H.DefaultGroupGrowthForUnitGrowth(unit)
+end
+
 function H.GetGrowthStartPoint(growth)
-	local g = (growth or "DOWN"):upper()
+	local g = H.NormalizeGrowthDirection(growth, "DOWN")
 	if g == "LEFT" then return "TOPRIGHT" end
 	if g == "UP" then return "BOTTOMLEFT" end
 	return "TOPLEFT"
 end
+
+function H.GetGroupGrowthStartPoint(growth) return H.GetGrowthStartPoint(growth) end
 
 function H.SetPointFromCfg(frame, cfg)
 	if not frame or not cfg then return end

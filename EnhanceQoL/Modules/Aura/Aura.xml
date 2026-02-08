@@ -4,9 +4,9 @@
 	<Script file="CooldownPanels.lua" />
 	<Script file="UF_Helper.lua" />
 	<Script file="UF.lua" />
-	<!--@debug-->
+	<!--@debug@-->
 	<Script file="UF_StandaloneCastbar.lua" />
-	<!--@end-debug-->
+	<!--@end-debug@-->
 	<Include file="UF_GroupFrames.xml" />
 	<Script file="UF_GroupFrames_Helper.lua" />
 	<Script file="UF_GroupFrames.lua" />

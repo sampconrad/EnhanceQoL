@@ -181,6 +181,40 @@ local ensurePanelAnchor
 local panelAllowsSpec
 local getPlayerSpecId
 
+local STRATA_INDEX = {}
+for index, strata in ipairs(Helper.STRATA_ORDER or {}) do
+	if type(strata) == "string" and strata ~= "" then STRATA_INDEX[strata] = index end
+end
+
+local function syncEditModeSelectionStrata(frame)
+	if not (frame and frame.GetFrameStrata) then return end
+	local selection = frame.Selection
+	if not (selection and selection.SetFrameStrata) then return end
+	if not frame._eqolSelectionBaseStrata then
+		local baseStrata = Helper.NormalizeStrata((selection.GetFrameStrata and selection:GetFrameStrata()) or "MEDIUM", "MEDIUM")
+		frame._eqolSelectionBaseStrata = baseStrata
+		frame._eqolSelectionBaseStrataIndex = STRATA_INDEX[baseStrata] or STRATA_INDEX.MEDIUM or 3
+	end
+	local baseStrata = frame._eqolSelectionBaseStrata or "MEDIUM"
+	local baseIndex = frame._eqolSelectionBaseStrataIndex or STRATA_INDEX[baseStrata] or STRATA_INDEX.MEDIUM or 3
+	local currentStrata = Helper.NormalizeStrata(frame:GetFrameStrata(), baseStrata)
+	local currentIndex = STRATA_INDEX[currentStrata]
+	local targetStrata = (currentIndex and currentIndex > baseIndex) and currentStrata or baseStrata
+	if selection.GetFrameStrata and selection:GetFrameStrata() ~= targetStrata then selection:SetFrameStrata(targetStrata) end
+end
+
+local function refreshEditModePanelFrame(panelId, editModeId)
+	local id = editModeId
+	if not id and panelId then
+		local runtime = getRuntime(panelId)
+		id = runtime and runtime.editModeId
+	end
+	if not (id and EditMode and EditMode.RefreshFrame) then return end
+	EditMode:RefreshFrame(id)
+	local entry = EditMode and EditMode.frames and EditMode.frames[id]
+	syncEditModeSelectionStrata(entry and entry.frame)
+end
+
 local function refreshEditModeSettingValues()
 	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
 end
@@ -2186,9 +2220,26 @@ local function copyPanelSettings(targetPanelId, sourcePanelId)
 	local source = root.panels[sourcePanelId]
 	if not target or not source then return false end
 
+	local function replaceTableContents(dst, src)
+		if type(dst) ~= "table" then dst = {} end
+		if wipe then
+			wipe(dst)
+		else
+			for key in pairs(dst) do
+				dst[key] = nil
+			end
+		end
+		if type(src) == "table" then
+			for key, value in pairs(src) do
+				dst[key] = value
+			end
+		end
+		return dst
+	end
+
 	local copier = CopyTable or Helper.CopyTableShallow
-	target.layout = copier(source.layout or {})
-	target.anchor = copier(source.anchor or {})
+	target.layout = replaceTableContents(target.layout, copier(source.layout or {}))
+	target.anchor = replaceTableContents(target.anchor, copier(source.anchor or {}))
 	target.point = source.point
 	target.x = source.x
 	target.y = source.y
@@ -2212,6 +2263,7 @@ local function copyPanelSettings(targetPanelId, sourcePanelId)
 			local baseIconSize = Helper.ClampInt(layout.iconSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
 			data.iconSize = layout.iconSize
 			data.spacing = layout.spacing
+			data.layoutMode = Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode)
 			data.direction = Helper.NormalizeDirection(layout.direction, Helper.PANEL_LAYOUT_DEFAULTS.direction)
 			data.wrapCount = layout.wrapCount or 0
 			data.wrapDirection = Helper.NormalizeDirection(layout.wrapDirection, Helper.PANEL_LAYOUT_DEFAULTS.wrapDirection or "DOWN")
@@ -2222,6 +2274,8 @@ local function copyPanelSettings(targetPanelId, sourcePanelId)
 			data.rowSize5 = (layout.rowSizes and layout.rowSizes[5]) or baseIconSize
 			data.rowSize6 = (layout.rowSizes and layout.rowSizes[6]) or baseIconSize
 			data.growthPoint = Helper.NormalizeGrowthPoint(layout.growthPoint, Helper.PANEL_LAYOUT_DEFAULTS.growthPoint)
+			data.radialRadius = Helper.ClampInt(layout.radialRadius, 0, Helper.RADIAL_RADIUS_RANGE or 600, Helper.PANEL_LAYOUT_DEFAULTS.radialRadius)
+			data.radialRotation = Helper.ClampNumber(layout.radialRotation, -(Helper.RADIAL_ROTATION_RANGE or 360), Helper.RADIAL_ROTATION_RANGE or 360, Helper.PANEL_LAYOUT_DEFAULTS.radialRotation)
 			data.rangeOverlayEnabled = layout.rangeOverlayEnabled == true
 			data.rangeOverlayColor = layout.rangeOverlayColor or Helper.PANEL_LAYOUT_DEFAULTS.rangeOverlayColor
 			data.checkPower = layout.checkPower == true
@@ -2257,6 +2311,7 @@ local function copyPanelSettings(targetPanelId, sourcePanelId)
 			data.opacityOutOfCombat = Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat)
 			data.opacityInCombat = Helper.NormalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat)
 			data.showTooltips = layout.showTooltips == true
+			data.showIconTexture = layout.showIconTexture ~= false
 			data.hideOnCooldown = layout.hideOnCooldown == true
 			data.showOnCooldown = layout.showOnCooldown == true
 			data.cooldownTextFont = layout.cooldownTextFont or data.cooldownTextFont
@@ -2266,7 +2321,8 @@ local function copyPanelSettings(targetPanelId, sourcePanelId)
 			data.cooldownTextY = layout.cooldownTextY or 0
 		end
 	end
-	if runtime and runtime.editModeId and EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(runtime.editModeId) end
+	refreshEditModePanelFrame(targetPanelId, runtime and runtime.editModeId)
+	refreshEditModeSettings()
 	refreshEditModeSettingValues()
 	CooldownPanels:RefreshPanel(targetPanelId)
 	CooldownPanels:RefreshEditor()
@@ -2716,7 +2772,7 @@ local function ensureEditor()
 			local runtimePanel = CooldownPanels.runtime and CooldownPanels.runtime[panelId]
 			if runtimePanel and runtimePanel.frame then runtimePanel.frame.editModeName = text end
 			if runtimePanel and runtimePanel.editModeId and EditMode and EditMode.frames and EditMode.frames[runtimePanel.editModeId] then EditMode.frames[runtimePanel.editModeId].title = text end
-			if runtimePanel and runtimePanel.editModeId and EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(runtimePanel.editModeId) end
+			refreshEditModePanelFrame(panelId, runtimePanel and runtimePanel.editModeId)
 			refreshEditModeSettings()
 			CooldownPanels:RefreshPanel(panelId)
 		end
@@ -3674,6 +3730,7 @@ function CooldownPanels:ApplyLayout(panelId, countOverride)
 	applyIconLayout(frame, count, layout)
 
 	frame:SetFrameStrata(Helper.NormalizeStrata(layout.strata, Helper.PANEL_LAYOUT_DEFAULTS.strata))
+	syncEditModeSelectionStrata(frame)
 	if frame.label then frame.label:SetText(panel.name or "Cooldown Panel") end
 end
 
@@ -4810,7 +4867,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 	if not panel then return end
 	local runtime = getRuntime(panelId)
 	if runtime.editModeRegistered then
-		if runtime.editModeId and EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(runtime.editModeId) end
+		refreshEditModePanelFrame(panelId, runtime.editModeId)
 		return
 	end
 	if not EditMode or not EditMode.RegisterFrame then return end
@@ -4919,7 +4976,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 		syncEditModeLayoutFromAnchor()
 		CooldownPanels:ApplyPanelPosition(panelId)
 		CooldownPanels:UpdateVisibility(panelId)
-		if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(editModeId) end
+		refreshEditModePanelFrame(panelId, editModeId)
 		refreshEditModeSettingValues()
 	end
 	local function wouldCauseLoop(candidateName)
@@ -6301,7 +6358,10 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			refreshEditModeSettingValues()
 		end,
 		onPositionChanged = function(_, _, data) self:HandlePositionChanged(panelId, data) end,
-		onEnter = function() self:ShowEditModeHint(panelId, true) end,
+		onEnter = function(activeFrame)
+			syncEditModeSelectionStrata(activeFrame or frame)
+			self:ShowEditModeHint(panelId, true)
+		end,
 		onExit = function() self:ShowEditModeHint(panelId, false) end,
 		isEnabled = function() return panel.enabled ~= false end,
 		relativeTo = function() return resolveAnchorFrame(ensureAnchorTable()) end,
@@ -6346,7 +6406,7 @@ function CooldownPanels:AttachFakeCursor(panelId)
 	panel.x = anchor.x or panel.x or 0
 	panel.y = anchor.y or panel.y or 0
 	self:ApplyPanelPosition(panelId)
-	if runtime.editModeId and EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(runtime.editModeId) end
+	refreshEditModePanelFrame(panelId, runtime.editModeId)
 	refreshEditModeSettingValues()
 	resetFakeCursorFrame()
 	self:UpdateCursorAnchorState()

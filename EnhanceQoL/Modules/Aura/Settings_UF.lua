@@ -17,9 +17,7 @@ local NormalizeUnitFrameVisibilityConfig = addon.functions and addon.functions.N
 
 local UF = addon.Aura and addon.Aura.UF
 local UFHelper = addon.Aura and addon.Aura.UFHelper
-local function getCastbarModule()
-	return addon.Aura and (addon.Aura.Castbar or addon.Aura.UFStandaloneCastbar)
-end
+local function getCastbarModule() return addon.Aura and (addon.Aura.Castbar or addon.Aura.UFStandaloneCastbar) end
 if not (UF and settingType) then return end
 
 local clampNumber = UFHelper and UFHelper.ClampNumber
@@ -46,6 +44,31 @@ local strataOptions = {
 	{ value = "FULLSCREEN_DIALOG", label = "FULLSCREEN_DIALOG" },
 	{ value = "TOOLTIP", label = "TOOLTIP" },
 }
+
+local STRATA_INDEX = {}
+for index, option in ipairs(strataOptions) do
+	local value = type(option) == "table" and option.value
+	if type(value) == "string" and value ~= "" then STRATA_INDEX[string.upper(value)] = index end
+end
+
+local function syncEditModeSelectionStrata(frame)
+	if not (frame and frame.GetFrameStrata) then return end
+	local selection = frame.Selection
+	if not (selection and selection.SetFrameStrata) then return end
+	if not frame._eqolSelectionBaseStrata then
+		local baseStrata = (selection.GetFrameStrata and selection:GetFrameStrata()) or "MEDIUM"
+		local baseKey = type(baseStrata) == "string" and string.upper(baseStrata) or "MEDIUM"
+		frame._eqolSelectionBaseStrata = baseKey
+		frame._eqolSelectionBaseStrataIndex = STRATA_INDEX[baseKey] or STRATA_INDEX.MEDIUM or 3
+	end
+	local baseStrata = frame._eqolSelectionBaseStrata or "MEDIUM"
+	local baseIndex = frame._eqolSelectionBaseStrataIndex or STRATA_INDEX[baseStrata] or STRATA_INDEX.MEDIUM or 3
+	local currentStrata = frame:GetFrameStrata()
+	local currentKey = type(currentStrata) == "string" and string.upper(currentStrata) or nil
+	local currentIndex = currentKey and STRATA_INDEX[currentKey]
+	local targetStrata = (currentIndex and currentIndex > baseIndex) and currentKey or baseStrata
+	if selection.GetFrameStrata and selection:GetFrameStrata() ~= targetStrata then selection:SetFrameStrata(targetStrata) end
+end
 
 local textOptions = {
 	{ value = "PERCENT", label = L["PERCENT"] or "Percent" },
@@ -383,7 +406,13 @@ local frameIds = {
 local function refreshEditModeFrame(unit)
 	if not (EditMode and EditMode.RefreshFrame) then return end
 	local frameId = frameIds[unit]
-	if frameId then EditMode:RefreshFrame(frameId) end
+	if not frameId then return end
+	EditMode:RefreshFrame(frameId)
+	if EditMode and EditMode.IsInEditMode and EditMode:IsInEditMode() then
+		local entry = EditMode.frames and EditMode.frames[frameId]
+		local frame = entry and entry.frame
+		syncEditModeSelectionStrata(frame)
+	end
 end
 
 local copyDialogKey = "EQOL_UF_COPY_SETTINGS"
@@ -4731,7 +4760,9 @@ local function buildStandaloneCastbarSettings()
 	addon.db = addon.db or {}
 	local castCfg, castDef
 	local CastbarModule = getCastbarModule()
-	if CastbarModule and CastbarModule.GetConfig then castCfg, castDef = CastbarModule.GetConfig() end
+	if CastbarModule and CastbarModule.GetConfig then
+		castCfg, castDef = CastbarModule.GetConfig()
+	end
 	if type(castCfg) ~= "table" then
 		addon.db.castbar = type(addon.db.castbar) == "table" and addon.db.castbar or {}
 		castCfg = addon.db.castbar
@@ -5006,68 +5037,41 @@ local function buildStandaloneCastbarSettings()
 	castAnchorRelativePoint.isEnabled = isCastEnabled
 	list[#list + 1] = castAnchorRelativePoint
 
-	local castOffsetX = slider(
-		L["Offset X"] or "Offset X",
-		-OFFSET_RANGE,
-		OFFSET_RANGE,
-		1,
-		function()
-			local anchor = ensureCastAnchor()
-			return anchor.x or 0
-		end,
-		function(val)
-			local anchor = ensureCastAnchor()
-			anchor.x = tonumber(val) or 0
-			refreshCastbar()
-		end,
-		0,
-		"cast",
-		true
-	)
+	local castOffsetX = slider(L["Offset X"] or "Offset X", -OFFSET_RANGE, OFFSET_RANGE, 1, function()
+		local anchor = ensureCastAnchor()
+		return anchor.x or 0
+	end, function(val)
+		local anchor = ensureCastAnchor()
+		anchor.x = tonumber(val) or 0
+		refreshCastbar()
+	end, 0, "cast", true)
 	castOffsetX.isEnabled = isCastEnabled
 	list[#list + 1] = castOffsetX
 
-	local castOffsetY = slider(
-		L["Offset Y"] or "Offset Y",
-		-OFFSET_RANGE,
-		OFFSET_RANGE,
-		1,
-		function()
-			local anchor = ensureCastAnchor()
-			return anchor.y or 0
-		end,
-		function(val)
-			local anchor = ensureCastAnchor()
-			anchor.y = tonumber(val) or 0
-			refreshCastbar()
-		end,
-		0,
-		"cast",
-		true
-	)
+	local castOffsetY = slider(L["Offset Y"] or "Offset Y", -OFFSET_RANGE, OFFSET_RANGE, 1, function()
+		local anchor = ensureCastAnchor()
+		return anchor.y or 0
+	end, function(val)
+		local anchor = ensureCastAnchor()
+		anchor.y = tonumber(val) or 0
+		refreshCastbar()
+	end, 0, "cast", true)
 	castOffsetY.isEnabled = isCastEnabled
 	list[#list + 1] = castOffsetY
 
-	list[#list + 1] = checkbox(
-		"Match width of anchor",
-		function()
-			local anchor = ensureCastAnchor()
-			return (anchor.relativeFrame or "UIParent") ~= "UIParent" and anchor.matchRelativeWidth == true
-		end,
-		function(val)
-			local anchor = ensureCastAnchor()
-			if (anchor.relativeFrame or "UIParent") == "UIParent" then
-				anchor.matchRelativeWidth = nil
-			else
-				anchor.matchRelativeWidth = val and true or nil
-			end
-			refreshCastbar()
-			refreshSettingsUI()
-		end,
-		false,
-		"cast",
-		function() return isCastEnabled() and not anchorUsesUIParent() end
-	)
+	list[#list + 1] = checkbox("Match width of anchor", function()
+		local anchor = ensureCastAnchor()
+		return (anchor.relativeFrame or "UIParent") ~= "UIParent" and anchor.matchRelativeWidth == true
+	end, function(val)
+		local anchor = ensureCastAnchor()
+		if (anchor.relativeFrame or "UIParent") == "UIParent" then
+			anchor.matchRelativeWidth = nil
+		else
+			anchor.matchRelativeWidth = val and true or nil
+		end
+		refreshCastbar()
+		refreshSettingsUI()
+	end, false, "cast", function() return isCastEnabled() and not anchorUsesUIParent() end)
 
 	list[#list + 1] = checkbox(L["Show spell icon"] or "Show spell icon", function() return getCast({ "cast", "showIcon" }, castDef.showIcon ~= false) ~= false end, function(val)
 		setCast({ "cast", "showIcon" }, val and true or false)
@@ -5107,18 +5111,11 @@ local function buildStandaloneCastbarSettings()
 		refreshSettingsUI()
 	end, castDef.showName ~= false, "cast", isCastEnabled)
 
-	list[#list + 1] = checkbox(
-		L["Show cast target"] or "Show cast target",
-		function() return getCast({ "cast", "showCastTarget" }, castDef.showCastTarget == true) == true end,
-		function(val)
-			setCast({ "cast", "showCastTarget" }, val and true or false)
-			refreshCastbar()
-			refreshSettingsUI()
-		end,
-		castDef.showCastTarget == true,
-		"cast",
-		isCastNameEnabled
-	)
+	list[#list + 1] = checkbox(L["Show cast target"] or "Show cast target", function() return getCast({ "cast", "showCastTarget" }, castDef.showCastTarget == true) == true end, function(val)
+		setCast({ "cast", "showCastTarget" }, val and true or false)
+		refreshCastbar()
+		refreshSettingsUI()
+	end, castDef.showCastTarget == true, "cast", isCastNameEnabled)
 
 	local castNameX = slider(
 		L["Name X Offset"] or "Name X Offset",
@@ -5230,18 +5227,11 @@ local function buildStandaloneCastbarSettings()
 
 	list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
 
-	list[#list + 1] = checkbox(
-		L["Show cast duration"] or "Show cast duration",
-		function() return getCast({ "cast", "showDuration" }, castDef.showDuration ~= false) ~= false end,
-		function(val)
-			setCast({ "cast", "showDuration" }, val and true or false)
-			refreshCastbar()
-			refreshSettingsUI()
-		end,
-		castDef.showDuration ~= false,
-		"cast",
-		isCastEnabled
-	)
+	list[#list + 1] = checkbox(L["Show cast duration"] or "Show cast duration", function() return getCast({ "cast", "showDuration" }, castDef.showDuration ~= false) ~= false end, function(val)
+		setCast({ "cast", "showDuration" }, val and true or false)
+		refreshCastbar()
+		refreshSettingsUI()
+	end, castDef.showDuration ~= false, "cast", isCastEnabled)
 
 	local castDurationFormatOptions = {
 		{ value = "REMAINING", label = L["UFCastDurationRemaining"] or "Remaining" },
@@ -5315,9 +5305,7 @@ local function buildStandaloneCastbarSettings()
 			refreshCastbar()
 			refreshSettingsUI()
 		end,
-		getColor = function()
-			return toRGBA(getCast({ "cast", "backdrop", "color" }, castDef.backdrop and castDef.backdrop.color), castDef.backdrop and castDef.backdrop.color or { 0, 0, 0, 0.6 })
-		end,
+		getColor = function() return toRGBA(getCast({ "cast", "backdrop", "color" }, castDef.backdrop and castDef.backdrop.color), castDef.backdrop and castDef.backdrop.color or { 0, 0, 0, 0.6 }) end,
 		onColor = function(color)
 			setCastColor({ "cast", "backdrop", "color" }, color.r, color.g, color.b, color.a)
 			refreshCastbar()
@@ -5514,6 +5502,7 @@ local function registerUnitFrame(unit, info)
 			end
 			refresh()
 		end,
+		onEnter = function(activeFrame) syncEditModeSelectionStrata(activeFrame) end,
 		isEnabled = function() return ensureConfig(unit).enabled == true end,
 		settings = settingsList,
 		showOutsideEditMode = true,
@@ -5568,8 +5557,7 @@ local function registerSettingsUI()
 	addon.functions.SettingsCreateText(
 		cUF,
 		"|cffffcc66"
-			.. (L["UFGroupFramesBetaDisclaimer"]
-				or "Group Frames are currently a beta test.\nSome parts are still missing; this is mainly for current usability checks.\nFor correct aura filtering, WoW 12.0.1 is recommended (12.0.0 may show extra auras).")
+			.. (L["UFGroupFramesBetaDisclaimer"] or "Group Frames are currently a beta test.\nSome parts are still missing; this is mainly for current usability checks.\nFor correct aura filtering, WoW 12.0.1 is recommended (12.0.0 may show extra auras).")
 			.. "|r",
 		{ parentSection = expandable }
 	)

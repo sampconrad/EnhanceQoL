@@ -110,6 +110,7 @@ L["CastTracker"] = "Cast Tracker"
 L["CooldownNotify"] = "Cooldown Notify"
 L["EnableCooldownNotify"] = 'Enable Cooldown Notify "%s"'
 L["GrowthDirection"] = "Growth Direction"
+L["Group Growth"] = "Group Growth"
 L["Debuff Growth Direction"] = "Debuff Growth Direction"
 L["Top Left"] = "Top Left"
 L["Top Right"] = "Top Right"

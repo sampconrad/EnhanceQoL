@@ -354,16 +354,6 @@ local function ensureCastConfig()
 	addon.db.castbar = type(addon.db.castbar) == "table" and addon.db.castbar or {}
 	local castCfg = addon.db.castbar
 
-	if next(castCfg) == nil then
-		local legacy = addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.cast
-		if type(legacy) == "table" then
-			for key, value in pairs(legacy) do
-				if key ~= "standalone" then castCfg[key] = copyValue(value) end
-			end
-			if legacy.standalone ~= nil and castCfg.enabled == nil then castCfg.enabled = legacy.standalone == true and legacy.enabled ~= false end
-		end
-	end
-
 	mergeDefaults(castCfg, castDefaults)
 	if castCfg.enabled == nil then castCfg.enabled = false end
 	ensureAnchorConfig(castCfg, castDefaults)
@@ -883,6 +873,10 @@ local function setSampleCast()
 end
 
 local function shouldIgnoreCastFail(castGUID, spellId)
+	if UnitChannelInfo then
+		local channelName = UnitChannelInfo(UNIT)
+		if channelName then return true end
+	end
 	local info = state.castInfo
 	if not info then return false end
 	if info.castGUID and castGUID then

@@ -3393,14 +3393,7 @@ local function initUnitFrame()
 			local cfg = castbarModule.GetConfig()
 			if type(cfg) == "table" and cfg.enabled ~= nil then return cfg.enabled == true end
 		end
-
-		-- Legacy fallback for older saved vars.
-		local playerCfg = addon.db and addon.db.ufFrames and addon.db.ufFrames.player
-		if not (playerCfg and playerCfg.enabled == true) then return false end
-		local legacyCast = playerCfg.cast
-		if type(legacyCast) ~= "table" then return false end
-		if legacyCast.standalone ~= nil then return legacyCast.standalone == true and legacyCast.enabled ~= false end
-		return legacyCast.enabled ~= false
+		return false
 	end
 
 	local function EnsureCastbarHook(frame)
@@ -3849,6 +3842,7 @@ local function initChatFrame()
 	if addon.ChatIcons and addon.ChatIcons.SetItemLevelEnabled then addon.ChatIcons:SetItemLevelEnabled(addon.db["chatShowItemLevelInLinks"]) end
 
 	if addon.ChatIM and addon.ChatIM.SetEnabled then addon.ChatIM:SetEnabled(addon.db["enableChatIM"]) end
+	if addon.functions.ApplyChatFrameMaxLines then addon.functions.ApplyChatFrameMaxLines() end
 	if addon.functions.ApplyChatArrowKeys then addon.functions.ApplyChatArrowKeys(addon.db["chatUseArrowKeys"]) end
 	if addon.functions.ApplyChatEditBoxOnTop then addon.functions.ApplyChatEditBoxOnTop(addon.db["chatEditBoxOnTop"]) end
 	if addon.functions.ApplyChatUnclampFrame then addon.functions.ApplyChatUnclampFrame(addon.db["chatUnclampFrame"]) end

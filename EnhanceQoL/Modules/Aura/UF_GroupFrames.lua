@@ -23,7 +23,6 @@ local EditMode = addon.EditMode
 local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
 local DispelOverlayOrientation = EnumUtil and EnumUtil.MakeEnum("VerticalTopToBottom", "VerticalBottomToTop", "HorizontalLeftToRight")
 
-local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 local PowerBarColor = PowerBarColor
 local LSM = LibStub and LibStub("LibSharedMedia-3.0")
 local LCG = LibStub and LibStub("LibCustomGlow-1.0", true)
@@ -48,6 +47,8 @@ local auraGrowthXOptions = GFH.auraGrowthXOptions
 local auraGrowthYOptions = GFH.auraGrowthYOptions
 local ensureAuraConfig = GFH.EnsureAuraConfig
 local syncAurasEnabled = GFH.SyncAurasEnabled
+local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
+
 local function textureOptions() return GFH.TextureOptions(LSM) end
 local function fontOptions() return GFH.FontOptions(LSM) end
 local function borderOptions()
@@ -1331,6 +1332,7 @@ local DEFAULTS = {
 		unitsPerColumn = 5,
 		maxColumns = 8,
 		growth = "RIGHT",
+		groupGrowth = "DOWN",
 		barTexture = "SOLID",
 		columnSpacing = 8,
 		border = {
@@ -4649,13 +4651,13 @@ function GF:UpdatePowerStyle(self)
 
 	if UFHelper and UFHelper.configureSpecialTexture then
 		local needsAtlas = (powerTexKey == nil or powerTexKey == "" or powerTexKey == "DEFAULT")
-		if st._lastPowerToken ~= powerKey or texChanged or needsAtlas then UFHelper.configureSpecialTexture(st.power, powerKey, powerTexKey, pcfg) end
+		if st._lastPowerToken ~= powerKey or texChanged or needsAtlas then UFHelper.configureSpecialTexture(st.power, powerKey, powerTexKey, pcfg, powerType) end
 	end
 	st._lastPowerToken = powerKey
 	st._lastPowerTexture = powerTexKey
 	stabilizeStatusBarTexture(st.power)
 	if st.power.SetStatusBarDesaturated and UFHelper and UFHelper.isPowerDesaturated then
-		local desat = UFHelper.isPowerDesaturated(powerKey)
+		local desat = UFHelper.isPowerDesaturated(powerType, powerToken)
 		if st._lastPowerDesat ~= desat then
 			st._lastPowerDesat = desat
 			st.power:SetStatusBarDesaturated(desat)
@@ -4663,7 +4665,7 @@ function GF:UpdatePowerStyle(self)
 	end
 	local pr, pg, pb, pa
 	if UFHelper and UFHelper.getPowerColor then
-		pr, pg, pb, pa = UFHelper.getPowerColor(powerKey)
+		pr, pg, pb, pa = UFHelper.getPowerColor(powerType, powerToken)
 	else
 		local c = PowerBarColor and (PowerBarColor[powerKey] or PowerBarColor[powerType] or PowerBarColor["MANA"])
 		if c then
@@ -5214,7 +5216,7 @@ function GF:UpdatePreviewLayout(kind)
 	h = roundToEvenPixel(h, scale)
 
 	local spacing = clampNumber(tonumber(cfg.spacing) or 0, 0, 40, 0)
-	local growth = (cfg.growth or "DOWN"):upper()
+	local growth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.growth, "DOWN")) or "DOWN"
 	spacing = roundToPixel(spacing, scale)
 
 	local startPoint = getGrowthStartPoint(growth)
@@ -5224,13 +5226,80 @@ function GF:UpdatePreviewLayout(kind)
 	local unitsPerColumn = 1
 	local maxColumns = 1
 	local columnSpacing = spacing
+	local useGroupedPreview = false
+	local groupedPreviewEntries
+	local groupGrowth
 	if raidStyle then
 		unitsPerColumn = max(1, floor(clampNumber(tonumber(cfg.unitsPerColumn) or 5, 1, 10, 5) + 0.5))
 		maxColumns = max(1, floor(clampNumber(tonumber(cfg.maxColumns) or 8, 1, 10, 8) + 0.5))
 		columnSpacing = roundToPixel(clampNumber(tonumber(cfg.columnSpacing) or spacing, 0, 40, spacing), scale)
+		if kind == "raid" then
+			local sortMethod = resolveSortMethod(cfg)
+			local customSort = GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
+			useGroupedPreview = GF:IsRaidGroupedLayout(cfg) and (sortMethod ~= "NAMELIST" or (customSort and customSort.enabled == true))
+			if useGroupedPreview then
+				local defaultGroupGrowth = DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
+				if GFH.ResolveGroupGrowthDirection then
+					groupGrowth = GFH.ResolveGroupGrowthDirection(cfg and cfg.groupGrowth, growth, defaultGroupGrowth)
+				else
+					groupGrowth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg and cfg.groupGrowth, nil)) or ((growth == "RIGHT" or growth == "LEFT") and "DOWN" or "RIGHT")
+				end
+				startPoint = (GFH.GetGroupGrowthStartPoint and GFH.GetGroupGrowthStartPoint(groupGrowth)) or getGrowthStartPoint(groupGrowth)
+			end
+		end
 	end
 	local maxShown
-	if raidStyle then
+	if raidStyle and useGroupedPreview then
+		local buckets = {}
+		local seenGroups = {}
+		for _, sample in ipairs(samples) do
+			local group = tonumber(sample and sample.group)
+			if group and group >= 1 and group <= 8 then
+				local bucket = buckets[group]
+				if not bucket then
+					bucket = {}
+					buckets[group] = bucket
+				end
+				bucket[#bucket + 1] = sample
+				seenGroups[group] = true
+			end
+		end
+		local orderedGroups = {}
+		local added = {}
+		local ordering = (cfg and cfg.groupingOrder) or (GFH and GFH.GROUP_ORDER) or "1,2,3,4,5,6,7,8"
+		if type(ordering) == "string" and ordering ~= "" then
+			for token in ordering:gmatch("[^,]+") do
+				local group = tonumber((tostring(token):gsub("^%s+", ""):gsub("%s+$", "")))
+				if group and seenGroups[group] and not added[group] then
+					added[group] = true
+					orderedGroups[#orderedGroups + 1] = group
+				end
+			end
+		end
+		for group = 1, 8 do
+			if seenGroups[group] and not added[group] then
+				added[group] = true
+				orderedGroups[#orderedGroups + 1] = group
+			end
+		end
+		local blockCount = min(maxColumns, #orderedGroups)
+		groupedPreviewEntries = {}
+		for blockIndex = 1, blockCount do
+			local group = orderedGroups[blockIndex]
+			local bucket = buckets[group]
+			if bucket then
+				for unitIndex = 1, min(#bucket, unitsPerColumn) do
+					groupedPreviewEntries[#groupedPreviewEntries + 1] = {
+						sample = bucket[unitIndex],
+						group = group,
+						groupIndex = blockIndex,
+						unitIndex = unitIndex,
+					}
+				end
+			end
+		end
+		maxShown = min(#frames, #groupedPreviewEntries)
+	elseif raidStyle then
 		local total = #frames
 		if total > unitsPerColumn and maxColumns > 0 then
 			maxColumns = min(maxColumns, ceil(total / unitsPerColumn))
@@ -5250,7 +5319,8 @@ function GF:UpdatePreviewLayout(kind)
 	end
 	for i, btn in ipairs(frames) do
 		if btn then
-			local sample = samples[i]
+			local groupedEntry = groupedPreviewEntries and groupedPreviewEntries[i]
+			local sample = groupedEntry and groupedEntry.sample or samples[i]
 			if i > maxShown or not sample then
 				btn:Hide()
 			else
@@ -5259,15 +5329,45 @@ function GF:UpdatePreviewLayout(kind)
 					st._previewRole = sample.role or "DAMAGER"
 					st._previewClass = sample.class
 					st._previewName = sample.name or sample.class or "Unit"
-					st._previewGroup = sample.group
-					st._previewIndex = i
+					st._previewGroup = (groupedEntry and groupedEntry.group) or sample.group
+					st._previewIndex = (groupedEntry and groupedEntry.unitIndex) or i
 				end
 				btn._eqolGroupKind = kind
 				btn._eqolCfg = cfg
 				updateButtonConfig(btn, cfg)
 				btn:SetSize(w, h)
 				btn:ClearAllPoints()
-				if raidStyle then
+				if raidStyle and groupedEntry then
+					local groupIndex = groupedEntry.groupIndex - 1
+					local unitIndex = groupedEntry.unitIndex - 1
+					local groupOffsetX, groupOffsetY = 0, 0
+					local groupWidth, groupHeight
+					if isHorizontal then
+						groupWidth = w * unitsPerColumn + spacing * max(0, unitsPerColumn - 1)
+						groupHeight = h
+					else
+						groupWidth = w
+						groupHeight = h * unitsPerColumn + spacing * max(0, unitsPerColumn - 1)
+					end
+					groupWidth = roundToPixel(groupWidth, scale)
+					groupHeight = roundToPixel(groupHeight, scale)
+					if groupGrowth == "LEFT" then
+						groupOffsetX = roundToPixel(groupIndex * (groupWidth + columnSpacing) * -1, scale)
+					elseif groupGrowth == "UP" then
+						groupOffsetY = roundToPixel(groupIndex * (groupHeight + columnSpacing), scale)
+					elseif groupGrowth == "RIGHT" then
+						groupOffsetX = roundToPixel(groupIndex * (groupWidth + columnSpacing), scale)
+					else
+						groupOffsetY = roundToPixel(groupIndex * (groupHeight + columnSpacing) * -1, scale)
+					end
+					local unitOffsetX, unitOffsetY = 0, 0
+					if isHorizontal then
+						unitOffsetX = roundToPixel(unitIndex * (w + spacing) * xSign, scale)
+					else
+						unitOffsetY = roundToPixel(unitIndex * (h + spacing) * ySign, scale)
+					end
+					btn:SetPoint(startPoint, anchor, startPoint, groupOffsetX + unitOffsetX, groupOffsetY + unitOffsetY)
+				elseif raidStyle then
 					local idx = i - 1
 					local row = idx % unitsPerColumn
 					local col = floor(idx / unitsPerColumn)
@@ -5855,21 +5955,32 @@ local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHi
 				header:SetAttribute("initialConfigFunction", layout.initConfigFunction)
 
 				header:ClearAllPoints()
+				local unitGrowth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(layout.growth, "DOWN")) or "DOWN"
+				local defaultGroupGrowth = DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
+				local groupGrowth
+				if GFH.ResolveGroupGrowthDirection then
+					groupGrowth = GFH.ResolveGroupGrowthDirection(layout.groupGrowth, unitGrowth, defaultGroupGrowth)
+				else
+					groupGrowth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(layout.groupGrowth, nil)) or ((unitGrowth == "RIGHT" or unitGrowth == "LEFT") and "DOWN" or "RIGHT")
+				end
+				local groupStartPoint = (GFH.GetGroupGrowthStartPoint and GFH.GetGroupGrowthStartPoint(groupGrowth)) or getGrowthStartPoint(groupGrowth)
 				if i == 1 then
-					header:SetPoint(layout.startPoint, anchor, layout.startPoint, 0, 0)
+					header:SetPoint(groupStartPoint, anchor, groupStartPoint, 0, 0)
 				else
 					local previous = headers[i - 1]
 					if previous and previous._eqolSpecialHide ~= true then
 						local spacing = roundToPixel(layout.columnSpacing or 0, layout.scale)
-						if layout.isHorizontal then
-							local relPoint = (layout.startPoint == "TOPRIGHT") and "BOTTOMRIGHT" or "BOTTOMLEFT"
-							header:SetPoint(layout.startPoint, previous, relPoint, 0, -spacing)
+						if groupGrowth == "LEFT" then
+							header:SetPoint("TOPRIGHT", previous, "TOPLEFT", -spacing, 0)
+						elseif groupGrowth == "UP" then
+							header:SetPoint("BOTTOMLEFT", previous, "TOPLEFT", 0, spacing)
+						elseif groupGrowth == "RIGHT" then
+							header:SetPoint("TOPLEFT", previous, "TOPRIGHT", spacing, 0)
 						else
-							local relPoint = (layout.startPoint == "BOTTOMLEFT") and "BOTTOMRIGHT" or "TOPRIGHT"
-							header:SetPoint(layout.startPoint, previous, relPoint, spacing, 0)
+							header:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, -spacing)
 						end
 					else
-						header:SetPoint(layout.startPoint, anchor, layout.startPoint, 0, 0)
+						header:SetPoint(groupStartPoint, anchor, groupStartPoint, 0, 0)
 					end
 				end
 			end
@@ -5902,7 +6013,8 @@ function GF:ApplyHeaderAttributes(kind)
 	end
 
 	local spacing = clampNumber(tonumber(cfg.spacing) or 0, 0, 40, 0)
-	local growth = (cfg.growth or "DOWN"):upper()
+	local growth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.growth, "DOWN")) or "DOWN"
+	if cfg.growth ~= growth then cfg.growth = growth end
 	local scale = GFH.GetEffectiveScale(UIParent)
 	spacing = roundToPixel(spacing, scale)
 	local raidUnitsPerColumn
@@ -5960,6 +6072,12 @@ function GF:ApplyHeaderAttributes(kind)
 		header:SetAttribute("unitsPerColumn", raidUnitsPerColumn)
 		header:SetAttribute("maxColumns", raidMaxColumns)
 		useGroupHeaders = GF:IsRaidGroupedLayout(cfg) and (sortMethod ~= "NAMELIST" or useGroupedCustomSort)
+		local defaultGroupGrowth = DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
+		if GFH.ResolveGroupGrowthDirection then
+			cfg.groupGrowth = GFH.ResolveGroupGrowthDirection(cfg.groupGrowth, growth, defaultGroupGrowth)
+		else
+			cfg.groupGrowth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.groupGrowth, nil)) or ((growth == "RIGHT" or growth == "LEFT") and "DOWN" or "RIGHT")
+		end
 	elseif isSplitRoleKind(kind) then
 		header:SetAttribute("showParty", false)
 		header:SetAttribute("showRaid", true)
@@ -6105,7 +6223,8 @@ function GF:ApplyHeaderAttributes(kind)
 				minWidth = isHorizontal and perHeaderW or w,
 				minHeight = isHorizontal and h or perHeaderH,
 				startPoint = getGrowthStartPoint(growth),
-				isHorizontal = isHorizontal,
+				growth = growth,
+				groupGrowth = cfg.groupGrowth,
 				initConfigFunction = initConfigFunction,
 			}
 
@@ -6126,7 +6245,8 @@ function GF:ApplyHeaderAttributes(kind)
 				minWidth = w,
 				minHeight = h,
 				startPoint = getGrowthStartPoint(growth),
-				isHorizontal = (growth == "RIGHT" or growth == "LEFT"),
+				growth = growth,
+				groupGrowth = cfg.groupGrowth,
 				initConfigFunction = initConfigFunction,
 			}
 			applyRaidGroupHeaders(cfg, layout, nil, forceShow, forceHide, 0)
@@ -6738,6 +6858,16 @@ local function buildEditModeSettings(kind, editModeId)
 				if not cfg or not value then return end
 				cfg.growth = tostring(value):upper()
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "growth", cfg.growth, nil, true) end
+				if raidKind then
+					local defaultGroupGrowth = DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
+					if GFH.ResolveGroupGrowthDirection then
+						cfg.groupGrowth = GFH.ResolveGroupGrowthDirection(cfg.groupGrowth, cfg.growth, defaultGroupGrowth)
+					else
+						cfg.groupGrowth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.groupGrowth, nil))
+							or ((cfg.growth == "RIGHT" or cfg.growth == "LEFT") and "DOWN" or "RIGHT")
+					end
+					if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "groupGrowth", cfg.groupGrowth, nil, true) end
+				end
 				GF:ApplyHeaderAttributes(kind)
 			end,
 			generator = function(_, root)
@@ -6756,7 +6886,105 @@ local function buildEditModeSettings(kind, editModeId)
 						if not cfg then return end
 						cfg.growth = option.value
 						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "growth", option.value, nil, true) end
+						if raidKind then
+							local defaultGroupGrowth = DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
+							if GFH.ResolveGroupGrowthDirection then
+								cfg.groupGrowth = GFH.ResolveGroupGrowthDirection(cfg.groupGrowth, cfg.growth, defaultGroupGrowth)
+							else
+								cfg.groupGrowth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.groupGrowth, nil))
+									or ((cfg.growth == "RIGHT" or cfg.growth == "LEFT") and "DOWN" or "RIGHT")
+							end
+							if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "groupGrowth", cfg.groupGrowth, nil, true) end
+						end
 						GF:ApplyHeaderAttributes(kind)
+					end)
+				end
+			end,
+		},
+		{
+			name = L["Group Growth"] or "Group Growth",
+			kind = SettingType.Dropdown,
+			field = "groupGrowth",
+			parentId = "layout",
+			default = (DEFAULTS.raid and DEFAULTS.raid.groupGrowth) or "DOWN",
+			get = function()
+				if not raidKind then return "DOWN" end
+				local cfg = getCfg(kind)
+				local growth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg and cfg.growth, "DOWN")) or "DOWN"
+				local defaultGroupGrowth = DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
+				if GFH.ResolveGroupGrowthDirection then return GFH.ResolveGroupGrowthDirection(cfg and cfg.groupGrowth, growth, defaultGroupGrowth) end
+				return (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg and cfg.groupGrowth, nil)) or ((growth == "RIGHT" or growth == "LEFT") and "DOWN" or "RIGHT")
+			end,
+			set = function(_, value)
+				if not raidKind then return end
+				local cfg = getCfg(kind)
+				if not cfg or not value then return end
+				local growth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.growth, "DOWN")) or "DOWN"
+				local defaultGroupGrowth = DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
+				if GFH.ResolveGroupGrowthDirection then
+					cfg.groupGrowth = GFH.ResolveGroupGrowthDirection(value, growth, defaultGroupGrowth)
+				else
+					cfg.groupGrowth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(value, nil)) or ((growth == "RIGHT" or growth == "LEFT") and "DOWN" or "RIGHT")
+				end
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "groupGrowth", cfg.groupGrowth, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+				if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
+			end,
+			isShown = function() return raidKind end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				return raidKind and GF:IsRaidGroupedLayout(cfg)
+			end,
+			generator = function(_, root)
+				local cfg = getCfg(kind)
+				local growth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg and cfg.growth, "DOWN")) or "DOWN"
+				local optionA, optionB
+				if GFH.GetAllowedGroupGrowthDirections then
+					optionA, optionB = GFH.GetAllowedGroupGrowthDirections(growth)
+				end
+				if not optionA or not optionB then
+					if growth == "RIGHT" or growth == "LEFT" then
+						optionA, optionB = "DOWN", "UP"
+					else
+						optionA, optionB = "RIGHT", "LEFT"
+					end
+				end
+				local function toGrowthLabel(value)
+					if value == "UP" then return L["Up"] or "Up" end
+					if value == "DOWN" then return L["Down"] or "Down" end
+					if value == "LEFT" then return L["Left"] or "Left" end
+					if value == "RIGHT" then return L["Right"] or "Right" end
+					return value
+				end
+				local options = {
+					{ value = optionA, label = toGrowthLabel(optionA) },
+					{ value = optionB, label = toGrowthLabel(optionB) },
+				}
+				for _, option in ipairs(options) do
+					root:CreateRadio(option.label, function()
+						local cfg = getCfg(kind)
+						local growth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg and cfg.growth, "DOWN")) or "DOWN"
+						local defaultGroupGrowth = DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
+						local current
+						if GFH.ResolveGroupGrowthDirection then
+							current = GFH.ResolveGroupGrowthDirection(cfg and cfg.groupGrowth, growth, defaultGroupGrowth)
+						else
+							current = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg and cfg.groupGrowth, nil)) or ((growth == "RIGHT" or growth == "LEFT") and "DOWN" or "RIGHT")
+						end
+						return current == option.value
+					end, function()
+						local cfg = getCfg(kind)
+						if not cfg then return end
+						local defaultGroupGrowth = DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
+						local growth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.growth, "DOWN")) or "DOWN"
+						if GFH.ResolveGroupGrowthDirection then
+							cfg.groupGrowth = GFH.ResolveGroupGrowthDirection(option.value, growth, defaultGroupGrowth)
+						else
+							cfg.groupGrowth = option.value
+						end
+						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "groupGrowth", cfg.groupGrowth, nil, true) end
+						GF:ApplyHeaderAttributes(kind)
+						if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
 					end)
 				end
 			end,
@@ -7347,6 +7575,7 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.text.useClassColor = value and true or false
 				cfg.status.nameColorMode = value and "CLASS" or "CUSTOM"
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "nameClassColor", cfg.text.useClassColor, nil, true) end
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "nameColorMode", cfg.status.nameColorMode, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
 			isEnabled = function()
@@ -7379,6 +7608,7 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.text.useClassColor = false
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "nameColor", cfg.status.nameColor, nil, true) end
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "nameClassColor", false, nil, true) end
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "nameColorMode", "CUSTOM", nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
 			isEnabled = function()
@@ -14465,7 +14695,19 @@ local function applyEditModeData(kind, data)
 		refreshAuras = true
 	end
 	if data.spacing ~= nil then cfg.spacing = clampNumber(data.spacing, 0, 40, cfg.spacing or 0) end
-	if data.growth then cfg.growth = tostring(data.growth):upper() end
+	if data.growth then
+		cfg.growth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(data.growth, (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.growth, "DOWN")) or "DOWN"))
+			or "DOWN"
+	end
+	if kind == "raid" and data.groupGrowth then
+		local growth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.growth, "DOWN")) or "DOWN"
+		local defaultGroupGrowth = DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
+		if GFH.ResolveGroupGrowthDirection then
+			cfg.groupGrowth = GFH.ResolveGroupGrowthDirection(data.groupGrowth, growth, defaultGroupGrowth)
+		else
+			cfg.groupGrowth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(data.groupGrowth, nil)) or ((growth == "RIGHT" or growth == "LEFT") and "DOWN" or "RIGHT")
+		end
+	end
 	if data.barTexture ~= nil then
 		if data.barTexture == BAR_TEX_INHERIT then
 			cfg.barTexture = nil
@@ -14722,7 +14964,7 @@ local function applyEditModeData(kind, data)
 	then
 		cfg.status = cfg.status or {}
 	end
-	if data.nameColorMode ~= nil then
+	if data.nameColorMode ~= nil and data.nameClassColor == nil then
 		cfg.status.nameColorMode = data.nameColorMode
 		cfg.text = cfg.text or {}
 		cfg.text.useClassColor = data.nameColorMode == "CLASS"
@@ -15285,6 +15527,14 @@ function GF:EnsureEditMode()
 				powerHeight = cfg.powerHeight or (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6,
 				spacing = cfg.spacing or (DEFAULTS[kind] and DEFAULTS[kind].spacing) or 0,
 				growth = cfg.growth or (DEFAULTS[kind] and DEFAULTS[kind].growth) or "DOWN",
+				groupGrowth = (kind == "raid") and ((GFH.ResolveGroupGrowthDirection and GFH.ResolveGroupGrowthDirection(
+					cfg.groupGrowth,
+					(GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.growth, "DOWN")) or "DOWN",
+					DEFAULTS and DEFAULTS.raid and DEFAULTS.raid.groupGrowth
+				)) or ((GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.groupGrowth, nil)) or ((((GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(
+					cfg.growth,
+					"DOWN"
+				)) or "DOWN") == "RIGHT" or ((GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg.growth, "DOWN")) or "DOWN") == "LEFT") and "DOWN" or "RIGHT"))) or nil,
 				barTexture = cfg.barTexture or BAR_TEX_INHERIT,
 				borderEnabled = (cfg.border and cfg.border.enabled) ~= false,
 				borderColor = (cfg.border and cfg.border.color) or (DEFAULTS[kind] and DEFAULTS[kind].border and DEFAULTS[kind].border.color) or { 0, 0, 0, 0.8 },
@@ -15367,7 +15617,7 @@ function GF:EnsureEditMode()
 				healAbsorbReverse = (cfg.health and cfg.health.healAbsorbReverseFill) == true,
 				healAbsorbUseCustomColor = (cfg.health and cfg.health.healAbsorbUseCustomColor) == true,
 				healAbsorbColor = (cfg.health and cfg.health.healAbsorbColor) or { 1, 0.3, 0.3, 0.7 },
-				nameColorMode = sc.nameColorMode or "CLASS",
+				nameColorMode = sc.nameColorMode or (((cfg.text and cfg.text.useClassColor) ~= false) and "CLASS" or "CUSTOM"),
 				nameColor = sc.nameColor or { 1, 1, 1, 1 },
 				levelEnabled = sc.levelEnabled ~= false,
 				hideLevelAtMax = sc.hideLevelAtMax == true,
