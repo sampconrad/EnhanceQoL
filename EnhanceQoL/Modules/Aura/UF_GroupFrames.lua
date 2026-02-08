@@ -4647,13 +4647,13 @@ function GF:UpdatePowerStyle(self)
 
 	if UFHelper and UFHelper.configureSpecialTexture then
 		local needsAtlas = (powerTexKey == nil or powerTexKey == "" or powerTexKey == "DEFAULT")
-		if st._lastPowerToken ~= powerKey or texChanged or needsAtlas then UFHelper.configureSpecialTexture(st.power, powerKey, powerTexKey, pcfg) end
+		if st._lastPowerToken ~= powerKey or texChanged or needsAtlas then UFHelper.configureSpecialTexture(st.power, powerKey, powerTexKey, pcfg, powerType) end
 	end
 	st._lastPowerToken = powerKey
 	st._lastPowerTexture = powerTexKey
 	stabilizeStatusBarTexture(st.power)
 	if st.power.SetStatusBarDesaturated and UFHelper and UFHelper.isPowerDesaturated then
-		local desat = UFHelper.isPowerDesaturated(powerKey)
+		local desat = UFHelper.isPowerDesaturated(powerType, powerToken)
 		if st._lastPowerDesat ~= desat then
 			st._lastPowerDesat = desat
 			st.power:SetStatusBarDesaturated(desat)
@@ -4661,7 +4661,7 @@ function GF:UpdatePowerStyle(self)
 	end
 	local pr, pg, pb, pa
 	if UFHelper and UFHelper.getPowerColor then
-		pr, pg, pb, pa = UFHelper.getPowerColor(powerKey)
+		pr, pg, pb, pa = UFHelper.getPowerColor(powerType, powerToken)
 	else
 		local c = PowerBarColor and (PowerBarColor[powerKey] or PowerBarColor[powerType] or PowerBarColor["MANA"])
 		if c then

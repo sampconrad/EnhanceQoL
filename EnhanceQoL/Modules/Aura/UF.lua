@@ -3723,9 +3723,9 @@ local function updatePower(cfg, unit)
 	elseif not issecretvalue or (not issecretvalue(cur) and not issecretvalue(maxv)) then
 		percentVal = getPowerPercent(unit, powerEnum, cur, maxv)
 	end
-	local cr, cg, cb, ca = UFHelper.getPowerColor(powerToken)
+	local cr, cg, cb, ca = UFHelper.getPowerColor(powerEnum, powerToken)
 	bar:SetStatusBarColor(cr or 0.1, cg or 0.45, cb or 1, ca or 1)
-	if bar.SetStatusBarDesaturated then bar:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerToken)) end
+	if bar.SetStatusBarDesaturated then bar:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerEnum, powerToken)) end
 	local maxZero = (issecretvalue and not issecretvalue(maxv) and maxv == 0) or (not addon.variables.isMidnight and maxv == 0)
 	local emptyFallback = pcfg.emptyMaxFallback == true
 	if emptyFallback then
@@ -4560,8 +4560,8 @@ local function ensureFrames(unit)
 	st.power = _G[info.powerName] or CreateFrame("StatusBar", info.powerName, st.barGroup, "BackdropTemplate")
 	st.powerGroup = st.powerGroup or CreateFrame("Frame", nil, st.frame, "BackdropTemplate")
 	st.powerGroup:Hide()
-	local _, powerToken = getMainPower(unit)
-	if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerToken)) end
+	local powerEnum, powerToken = getMainPower(unit)
+	if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerEnum, powerToken)) end
 	if not st.portraitHolder then
 		st.portraitHolder = CreateFrame("Frame", nil, st.barGroup or st.frame, "BackdropTemplate")
 		st.portraitHolder:EnableMouse(false)
@@ -4711,9 +4711,9 @@ local function applyBars(cfg, unit)
 	if powerEnabled then
 		st.power:SetStatusBarTexture(UFHelper.resolveTexture(pcfg.texture))
 		if unit == UNIT.PLAYER then refreshMainPower(unit) end
-		local _, powerToken = getMainPower(unit)
-		if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerToken)) end
-		UFHelper.configureSpecialTexture(st.power, powerToken, pcfg.texture, pcfg)
+		local powerEnum, powerToken = getMainPower(unit)
+		if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerEnum, powerToken)) end
+		UFHelper.configureSpecialTexture(st.power, powerToken, pcfg.texture, pcfg, powerEnum)
 		local reversePower = pcfg.reverseFill
 		if reversePower == nil then reversePower = defP.reverseFill == true end
 		UFHelper.applyStatusBarReverseFill(st.power, reversePower)
@@ -5154,9 +5154,9 @@ local function applyBossEditSample(idx, cfg)
 			local pPercent = getPowerPercent("player", enumId or 0, pCur, pMax)
 			st.power:SetMinMaxValues(0, pMax > 0 and pMax or 1)
 			st.power:SetValue(pCur, interpolation)
-			local pr, pg, pb, pa = UFHelper.getPowerColor(token)
+			local pr, pg, pb, pa = UFHelper.getPowerColor(enumId, token)
 			st.power:SetStatusBarColor(pr or 0.1, pg or 0.45, pb or 1, pa or 1)
-			if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(token)) end
+			if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(enumId, token)) end
 			local pLeftMode = pcfg.textLeft or "PERCENT"
 			local pCenterMode = pcfg.textCenter or "NONE"
 			local pRightMode = pcfg.textRight or "CURMAX"
@@ -5496,10 +5496,10 @@ local function ensureToTTicker()
 		local powerEnabled = pcfg.enabled ~= false
 		if not UnitExists(UNIT.TARGET_TARGET) or not st.frame or not st.frame:IsShown() then return end
 		if powerEnabled then
-			local _, powerToken = UnitPowerType(UNIT.TARGET_TARGET)
+			local powerEnum, powerToken = UnitPowerType(UNIT.TARGET_TARGET)
 			if st.power and powerToken and powerToken ~= st._lastPowerToken then
-				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerToken)) end
-				UFHelper.configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power)
+				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerEnum, powerToken)) end
+				UFHelper.configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power, powerEnum)
 				st._lastPowerToken = powerToken
 			end
 		else
@@ -5538,9 +5538,9 @@ local function updateTargetTargetFrame(cfg, forceApply)
 			updateNameAndLevel(cfg, UNIT.TARGET_TARGET)
 			updateHealth(cfg, UNIT.TARGET_TARGET)
 			if st.power and powerEnabled then
-				local _, powerToken = getMainPower(UNIT.TARGET_TARGET)
-				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerToken)) end
-				UFHelper.configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power)
+				local powerEnum, powerToken = getMainPower(UNIT.TARGET_TARGET)
+				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerEnum, powerToken)) end
+				UFHelper.configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power, powerEnum)
 				st._lastPowerToken = powerToken
 			elseif st.power then
 				st.power:Hide()
@@ -5592,9 +5592,9 @@ local function updateFocusFrame(cfg, forceApply)
 			updateNameAndLevel(cfg, UNIT.FOCUS)
 			updateHealth(cfg, UNIT.FOCUS)
 			if st.power and powerEnabled then
-				local _, powerToken = getMainPower(UNIT.FOCUS)
-				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerToken)) end
-				UFHelper.configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power)
+				local powerEnum, powerToken = getMainPower(UNIT.FOCUS)
+				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerEnum, powerToken)) end
+				UFHelper.configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power, powerEnum)
 				st._lastPowerToken = powerToken
 			elseif st.power then
 				st.power:Hide()
@@ -5746,8 +5746,8 @@ local function onEvent(self, event, unit, ...)
 			updateNameAndLevel(targetCfg, unitToken)
 			updateHealth(targetCfg, unitToken)
 			if st.power and powerEnabled then
-				local _, powerToken = getMainPower(unitToken)
-				UFHelper.configureSpecialTexture(st.power, powerToken, (targetCfg.power or {}).texture, targetCfg.power)
+				local powerEnum, powerToken = getMainPower(unitToken)
+				UFHelper.configureSpecialTexture(st.power, powerToken, (targetCfg.power or {}).texture, targetCfg.power, powerEnum)
 			elseif st.power then
 				st.power:Hide()
 			end
@@ -5903,8 +5903,8 @@ local function onEvent(self, event, unit, ...)
 			local st = states[unit]
 			local pcfg = playerCfg.power or {}
 			if st and st.power and pcfg.enabled ~= false then
-				local _, powerToken = getMainPower(unit)
-				UFHelper.configureSpecialTexture(st.power, powerToken, (playerCfg.power or {}).texture, playerCfg.power)
+				local powerEnum, powerToken = getMainPower(unit)
+				UFHelper.configureSpecialTexture(st.power, powerToken, (playerCfg.power or {}).texture, playerCfg.power, powerEnum)
 			elseif st and st.power then
 				st.power:Hide()
 			end
@@ -5915,8 +5915,8 @@ local function onEvent(self, event, unit, ...)
 			local st = states[unit]
 			local pcfg = targetCfg.power or {}
 			if st and st.power and pcfg.enabled ~= false then
-				local _, powerToken = getMainPower(unit)
-				UFHelper.configureSpecialTexture(st.power, powerToken, (targetCfg.power or {}).texture, targetCfg.power)
+				local powerEnum, powerToken = getMainPower(unit)
+				UFHelper.configureSpecialTexture(st.power, powerToken, (targetCfg.power or {}).texture, targetCfg.power, powerEnum)
 			elseif st and st.power then
 				st.power:Hide()
 			end
@@ -5927,8 +5927,8 @@ local function onEvent(self, event, unit, ...)
 			local st = states[unit]
 			local pcfg = focusCfg.power or {}
 			if st and st.power and pcfg.enabled ~= false then
-				local _, powerToken = getMainPower(unit)
-				UFHelper.configureSpecialTexture(st.power, powerToken, (focusCfg.power or {}).texture, focusCfg.power)
+				local powerEnum, powerToken = getMainPower(unit)
+				UFHelper.configureSpecialTexture(st.power, powerToken, (focusCfg.power or {}).texture, focusCfg.power, powerEnum)
 			elseif st and st.power then
 				st.power:Hide()
 			end
@@ -5939,8 +5939,8 @@ local function onEvent(self, event, unit, ...)
 			local st = states[unit]
 			local pcfg = petCfg.power or {}
 			if st and st.power and pcfg.enabled ~= false then
-				local _, powerToken = getMainPower(unit)
-				UFHelper.configureSpecialTexture(st.power, powerToken, (petCfg.power or {}).texture, petCfg.power)
+				local powerEnum, powerToken = getMainPower(unit)
+				UFHelper.configureSpecialTexture(st.power, powerToken, (petCfg.power or {}).texture, petCfg.power, powerEnum)
 			elseif st and st.power then
 				st.power:Hide()
 			end
@@ -5951,8 +5951,8 @@ local function onEvent(self, event, unit, ...)
 				local st = states[unit]
 				local pcfg = bossCfg.power or {}
 				if st and st.power and pcfg.enabled ~= false then
-					local _, powerToken = getMainPower(unit)
-					UFHelper.configureSpecialTexture(st.power, powerToken, (bossCfg.power or {}).texture, bossCfg.power)
+					local powerEnum, powerToken = getMainPower(unit)
+					UFHelper.configureSpecialTexture(st.power, powerToken, (bossCfg.power or {}).texture, bossCfg.power, powerEnum)
 				elseif st and st.power then
 					st.power:Hide()
 				end
