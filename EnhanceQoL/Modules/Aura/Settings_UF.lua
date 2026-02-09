@@ -4162,6 +4162,31 @@ local function buildUnitSettings(unit)
 		)
 		list[#list].isEnabled = isAuraEnabled
 
+		local borderRenderModeOptions = {
+			{ value = "EDGE", label = L["Edge"] or "Edge" },
+			{ value = "OVERLAY", label = L["Overlay"] or "Overlay" },
+		}
+		list[#list + 1] = radioDropdown(
+			L["Aura border render mode"] or "Aura border render mode",
+			borderRenderModeOptions,
+			function()
+				local mode = (getValue(unit, { "auraIcons", "borderRenderMode" }, auraDef.borderRenderMode or "EDGE") or "EDGE"):upper()
+				if mode == "OVERLAY" then return "OVERLAY" end
+				return "EDGE"
+			end,
+			function(val)
+				local mode = tostring(val or "EDGE"):upper()
+				if mode ~= "OVERLAY" then mode = "EDGE" end
+				setValue(unit, { "auraIcons", "borderRenderMode" }, mode)
+				refresh()
+				refreshAuras()
+			end,
+			((auraDef.borderRenderMode or "EDGE"):upper() == "OVERLAY") and "OVERLAY" or "EDGE",
+			"auras"
+		)
+		list[#list].isEnabled = isAuraEnabled
+		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "auras" }
+
 		local stackOutlineOptions = {
 			{ value = "NONE", label = L["None"] or "None" },
 			{ value = "OUTLINE", label = L["Outline"] or "Outline" },

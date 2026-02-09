@@ -59,16 +59,93 @@ local function IsToyUsable(id)
 	return true
 end
 
+local spellEntriesCache
+local spellEntriesCacheTime = 0
+local seasonSectionCache
+local seasonSectionCacheReady = false
+local seasonSectionCacheTime = 0
+local compendiumCacheDirty = true
+local refreshQueued = false
+local queuedFullRefresh = false
+local queuedCooldownRefresh = false
+local queuedInvalidateCache = false
+local COMPENDIUM_CACHE_TTL = 1
+
+local function isCacheExpired(cachedAt)
+	if not cachedAt or cachedAt <= 0 then return true end
+	local now = GetTime and GetTime() or 0
+	if now <= 0 then return false end
+	return (now - cachedAt) > COMPENDIUM_CACHE_TTL
+end
+
+local function InvalidateCompendiumCache()
+	spellEntriesCache = nil
+	spellEntriesCacheTime = 0
+	seasonSectionCache = nil
+	seasonSectionCacheReady = false
+	seasonSectionCacheTime = 0
+	compendiumCacheDirty = true
+	if addon and addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.InvalidateTeleportCompendiumCaches then
+		addon.MythicPlus.functions.InvalidateTeleportCompendiumCaches()
+	end
+end
+
 local function BuildSpellEntries()
 	if not addon or not addon.MythicPlus or not addon.MythicPlus.functions then return {} end
 	if not addon.MythicPlus.functions.BuildTeleportCompendiumSections then return {} end
-	return addon.MythicPlus.functions.BuildTeleportCompendiumSections()
+	if compendiumCacheDirty or not spellEntriesCache or isCacheExpired(spellEntriesCacheTime) then
+		spellEntriesCache = addon.MythicPlus.functions.BuildTeleportCompendiumSections() or {}
+		spellEntriesCacheTime = GetTime and GetTime() or 0
+	end
+	compendiumCacheDirty = false
+	return spellEntriesCache
 end
 
 local function BuildSeasonSection()
 	if not addon or not addon.MythicPlus or not addon.MythicPlus.functions then return nil end
 	if not addon.MythicPlus.functions.BuildCurrentSeasonTeleportSection then return nil end
-	return addon.MythicPlus.functions.BuildCurrentSeasonTeleportSection()
+	if compendiumCacheDirty or not seasonSectionCacheReady or isCacheExpired(seasonSectionCacheTime) then
+		seasonSectionCache = addon.MythicPlus.functions.BuildCurrentSeasonTeleportSection()
+		seasonSectionCacheReady = true
+		seasonSectionCacheTime = GetTime and GetTime() or 0
+	end
+	return seasonSectionCache
+end
+
+local function QueuePanelRefresh(opts)
+	opts = opts or {}
+	local delay = opts.delay or 0.05
+
+	if opts.invalidate then queuedInvalidateCache = true end
+	if opts.cooldownOnly then
+		if not queuedFullRefresh then queuedCooldownRefresh = true end
+	else
+		queuedFullRefresh = true
+		queuedCooldownRefresh = false
+	end
+
+	if refreshQueued then return end
+	refreshQueued = true
+	C_Timer.After(delay, function()
+		refreshQueued = false
+		local doFullRefresh = queuedFullRefresh
+		local doCooldownRefresh = queuedCooldownRefresh and not doFullRefresh
+		local doInvalidate = queuedInvalidateCache
+
+		queuedFullRefresh = false
+		queuedCooldownRefresh = false
+		queuedInvalidateCache = false
+
+		if doInvalidate then InvalidateCompendiumCache() end
+		if not addon.db or not addon.db["teleportsWorldMapEnabled"] then return end
+		if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
+
+		if doCooldownRefresh then
+			f:UpdateCooldowns()
+		else
+			f:RefreshPanel()
+		end
+	end)
 end
 
 local function IsConsolePortLoaded()
@@ -340,7 +417,7 @@ local function EnsurePanel(parent)
 	-- Keep content up-to-date if the scroll area changes size after layout
 	if not s._eqolSizeHook then
 		s:HookScript("OnSizeChanged", function()
-			if panel and panel:IsShown() then f:RefreshPanel() end
+			if panel and panel:IsShown() then QueuePanelRefresh({ delay = 0.05 }) end
 		end)
 		s._eqolSizeHook = true
 	end
@@ -432,7 +509,7 @@ local function CreateSecureSpellButton(parent, entry)
 					favs[self.entry.spellID] = true
 				end
 				addon.db.teleportFavorites = favs
-				f:RefreshPanel()
+				QueuePanelRefresh({ invalidate = true, delay = 0 })
 			else
 				local entry = self.entry or {}
 				local locID = entry.locID
@@ -568,7 +645,7 @@ local function CreateLegendRowButton(parent, entry, width, height)
 					favs[self.entry.spellID] = true
 				end
 				addon.db.teleportFavorites = favs
-				f:RefreshPanel()
+				QueuePanelRefresh({ invalidate = true, delay = 0 })
 			else
 				local entry = self.entry or {}
 				local locID = entry.locID
@@ -883,7 +960,7 @@ function f:TryInit()
 				else
 					panel:SetAllPoints(panel:GetParent())
 				end
-				f:RefreshPanel()
+				QueuePanelRefresh({ delay = 0.05 })
 			end
 		end)
 		parent._eqolSizeHook = true
@@ -899,7 +976,7 @@ function f:TryInit()
 				else
 					panel:SetAllPoints(panel:GetParent())
 				end
-				f:RefreshPanel()
+				QueuePanelRefresh({ delay = 0.05 })
 			end
 		end)
 		QuestMapFrame.ContentsAnchor._eqolSizeHook = true
@@ -960,7 +1037,7 @@ function f:TryInit()
 			if mode == DISPLAY_MODE then
 				if tabButton and tabButton.SetChecked then tabButton:SetChecked(true) end
 				if panel then SafeSetVisible(panel, true) end
-				f:RefreshPanel()
+				QueuePanelRefresh({ delay = 0 })
 			else
 				if tabButton and tabButton.SetChecked then tabButton:SetChecked(false) end
 				if panel then SafeSetVisible(panel, false) end
@@ -982,7 +1059,7 @@ function f:TryInit()
 	end
 
 	-- Proactively build content once; subsequent tab/display changes will refresh as needed
-	C_Timer.After(0, function() f:RefreshPanel() end)
+	QueuePanelRefresh({ delay = 0, invalidate = true })
 end
 
 function f:RefreshPanel()
@@ -1075,7 +1152,7 @@ local function worldMapEventHandler(self, event, arg1)
 			f._pendingOpen = nil
 			if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.OpenWorldMapTeleportPanel then addon.MythicPlus.functions.OpenWorldMapTeleportPanel(true) end
 		end
-		if WorldMapFrame and WorldMapFrame:IsShown() and addon.db and addon.db["teleportsWorldMapEnabled"] then C_Timer.After(0, function() f:RefreshPanel() end) end
+		if WorldMapFrame and WorldMapFrame:IsShown() and addon.db and addon.db["teleportsWorldMapEnabled"] then QueuePanelRefresh({ delay = 0, invalidate = true }) end
 		-- fall through to allow refresh if map is visible
 	end
 	if event == "ADDON_LOADED" and arg1 == "Blizzard_WorldMap" then
@@ -1089,7 +1166,7 @@ local function worldMapEventHandler(self, event, arg1)
 						QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
 						f._selectOnNextShow = nil
 					end
-					C_Timer.After(0, function() f:RefreshPanel() end)
+					QueuePanelRefresh({ delay = 0, invalidate = true })
 				else
 					if panel then SafeSetVisible(panel, false) end
 					if tabButton then SafeSetVisible(tabButton, false) end
@@ -1113,9 +1190,9 @@ local function worldMapEventHandler(self, event, arg1)
 	-- Only refresh when the map is actually visible; avoid work while hidden
 	if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
 	if event == "SPELL_UPDATE_COOLDOWN" or event == "BAG_UPDATE_COOLDOWN" then
-		f:UpdateCooldowns()
+		QueuePanelRefresh({ cooldownOnly = true, delay = 0.03 })
 	elseif event == "SPELLS_CHANGED" or event == "BAG_UPDATE_DELAYED" or event == "TOYS_UPDATED" then
-		if addon.db and addon.db["teleportsWorldMapEnabled"] then f:RefreshPanel() end
+		if addon.db and addon.db["teleportsWorldMapEnabled"] then QueuePanelRefresh({ invalidate = true, delay = 0.1 }) end
 	end
 end
 
@@ -1137,7 +1214,7 @@ function addon.MythicPlus.functions.InitWorldMapTeleportPanel()
 					QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
 					f._selectOnNextShow = nil
 				end
-				C_Timer.After(0, function() f:RefreshPanel() end)
+				QueuePanelRefresh({ delay = 0, invalidate = true })
 			else
 				if panel then SafeSetVisible(panel, false) end
 				if tabButton then SafeSetVisible(tabButton, false) end
@@ -1151,6 +1228,7 @@ end
 function addon.MythicPlus.functions.RefreshWorldMapTeleportPanel()
 	if not addon or not addon.db then return end
 	setWorldMapTeleportEventsEnabled(addon.db["teleportsWorldMapEnabled"])
+	InvalidateCompendiumCache()
 
 	-- Proactively load the World Map addon so our hooks exist
 	if not WorldMapFrame then pcall(UIParentLoadAddOn, "Blizzard_WorldMap") end
@@ -1166,7 +1244,7 @@ function addon.MythicPlus.functions.RefreshWorldMapTeleportPanel()
 						QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
 						f._selectOnNextShow = nil
 					end
-					C_Timer.After(0, function() f:RefreshPanel() end)
+					QueuePanelRefresh({ delay = 0, invalidate = true })
 				else
 					if panel then SafeSetVisible(panel, false) end
 					if tabButton then SafeSetVisible(tabButton, false) end
@@ -1195,7 +1273,7 @@ function addon.MythicPlus.functions.RefreshWorldMapTeleportPanel()
 		if WorldMapFrame:IsShown() then
 			if tabButton then SafeSetVisible(tabButton, true) end
 			if QuestMapFrame and QuestMapFrame.SetDisplayMode then QuestMapFrame:SetDisplayMode(DISPLAY_MODE) end
-			f:RefreshPanel()
+			QueuePanelRefresh({ delay = 0, invalidate = true })
 		else
 			f._selectOnNextShow = true
 		end
@@ -1241,5 +1319,5 @@ function addon.MythicPlus.functions.OpenWorldMapTeleportPanel(force)
 	end
 
 	if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
-	if f and f.RefreshPanel then f:RefreshPanel() end
+	if f and f.RefreshPanel then QueuePanelRefresh({ delay = 0 }) end
 end

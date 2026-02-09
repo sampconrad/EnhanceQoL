@@ -495,6 +495,7 @@ local defaults = {
 			blizzardDispelBorderAlpha = 1,
 			blizzardDispelBorderAlphaNot = 0,
 			borderTexture = "DEFAULT",
+			borderRenderMode = "EDGE",
 			showTooltip = true,
 			hidePermanentAuras = false,
 			anchor = "BOTTOM",
@@ -1824,6 +1825,8 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 				btn.border:Show()
 			else
 				local borderKey = ac and ac.borderTexture
+				local borderMode = tostring((ac and ac.borderRenderMode) or "EDGE"):upper()
+				local useOverlayBorderMode = borderMode == "OVERLAY"
 				local borderTex, borderCoords, borderIsEdge
 				if UFHelper and UFHelper.resolveAuraBorderTexture then
 					borderTex, borderCoords, borderIsEdge = UFHelper.resolveAuraBorderTexture(borderKey)
@@ -1832,7 +1835,8 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 					borderCoords = { 0.296875, 0.5703125, 0, 0.515625 }
 					borderIsEdge = false
 				end
-				if borderIsEdge and borderTex and borderTex ~= "" then
+				local renderAsEdge = borderIsEdge and not useOverlayBorderMode
+				if renderAsEdge and borderTex and borderTex ~= "" then
 					local borderFrame = UFHelper and UFHelper.ensureAuraBorderFrame and UFHelper.ensureAuraBorderFrame(btn)
 					if borderFrame then
 						local edgeSize = (UFHelper and UFHelper.calcAuraBorderSize and UFHelper.calcAuraBorderSize(btn, ac)) or 1
@@ -1855,12 +1859,23 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 				else
 					if UFHelper and UFHelper.hideAuraBorderFrame then UFHelper.hideAuraBorderFrame(btn) end
 					btn.border:SetTexture(borderTex or "")
+					local useOverlayBorderGeometry = useOverlayBorderMode and not borderCoords
 					if borderCoords then
 						btn.border:SetTexCoord(borderCoords[1], borderCoords[2], borderCoords[3], borderCoords[4])
 					else
 						btn.border:SetTexCoord(0, 1, 0, 1)
 					end
-					btn.border:SetAllPoints(btn)
+					if useOverlayBorderGeometry then
+						local bw = btn:GetWidth()
+						local bh = btn:GetHeight()
+						if not bw or bw <= 0 then bw = (ac and ac.size) or 24 end
+						if not bh or bh <= 0 then bh = bw end
+						btn.border:ClearAllPoints()
+						btn.border:SetPoint("CENTER", btn, "CENTER", 0, 0)
+						btn.border:SetSize((bw or 24) + 1, (bh or 24) + 1)
+					else
+						btn.border:SetAllPoints(btn)
+					end
 					btn.border:SetVertexColor(r, g, b, 1)
 					btn.border:Show()
 				end
@@ -2599,6 +2614,7 @@ do
 		blizzardDispelBorderAlpha = 1,
 		blizzardDispelBorderAlphaNot = 0,
 		borderTexture = "DEFAULT",
+		borderRenderMode = "EDGE",
 		anchor = "BOTTOM",
 		offset = { x = 0, y = -5 },
 		growth = nil,

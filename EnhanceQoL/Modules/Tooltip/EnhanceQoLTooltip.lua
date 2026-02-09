@@ -1034,7 +1034,8 @@ local function checkAdditionalUnit(tt)
 
 	EnsureUnitData(unit)
 	local guid = UnitGUID(unit)
-	local c = guid and InspectCache[guid] or nil
+	if not guid or isSecret(guid) then return end
+	local c = InspectCache[guid]
 	if not c then return end
 
 	local showSpec = addon.db["TooltipUnitShowSpec"] and c.specName

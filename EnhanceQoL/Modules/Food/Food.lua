@@ -22,6 +22,8 @@ local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_DrinkMacro")
 local LSM = LibStub("LibSharedMedia-3.0")
 
 local function isDrinkMacroEnabled() return addon.db and addon.db.drinkMacroEnabled == true end
+local function isMageFoodReminderEnabled() return addon.db and addon.db.mageFoodReminder == true end
+local function shouldBuildDrinkData() return isDrinkMacroEnabled() or isMageFoodReminderEnabled() end
 
 local function shouldUpdateRecuperateForDrinks() return isDrinkMacroEnabled() and addon.db.allowRecuperate == true end
 
@@ -133,19 +135,20 @@ frameLoad:RegisterEvent("PLAYER_TALENT_UPDATE")
 local pendingUpdate = false
 local function eventHandler(self, event, arg1, arg2, arg3, arg4)
 	if event == "PLAYER_LOGIN" then
+		local macroEnabled = isDrinkMacroEnabled()
 		if shouldUpdateRecuperateForDrinks() and addon.Recuperate and addon.Recuperate.Update then addon.Recuperate.Update() end
-		if isDrinkMacroEnabled() then
-			-- on login always load the macro
-			addon.functions.updateAllowedDrinks()
-			addon.functions.updateAvailableDrinks(false)
-		end
+		-- Keep drink data in sync when either macro or mage food reminder is enabled.
+		if shouldBuildDrinkData() and addon.functions.updateAllowedDrinks then addon.functions.updateAllowedDrinks() end
+		if macroEnabled and addon.functions.updateAvailableDrinks then addon.functions.updateAvailableDrinks(false) end
 		return
 	end
 
-	if not isDrinkMacroEnabled() then return end
+	local macroEnabled = isDrinkMacroEnabled()
+	local reminderEnabled = isMageFoodReminderEnabled()
+	if not macroEnabled and not reminderEnabled then return end
 
 	if event == "BAG_UPDATE_DELAYED" then
-		if not pendingUpdate then
+		if macroEnabled and not pendingUpdate then
 			pendingUpdate = true
 			C_Timer.After(0.05, function()
 				addon.functions.updateAvailableDrinks(false)
@@ -154,14 +157,15 @@ local function eventHandler(self, event, arg1, arg2, arg3, arg4)
 		end
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		-- PLAYER_REGEN_ENABLED always load, because we don't know if something changed in Combat
-		addon.functions.updateAvailableDrinks(true)
+		if macroEnabled then addon.functions.updateAvailableDrinks(true) end
 	elseif event == "PLAYER_LEVEL_UP" and UnitAffectingCombat("player") == false then
-		-- on level up, reload the complete list of allowed drinks
-		addon.functions.updateAllowedDrinks()
-		addon.functions.updateAvailableDrinks(true)
+		-- On level up, reload allowed drink data and macro if active.
+		if addon.functions.updateAllowedDrinks then addon.functions.updateAllowedDrinks() end
+		if macroEnabled then addon.functions.updateAvailableDrinks(true) end
 	elseif event == "SPELLS_CHANGED" or event == "PLAYER_TALENT_UPDATE" then
-		if addon.db.allowRecuperate and addon.Recuperate and addon.Recuperate.Update then addon.Recuperate.Update() end
-		addon.functions.updateAvailableDrinks(false)
+		if macroEnabled and addon.db.allowRecuperate and addon.Recuperate and addon.Recuperate.Update then addon.Recuperate.Update() end
+		if addon.functions.updateAllowedDrinks then addon.functions.updateAllowedDrinks() end
+		if macroEnabled then addon.functions.updateAvailableDrinks(false) end
 	end
 end
 -- Setze den Event-Handler

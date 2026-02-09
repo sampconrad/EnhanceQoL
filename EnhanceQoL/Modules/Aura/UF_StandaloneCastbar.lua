@@ -22,6 +22,7 @@ local UNIT = "player"
 local EDITMODE_FRAME_ID = "EQOL_Castbar"
 local EDITMODE_SETTINGS_MAX_HEIGHT = 900
 local MIN_CASTBAR_WIDTH = 50
+local CASTBAR_CONFIG_VERSION = 1
 local DEFAULT_NOT_INTERRUPTIBLE_COLOR = { 204 / 255, 204 / 255, 204 / 255, 1 }
 local VALID_ANCHOR_POINTS = {
 	TOPLEFT = true,
@@ -145,9 +146,7 @@ local function anchorUsesUIParent(castCfg, castDefaults)
 	return (anchor.relativeFrame or "UIParent") == "UIParent"
 end
 
-local function wantsRelativeFrameWidthMatch(anchor)
-	return anchor and (anchor.relativeFrame or "UIParent") ~= "UIParent" and anchor.matchRelativeWidth == true
-end
+local function wantsRelativeFrameWidthMatch(anchor) return anchor and (anchor.relativeFrame or "UIParent") ~= "UIParent" and anchor.matchRelativeWidth == true end
 
 local function resolveRelativeFrame(anchor)
 	local relativeName = anchor and anchor.relativeFrame or "UIParent"
@@ -354,9 +353,17 @@ local function ensureCastConfig()
 	addon.db.castbar = type(addon.db.castbar) == "table" and addon.db.castbar or {}
 	local castCfg = addon.db.castbar
 
-	mergeDefaults(castCfg, castDefaults)
+	local version = tonumber(castCfg.__version) or 0
+	if version ~= CASTBAR_CONFIG_VERSION then
+		mergeDefaults(castCfg, castDefaults)
+		castCfg.__version = CASTBAR_CONFIG_VERSION
+	end
+
 	if castCfg.enabled == nil then castCfg.enabled = false end
-	ensureAnchorConfig(castCfg, castDefaults)
+	local anchor = castCfg.anchor
+	if type(anchor) ~= "table" or anchor.point == nil or anchor.relativePoint == nil or anchor.x == nil or anchor.y == nil or type(anchor.relativeFrame) ~= "string" or anchor.relativeFrame == "" then
+		ensureAnchorConfig(castCfg, castDefaults)
+	end
 	return castCfg, castDefaults
 end
 

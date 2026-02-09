@@ -27,6 +27,25 @@ local minFrameSize = 0
 
 local GetItemCooldown = C_Item.GetItemCooldown
 local GetItemCount = C_Item.GetItemCount
+local toyUsableCache = {}
+local toyUsableCacheTime = {}
+local TOY_USABLE_CACHE_TTL = 2
+
+local function clearToyUsableCache()
+	if wipe then
+		wipe(toyUsableCache)
+		wipe(toyUsableCacheTime)
+	else
+		for key in pairs(toyUsableCache) do
+			toyUsableCache[key] = nil
+		end
+		for key in pairs(toyUsableCacheTime) do
+			toyUsableCacheTime[key] = nil
+		end
+	end
+end
+
+function addon.MythicPlus.functions.InvalidateTeleportCompendiumCaches() clearToyUsableCache() end
 
 -- Open World Map to a mapID and create a user waypoint pin at x,y (0..1)
 local function OpenMapAndCreatePin(mapID, x, y)
@@ -455,20 +474,40 @@ local function CreatePortalButtonsWithCooldown(frame, spells)
 end
 
 local function isToyUsable(id)
-	if id and PlayerHasToy(id) then
-		for _, k in pairs(C_TooltipInfo.GetToyByItemID(id).lines) do
-			if k.type and k.type == 23 then
-				if k.leftColor.b == 1 and k.leftColor.g == 1 and k.leftColor.r == 1 then
-					return true
-				else
-					return false
-				end
+	if id == nil then return false end
+	local now = GetTime and GetTime() or 0
+
+	local cached = toyUsableCache[id]
+	if cached ~= nil then
+		local cachedAt = toyUsableCacheTime[id] or 0
+		if now == 0 or (cachedAt > 0 and (now - cachedAt) <= TOY_USABLE_CACHE_TTL) then return cached end
+	end
+
+	if not PlayerHasToy(id) then
+		toyUsableCache[id] = false
+		toyUsableCacheTime[id] = now
+		return false
+	end
+
+	local tipData = C_TooltipInfo.GetToyByItemID(id)
+	local lines = tipData and tipData.lines
+	if lines then
+		for i = 1, #lines do
+			local line = lines[i]
+			if line and line.type == 23 then
+				local color = line.leftColor
+				local usable = color and color.r == 1 and color.g == 1 and color.b == 1
+				toyUsableCache[id] = usable and true or false
+				toyUsableCacheTime[id] = now
+				return toyUsableCache[id]
 			end
 		end
-		-- no restriction so return true
-		return true
 	end
-	return false
+
+	-- No requirement line means the toy is usable.
+	toyUsableCache[id] = true
+	toyUsableCacheTime[id] = now
+	return true
 end
 
 local function checkProfession()

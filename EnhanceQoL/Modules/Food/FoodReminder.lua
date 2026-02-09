@@ -39,12 +39,8 @@ local function initReminderDefaults()
 
 	local oldSoundDisabled = addon.db.mageFoodReminderSound == false
 	if oldSoundDisabled then
-		if addon.db.mageFoodReminderJoinSoundFile == nil or addon.db.mageFoodReminderJoinSoundFile == "" then
-			addon.db.mageFoodReminderJoinSoundFile = NONE_SOUND_SENTINEL
-		end
-		if addon.db.mageFoodReminderLeaveSoundFile == nil or addon.db.mageFoodReminderLeaveSoundFile == "" then
-			addon.db.mageFoodReminderLeaveSoundFile = NONE_SOUND_SENTINEL
-		end
+		if addon.db.mageFoodReminderJoinSoundFile == nil or addon.db.mageFoodReminderJoinSoundFile == "" then addon.db.mageFoodReminderJoinSoundFile = NONE_SOUND_SENTINEL end
+		if addon.db.mageFoodReminderLeaveSoundFile == nil or addon.db.mageFoodReminderLeaveSoundFile == "" then addon.db.mageFoodReminderLeaveSoundFile = NONE_SOUND_SENTINEL end
 	end
 	addon.db.mageFoodReminderSound = nil
 	addon.db.mageFoodReminderUseCustomSound = nil
@@ -299,13 +295,17 @@ end
 
 local healerRole
 
+local function hasMageFoodEntries()
+	local mageFoodList = addon.Drinks and addon.Drinks.mageFood
+	return type(mageFoodList) == "table" and next(mageFoodList) ~= nil
+end
+
 local function hasEnoughMageFood()
-	local mageFoodList = addon.Drinks.mageFood
-	if mageFoodList then
-		for itemID in pairs(mageFoodList) do
-			local count = C_Item_GetItemCount(itemID, false, false)
-			if count and count > 20 then return true end
-		end
+	local mageFoodList = addon.Drinks and addon.Drinks.mageFood
+	if type(mageFoodList) ~= "table" then return false end
+	for itemID in pairs(mageFoodList) do
+		local count = C_Item_GetItemCount(itemID, false, false)
+		if count and count > 20 then return true end
 	end
 	return false
 end
@@ -333,6 +333,13 @@ local function checkShow()
 	end
 
 	if not addon.db["mageFoodReminder"] then
+		removeBRFrame()
+		joinSoundPlayed = false
+		leaveSoundPlayed = false
+		return
+	end
+
+	if not hasMageFoodEntries() then
 		removeBRFrame()
 		joinSoundPlayed = false
 		leaveSoundPlayed = false
@@ -458,20 +465,20 @@ registerEditModeFrame = function()
 				get = function() return addon.db.mageFoodReminderScale or 1 end,
 				set = function(_, value)
 					value = tonumber(value) or addon.db.mageFoodReminderScale or 1
-						value = math.floor(value / 0.05 + 0.5) * 0.05
-						if value < 0.1 then
-							value = 0.1
-						elseif value > 2.0 then
-							value = 2.0
-						end
-						value = tonumber(string.format("%.2f", value))
-						addon.db.mageFoodReminderScale = value
-						applyButtonSettings()
-						if EditMode and editModeRegistered and EditMode.SetValue then
-							local ok, err = pcall(EditMode.SetValue, EditMode, editModeId, "scale", value, nil, true)
-							if not ok and err then geterrorhandler()(err) end
-						end
-					end,
+					value = math.floor(value / 0.05 + 0.5) * 0.05
+					if value < 0.1 then
+						value = 0.1
+					elseif value > 2.0 then
+						value = 2.0
+					end
+					value = tonumber(string.format("%.2f", value))
+					addon.db.mageFoodReminderScale = value
+					applyButtonSettings()
+					if EditMode and editModeRegistered and EditMode.SetValue then
+						local ok, err = pcall(EditMode.SetValue, EditMode, editModeId, "scale", value, nil, true)
+						if not ok and err then geterrorhandler()(err) end
+					end
+				end,
 				formatter = function(value)
 					value = math.floor(value / 0.05 + 0.5) * 0.05
 					if value < 0.1 then
@@ -484,33 +491,33 @@ registerEditModeFrame = function()
 			}
 		end
 
-			EditMode:RegisterFrame(editModeId, {
-				frame = anchor,
-				title = L["mageFoodReminder"] or "Food Reminder",
-				layoutDefaults = defaults,
-				onApply = function(_, layoutName, data)
+		EditMode:RegisterFrame(editModeId, {
+			frame = anchor,
+			title = L["mageFoodReminder"] or "Food Reminder",
+			layoutDefaults = defaults,
+			onApply = function(_, layoutName, data)
 				if not data then
 					addon.db["mageFoodReminderPos"] = CopyTable(defaultPos)
 					addon.db.mageFoodReminderScale = 1
-					else
-						if data.point then addon.db["mageFoodReminderPos"] = {
-							point = data.point,
-							x = data.x or 0,
-							y = data.y or 0,
-						} end
-						if data.scale then addon.db.mageFoodReminderScale = data.scale end
-					end
-					applyButtonSettings()
-				end,
-				onPositionChanged = function(_, layoutName, data)
-					if not data then return end
-					addon.db["mageFoodReminderPos"] = {
-						point = data.point or defaults.point,
-						x = data.x or defaults.x,
-						y = data.y or defaults.y,
-					}
-					applyButtonSettings()
-				end,
+				else
+					if data.point then addon.db["mageFoodReminderPos"] = {
+						point = data.point,
+						x = data.x or 0,
+						y = data.y or 0,
+					} end
+					if data.scale then addon.db.mageFoodReminderScale = data.scale end
+				end
+				applyButtonSettings()
+			end,
+			onPositionChanged = function(_, layoutName, data)
+				if not data then return end
+				addon.db["mageFoodReminderPos"] = {
+					point = data.point or defaults.point,
+					x = data.x or defaults.x,
+					y = data.y or defaults.y,
+				}
+				applyButtonSettings()
+			end,
 			onEnter = function()
 				editModeActive = true
 				local anchorFrame = ensureAnchor()

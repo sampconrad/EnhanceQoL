@@ -3385,15 +3385,24 @@ local function initUnitFrame()
 	}
 
 	local function isCustomPlayerCastbarEnabled()
+		local standaloneEnabled = false
 		local castCfg = addon.db and addon.db.castbar
-		if type(castCfg) == "table" and castCfg.enabled ~= nil then return castCfg.enabled == true end
+		if type(castCfg) == "table" and castCfg.enabled ~= nil then standaloneEnabled = castCfg.enabled == true end
 
 		local castbarModule = addon.Aura and (addon.Aura.Castbar or addon.Aura.UFStandaloneCastbar)
 		if castbarModule and castbarModule.GetConfig then
 			local cfg = castbarModule.GetConfig()
-			if type(cfg) == "table" and cfg.enabled ~= nil then return cfg.enabled == true end
+			if type(cfg) == "table" and cfg.enabled ~= nil then standaloneEnabled = cfg.enabled == true end
 		end
-		return false
+
+		if standaloneEnabled then return true end
+
+		-- Fallback gate: if UF player castbar is active, Blizzard player castbar must be hidden too.
+		local uf = addon.Aura and addon.Aura.UF
+		local playerCfg = uf and uf.GetConfig and uf.GetConfig("player")
+		if type(playerCfg) ~= "table" or playerCfg.enabled ~= true then return false end
+		local playerCast = playerCfg.cast
+		return type(playerCast) == "table" and playerCast.enabled == true
 	end
 
 	local function EnsureCastbarHook(frame)
@@ -5515,7 +5524,6 @@ local function setAllHooks()
 	if addon.MythicPlus and addon.MythicPlus.functions then
 		if addon.MythicPlus.functions.InitDB then addon.MythicPlus.functions.InitDB() end
 		if addon.MythicPlus.functions.InitState then addon.MythicPlus.functions.InitState() end
-		if addon.MythicPlus.functions.InitSettings then addon.MythicPlus.functions.InitSettings() end
 	end
 	if addon.Sounds and addon.Sounds.functions then
 		if addon.Sounds.functions.InitDB then addon.Sounds.functions.InitDB() end
@@ -5965,6 +5973,9 @@ local eventHandlers = {
 		end
 		if addon.Aura and addon.Aura.functions then
 			if addon.Aura.functions.InitCooldownPanels then addon.Aura.functions.InitCooldownPanels() end
+		end
+		if addon.MythicPlus and addon.MythicPlus.functions then
+			if addon.MythicPlus.functions.InitSettings then addon.MythicPlus.functions.InitSettings() end
 		end
 	end,
 	["PLAYER_MONEY"] = function()
