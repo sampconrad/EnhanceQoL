@@ -1052,7 +1052,7 @@ local DEFAULTS = {
 			healAbsorbReverseFill = true,
 			textLeft = "NONE",
 			textCenter = "PERCENT",
-			textRight = "CURRENT",
+			textRight = "NONE",
 			textColor = { 1, 1, 1, 1 },
 			textDelimiter = " ",
 			textDelimiterSecondary = " ",
@@ -1334,10 +1334,10 @@ local DEFAULTS = {
 			mode = "OFF",
 			modifier = "ALT",
 		},
-		width = 180,
-		height = 100,
-		powerHeight = 6,
-		spacing = 1,
+		width = 100,
+		height = 80,
+		powerHeight = 4,
+		spacing = 0,
 		point = "TOPLEFT",
 		relativePoint = "TOPLEFT",
 		relativeTo = "UIParent",
@@ -1355,14 +1355,14 @@ local DEFAULTS = {
 		sortMethod = "INDEX",
 		sortDir = "ASC",
 		unitsPerColumn = 5,
-		maxColumns = 8,
+		maxColumns = 4,
 		growth = "RIGHT",
 		groupGrowth = "DOWN",
 		barTexture = "SOLID",
 		columnSpacing = 8,
 		border = {
-			enabled = false,
-			texture = "DEFAULT",
+			enabled = true,
+			texture = "SOLID",
 			color = { 0, 0, 0, 0.8 },
 			edgeSize = 1,
 			inset = 0,
@@ -1398,10 +1398,10 @@ local DEFAULTS = {
 			useClassColor = true,
 			color = { 0.0, 0.8, 0.0, 1 },
 			absorbEnabled = true,
-			absorbUseCustomColor = false,
+			absorbUseCustomColor = true,
 			showSampleAbsorb = false,
-			absorbColor = { 0.85, 0.95, 1.0, 0.7 },
-			absorbTexture = "SOLID",
+			absorbColor = { 1.0, 0.8196, 0.1490, 1.0 },
+			absorbTexture = "EQOL: Absorb",
 			absorbReverseFill = false,
 			healAbsorbEnabled = true,
 			healAbsorbUseCustomColor = false,
@@ -1411,7 +1411,7 @@ local DEFAULTS = {
 			healAbsorbReverseFill = true,
 			textLeft = "NONE",
 			textCenter = "PERCENT",
-			textRight = "CURRENT",
+			textRight = "NONE",
 			textColor = { 1, 1, 1, 1 },
 			textDelimiter = " ",
 			textDelimiterSecondary = " ",
@@ -1419,8 +1419,8 @@ local DEFAULTS = {
 			useShortNumbers = true,
 			hidePercentSymbol = false,
 			offsetLeft = { x = 5, y = 0 },
-			offsetCenter = { x = 0, y = 0 },
-			offsetRight = { x = -5, y = 0 },
+			offsetCenter = { x = 0, y = 20 },
+			offsetRight = { x = 0, y = 0 },
 			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
 		},
 		power = {
@@ -1445,21 +1445,21 @@ local DEFAULTS = {
 		},
 		text = {
 			showName = true,
-			nameAnchor = "TOP",
+			nameAnchor = "CENTER",
 			nameMaxChars = 15,
-			nameNoEllipsis = false,
+			nameNoEllipsis = true,
 			showHealthPercent = false,
 			showPowerPercent = false,
 			useClassColor = true,
 			font = nil,
 			fontSize = 15,
 			fontOutline = "OUTLINE",
-			nameOffset = { x = 0, y = -4 },
+			nameOffset = { x = 0, y = 0 },
 		},
 		status = {
 			nameColorMode = "CLASS",
 			nameColor = { 1, 1, 1, 1 },
-			levelEnabled = true,
+			levelEnabled = false,
 			hideLevelAtMax = true,
 			levelColorMode = "CUSTOM",
 			levelColor = { 1, 0.85, 0, 1 },
@@ -1478,14 +1478,14 @@ local DEFAULTS = {
 			},
 			leaderIcon = {
 				enabled = true,
-				size = 19,
+				size = 18,
 				point = "TOPRIGHT",
 				relativePoint = "TOPRIGHT",
 				x = 6,
 				y = 10,
 			},
 			assistIcon = {
-				enabled = true,
+				enabled = false,
 				size = 10,
 				point = "TOPLEFT",
 				relativePoint = "TOPLEFT",
@@ -1541,7 +1541,7 @@ local DEFAULTS = {
 			},
 		},
 		roleIcon = {
-			enabled = true,
+			enabled = false,
 			size = 16,
 			point = "TOPLEFT",
 			relativePoint = "TOPLEFT",
@@ -1579,12 +1579,12 @@ local DEFAULTS = {
 			enabled = false,
 			buff = {
 				enabled = false,
-				size = 26,
-				perRow = 3,
-				max = 6,
+				size = 20,
+				perRow = 5,
+				max = 5,
 				spacing = 0,
 				anchorPoint = "TOPLEFT",
-				growth = "DOWNRIGHT",
+				growth = "RIGHTDOWN",
 				growthX = "RIGHT",
 				growthY = "DOWN",
 				x = 0,
@@ -1601,8 +1601,8 @@ local DEFAULTS = {
 				cooldownFontSize = 8,
 				cooldownFontOutline = "OUTLINE",
 				showStacks = true,
-				countAnchor = "BOTTOMRIGHT",
-				countOffset = { x = 4, y = 2 },
+				countAnchor = "CENTER",
+				countOffset = { x = 0, y = 0 },
 				countFont = nil,
 				countFontSize = 12,
 				countFontOutline = "OUTLINE",
@@ -7240,68 +7240,68 @@ local function buildEditModeSettings(kind, editModeId)
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "height", v, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
-			},
-			{
-				name = "Power height",
-				kind = SettingType.Slider,
-				allowInput = true,
-				field = "powerHeight",
-				minValue = 0,
-				maxValue = 50,
-				valueStep = 1,
-				default = (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6,
-				parentId = "frame",
-				get = function()
-					local cfg = getCfg(kind)
-					return cfg and cfg.powerHeight or (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6
-				end,
-				set = function(_, value)
-					local cfg = getCfg(kind)
-					if not cfg then return end
-					local v = clampNumber(value, 0, 50, cfg.powerHeight or 6)
-					cfg.powerHeight = v
-					if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerHeight", v, nil, true) end
-					GF:ApplyHeaderAttributes(kind)
-				end,
-			},
-			{
-				name = L["UFHideInClientScene"] or "Hide in client scenes",
-				kind = SettingType.Checkbox,
-				field = "hideInClientScene",
-				parentId = "frame",
-				default = (DEFAULTS[kind] and DEFAULTS[kind].hideInClientScene) ~= false,
-				get = function()
-					local cfg = getCfg(kind)
-					local value = cfg and cfg.hideInClientScene
-					if value == nil then value = DEFAULTS[kind] and DEFAULTS[kind].hideInClientScene end
-					if value == nil then value = true end
-					return value == true
-				end,
-				set = function(_, value)
-					local cfg = getCfg(kind)
-					if not cfg then return end
-					cfg.hideInClientScene = value and true or false
-					if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "hideInClientScene", cfg.hideInClientScene, nil, true) end
-					GF:RefreshClientSceneVisibility()
-				end,
-			},
-			{
-				name = "Tooltip",
-				kind = SettingType.Dropdown,
-				field = "tooltipMode",
-				parentId = "frame",
-				default = (DEFAULTS[kind] and DEFAULTS[kind].tooltip and DEFAULTS[kind].tooltip.mode) or "OFF",
-				customDefaultText = getTooltipModeLabel(),
-				get = function() return getTooltipModeValue() end,
-				set = function(_, value)
-					local cfg = getCfg(kind)
-					if not cfg or not value then return end
-					cfg.tooltip = cfg.tooltip or {}
-					cfg.tooltip.mode = tostring(value):upper()
-					if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "tooltipMode", cfg.tooltip.mode, nil, true) end
-				end,
-				generator = tooltipModeGenerator(),
-			},
+		},
+		{
+			name = "Power height",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "powerHeight",
+			minValue = 0,
+			maxValue = 50,
+			valueStep = 1,
+			default = (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6,
+			parentId = "frame",
+			get = function()
+				local cfg = getCfg(kind)
+				return cfg and cfg.powerHeight or (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local v = clampNumber(value, 0, 50, cfg.powerHeight or 6)
+				cfg.powerHeight = v
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "powerHeight", v, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+		},
+		{
+			name = L["UFHideInClientScene"] or "Hide in client scenes",
+			kind = SettingType.Checkbox,
+			field = "hideInClientScene",
+			parentId = "frame",
+			default = (DEFAULTS[kind] and DEFAULTS[kind].hideInClientScene) ~= false,
+			get = function()
+				local cfg = getCfg(kind)
+				local value = cfg and cfg.hideInClientScene
+				if value == nil then value = DEFAULTS[kind] and DEFAULTS[kind].hideInClientScene end
+				if value == nil then value = true end
+				return value == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.hideInClientScene = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "hideInClientScene", cfg.hideInClientScene, nil, true) end
+				GF:RefreshClientSceneVisibility()
+			end,
+		},
+		{
+			name = "Tooltip",
+			kind = SettingType.Dropdown,
+			field = "tooltipMode",
+			parentId = "frame",
+			default = (DEFAULTS[kind] and DEFAULTS[kind].tooltip and DEFAULTS[kind].tooltip.mode) or "OFF",
+			customDefaultText = getTooltipModeLabel(),
+			get = function() return getTooltipModeValue() end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg or not value then return end
+				cfg.tooltip = cfg.tooltip or {}
+				cfg.tooltip.mode = tostring(value):upper()
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "tooltipMode", cfg.tooltip.mode, nil, true) end
+			end,
+			generator = tooltipModeGenerator(),
+		},
 		{
 			name = "Tooltip modifier",
 			kind = SettingType.Dropdown,
@@ -16085,19 +16085,18 @@ function GF:EnsureEditMode()
 				hoverHighlightTexture = (cfg.highlightHover and cfg.highlightHover.texture) or (def.highlightHover and def.highlightHover.texture) or "DEFAULT",
 				hoverHighlightSize = (cfg.highlightHover and cfg.highlightHover.size) or (def.highlightHover and def.highlightHover.size) or 2,
 				hoverHighlightOffset = (cfg.highlightHover and cfg.highlightHover.offset) or (def.highlightHover and def.highlightHover.offset) or 0,
-					targetHighlightEnabled = (cfg.highlightTarget and cfg.highlightTarget.enabled) == true,
-					targetHighlightColor = (cfg.highlightTarget and cfg.highlightTarget.color) or (def.highlightTarget and def.highlightTarget.color) or { 1, 1, 0, 1 },
-					targetHighlightTexture = (cfg.highlightTarget and cfg.highlightTarget.texture) or (def.highlightTarget and def.highlightTarget.texture) or "DEFAULT",
-					targetHighlightSize = (cfg.highlightTarget and cfg.highlightTarget.size) or (def.highlightTarget and def.highlightTarget.size) or 2,
-					targetHighlightOffset = (cfg.highlightTarget and cfg.highlightTarget.offset) or (def.highlightTarget and def.highlightTarget.offset) or 0,
-					tooltipMode = tcfg.mode or defTooltip.mode or "OFF",
-					tooltipModifier = tcfg.modifier or defTooltip.modifier or "ALT",
-					tooltipAuras = ac.buff.showTooltip == true and ac.debuff.showTooltip == true and ac.externals.showTooltip == true,
-					showPlayer = cfg.showPlayer == true,
-					showSolo = cfg.showSolo == true,
-					hideInClientScene = (cfg.hideInClientScene ~= nil and cfg.hideInClientScene == true)
-						or ((cfg.hideInClientScene == nil) and (def.hideInClientScene ~= false)),
-					unitsPerColumn = cfg.unitsPerColumn or (DEFAULTS[kind] and DEFAULTS[kind].unitsPerColumn) or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5,
+				targetHighlightEnabled = (cfg.highlightTarget and cfg.highlightTarget.enabled) == true,
+				targetHighlightColor = (cfg.highlightTarget and cfg.highlightTarget.color) or (def.highlightTarget and def.highlightTarget.color) or { 1, 1, 0, 1 },
+				targetHighlightTexture = (cfg.highlightTarget and cfg.highlightTarget.texture) or (def.highlightTarget and def.highlightTarget.texture) or "DEFAULT",
+				targetHighlightSize = (cfg.highlightTarget and cfg.highlightTarget.size) or (def.highlightTarget and def.highlightTarget.size) or 2,
+				targetHighlightOffset = (cfg.highlightTarget and cfg.highlightTarget.offset) or (def.highlightTarget and def.highlightTarget.offset) or 0,
+				tooltipMode = tcfg.mode or defTooltip.mode or "OFF",
+				tooltipModifier = tcfg.modifier or defTooltip.modifier or "ALT",
+				tooltipAuras = ac.buff.showTooltip == true and ac.debuff.showTooltip == true and ac.externals.showTooltip == true,
+				showPlayer = cfg.showPlayer == true,
+				showSolo = cfg.showSolo == true,
+				hideInClientScene = (cfg.hideInClientScene ~= nil and cfg.hideInClientScene == true) or ((cfg.hideInClientScene == nil) and (def.hideInClientScene ~= false)),
+				unitsPerColumn = cfg.unitsPerColumn or (DEFAULTS[kind] and DEFAULTS[kind].unitsPerColumn) or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5,
 				maxColumns = cfg.maxColumns or (DEFAULTS[kind] and DEFAULTS[kind].maxColumns) or (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8,
 				columnSpacing = cfg.columnSpacing or (DEFAULTS[kind] and DEFAULTS[kind].columnSpacing) or (DEFAULTS.raid and DEFAULTS.raid.columnSpacing) or 0,
 				customSortEnabled = resolveSortMethod(cfg) == "NAMELIST",
