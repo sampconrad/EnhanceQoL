@@ -45,6 +45,11 @@ local strataOptions = {
 	{ value = "TOOLTIP", label = "TOOLTIP" },
 }
 
+local strataOptionsWithDefault = { { value = "", label = DEFAULT or "Default" } }
+for _, option in ipairs(strataOptions) do
+	strataOptionsWithDefault[#strataOptionsWithDefault + 1] = option
+end
+
 local STRATA_INDEX = {}
 for index, option in ipairs(strataOptions) do
 	local value = type(option) == "table" and option.value
@@ -386,6 +391,59 @@ local function refresh(unit)
 	elseif UF.Refresh then
 		UF.Refresh()
 	end
+end
+
+local refreshBatchDepth = 0
+local refreshBatchAll = false
+local refreshBatchUnits = {}
+
+local function clearRefreshBatchState()
+	refreshBatchAll = false
+	for unit in pairs(refreshBatchUnits) do
+		refreshBatchUnits[unit] = nil
+	end
+end
+
+local function requestRefresh(unit)
+	if refreshBatchDepth > 0 then
+		if unit == nil then
+			clearRefreshBatchState()
+			refreshBatchAll = true
+		elseif not refreshBatchAll then
+			refreshBatchUnits[unit] = true
+		end
+		return
+	end
+	refresh(unit)
+end
+
+local function flushRefreshBatch()
+	if refreshBatchAll then
+		clearRefreshBatchState()
+		refresh()
+		return
+	end
+	local pendingCount = 0
+	local pendingUnit
+	for unit in pairs(refreshBatchUnits) do
+		pendingCount = pendingCount + 1
+		pendingUnit = unit
+		if pendingCount > 1 then break end
+	end
+	clearRefreshBatchState()
+	if pendingCount == 1 then
+		refresh(pendingUnit)
+	elseif pendingCount > 1 then
+		refresh()
+	end
+end
+
+local function beginRefreshBatch() refreshBatchDepth = refreshBatchDepth + 1 end
+
+local function endRefreshBatch()
+	if refreshBatchDepth <= 0 then return end
+	refreshBatchDepth = refreshBatchDepth - 1
+	if refreshBatchDepth == 0 then flushRefreshBatch() end
 end
 
 local function refreshSettingsUI()
@@ -785,6 +843,47 @@ local function buildUnitSettings(unit)
 		cfg.visibilityFade = pct / 100
 		if UF and UF.ApplyVisibilityRules then UF.ApplyVisibilityRules(unit) end
 	end
+	local function hideInClientSceneDefault()
+		local value = def.hideInClientScene
+		if value == nil then value = true end
+		return value == true
+	end
+	local function isHideInVehicleEnabled()
+		local cfg = ensureConfig(unit)
+		local value = cfg and cfg.hideInVehicle
+		if value == nil then value = def.hideInVehicle end
+		return value == true
+	end
+	local function setHideInVehicleEnabled(value)
+		local cfg = ensureConfig(unit)
+		cfg.hideInVehicle = value and true or false
+		refreshSelf()
+		refreshSettingsUI()
+	end
+	local function isHideInPetBattleEnabled()
+		local cfg = ensureConfig(unit)
+		local value = cfg and cfg.hideInPetBattle
+		if value == nil then value = def.hideInPetBattle end
+		return value == true
+	end
+	local function setHideInPetBattleEnabled(value)
+		local cfg = ensureConfig(unit)
+		cfg.hideInPetBattle = value and true or false
+		refreshSelf()
+		refreshSettingsUI()
+	end
+	local function isHideInClientSceneEnabled()
+		local cfg = ensureConfig(unit)
+		local value = cfg and cfg.hideInClientScene
+		if value == nil then value = hideInClientSceneDefault() end
+		return value == true
+	end
+	local function setHideInClientSceneEnabled(value)
+		local cfg = ensureConfig(unit)
+		cfg.hideInClientScene = value and true or false
+		refreshSelf()
+		refreshSettingsUI()
+	end
 
 	list[#list + 1] = { name = SETTINGS or "Settings", kind = settingType.Collapsible, id = "utility", defaultCollapsed = true }
 
@@ -820,6 +919,9 @@ local function buildUnitSettings(unit)
 		"frame",
 		isTooltipEnabled
 	)
+	list[#list + 1] = checkbox(L["UFHideInVehicle"] or "Hide in vehicles", isHideInVehicleEnabled, setHideInVehicleEnabled, def.hideInVehicle == true, "frame")
+	if not isPlayer then list[#list + 1] = checkbox(L["UFHideInPetBattle"] or "Hide in pet battles", isHideInPetBattleEnabled, setHideInPetBattleEnabled, def.hideInPetBattle == true, "frame") end
+	list[#list + 1] = checkbox(L["UFHideInClientScene"] or "Hide in client scenes", isHideInClientSceneEnabled, setHideInClientSceneEnabled, hideInClientSceneDefault(), "frame")
 
 	if #visibilityOptions > 0 then
 		list[#list + 1] = multiDropdown(L["Show when"] or "Show when", visibilityOptions, isVisibilityRuleSelected, setVisibilityRule, nil, "frame")
@@ -1246,7 +1348,11 @@ local function buildUnitSettings(unit)
 		list[#list + 1] = checkbox(L["UFRangeFadeEnable"] or "Enable range fade", isRangeFadeEnabled, function(val)
 			setValue(unit, { "rangeFade", "enabled" }, val and true or false)
 			refreshSelf()
-			if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+			if UFHelper then
+				if UFHelper.RangeFadeMarkConfigDirty then UFHelper.RangeFadeMarkConfigDirty() end
+				if UFHelper.RangeFadeMarkSpellListDirty then UFHelper.RangeFadeMarkSpellListDirty() end
+				if UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+			end
 		end, rangeDef.enabled == true, "rangeFade")
 
 		local rangeFadeAlpha = slider(L["UFRangeFadeAlpha"] or "Out of range opacity", 0, 100, 1, function()
@@ -1261,6 +1367,10 @@ local function buildUnitSettings(unit)
 			if pct > 100 then pct = 100 end
 			setValue(unit, { "rangeFade", "alpha" }, pct / 100)
 			refreshSelf()
+			if UFHelper then
+				if UFHelper.RangeFadeMarkConfigDirty then UFHelper.RangeFadeMarkConfigDirty() end
+				if UFHelper.RangeFadeApplyCurrent then UFHelper.RangeFadeApplyCurrent(true) end
+			end
 		end, math.floor(((rangeDef.alpha or 0.5) * 100) + 0.5), "rangeFade", true, function(v) return tostring(v) .. "%" end)
 		rangeFadeAlpha.isEnabled = isRangeFadeEnabled
 		list[#list + 1] = rangeFadeAlpha
@@ -2589,6 +2699,31 @@ local function buildUnitSettings(unit)
 		castHeight.isEnabled = isCastEnabled
 		list[#list + 1] = castHeight
 
+		local castStrata = radioDropdown(
+			L["UFCastStrata"] or "Castbar strata",
+			strataOptionsWithDefault,
+			function() return getValue(unit, { "cast", "strata" }, castDef.strata or "") end,
+			function(val)
+				setValue(unit, { "cast", "strata" }, (val and val ~= "") and val or nil)
+				refresh()
+			end,
+			castDef.strata or "",
+			"cast"
+		)
+		castStrata.isEnabled = isCastEnabled
+		list[#list + 1] = castStrata
+
+		local castFrameLevelOffset = slider(L["UFCastFrameLevelOffset"] or "Castbar frame level offset", -20, 50, 1, function()
+			local fallback = castDef.frameLevelOffset
+			if fallback == nil then fallback = 1 end
+			return getValue(unit, { "cast", "frameLevelOffset" }, fallback)
+		end, function(val)
+			setValue(unit, { "cast", "frameLevelOffset" }, val)
+			refresh()
+		end, (castDef.frameLevelOffset == nil) and 1 or castDef.frameLevelOffset, "cast", true)
+		castFrameLevelOffset.isEnabled = isCastEnabled
+		list[#list + 1] = castFrameLevelOffset
+
 		local anchorOpts = {
 			{ value = "TOP", label = L["Top"] or "Top" },
 			{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
@@ -3227,6 +3362,37 @@ local function buildUnitSettings(unit)
 	)
 	levelAnchorSetting.isEnabled = isLevelEnabled
 	list[#list + 1] = levelAnchorSetting
+
+	local levelStrataSetting = radioDropdown(
+		L["UFLevelStrata"] or "Level text strata",
+		strataOptionsWithDefault,
+		function() return getValue(unit, { "status", "levelStrata" }, statusDef.levelStrata or "") end,
+		function(val)
+			setValue(unit, { "status", "levelStrata" }, (val and val ~= "") and val or nil)
+			refresh()
+		end,
+		statusDef.levelStrata or "",
+		"status"
+	)
+	levelStrataSetting.isEnabled = isLevelEnabled
+	list[#list + 1] = levelStrataSetting
+
+	local levelFrameLevelOffsetSetting = slider(
+		L["UFLevelFrameLevelOffset"] or "Level text frame level offset",
+		-20,
+		50,
+		1,
+		function() return getValue(unit, { "status", "levelFrameLevelOffset" }, statusDef.levelFrameLevelOffset or 5) end,
+		function(val)
+			setValue(unit, { "status", "levelFrameLevelOffset" }, val or 5)
+			refresh()
+		end,
+		statusDef.levelFrameLevelOffset or 5,
+		"status",
+		true
+	)
+	levelFrameLevelOffsetSetting.isEnabled = isLevelEnabled
+	list[#list + 1] = levelFrameLevelOffsetSetting
 
 	local levelFontSizeSetting = slider(
 		L["Level font size"] or "Level font size",
@@ -4166,24 +4332,17 @@ local function buildUnitSettings(unit)
 			{ value = "EDGE", label = L["Edge"] or "Edge" },
 			{ value = "OVERLAY", label = L["Overlay"] or "Overlay" },
 		}
-		list[#list + 1] = radioDropdown(
-			L["Aura border render mode"] or "Aura border render mode",
-			borderRenderModeOptions,
-			function()
-				local mode = (getValue(unit, { "auraIcons", "borderRenderMode" }, auraDef.borderRenderMode or "EDGE") or "EDGE"):upper()
-				if mode == "OVERLAY" then return "OVERLAY" end
-				return "EDGE"
-			end,
-			function(val)
-				local mode = tostring(val or "EDGE"):upper()
-				if mode ~= "OVERLAY" then mode = "EDGE" end
-				setValue(unit, { "auraIcons", "borderRenderMode" }, mode)
-				refresh()
-				refreshAuras()
-			end,
-			((auraDef.borderRenderMode or "EDGE"):upper() == "OVERLAY") and "OVERLAY" or "EDGE",
-			"auras"
-		)
+		list[#list + 1] = radioDropdown(L["Aura border render mode"] or "Aura border render mode", borderRenderModeOptions, function()
+			local mode = (getValue(unit, { "auraIcons", "borderRenderMode" }, auraDef.borderRenderMode or "EDGE") or "EDGE"):upper()
+			if mode == "OVERLAY" then return "OVERLAY" end
+			return "EDGE"
+		end, function(val)
+			local mode = tostring(val or "EDGE"):upper()
+			if mode ~= "OVERLAY" then mode = "EDGE" end
+			setValue(unit, { "auraIcons", "borderRenderMode" }, mode)
+			refresh()
+			refreshAuras()
+		end, ((auraDef.borderRenderMode or "EDGE"):upper() == "OVERLAY") and "OVERLAY" or "EDGE", "auras")
 		list[#list].isEnabled = isAuraEnabled
 		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "auras" }
 
@@ -5501,7 +5660,6 @@ local function registerUnitFrame(unit, info)
 			UF.EnsureFrames(unit)
 		end
 	end
-	refresh()
 	local frame = _G[info.frameName]
 	if not frame then return end
 	local layout = calcLayout(unit, frame)
@@ -5516,16 +5674,24 @@ local function registerUnitFrame(unit, info)
 		layoutDefaults = layout,
 		settingsMaxHeight = DEFAULT_SETTINGS_MAX_HEIGHT,
 		onApply = function(_, _, data)
+			if not data.point then return end
 			local cfg = ensureConfig(unit)
 			cfg.anchor = cfg.anchor or {}
-			if data.point then
-				cfg.anchor.point = data.point
-				cfg.anchor.relativePoint = data.relativePoint or data.point
-				cfg.anchor.x = data.x or 0
-				cfg.anchor.y = data.y or 0
-				cfg.anchor.relativeTo = cfg.anchor.relativeTo or "UIParent"
-			end
-			refresh()
+			local oldPoint = cfg.anchor.point
+			local oldRelativePoint = cfg.anchor.relativePoint
+			local oldX = cfg.anchor.x or 0
+			local oldY = cfg.anchor.y or 0
+			local newPoint = data.point
+			local newRelativePoint = data.relativePoint or data.point
+			local newX = data.x or 0
+			local newY = data.y or 0
+			cfg.anchor.relativeTo = cfg.anchor.relativeTo or "UIParent"
+			if oldPoint == newPoint and oldRelativePoint == newRelativePoint and oldX == newX and oldY == newY then return end
+			cfg.anchor.point = newPoint
+			cfg.anchor.relativePoint = newRelativePoint
+			cfg.anchor.x = newX
+			cfg.anchor.y = newY
+			requestRefresh(unit)
 		end,
 		onEnter = function(activeFrame) syncEditModeSelectionStrata(activeFrame) end,
 		isEnabled = function() return ensureConfig(unit).enabled == true end,
@@ -5548,9 +5714,15 @@ local function registerEditModeFrames()
 		focus = { frameName = "EQOLUFFocusFrame", frameId = frameIds.focus, title = L["UFFocusFrame"] or FOCUS },
 		boss = { frameName = "EQOLUFBossContainer", frameId = frameIds.boss, title = (L["UFBossFrame"] or "Boss Frames") },
 	}
-	for unit, info in pairs(frames) do
-		registerUnitFrame(unit, info)
-	end
+	beginRefreshBatch()
+	local ok, err = pcall(function()
+		for unit, info in pairs(frames) do
+			registerUnitFrame(unit, info)
+		end
+		requestRefresh()
+	end)
+	endRefreshBatch()
+	if not ok then error(err) end
 	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
 end
 

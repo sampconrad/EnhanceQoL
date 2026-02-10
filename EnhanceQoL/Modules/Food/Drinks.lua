@@ -687,8 +687,20 @@ local function getDrinkManaValue(drink, maxMana)
 	return tonumber(drink.mana) or 0
 end
 
+local function refreshDrinkSortKeys(maxMana)
+	local list = addon.Drinks and addon.Drinks.drinkList
+	if not list then return end
+	for i = 1, #list do
+		local drink = list[i]
+		if drink then drink._eqolSortMana = getDrinkManaValue(drink, maxMana) end
+	end
+end
+
 local function sortDrinkList(maxMana)
-	table.sort(addon.Drinks.drinkList, function(a, b) return getDrinkManaValue(a, maxMana) > getDrinkManaValue(b, maxMana) end)
+	local list = addon.Drinks and addon.Drinks.drinkList
+	if not list then return end
+	refreshDrinkSortKeys(maxMana)
+	table.sort(list, function(a, b) return ((a and a._eqolSortMana) or 0) > ((b and b._eqolSortMana) or 0) end)
 end
 
 function addon.functions.updateAllowedDrinks()
@@ -720,7 +732,8 @@ function addon.functions.updateAllowedDrinks()
 		if drink.isMageFood then mageFoodMap[drink.id] = true end
 
 		local req = drink.requiredLevel
-		local dMana = getDrinkManaValue(drink, mana)
+		local dMana = drink._eqolSortMana
+		if dMana == nil then dMana = getDrinkManaValue(drink, mana) end
 		if
 			req <= playerLevel
 			and (dMana >= minManaValue or (allowRecuperate and drink.id == 1231411 and addon.variables.unitClass ~= "MAGE") or (drink.id == 190336 and addon.variables.unitClass == "MAGE"))

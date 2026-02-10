@@ -1,10 +1,29 @@
 # Changelog
 
-## [7.12.0] - 2026-02-12
+## [7.12.0] - 2026-02-11
 
 ### ✨ Added
 
+- Unit Frames: Added configurable `Castbar strata` + `Castbar frame level offset` (Player/Target/Focus/Boss).
+- Unit Frames: Added configurable `Level text strata` + `Level text frame level offset`.
 - GCD Bar: Added `Match relative frame width` for anchored layouts, including live width sync with the selected relative frame.
+- GCD Bar: Anchor target list now focuses on supported EQoL anchors (legacy ActionBar/StanceBar entries removed).
+- Unit Frames: Added per-frame `Hide in vehicles` visibility option.
+- Cooldown Panels: Added per-panel `Hide in vehicles` display option.
+- Aura: Added per-module `Hide in pet battles` options for Unit Frames, Cooldown Panels, Resource Bars, and GCD Bar.
+- Aura: Added `Hide in client scenes` (e.g. minigames) for Unit Frames, Cooldown Panels, and Resource Bars (default enabled).
+- Resource Bars: Added per-bar `Click-through` option in Edit Mode
+
+### ⚡ Performance
+
+- Unit Frames: `setBackdrop`/`applyBarBackdrop` now run with style-diff caching, so unchanged backdrop styles are skipped instead of being reapplied every refresh.
+- Unit Frames: Edit Mode registration now batches refresh requests and skips no-op anchor `onApply` refreshes, reducing load-time spikes during UF frame/settings registration.
+- Drinks: Improved sorting
+
+### 🐛 Fixed
+
+- Tooltip: Fixed a rare error when hovering unit tooltips.
+- Objective Tracker: Hiding of M+ timer fixed
 
 ---
 

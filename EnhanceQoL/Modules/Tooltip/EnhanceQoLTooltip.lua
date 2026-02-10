@@ -18,6 +18,8 @@ local function now() return GetTime() end
 
 local function isSecret(value) return issecretvalue and issecretvalue(value) end
 
+local function isTooltipRestricted() return addon.functions and addon.functions.isRestrictedContent and addon.functions.isRestrictedContent(true) end
+
 local function safeEquals(a, b)
 	if a == nil or b == nil then return false end
 	if isSecret(a) or isSecret(b) then return false end
@@ -26,14 +28,16 @@ end
 
 local function safeFind(text, pattern, plain)
 	if not text or isSecret(text) then return nil end
-	if pattern == nil then return nil end
-	return text:find(pattern, 1, plain)
+	if pattern == nil or isSecret(pattern) then return nil end
+	if type(text) ~= "string" or type(pattern) ~= "string" then return nil end
+	return string.find(text, pattern, 1, plain)
 end
 
 local function safeMatch(text, pattern)
 	if not text or isSecret(text) then return nil end
-	if pattern == nil then return nil end
-	return text:match(pattern)
+	if pattern == nil or isSecret(pattern) then return nil end
+	if type(text) ~= "string" or type(pattern) ~= "string" then return nil end
+	return string.match(text, pattern)
 end
 
 local function GetUnitTokenFromTooltip(tt)
@@ -218,6 +222,7 @@ end)
 
 EnsureUnitData = function(unit)
 	if not unit or not UnitIsPlayer(unit) then return end
+	if isTooltipRestricted() then return end
 	-- Only fetch if at least one feature is enabled (opt-in)
 	if not (addon.db["TooltipUnitShowSpec"] or addon.db["TooltipUnitShowItemLevel"]) then return end
 	local guid = UnitGUID(unit)
@@ -1028,6 +1033,7 @@ end
 
 local function checkAdditionalUnit(tt)
 	if not (addon.db["TooltipUnitShowSpec"] or addon.db["TooltipUnitShowItemLevel"]) then return end
+	if isTooltipRestricted() then return end
 
 	local unit = GetUnitTokenFromTooltip(tt)
 	if not unit or not UnitIsPlayer(unit) then return end

@@ -1663,6 +1663,11 @@ function DataPanel.Create(id, name, existingOnly)
 				local buttonHeight = button:GetHeight()
 				local heightChanged = data.partsHeight ~= buttonHeight
 				if heightChanged then data.partsHeight = buttonHeight end
+				local partSpacing = tonumber(payload.partSpacing)
+				if not partSpacing then partSpacing = 5 end
+				if partSpacing < 0 then partSpacing = 0 end
+				local spacingChanged = data.partsSpacing ~= partSpacing
+				if spacingChanged then data.partsSpacing = partSpacing end
 				local totalWidth = 0
 				for i, part in ipairs(payload.parts) do
 					local secureSpec = part and part.secure
@@ -1723,16 +1728,60 @@ function DataPanel.Create(id, name, existingOnly)
 						child.slot = data
 						child:SetScript("OnEnter", partsOnEnter)
 						child:SetScript("OnLeave", partsOnLeave)
-						if i == 1 then
-							child:SetPoint("LEFT", button, "LEFT", 0, 0)
-						else
-							child:SetPoint("LEFT", data.parts[i - 1], "RIGHT", 5, 0)
-						end
 						data.parts[i] = child
 						isNew = true
 					end
+					if isNew or spacingChanged then
+						child:ClearAllPoints()
+						if i == 1 then
+							child:SetPoint("LEFT", button, "LEFT", 0, 0)
+						else
+							child:SetPoint("LEFT", data.parts[i - 1], "RIGHT", partSpacing, 0)
+						end
+					end
 					child.slot = data
 					child:Show()
+					local backdropSpec = part.backdrop
+					if backdropSpec then
+						local backdrop = child.eqolBackdrop
+						if not backdrop then
+							backdrop = CreateFrame("Frame", nil, child, "BackdropTemplate")
+							backdrop:SetFrameStrata(child:GetFrameStrata())
+							backdrop:SetFrameLevel(math.max((child:GetFrameLevel() or 1) - 1, 0))
+							child.eqolBackdrop = backdrop
+						end
+						local bgFile = backdropSpec.bgFile or "Interface\\Buttons\\WHITE8x8"
+						local edgeFile = backdropSpec.edgeFile or "Interface\\Buttons\\WHITE8x8"
+						local edgeSize = tonumber(backdropSpec.edgeSize) or 1
+						if edgeSize < 0.5 then edgeSize = 0.5 end
+						if backdrop.eqolBgFile ~= bgFile or backdrop.eqolEdgeFile ~= edgeFile or backdrop.eqolEdgeSize ~= edgeSize then
+							backdrop:SetBackdrop({
+								bgFile = bgFile,
+								edgeFile = edgeFile,
+								edgeSize = edgeSize,
+								insets = { left = 0, right = 0, top = 0, bottom = 0 },
+							})
+							backdrop.eqolBgFile = bgFile
+							backdrop.eqolEdgeFile = edgeFile
+							backdrop.eqolEdgeSize = edgeSize
+						end
+						local offset = tonumber(backdropSpec.offset) or 0
+						backdrop:ClearAllPoints()
+						backdrop:SetPoint("TOPLEFT", child, "TOPLEFT", -offset, offset)
+						backdrop:SetPoint("BOTTOMRIGHT", child, "BOTTOMRIGHT", offset, -offset)
+						local bgColor = backdropSpec.bgColor or { 0, 0, 0, 0.5 }
+						local borderColor = backdropSpec.borderColor or { 1, 1, 1, 0.7 }
+						backdrop:SetBackdropColor(bgColor[1] or bgColor.r or 0, bgColor[2] or bgColor.g or 0, bgColor[3] or bgColor.b or 0, bgColor[4] or bgColor.a or 0.5)
+						backdrop:SetBackdropBorderColor(
+							borderColor[1] or borderColor.r or 1,
+							borderColor[2] or borderColor.g or 1,
+							borderColor[3] or borderColor.b or 1,
+							borderColor[4] or borderColor.a or 0.7
+						)
+						backdrop:Show()
+					elseif child.eqolBackdrop then
+						child.eqolBackdrop:Hide()
+					end
 					if isSecure then
 						local needsSecureConfig = not child.secureConfigured or (secureKey and child.secureKey ~= secureKey)
 						if needsSecureConfig then
@@ -1754,7 +1803,13 @@ function DataPanel.Create(id, name, existingOnly)
 							child.secureKey = secureKey
 						end
 					end
-					if isNew or heightChanged then child:SetHeight(buttonHeight) end
+					local partHeight = tonumber(part.height)
+					if not partHeight then partHeight = tonumber(part.iconHeight) or tonumber(part.iconSize) or tonumber(part.iconWidth) or buttonHeight end
+					if partHeight < buttonHeight then partHeight = buttonHeight end
+					if isNew or heightChanged or child.lastHeight ~= partHeight then
+						child.lastHeight = partHeight
+						child:SetHeight(partHeight)
+					end
 					if isNew or partsFontChanged then panel:ApplyFontStyle(child.text, font, size) end
 					local iconSpec = part.icon
 					local overlaySpec = part.iconOverlay
@@ -1770,10 +1825,29 @@ function DataPanel.Create(id, name, existingOnly)
 								return tex
 							end
 							if not tex then tex = child:CreateTexture(nil, "ARTWORK", nil, sublevel) end
+							local tc = spec.texCoord
 							if spec.atlas then
 								tex:SetAtlas(spec.atlas, true)
+								if type(tc) == "table" then
+									local l = tc[1] or 0
+									local r = tc[2] or 1
+									local t = tc[3] or 0
+									local b = tc[4] or 1
+									tex:SetTexCoord(l, r, t, b)
+								else
+									tex:SetTexCoord(0, 1, 0, 1)
+								end
 							elseif spec.texture then
 								tex:SetTexture(spec.texture)
+								if type(tc) == "table" then
+									local l = tc[1] or 0
+									local r = tc[2] or 1
+									local t = tc[3] or 0
+									local b = tc[4] or 1
+									tex:SetTexCoord(l, r, t, b)
+								else
+									tex:SetTexCoord(0, 1, 0, 1)
+								end
 							end
 							local color = spec.vertexColor or spec.color
 							if type(color) == "table" then
@@ -1827,7 +1901,7 @@ function DataPanel.Create(id, name, existingOnly)
 						if (isNew or textChanged or partsFontChanged) and hasInlineTexture(rawText) then panel:ScheduleTextReflow() end
 					end
 					child.currencyID = part.id
-					totalWidth = totalWidth + (child.lastWidth or 0) + (i > 1 and 5 or 0)
+					totalWidth = totalWidth + (child.lastWidth or 0) + (i > 1 and partSpacing or 0)
 				end
 				if data.parts then
 					for i = #payload.parts + 1, #data.parts do

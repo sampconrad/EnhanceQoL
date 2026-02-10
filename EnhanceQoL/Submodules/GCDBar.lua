@@ -48,6 +48,7 @@ GCDBar.defaults = GCDBar.defaults
 		anchorRelativePoint = "CENTER",
 		anchorOffsetX = 0,
 		anchorOffsetY = -120,
+		hideInPetBattle = false,
 	}
 
 local defaults = GCDBar.defaults
@@ -73,6 +74,7 @@ local DB_ANCHOR_POINT = "gcdBarAnchorPoint"
 local DB_ANCHOR_RELATIVE_POINT = "gcdBarAnchorRelativePoint"
 local DB_ANCHOR_OFFSET_X = "gcdBarAnchorOffsetX"
 local DB_ANCHOR_OFFSET_Y = "gcdBarAnchorOffsetY"
+local DB_HIDE_IN_PET_BATTLE = "gcdBarHideInPetBattle"
 
 local DEFAULT_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
 local GetSpellCooldownInfo = (C_Spell and C_Spell.GetSpellCooldown) or GetSpellCooldown
@@ -84,6 +86,10 @@ local function getValue(key, fallback)
 	if value == nil then return fallback end
 	return value
 end
+
+local function shouldHideInPetBattleForGCD() return getValue(DB_HIDE_IN_PET_BATTLE, defaults.hideInPetBattle) == true end
+
+local function isPetBattleActive() return C_PetBattles and C_PetBattles.IsInBattle and C_PetBattles.IsInBattle() == true end
 
 local function clamp(value, minValue, maxValue)
 	value = tonumber(value) or minValue
@@ -283,6 +289,8 @@ end
 function GCDBar:GetAnchorOffsetX() return normalizeAnchorOffset(getValue(DB_ANCHOR_OFFSET_X, defaults.anchorOffsetX), defaults.anchorOffsetX) end
 
 function GCDBar:GetAnchorOffsetY() return normalizeAnchorOffset(getValue(DB_ANCHOR_OFFSET_Y, defaults.anchorOffsetY), defaults.anchorOffsetY) end
+
+function GCDBar:GetHideInPetBattle() return shouldHideInPetBattleForGCD() end
 
 function GCDBar:AnchorUsesUIParent() return self:GetAnchorRelativeFrame() == ANCHOR_TARGET_UI end
 
@@ -615,6 +623,10 @@ end
 function GCDBar:UpdateGCD()
 	if self.previewing then return end
 	if not self.frame then return end
+	if shouldHideInPetBattleForGCD() and isPetBattleActive() then
+		self:StopTimer()
+		return
+	end
 	self:MaybeUpdateAnchor()
 	if not GetSpellCooldownInfo then return end
 
@@ -641,7 +653,7 @@ function GCDBar:UpdateGCD()
 end
 
 function GCDBar:OnEvent(event, spellID, baseSpellID)
-	if event ~= "SPELL_UPDATE_COOLDOWN" then return end
+	if event ~= "SPELL_UPDATE_COOLDOWN" and event ~= "PET_BATTLE_OPENING_START" and event ~= "PET_BATTLE_CLOSE" then return end
 	self:UpdateGCD()
 end
 
@@ -649,6 +661,8 @@ function GCDBar:RegisterEvents()
 	if self.eventsRegistered then return end
 	local frame = self:EnsureFrame()
 	frame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+	frame:RegisterEvent("PET_BATTLE_OPENING_START")
+	frame:RegisterEvent("PET_BATTLE_CLOSE")
 	frame:SetScript("OnEvent", function(_, event, ...) GCDBar:OnEvent(event, ...) end)
 	self.eventsRegistered = true
 end
@@ -656,6 +670,8 @@ end
 function GCDBar:UnregisterEvents()
 	if not self.eventsRegistered or not self.frame then return end
 	self.frame:UnregisterEvent("SPELL_UPDATE_COOLDOWN")
+	self.frame:UnregisterEvent("PET_BATTLE_OPENING_START")
+	self.frame:UnregisterEvent("PET_BATTLE_CLOSE")
 	self.frame:SetScript("OnEvent", nil)
 	self.eventsRegistered = false
 end
@@ -690,6 +706,8 @@ function GCDBar:ApplyLayoutData(data)
 	local anchorRelativePoint = normalizeAnchorPoint(data.relativePoint or addon.db[DB_ANCHOR_RELATIVE_POINT], anchorPoint)
 	local anchorOffsetX = normalizeAnchorOffset(data.x ~= nil and data.x or addon.db[DB_ANCHOR_OFFSET_X], defaults.anchorOffsetX)
 	local anchorOffsetY = normalizeAnchorOffset(data.y ~= nil and data.y or addon.db[DB_ANCHOR_OFFSET_Y], defaults.anchorOffsetY)
+	local hideInPetBattle = addon.db[DB_HIDE_IN_PET_BATTLE] == true
+	if data.hideInPetBattle ~= nil then hideInPetBattle = data.hideInPetBattle == true end
 
 	addon.db[DB_WIDTH] = width
 	addon.db[DB_HEIGHT] = height
@@ -712,6 +730,7 @@ function GCDBar:ApplyLayoutData(data)
 	addon.db[DB_ANCHOR_RELATIVE_POINT] = anchorRelativePoint
 	addon.db[DB_ANCHOR_OFFSET_X] = anchorOffsetX
 	addon.db[DB_ANCHOR_OFFSET_Y] = anchorOffsetY
+	addon.db[DB_HIDE_IN_PET_BATTLE] = hideInPetBattle and true or false
 
 	self:ApplySize()
 	self:ApplyAppearance()
@@ -832,6 +851,10 @@ local function applySetting(field, value)
 		addon.db[DB_ANCHOR_OFFSET_Y] = offset
 		editField = "y"
 		value = offset
+	elseif field == "hideInPetBattle" then
+		local enabled = value == true
+		addon.db[DB_HIDE_IN_PET_BATTLE] = enabled and true or false
+		value = enabled
 	end
 
 	if not skipEditValue and EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_ID, editField, value, nil, true) end
@@ -979,6 +1002,14 @@ function GCDBar:RegisterEditMode()
 				get = function() return GCDBar:GetAnchorMatchWidth() end,
 				set = function(_, value) applySetting("anchorMatchWidth", value) end,
 				isEnabled = function() return not GCDBar:AnchorUsesUIParent() end,
+			},
+			{
+				name = L["gcdBarHideInPetBattle"] or "Hide in pet battles",
+				kind = SettingType.Checkbox,
+				field = "hideInPetBattle",
+				default = defaults.hideInPetBattle == true,
+				get = function() return GCDBar:GetHideInPetBattle() end,
+				set = function(_, value) applySetting("hideInPetBattle", value) end,
 			},
 			{
 				name = L["gcdBarWidth"] or "Bar width",
@@ -1192,6 +1223,7 @@ function GCDBar:RegisterEditMode()
 			fillDirection = self:GetFillDirection(),
 			anchorRelativeFrame = self:GetAnchorRelativeFrame(),
 			anchorMatchWidth = self:GetAnchorMatchWidth(),
+			hideInPetBattle = self:GetHideInPetBattle(),
 			color = (function()
 				local r, g, b, a = self:GetColor()
 				return { r = r, g = g, b = b, a = a }

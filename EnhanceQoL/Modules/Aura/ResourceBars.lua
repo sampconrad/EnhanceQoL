@@ -962,6 +962,8 @@ local function exportResourceProfile(scopeKey, profileName)
 			if db.resourceBarsHideOutOfCombat ~= nil then globals.resourceBarsHideOutOfCombat = db.resourceBarsHideOutOfCombat and true or false end
 			if db.resourceBarsHideMounted ~= nil then globals.resourceBarsHideMounted = db.resourceBarsHideMounted and true or false end
 			if db.resourceBarsHideVehicle ~= nil then globals.resourceBarsHideVehicle = db.resourceBarsHideVehicle and true or false end
+			if db.resourceBarsHidePetBattle ~= nil then globals.resourceBarsHidePetBattle = db.resourceBarsHidePetBattle and true or false end
+			if db.resourceBarsHideClientScene ~= nil then globals.resourceBarsHideClientScene = db.resourceBarsHideClientScene and true or false end
 			if type(db.globalResourceBarSettings) == "table" then globals.globalResourceBarSettings = CopyTable(db.globalResourceBarSettings) end
 			if next(globals) then payload.globalSettings = globals end
 		end
@@ -1054,6 +1056,9 @@ local function importResourceProfile(encoded, scopeKey)
 		if global.resourceBarsHideOutOfCombat ~= nil then addon.db.resourceBarsHideOutOfCombat = global.resourceBarsHideOutOfCombat and true or false end
 		if global.resourceBarsHideMounted ~= nil then addon.db.resourceBarsHideMounted = global.resourceBarsHideMounted and true or false end
 		if global.resourceBarsHideVehicle ~= nil then addon.db.resourceBarsHideVehicle = global.resourceBarsHideVehicle and true or false end
+		if global.resourceBarsHidePetBattle ~= nil then addon.db.resourceBarsHidePetBattle = global.resourceBarsHidePetBattle and true or false end
+		if global.resourceBarsHideClientScene ~= nil then addon.db.resourceBarsHideClientScene = global.resourceBarsHideClientScene and true or false end
+		if global.resourceBarsHidePetBattle == nil and global.auraHideInPetBattle ~= nil then addon.db.resourceBarsHidePetBattle = global.auraHideInPetBattle and true or false end
 		if type(global.globalResourceBarSettings) == "table" then addon.db.globalResourceBarSettings = CopyTable(global.globalResourceBarSettings) end
 	end
 
@@ -1256,6 +1261,8 @@ local function resolveTexture(cfg)
 	if sel == nil or sel == "DEFAULT" or not isValidStatusbarPath(sel) then return RB.DEFAULT_RB_TEX end
 	return sel
 end
+
+local function shouldEnableBarMouse(cfg) return not (cfg and cfg.clickThrough == true) end
 
 local function isEQOLFrameName(name)
 	if name == "EQOLHealthBar" then return true end
@@ -1859,14 +1866,9 @@ mapFormID("TRAVEL", DRUID_TRAVEL_FORM, DRUID_ACQUATIC_FORM, DRUID_FLIGHT_FORM, D
 mapFormID("MOONKIN", DRUID_MOONKIN_FORM_1, DRUID_MOONKIN_FORM_2)
 mapFormID("HUMANOID", DRUID_TREE_FORM)
 local formKeyToIndex = {}
-local druidStanceOrder = {}
 for idx, key in pairs(formIndexToKey) do
 	formKeyToIndex[key] = idx
-	if type(idx) == "number" and idx > 0 then druidStanceOrder[#druidStanceOrder + 1] = idx end
 end
-tsort(druidStanceOrder)
-local druidStanceString = table.concat(druidStanceOrder, "/")
-local DRUID_HUMANOID_VISIBILITY_CLAUSE = (druidStanceString and druidStanceString ~= "") and ("[combat,nostance:%s] show"):format(druidStanceString) or "[combat] show"
 local DRUID_FORM_SEQUENCE = { "HUMANOID", "BEAR", "CAT", "TRAVEL", "MOONKIN", "STAG" }
 local function shouldUseDruidFormDriver(cfg)
 	if addon.variables.unitClass ~= "DRUID" then return false end
@@ -1888,8 +1890,63 @@ local function mapFormNameToKey(name)
 	if name:find("moonkin") or name:find("owl") then return "MOONKIN" end
 	if name:find("treant") then return "HUMANOID" end
 	if name:find("tree of life") or name:find("tree form") or name:find("treeform") then return "HUMANOID" end
+	if name:find("mount") then return "STAG" end
 	if name:find("stag") then return "STAG" end
 	return nil
+end
+
+local function resolveFormKeyFromShapeshiftIndex(idx)
+	if not idx or idx <= 0 or not GetShapeshiftFormInfo then return nil end
+	local texture, _, _, spellID = GetShapeshiftFormInfo(idx)
+	if spellID and C_Spell and C_Spell.GetSpellName then
+		local key = mapFormNameToKey(C_Spell.GetSpellName(spellID))
+		if key then return key end
+	end
+	if type(texture) == "string" then
+		local key = mapFormNameToKey(texture)
+		if key then return key end
+	end
+	return nil
+end
+
+local function addUniqueStanceIndex(dst, idx)
+	if not dst or not idx or idx <= 0 then return end
+	for i = 1, #dst do
+		if dst[i] == idx then return end
+	end
+	dst[#dst + 1] = idx
+end
+
+local function getDruidFormStanceMap()
+	local map = {}
+	if addon.variables.unitClass ~= "DRUID" then return map end
+
+	local numForms = GetNumShapeshiftForms and GetNumShapeshiftForms() or 0
+	for idx = 1, numForms do
+		local key = resolveFormKeyFromShapeshiftIndex(idx)
+		if key then
+			map[key] = map[key] or {}
+			addUniqueStanceIndex(map[key], idx)
+		end
+	end
+
+	local activeIdx = GetShapeshiftForm and (GetShapeshiftForm() or 0) or 0
+	if activeIdx > 0 then
+		local activeKey
+		if GetShapeshiftFormID then activeKey = formIDToKey[GetShapeshiftFormID()] end
+		if not activeKey then activeKey = resolveFormKeyFromShapeshiftIndex(activeIdx) end
+		if not activeKey then activeKey = formIndexToKey[activeIdx] end
+		if activeKey then
+			map[activeKey] = map[activeKey] or {}
+			addUniqueStanceIndex(map[activeKey], activeIdx)
+		end
+	end
+
+	for _, indices in pairs(map) do
+		tsort(indices)
+	end
+
+	return map
 end
 
 local function ensureDruidShowFormsDefaults(cfg, pType, specInfo)
@@ -3826,7 +3883,7 @@ local function createPowerBar(type, anchor)
 
 	-- Dragging disabled outside Edit Mode; positioning handled via Edit Mode
 	bar:SetMovable(false)
-	bar:EnableMouse(false)
+	bar:EnableMouse(shouldEnableBarMouse(settings))
 	bar:Show()
 	if type == "RUNES" then ResourceBars.ForceRuneRecolor() end
 	updatePowerBar(type)
@@ -3900,18 +3957,9 @@ local function setPowerbars(opts)
 			if key then return key end
 		end
 		local idx = GetShapeshiftForm() or 0
-		local key = formIndexToKey[idx]
+		local key = resolveFormKeyFromShapeshiftIndex(idx)
 		if key then return key end
-		local name
-		if GetShapeshiftFormInfo then
-			local r1, r2 = GetShapeshiftFormInfo(idx)
-			if type(r1) == "string" then
-				name = r1
-			elseif type(r2) == "string" then
-				name = r2
-			end
-		end
-		key = mapFormNameToKey(name)
+		key = formIndexToKey[idx]
 		if key then return key end
 		return "HUMANOID"
 	end
@@ -4027,6 +4075,7 @@ addon.Aura.functions.setPowerBars = setPowerbars
 local function shouldHideResourceBarsOutOfCombat() return addon and addon.db and addon.db.resourceBarsHideOutOfCombat == true end
 local function shouldHideResourceBarsMounted() return addon and addon.db and addon.db.resourceBarsHideMounted == true end
 local function shouldHideResourceBarsInVehicle() return addon and addon.db and addon.db.resourceBarsHideVehicle == true end
+local function shouldHideResourceBarsInPetBattle() return addon and addon.db and addon.db.resourceBarsHidePetBattle == true end
 
 local function forEachResourceBarFrame(callback)
 	if type(callback) ~= "function" then return end
@@ -4042,10 +4091,11 @@ local function resolveBarConfigForFrame(pType, frame)
 	return cfg
 end
 
-local function buildDruidVisibilityExpression(cfg, hideOutOfCombat)
+local function buildDruidVisibilityExpression(cfg, hideOutOfCombat, formStanceMap)
 	if not shouldUseDruidFormDriver(cfg) then return nil end
 	local showForms = cfg.showForms
 	local clauses = {}
+	local seen = {}
 	local function appendClause(formCondition)
 		local cond = formCondition
 		if hideOutOfCombat then
@@ -4055,23 +4105,33 @@ local function buildDruidVisibilityExpression(cfg, hideOutOfCombat)
 				cond = "combat"
 			end
 		end
-		if cond and cond ~= "" then clauses[#clauses + 1] = ("[%s] show"):format(cond) end
+		if cond and cond ~= "" then
+			local clause = ("[%s] show"):format(cond)
+			if not seen[clause] then
+				seen[clause] = true
+				clauses[#clauses + 1] = clause
+			end
+		end
 	end
 
 	if showForms.HUMANOID ~= false then
-		local humanoidCondition
-		if druidStanceString and druidStanceString ~= "" then
-			humanoidCondition = "nostance:" .. druidStanceString
-		else
-			humanoidCondition = "nostance"
+		appendClause("nostance")
+		for _, idx in ipairs((formStanceMap and formStanceMap.HUMANOID) or {}) do
+			if idx and idx > 0 then appendClause("stance:" .. idx) end
 		end
-		appendClause(humanoidCondition)
 	end
 	for i = 2, #DRUID_FORM_SEQUENCE do
 		local key = DRUID_FORM_SEQUENCE[i]
 		if showForms[key] ~= false then
-			local idx = formKeyToIndex[key]
-			if idx and idx > 0 then appendClause("stance:" .. idx) end
+			local indices = formStanceMap and formStanceMap[key]
+			if indices and #indices > 0 then
+				for _, idx in ipairs(indices) do
+					if idx and idx > 0 then appendClause("stance:" .. idx) end
+				end
+			else
+				local idx = formKeyToIndex[key]
+				if idx and idx > 0 then appendClause("stance:" .. idx) end
+			end
 		end
 	end
 	if #clauses == 0 then return "hide" end
@@ -4083,18 +4143,21 @@ local function buildVisibilityDriverForBar(cfg)
 	local hideOOC = shouldHideResourceBarsOutOfCombat()
 	local hideMounted = shouldHideResourceBarsMounted()
 	local hideVehicle = shouldHideResourceBarsInVehicle()
+	local hidePetBattle = shouldHideResourceBarsInPetBattle()
 	cfg = cfg or {}
-	local druidExpr = buildDruidVisibilityExpression(cfg, hideOOC)
-	if not hideOOC and not hideMounted and not hideVehicle and not druidExpr then return nil, false end
+	local formStanceMap = addon.variables.unitClass == "DRUID" and getDruidFormStanceMap() or nil
+	local druidExpr = buildDruidVisibilityExpression(cfg, hideOOC, formStanceMap)
+	if not hideOOC and not hideMounted and not hideVehicle and not hidePetBattle and not druidExpr then return nil, false end
 
 	local clauses = {}
+	if hidePetBattle then clauses[#clauses + 1] = "[petbattle] hide" end
 	if hideVehicle then clauses[#clauses + 1] = "[vehicleui] hide" end
 	if hideMounted then
 		clauses[#clauses + 1] = "[mounted] hide"
 		if addon.variables.unitClass == "DRUID" then
-			local travelIdx = formKeyToIndex.TRAVEL
+			local travelIdx = (formStanceMap and formStanceMap.TRAVEL and formStanceMap.TRAVEL[1]) or formKeyToIndex.TRAVEL
 			if travelIdx and travelIdx > 0 then clauses[#clauses + 1] = ("[stance:%d] hide"):format(travelIdx) end
-			local stagIdx = formKeyToIndex.STAG
+			local stagIdx = (formStanceMap and formStanceMap.STAG and formStanceMap.STAG[1]) or formKeyToIndex.STAG
 			if stagIdx and stagIdx > 0 then clauses[#clauses + 1] = ("[stance:%d] hide"):format(stagIdx) end
 		end
 	end
@@ -4196,41 +4259,53 @@ end
 
 function ResourceBars.ApplyVisibilityPreference(context)
 	if not RegisterStateDriver or not UnregisterStateDriver then return end
-	if not canApplyVisibilityDriver() then return end
-	ResourceBars._pendingVisibilityDriver = nil
-	local enabled = not (addon and addon.db and addon.db.enableResourceFrame == false)
+	local canApplyDriver = canApplyVisibilityDriver()
+	if canApplyDriver then ResourceBars._pendingVisibilityDriver = nil end
+	local barsEnabled = not (addon and addon.db and addon.db.enableResourceFrame == false)
 	local editModeActive = addon.EditMode and addon.EditMode.IsInEditMode and addon.EditMode:IsInEditMode()
+	local hideInClientScene = not editModeActive and ResourceBars.ShouldHideInClientScene and ResourceBars.ShouldHideInClientScene() and ResourceBars._clientSceneOpen == true
 	local driverWasActive = ResourceBars._visibilityDriverActive == true
-	if not enabled then
+	if not barsEnabled then
 		forEachResourceBarFrame(function(frame)
-			applyVisibilityDriverToFrame(frame, nil)
+			if canApplyDriver then applyVisibilityDriverToFrame(frame, nil) end
 			if frame then frame._rbDruidFormDriver = nil end
+			if ResourceBars.ApplyClientSceneAlphaToFrame then ResourceBars.ApplyClientSceneAlphaToFrame(frame, false) end
 		end)
-		ResourceBars._visibilityDriverActive = false
+		if canApplyDriver then
+			ResourceBars._visibilityDriverActive = false
+		else
+			ResourceBars._visibilityDriverActive = driverWasActive
+		end
 		return
 	end
 	local driverActiveNow = false
 	forEachResourceBarFrame(function(frame, pType)
 		local cfg = resolveBarConfigForFrame(pType, frame)
-		local enabled = cfg and cfg.enabled == true
-		if enabled then
+		local barEnabled = cfg and cfg.enabled == true
+		if barEnabled then
 			if editModeActive then
-				applyVisibilityDriverToFrame(frame, "show")
+				if canApplyDriver then applyVisibilityDriverToFrame(frame, "show") end
 				frame._rbDruidFormDriver = nil
 				driverActiveNow = true
 			else
 				local expr, hasDruidRule = buildVisibilityDriverForBar(cfg)
 				if expr then driverActiveNow = true end
-				applyVisibilityDriverToFrame(frame, expr)
+				if canApplyDriver then applyVisibilityDriverToFrame(frame, expr) end
 				frame._rbDruidFormDriver = hasDruidRule or nil
 			end
+			if ResourceBars.ApplyClientSceneAlphaToFrame then ResourceBars.ApplyClientSceneAlphaToFrame(frame, hideInClientScene) end
 		else
-			applyVisibilityDriverToFrame(frame, nil)
+			if canApplyDriver then applyVisibilityDriverToFrame(frame, nil) end
 			if frame then frame._rbDruidFormDriver = nil end
+			if ResourceBars.ApplyClientSceneAlphaToFrame then ResourceBars.ApplyClientSceneAlphaToFrame(frame, false) end
 		end
 	end)
-	ResourceBars._visibilityDriverActive = driverActiveNow
-	if driverWasActive and not driverActiveNow and context ~= "fromSetPowerbars" and frameAnchor then setPowerbars() end
+	if canApplyDriver then
+		ResourceBars._visibilityDriverActive = driverActiveNow
+		if driverWasActive and not driverActiveNow and context ~= "fromSetPowerbars" and frameAnchor then setPowerbars() end
+	else
+		ResourceBars._visibilityDriverActive = driverWasActive
+	end
 end
 
 local resourceBarsLoaded = addon.Aura.ResourceBars ~= nil
@@ -4278,6 +4353,14 @@ local function eventHandler(self, event, unit, arg1)
 	elseif event == "TRAIT_CONFIG_UPDATED" then
 		scheduleSpecRefresh()
 		if scheduleRelativeFrameWidthSync then scheduleRelativeFrameWidthSync() end
+	elseif event == "CLIENT_SCENE_OPENED" then
+		ResourceBars._clientSceneOpen = true
+		ResourceBars.ApplyVisibilityPreference(event)
+		return
+	elseif event == "CLIENT_SCENE_CLOSED" then
+		ResourceBars._clientSceneOpen = false
+		ResourceBars.ApplyVisibilityPreference(event)
+		return
 	elseif event == "PLAYER_ENTERING_WORLD" then
 		updateHealthBar("UNIT_ABSORB_AMOUNT_CHANGED")
 		setPowerbars()
@@ -4365,6 +4448,8 @@ function ResourceBars.EnableResourceBars()
 	frameAnchor:RegisterEvent("PLAYER_ENTERING_WORLD")
 	frameAnchor:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
 	frameAnchor:RegisterEvent("TRAIT_CONFIG_UPDATED")
+	frameAnchor:RegisterEvent("CLIENT_SCENE_OPENED")
+	frameAnchor:RegisterEvent("CLIENT_SCENE_CLOSED")
 	frameAnchor:SetScript("OnEvent", eventHandler)
 	frameAnchor:Hide()
 
@@ -4386,6 +4471,7 @@ function ResourceBars.EnableResourceBars()
 end
 
 function ResourceBars.DisableResourceBars()
+	ResourceBars._clientSceneOpen = false
 	if frameAnchor then
 		frameAnchor:UnregisterAllEvents()
 		frameAnchor:SetScript("OnEvent", nil)
@@ -4675,10 +4761,10 @@ function ResourceBars.Refresh()
 			bar:SetPoint(a.point or "TOPLEFT", rel, a.relativePoint or a.point or "TOPLEFT", a.x or 0, a.y or 0)
 			-- Update movability based on anchor target (only movable when relative to UIParent)
 			local isUI = (a.relativeFrame or "UIParent") == "UIParent"
-			bar:SetMovable(isUI)
-			bar:EnableMouse(isUI)
-
 			local cfg = getBarSettings(pType)
+			bar:SetMovable(isUI)
+			bar:EnableMouse(shouldEnableBarMouse(cfg))
+
 			bar._cfg = cfg
 			local defaultStyle = (pType == "MANA" or pType == "STAGGER") and "PERCENT" or "CURMAX"
 			bar._style = (cfg and cfg.textStyle) or defaultStyle
@@ -4969,7 +5055,8 @@ function ResourceBars.ReanchorAll()
 			bar:SetPoint(a.point or "TOPLEFT", rel, a.relativePoint or a.point or "TOPLEFT", a.x or 0, a.y or 0)
 			local isUI = (a.relativeFrame or "UIParent") == "UIParent"
 			bar:SetMovable(isUI)
-			bar:EnableMouse(isUI)
+			local cfg = getBarSettings(pType)
+			bar:EnableMouse(shouldEnableBarMouse(cfg))
 		end
 	end
 

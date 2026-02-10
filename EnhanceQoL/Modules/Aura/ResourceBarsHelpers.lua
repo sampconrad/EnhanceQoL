@@ -10,6 +10,19 @@ end
 local ResourceBars = addon.Aura and addon.Aura.ResourceBars
 if not ResourceBars then return end
 
+function ResourceBars.ShouldHideInClientScene() return addon and addon.db and addon.db.resourceBarsHideClientScene == true end
+
+function ResourceBars.ApplyClientSceneAlphaToFrame(frame, forceHide)
+	if not (frame and frame.SetAlpha) then return end
+	if forceHide then
+		frame._rbClientSceneAlphaHidden = true
+		if frame.GetAlpha and frame:GetAlpha() ~= 0 then frame:SetAlpha(0) end
+	elseif frame._rbClientSceneAlphaHidden then
+		frame._rbClientSceneAlphaHidden = nil
+		if frame.GetAlpha and frame:GetAlpha() == 0 then frame:SetAlpha(1) end
+	end
+end
+
 local function normalizeGradientColor(value)
 	if type(value) == "table" then
 		if value.r ~= nil then return value.r or 1, value.g or 1, value.b or 1, value.a or 1 end

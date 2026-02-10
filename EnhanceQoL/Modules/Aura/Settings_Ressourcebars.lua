@@ -198,9 +198,15 @@ local function notifyResourceBarSettings()
 	Settings.NotifyUpdate("EQOL_resourceBarsHideOutOfCombat")
 	Settings.NotifyUpdate("EQOL_resourceBarsHideMounted")
 	Settings.NotifyUpdate("EQOL_resourceBarsHideVehicle")
+	Settings.NotifyUpdate("EQOL_resourceBarsHidePetBattle")
+	Settings.NotifyUpdate("EQOL_resourceBarsHideClientScene")
 	for var in pairs(specSettingVars) do
 		Settings.NotifyUpdate("EQOL_" .. var)
 	end
+end
+
+local function applyResourceBarsVisibility(context)
+	if ResourceBars and ResourceBars.ApplyVisibilityPreference then ResourceBars.ApplyVisibilityPreference(context or "settings") end
 end
 local function ensureSpecCfg(specIndex)
 	local class = addon.variables.unitClass
@@ -509,6 +515,24 @@ local function registerEditModeBars()
 						applyBarSize()
 						queueRefresh()
 					end,
+				},
+				{
+					name = L["Click-through"] or "Click-through",
+					kind = settingType.Checkbox,
+					field = "clickThrough",
+					default = cfg and cfg.clickThrough == true,
+					parentId = "frame",
+					get = function()
+						local c = curSpecCfg()
+						return c and c.clickThrough == true
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.clickThrough = value and true or false
+						queueRefresh()
+					end,
+					isShown = function() return barType ~= "HEALTH" end,
 				},
 			}
 			if barType == "MAELSTROM_WEAPON" then
@@ -2865,9 +2889,39 @@ local function buildSettings()
 					sType = "checkbox",
 					parentSection = expandable,
 				},
-				{
-					var = "resourceBarsAutoEnable",
-					text = L["AutoEnableAllBars"] or "Auto-enable bars for new characters",
+					{
+						var = "resourceBarsHidePetBattle",
+						text = L["Hide in pet battles"] or "Hide in pet battles",
+						get = function() return addon.db["resourceBarsHidePetBattle"] end,
+						func = function(val)
+							addon.db["resourceBarsHidePetBattle"] = val and true or false
+							applyResourceBarsVisibility("settings")
+						end,
+						parent = true,
+						parentCheck = function() return addon.db["enableResourceFrame"] == true end,
+						sType = "checkbox",
+						parentSection = expandable,
+					},
+					{
+						var = "resourceBarsHideClientScene",
+						text = L["Hide in client scenes"] or "Hide in client scenes",
+						get = function()
+							local value = addon.db["resourceBarsHideClientScene"]
+							if value == nil then return true end
+							return value == true
+						end,
+						func = function(val)
+							addon.db["resourceBarsHideClientScene"] = val and true or false
+							applyResourceBarsVisibility("settings")
+						end,
+						parent = true,
+						parentCheck = function() return addon.db["enableResourceFrame"] == true end,
+						sType = "checkbox",
+						parentSection = expandable,
+					},
+					{
+						var = "resourceBarsAutoEnable",
+						text = L["AutoEnableAllBars"] or "Auto-enable bars for new characters",
 					sType = "multidropdown",
 					options = AUTO_ENABLE_OPTIONS,
 					order = AUTO_ENABLE_ORDER,
@@ -3091,6 +3145,7 @@ addon.Aura.functions.AddResourceBarsProfileSettings = function()
 						addon.Aura.functions.requestActiveRefresh(specIndex)
 					end
 				end
+				applyResourceBarsVisibility("import")
 				notifyResourceBarSettings()
 				if applied and #applied > 0 then
 					local specNames = {}

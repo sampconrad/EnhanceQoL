@@ -25,6 +25,8 @@ addon.variables.ufSampleHealAbsorb = addon.variables.ufSampleHealAbsorb or {}
 local maxBossFrames = MAX_BOSS_FRAMES or 5
 local UF_PROFILE_SHARE_KIND = "EQOL_UF_PROFILE"
 local smoothFill = Enum.StatusBarInterpolation.ExponentialEaseOut
+local SECRET_TEXT_UPDATE_INTERVAL = 0.1
+UF._clientSceneActive = false
 
 local function getSmoothInterpolation(cfg, def)
 	if not smoothFill then return nil end
@@ -218,6 +220,8 @@ end
 local defaults = {
 	player = {
 		enabled = false,
+		hideInPetBattle = false,
+		hideInClientScene = true,
 		showTooltip = false,
 		tooltipUseEditMode = false,
 		smoothFill = false,
@@ -314,6 +318,8 @@ local defaults = {
 			nameColorMode = "CLASS", -- CLASS or CUSTOM
 			nameColor = { 0.8, 0.8, 1, 1 },
 			levelColor = { 1, 0.85, 0, 1 },
+			levelStrata = nil,
+			levelFrameLevelOffset = 5,
 			nameOffset = { x = 0, y = 0 },
 			levelOffset = { x = 0, y = 0 },
 			levelEnabled = true,
@@ -376,6 +382,8 @@ local defaults = {
 			standalone = false,
 			width = 220,
 			height = 16,
+			strata = nil,
+			frameLevelOffset = nil,
 			anchor = "BOTTOM", -- or "TOP"
 			offset = { x = 0, y = -4 },
 			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
@@ -541,6 +549,8 @@ local defaults = {
 			enabled = true,
 			width = 200,
 			height = 16,
+			strata = nil,
+			frameLevelOffset = nil,
 			anchor = "BOTTOM", -- or "TOP"
 			offset = { x = 11, y = -4 },
 			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
@@ -755,6 +765,13 @@ if UFHelper and UFHelper.RangeFadeRegister then
 			st.frame:SetAlpha(targetAlpha)
 		end
 	end)
+end
+
+local function refreshRangeFadeSpells(rebuildSpellList)
+	if not UFHelper then return end
+	if UFHelper.RangeFadeMarkConfigDirty then UFHelper.RangeFadeMarkConfigDirty() end
+	if rebuildSpellList and UFHelper.RangeFadeMarkSpellListDirty then UFHelper.RangeFadeMarkSpellListDirty() end
+	if UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
 end
 
 local function copySettings(fromUnit, toUnit, opts)
@@ -2325,6 +2342,51 @@ function AuraUtil.updateTargetAuraIcons(startIndex, unit)
 	AuraUtil.updateAuraContainerSize(st.debuffContainer, math.min(debuffCount, ac.max), debuffLayout, perRowDebuff, debPrimary)
 end
 
+function AuraUtil.normalizeAuraQueryLimit(value)
+	value = math.floor(tonumber(value) or 0)
+	if value < 1 then return nil end
+	return value
+end
+
+function AuraUtil.getTargetAuraQueryLimits(ac, showBuffs, showDebuffs)
+	local maxCount = AuraUtil.normalizeAuraQueryLimit(ac and ac.max) or 16
+	local buffLimit
+	local debuffLimit
+
+	if showBuffs and showDebuffs and ac and ac.separateDebuffAnchor == true then
+		local debuffCount = math.floor(maxCount * 0.4)
+		if maxCount > 1 and debuffCount < 1 then debuffCount = 1 end
+		if debuffCount >= maxCount then debuffCount = maxCount - 1 end
+		if debuffCount < 0 then debuffCount = 0 end
+		local buffCount = maxCount - debuffCount
+		buffLimit = AuraUtil.normalizeAuraQueryLimit(buffCount + 1)
+		debuffLimit = AuraUtil.normalizeAuraQueryLimit(debuffCount + 1)
+	else
+		local cap = maxCount + 1
+		buffLimit = showBuffs and cap or nil
+		debuffLimit = showDebuffs and cap or nil
+	end
+
+	return buffLimit, debuffLimit
+end
+
+function AuraUtil.scanTargetAuraSlots(unit, filter, queryLimit, hidePermanent)
+	if not (unit and filter and C_UnitAuras and C_UnitAuras.GetAuraSlots and C_UnitAuras.GetAuraDataBySlot) then return end
+	local slots
+	if queryLimit then
+		slots = { C_UnitAuras.GetAuraSlots(unit, filter, queryLimit) }
+	else
+		slots = { C_UnitAuras.GetAuraSlots(unit, filter) }
+	end
+	for i = 2, #slots do
+		local aura = C_UnitAuras.GetAuraDataBySlot(unit, slots[i])
+		if aura and (not hidePermanent or not AuraUtil.isPermanentAura(aura, unit)) then
+			AuraUtil.cacheTargetAura(aura, unit)
+			AuraUtil.addTargetAuraToOrder(aura.auraInstanceID, unit)
+		end
+	end
+end
+
 function AuraUtil.fullScanTargetAuras(unit)
 	unit = unit or "target"
 	AuraUtil.resetTargetAuras(unit)
@@ -2357,51 +2419,9 @@ function AuraUtil.fullScanTargetAuras(unit)
 	end
 	local helpfulFilter, harmfulFilter = AuraUtil.getAuraFilters(unit)
 	local hidePermanent = ac.hidePermanentAuras == true or ac.hidePermanent == true
-	if C_UnitAuras and C_UnitAuras.GetUnitAuras then
-		if showBuffs then
-			local helpful = C_UnitAuras.GetUnitAuras(unit, helpfulFilter)
-			for i = 1, #helpful do
-				local aura = helpful[i]
-				if aura and (not hidePermanent or not AuraUtil.isPermanentAura(aura, unit)) then
-					AuraUtil.cacheTargetAura(aura, unit)
-					AuraUtil.addTargetAuraToOrder(aura.auraInstanceID, unit)
-				end
-			end
-		end
-		if showDebuffs then
-			local harmful = C_UnitAuras.GetUnitAuras(unit, harmfulFilter)
-			for i = 1, #harmful do
-				local aura = harmful[i]
-				if aura and (not hidePermanent or not AuraUtil.isPermanentAura(aura, unit)) then
-					AuraUtil.cacheTargetAura(aura, unit)
-					AuraUtil.addTargetAuraToOrder(aura.auraInstanceID, unit)
-				end
-			end
-		end
-	elseif C_UnitAuras and C_UnitAuras.GetAuraSlots then
-		if showBuffs then
-			local helpful = { C_UnitAuras.GetAuraSlots(unit, helpfulFilter) }
-			for i = 2, #helpful do
-				local slot = helpful[i]
-				local aura = C_UnitAuras.GetAuraDataBySlot(unit, slot)
-				if aura and (not hidePermanent or not AuraUtil.isPermanentAura(aura, unit)) then
-					AuraUtil.cacheTargetAura(aura, unit)
-					AuraUtil.addTargetAuraToOrder(aura.auraInstanceID, unit)
-				end
-			end
-		end
-		if showDebuffs then
-			local harmful = { C_UnitAuras.GetAuraSlots(unit, harmfulFilter) }
-			for i = 2, #harmful do
-				local slot = harmful[i]
-				local aura = C_UnitAuras.GetAuraDataBySlot(unit, slot)
-				if aura and (not hidePermanent or not AuraUtil.isPermanentAura(aura, unit)) then
-					AuraUtil.cacheTargetAura(aura, unit)
-					AuraUtil.addTargetAuraToOrder(aura.auraInstanceID, unit)
-				end
-			end
-		end
-	end
+	local helpfulLimit, harmfulLimit = AuraUtil.getTargetAuraQueryLimits(ac, showBuffs, showDebuffs)
+	if showBuffs then AuraUtil.scanTargetAuraSlots(unit, helpfulFilter, helpfulLimit, hidePermanent) end
+	if showDebuffs then AuraUtil.scanTargetAuraSlots(unit, harmfulFilter, harmfulLimit, hidePermanent) end
 	AuraUtil.updateTargetAuraIcons(nil, unit)
 end
 
@@ -2426,23 +2446,54 @@ local function getFrameInfo(frameName)
 	return nil
 end
 
+local function shouldHideInVehicle(cfg, def)
+	local value = cfg and cfg.hideInVehicle
+	if value == nil then value = def and def.hideInVehicle end
+	return value == true
+end
+
+local function shouldHideInPetBattle(cfg, def)
+	local value = cfg and cfg.hideInPetBattle
+	if value == nil then value = def and def.hideInPetBattle end
+	return value == true
+end
+
 local function applyVisibilityDriver(unit, enabled)
-	if InCombatLockdown() then return end
 	local st = states[unit]
-	if not st or not st.frame or not RegisterStateDriver then return end
+	if not st or not st.frame then return end
+	local cfg = ensureDB(unit)
+	local def = defaultsFor(unit)
+	local inEdit = addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode()
+	local hideInClientScene = UFHelper and UFHelper.shouldHideInClientScene and UFHelper.shouldHideInClientScene(cfg, def)
+	local forceClientSceneHide = enabled and not inEdit and hideInClientScene and UF._clientSceneActive == true
+	if UFHelper and UFHelper.applyClientSceneAlphaOverride then UFHelper.applyClientSceneAlphaOverride(st, forceClientSceneHide) end
+	if InCombatLockdown() then return end
+	if not RegisterStateDriver then return end
+	local hideInVehicle = enabled and shouldHideInVehicle(cfg, def)
+	local hideInPetBattle = enabled and unit ~= UNIT.PLAYER and shouldHideInPetBattle(cfg, def)
 	local cond
+	local baseCond
 	if not enabled then
 		cond = "hide"
 	elseif unit == UNIT.TARGET then
-		cond = "[@target,exists] show; hide"
+		baseCond = "[@target,exists] show; hide"
 	elseif unit == UNIT.TARGET_TARGET then
-		cond = "[@targettarget,exists] show; hide"
+		baseCond = "[@targettarget,exists] show; hide"
 	elseif unit == UNIT.FOCUS then
-		cond = "[@focus,exists] show; hide"
+		baseCond = "[@focus,exists] show; hide"
 	elseif unit == UNIT.PET then
-		cond = "[@pet,exists] show; hide"
+		baseCond = "[@pet,exists] show; hide"
 	elseif isBossUnit(unit) then
-		cond = ("[@%s,exists] show; hide"):format(unit)
+		baseCond = ("[@%s,exists] show; hide"):format(unit)
+	end
+	if enabled then
+		if hideInPetBattle or hideInVehicle or baseCond then
+			local clauses = {}
+			if hideInPetBattle then clauses[#clauses + 1] = "[petbattle] hide" end
+			if hideInVehicle then clauses[#clauses + 1] = "[vehicleui] hide" end
+			clauses[#clauses + 1] = baseCond or "show"
+			cond = table.concat(clauses, "; ")
+		end
 	end
 	if cond == st._visibilityCond then return end
 	if not cond then
@@ -2519,8 +2570,11 @@ end
 local function applyVisibilityRules(unit)
 	if not ApplyFrameVisibilityConfig then return end
 	local cfg = ensureDB(unit)
+	local def = defaultsFor(unit)
 	local inEdit = addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode()
 	local useConfig = (not inEdit and cfg and cfg.enabled) and normalizeVisibilityConfig(cfg.visibility) or nil
+	local hideInClientScene = UFHelper and UFHelper.shouldHideInClientScene and UFHelper.shouldHideInClientScene(cfg, def)
+	local forceClientSceneHide = not inEdit and cfg and cfg.enabled and hideInClientScene and UF._clientSceneActive == true
 	local fadeAlpha = nil
 	if not inEdit and cfg and type(cfg.visibilityFade) == "number" then
 		fadeAlpha = cfg.visibilityFade
@@ -2532,11 +2586,13 @@ local function applyVisibilityRules(unit)
 		for i = 1, maxBossFrames do
 			local info = UNITS["boss" .. i]
 			if info and info.frameName then ApplyFrameVisibilityConfig(info.frameName, { unitToken = "boss" }, useConfig, opts) end
+			if UFHelper and UFHelper.applyClientSceneAlphaOverride then UFHelper.applyClientSceneAlphaOverride(states["boss" .. i], forceClientSceneHide) end
 		end
 		return
 	end
 	local info = UNITS[unit]
 	if info and info.frameName then ApplyFrameVisibilityConfig(info.frameName, { unitToken = info.unit }, useConfig, opts) end
+	if UFHelper and UFHelper.applyClientSceneAlphaOverride then UFHelper.applyClientSceneAlphaOverride(states[unit], forceClientSceneHide) end
 end
 
 local function applyVisibilityRulesAll()
@@ -2546,6 +2602,19 @@ local function applyVisibilityRulesAll()
 	applyVisibilityRules("focus")
 	applyVisibilityRules("pet")
 	applyVisibilityRules("boss")
+end
+
+function UF.RefreshClientSceneVisibility()
+	applyVisibilityDriver(UNIT.PLAYER, ensureDB(UNIT.PLAYER).enabled)
+	applyVisibilityDriver(UNIT.TARGET, ensureDB(UNIT.TARGET).enabled)
+	applyVisibilityDriver(UNIT.TARGET_TARGET, ensureDB(UNIT.TARGET_TARGET).enabled)
+	applyVisibilityDriver(UNIT.FOCUS, ensureDB(UNIT.FOCUS).enabled)
+	applyVisibilityDriver(UNIT.PET, ensureDB(UNIT.PET).enabled)
+	local bossEnabled = ensureDB("boss").enabled
+	for i = 1, maxBossFrames do
+		applyVisibilityDriver("boss" .. i, bossEnabled)
+	end
+	applyVisibilityRulesAll()
 end
 
 local function hideBlizzardPlayerFrame()
@@ -2710,29 +2779,90 @@ local function ensureBorderFrame(frame)
 	return border
 end
 
+local BAR_BACKDROP_STYLE = {
+	bgFile = "Interface\\Buttons\\WHITE8x8",
+	edgeFile = nil,
+	tile = false,
+}
+
+local function unpackColor(color, defaultR, defaultG, defaultB, defaultA)
+	if type(color) ~= "table" then return defaultR, defaultG, defaultB, defaultA end
+	return color[1] or color.r or defaultR, color[2] or color.g or defaultG, color[3] or color.b or defaultB, color[4] or color.a or defaultA
+end
+
 local function setBackdrop(frame, borderCfg)
 	if not frame then return end
+	if frame.SetBackdrop and not frame._ufBackdropCleared then
+		frame:SetBackdrop(nil)
+		frame._ufBackdropCleared = true
+	end
 	if borderCfg and borderCfg.enabled then
-		if frame.SetBackdrop then frame:SetBackdrop(nil) end
 		local borderFrame = ensureBorderFrame(frame)
 		if not borderFrame then return end
-		local color = borderCfg.color or { 0, 0, 0, 0.8 }
+		local colorR, colorG, colorB, colorA = unpackColor(borderCfg.color, 0, 0, 0, 0.8)
+		local edgeSize = tonumber(borderCfg.edgeSize) or 1
 		local insetVal = borderCfg.inset
-		if insetVal == nil then insetVal = borderCfg.edgeSize or 1 end
-		borderFrame:SetBackdrop({
-			bgFile = "Interface\\Buttons\\WHITE8x8",
-			edgeFile = UFHelper.resolveBorderTexture(borderCfg.texture),
-			edgeSize = borderCfg.edgeSize or 1,
-			insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
-		})
-		borderFrame:SetBackdropColor(0, 0, 0, 0)
-		borderFrame:SetBackdropBorderColor(color[1] or 0, color[2] or 0, color[3] or 0, color[4] or 1)
+		if insetVal == nil then insetVal = edgeSize end
+		insetVal = tonumber(insetVal) or edgeSize
+		local edgeFile = UFHelper.resolveBorderTexture(borderCfg.texture)
+		local cache = borderFrame._ufBorderCache
+		local styleChanged = not cache
+			or cache.enabled ~= true
+			or cache.edgeFile ~= edgeFile
+			or cache.edgeSize ~= edgeSize
+			or cache.insetVal ~= insetVal
+			or cache.colorR ~= colorR
+			or cache.colorG ~= colorG
+			or cache.colorB ~= colorB
+			or cache.colorA ~= colorA
+		if styleChanged then
+			local style = borderFrame._ufBorderStyle
+			if not style then
+				style = {
+					bgFile = "Interface\\Buttons\\WHITE8x8",
+					edgeFile = edgeFile,
+					edgeSize = edgeSize,
+					insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
+				}
+				borderFrame._ufBorderStyle = style
+			else
+				style.edgeFile = edgeFile
+				style.edgeSize = edgeSize
+				local insets = style.insets
+				if not insets then
+					insets = {}
+					style.insets = insets
+				end
+				insets.left = insetVal
+				insets.right = insetVal
+				insets.top = insetVal
+				insets.bottom = insetVal
+			end
+			borderFrame:SetBackdrop(style)
+			borderFrame:SetBackdropColor(0, 0, 0, 0)
+			borderFrame:SetBackdropBorderColor(colorR, colorG, colorB, colorA)
+			cache = cache or {}
+			cache.enabled = true
+			cache.edgeFile = edgeFile
+			cache.edgeSize = edgeSize
+			cache.insetVal = insetVal
+			cache.colorR = colorR
+			cache.colorG = colorG
+			cache.colorB = colorB
+			cache.colorA = colorA
+			borderFrame._ufBorderCache = cache
+		end
 		borderFrame:Show()
 	else
-		if frame.SetBackdrop then frame:SetBackdrop(nil) end
 		local borderFrame = frame._ufBorder
 		if borderFrame then
-			borderFrame:SetBackdrop(nil)
+			local cache = borderFrame._ufBorderCache
+			if not cache or cache.enabled ~= false then
+				borderFrame:SetBackdrop(nil)
+				cache = cache or {}
+				cache.enabled = false
+				borderFrame._ufBorderCache = cache
+			end
 			borderFrame:Hide()
 		end
 	end
@@ -2742,19 +2872,33 @@ local function applyBarBackdrop(bar, cfg)
 	if not bar then return end
 	cfg = cfg or {}
 	local bd = cfg.backdrop or {}
+	local cache = bar._ufBackdropCache
 	if bd.enabled == false then
+		if cache and cache.enabled == false then return end
 		bar:SetBackdrop(nil)
+		cache = cache or {}
+		cache.enabled = false
+		bar._ufBackdropCache = cache
 		return
 	end
 	local texKey = (bd.texture == nil or bd.texture == "") and "SOLID" or bd.texture
 	local bgFile = (UFHelper and UFHelper.resolveTexture and UFHelper.resolveTexture(texKey)) or "Interface\\Buttons\\WHITE8x8"
-	local col = bd.color or { 0, 0, 0, 0.6 }
+	local colorR, colorG, colorB, colorA = unpackColor(bd.color, 0, 0, 0, 0.6)
+	local styleChanged = not cache or cache.enabled ~= true or cache.colorR ~= colorR or cache.colorG ~= colorG or cache.colorB ~= colorB or cache.colorA ~= colorA
+	if not styleChanged then return end
 	bar:SetBackdrop({
 		bgFile = bgFile,
 		edgeFile = nil,
 		tile = false,
 	})
-	bar:SetBackdropColor(col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.6)
+	bar:SetBackdropColor(colorR, colorG, colorB, colorA)
+	cache = cache or {}
+	cache.enabled = true
+	cache.colorR = colorR
+	cache.colorG = colorG
+	cache.colorB = colorB
+	cache.colorA = colorA
+	bar._ufBackdropCache = cache
 end
 
 local function ensureCastBorderFrame(st)
@@ -2866,6 +3010,8 @@ local function stopCast(unit)
 	end
 end
 
+local normalizeStrataToken
+
 local function applyCastLayout(cfg, unit)
 	local st = states[unit]
 	if not st or not st.castBar then return end
@@ -2880,6 +3026,14 @@ local function applyCastLayout(cfg, unit)
 	local off = ccfg.offset or defc.offset or { x = 0, y = -4 }
 	local centerOffset = (st and st._portraitCenterOffset) or 0
 	local anchorFrame = st.barGroup or st.frame
+	local castStrata = normalizeStrataToken(ccfg.strata) or normalizeStrataToken(defc.strata) or ((st.frame and st.frame.GetFrameStrata and st.frame:GetFrameStrata()) or "MEDIUM")
+	local castLevelOffset = tonumber(ccfg.frameLevelOffset)
+	if castLevelOffset == nil then castLevelOffset = tonumber(defc.frameLevelOffset) end
+	if castLevelOffset == nil then castLevelOffset = 1 end
+	local baseFrameLevel = (st.frame and st.frame.GetFrameLevel and st.frame:GetFrameLevel()) or 0
+	local castFrameLevel = math.max(0, baseFrameLevel + castLevelOffset)
+	if st.castBar.GetFrameStrata and st.castBar.SetFrameStrata and st.castBar:GetFrameStrata() ~= castStrata then st.castBar:SetFrameStrata(castStrata) end
+	if st.castBar.GetFrameLevel and st.castBar.SetFrameLevel and st.castBar:GetFrameLevel() ~= castFrameLevel then st.castBar:SetFrameLevel(castFrameLevel) end
 	st.castBar:ClearAllPoints()
 	if anchor == "TOP" then
 		st.castBar:SetPoint("BOTTOM", anchorFrame, "TOP", (off.x or 0) + centerOffset, off.y or 0)
@@ -3661,18 +3815,35 @@ local function updateHealth(cfg, unit)
 	local leftMode = hc.textLeft or "PERCENT"
 	local centerMode = hc.textCenter or "NONE"
 	local rightMode = hc.textRight or "CURMAX"
-	local delimiter = UFHelper.getTextDelimiter(hc, defH)
-	local delimiter2 = UFHelper.getTextDelimiterSecondary(hc, defH, delimiter)
-	local delimiter3 = UFHelper.getTextDelimiterTertiary(hc, defH, delimiter, delimiter2)
-	local hidePercentSymbol = hc.hidePercentSymbol == true
-	local roundPercent = hc.roundPercent == true
-	local hideClassText = shouldHideClassificationText(cfg, unit)
-	local levelText
-	if UFHelper.textModeUsesLevel(leftMode) or UFHelper.textModeUsesLevel(centerMode) or UFHelper.textModeUsesLevel(rightMode) then levelText = UFHelper.getUnitLevelText(unit, nil, hideClassText) end
+	local secretHealth = issecretvalue and (issecretvalue(cur) or issecretvalue(maxv))
+	local allowTextRefresh = true
+	if secretHealth then
+		local now = GetTime and GetTime() or 0
+		local nextAt = st._nextHealthTextUpdateAt or 0
+		if now < nextAt then
+			allowTextRefresh = false
+		else
+			st._nextHealthTextUpdateAt = now + SECRET_TEXT_UPDATE_INTERVAL
+		end
+	else
+		st._nextHealthTextUpdateAt = nil
+	end
+	local delimiter, delimiter2, delimiter3, hidePercentSymbol, roundPercent, levelText
+	if allowTextRefresh then
+		delimiter = UFHelper.getTextDelimiter(hc, defH)
+		delimiter2 = UFHelper.getTextDelimiterSecondary(hc, defH, delimiter)
+		delimiter3 = UFHelper.getTextDelimiterTertiary(hc, defH, delimiter, delimiter2)
+		hidePercentSymbol = hc.hidePercentSymbol == true
+		roundPercent = hc.roundPercent == true
+		local hideClassText = shouldHideClassificationText(cfg, unit)
+		if UFHelper.textModeUsesLevel(leftMode) or UFHelper.textModeUsesLevel(centerMode) or UFHelper.textModeUsesLevel(rightMode) then
+			levelText = UFHelper.getUnitLevelText(unit, nil, hideClassText)
+		end
+	end
 	if st.healthTextLeft then
 		if leftMode == "NONE" then
 			st.healthTextLeft:SetText("")
-		else
+		elseif allowTextRefresh then
 			st.healthTextLeft:SetText(
 				UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent)
 			)
@@ -3681,7 +3852,7 @@ local function updateHealth(cfg, unit)
 	if st.healthTextCenter then
 		if centerMode == "NONE" then
 			st.healthTextCenter:SetText("")
-		else
+		elseif allowTextRefresh then
 			st.healthTextCenter:SetText(
 				UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent)
 			)
@@ -3690,7 +3861,7 @@ local function updateHealth(cfg, unit)
 	if st.healthTextRight then
 		if rightMode == "NONE" then
 			st.healthTextRight:SetText("")
-		else
+		elseif allowTextRefresh then
 			st.healthTextRight:SetText(
 				UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent)
 			)
@@ -3798,7 +3969,9 @@ end
 local function setFrameLevelAbove(child, parent, offset)
 	if not child or not parent then return end
 	child:SetFrameStrata(parent:GetFrameStrata())
-	child:SetFrameLevel((parent:GetFrameLevel() or 0) + (offset or 1))
+	local level = (parent:GetFrameLevel() or 0) + (offset or 1)
+	if level < 0 then level = 0 end
+	child:SetFrameLevel(level)
 end
 
 local function getHealthTextAnchor(st)
@@ -3824,12 +3997,28 @@ for i = 1, #STRATA_ORDER do
 	STRATA_INDEX[STRATA_ORDER[i]] = i
 end
 
+normalizeStrataToken = function(value)
+	if type(value) ~= "string" or value == "" then return nil end
+	local token = string.upper(value)
+	if STRATA_INDEX[token] then return token end
+	return nil
+end
+
 local function syncTextFrameLevels(st)
 	if not st then return end
+	local scfg = (st.cfg and st.cfg.status) or {}
 	local healthAnchor = getHealthTextAnchor(st) or st.health
 	setFrameLevelAbove(st.healthTextLayer, healthAnchor, 5)
 	setFrameLevelAbove(st.powerTextLayer, st.power, 5)
 	setFrameLevelAbove(st.statusTextLayer, st.status, 5)
+	local levelLayer = st.levelTextLayer or st.statusTextLayer
+	local levelOffset = tonumber(scfg.levelFrameLevelOffset)
+	if levelOffset == nil then levelOffset = 5 end
+	setFrameLevelAbove(levelLayer, st.status, levelOffset)
+	if levelLayer and levelLayer.SetFrameStrata and st.status and st.status.GetFrameStrata then
+		local levelStrata = normalizeStrataToken(scfg.levelStrata)
+		levelLayer:SetFrameStrata(levelStrata or st.status:GetFrameStrata())
+	end
 	if st.restLoop and st.statusTextLayer then setFrameLevelAbove(st.restLoop, st.statusTextLayer, 3) end
 	if st.castTextLayer then setFrameLevelAbove(st.castTextLayer, st.castBar, 5) end
 	if st.castIconLayer then setFrameLevelAbove(st.castIconLayer, st.castBar, 4) end
@@ -4654,6 +4843,8 @@ local function ensureFrames(unit)
 	st.powerTextLayer:SetAllPoints(st.power)
 	st.statusTextLayer = st.statusTextLayer or CreateFrame("Frame", nil, st.status)
 	st.statusTextLayer:SetAllPoints(st.status)
+	st.levelTextLayer = st.levelTextLayer or CreateFrame("Frame", nil, st.status)
+	st.levelTextLayer:SetAllPoints(st.status)
 	if not st.privateAuras then
 		st.privateAuras = CreateFrame("Frame", nil, st.frame)
 		st.privateAuras:EnableMouse(false)
@@ -4667,7 +4858,7 @@ local function ensureFrames(unit)
 	st.powerTextCenter = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.powerTextRight = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.nameText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	st.levelText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	st.levelText = st.levelTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.unitStatusText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.unitGroupText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.raidIcon = st.statusTextLayer:CreateTexture(nil, "OVERLAY", nil, 7)
@@ -5389,6 +5580,8 @@ local generalEvents = {
 	"ENCOUNTER_END",
 	"RAID_TARGET_UPDATE",
 	"SPELL_RANGE_CHECK_UPDATE",
+	"CLIENT_SCENE_OPENED",
+	"CLIENT_SCENE_CLOSED",
 }
 
 local eventFrame
@@ -5671,7 +5864,7 @@ local function onEvent(self, event, unit, ...)
 		return
 	end
 	if event == "SPELLS_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
-		if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+		refreshRangeFadeSpells(true)
 		return
 	end
 	if event == "PLAYER_ENTERING_WORLD" then
@@ -5681,7 +5874,7 @@ local function onEvent(self, event, unit, ...)
 		local petCfg = getCfg(UNIT.PET)
 		local focusCfg = getCfg(UNIT.FOCUS)
 		local bossCfg = getCfg("boss")
-		if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+		refreshRangeFadeSpells(true)
 		refreshMainPower(UNIT.PLAYER)
 		applyConfig("player")
 		applyConfig("target")
@@ -6144,6 +6337,12 @@ local function onEvent(self, event, unit, ...)
 		local usCfg = (playerCfg.status and playerCfg.status.unitStatus) or usDef or {}
 		if playerCfg.enabled ~= false and usCfg.enabled == true and usCfg.showGroup == true then updateUnitStatusIndicator(playerCfg, UNIT.PLAYER) end
 		UF.UpdateAllRoleIndicators(true)
+	elseif event == "CLIENT_SCENE_OPENED" then
+		UF._clientSceneActive = true
+		UF.RefreshClientSceneVisibility()
+	elseif event == "CLIENT_SCENE_CLOSED" then
+		UF._clientSceneActive = false
+		UF.RefreshClientSceneVisibility()
 	elseif event == "RAID_TARGET_UPDATE" then
 		updateAllRaidTargetIcons()
 	end
@@ -6153,7 +6352,7 @@ local function ensureEventHandling()
 	rebuildAllowedEventUnits()
 	if not anyUFEnabled() then
 		hideBossFrames()
-		if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+		refreshRangeFadeSpells(true)
 		if UFHelper and UFHelper.disableCombatFeedbackAll then UFHelper.disableCombatFeedbackAll(states) end
 		if eventFrame and eventFrame.UnregisterAllEvents then eventFrame:UnregisterAllEvents() end
 		if eventFrame then eventFrame:SetScript("OnEvent", nil) end
@@ -6185,7 +6384,7 @@ local function ensureEventHandling()
 				if states[UNIT.PLAYER] and states[UNIT.PLAYER].castBar then setCastInfoFromUnit(UNIT.PLAYER) end
 				if states[UNIT.TARGET] and states[UNIT.TARGET].castBar then setCastInfoFromUnit(UNIT.TARGET) end
 				if states[UNIT.FOCUS] and states[UNIT.FOCUS].castBar then setCastInfoFromUnit(UNIT.FOCUS) end
-				if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+				refreshRangeFadeSpells(false)
 			end)
 
 			addon.EditModeLib:RegisterCallback("exit", function()
@@ -6202,7 +6401,7 @@ local function ensureEventHandling()
 				if states[UNIT.PLAYER] and states[UNIT.PLAYER].castBar then setCastInfoFromUnit(UNIT.PLAYER) end
 				if states[UNIT.TARGET] and states[UNIT.TARGET].castBar then setCastInfoFromUnit(UNIT.TARGET) end
 				if states[UNIT.FOCUS] and states[UNIT.FOCUS].castBar then setCastInfoFromUnit(UNIT.FOCUS) end
-				if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+				refreshRangeFadeSpells(false)
 				if UFHelper and UFHelper.stopCombatFeedbackSample then
 					for _, st in pairs(states) do
 						UFHelper.stopCombatFeedbackSample(st)
@@ -6212,7 +6411,7 @@ local function ensureEventHandling()
 		end
 	end
 	updatePortraitEventRegistration()
-	if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+	refreshRangeFadeSpells(false)
 end
 
 local function refreshStandaloneCastbar()

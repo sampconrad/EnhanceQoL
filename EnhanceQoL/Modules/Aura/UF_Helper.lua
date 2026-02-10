@@ -214,6 +214,24 @@ function H.ClampNumber(value, minValue, maxValue, fallback)
 	return v
 end
 
+function H.shouldHideInClientScene(cfg, def)
+	local value = cfg and cfg.hideInClientScene
+	if value == nil then value = def and def.hideInClientScene end
+	if value == nil then value = true end
+	return value == true
+end
+
+function H.applyClientSceneAlphaOverride(st, forceHide)
+	if not (st and st.frame and st.frame.SetAlpha) then return end
+	if forceHide then
+		st._eqolClientSceneAlphaHidden = true
+		if st.frame.GetAlpha and st.frame:GetAlpha() ~= 0 then st.frame:SetAlpha(0) end
+	elseif st._eqolClientSceneAlphaHidden then
+		st._eqolClientSceneAlphaHidden = nil
+		if st.frame.GetAlpha and st.frame:GetAlpha() == 0 then st.frame:SetAlpha(1) end
+	end
+end
+
 function H.getClampedAbsorbAmount(unit) return UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0 end
 
 function H.getHealthCurveValue(unit, curve)
@@ -2552,17 +2570,23 @@ local rangeFadeState = {
 	activeSpells = {},
 	spellStates = {},
 	inRange = true,
+	configDirty = true,
+	configValid = false,
+	enabled = false,
+	alpha = 1,
+	ignoreUnlimited = true,
+	spellListDirty = true,
+	spellListCache = nil,
 }
 local rangeFadeIgnoredSpells = {
 	[2096] = true, -- Mind Vision (unlimited range)
 }
 
+local getRangeFadeConfig
+
 local function isRangeFadeIgnored(spellId, actionId)
-	local fn = rangeFadeHandlers.getConfig
-	if fn then
-		local _, _, ignoreUnlimited = fn()
-		if ignoreUnlimited == false then return false end
-	end
+	local _, _, ignoreUnlimited = getRangeFadeConfig()
+	if ignoreUnlimited == false then return false end
 	if spellId and rangeFadeIgnoredSpells[spellId] then return true end
 	if actionId and rangeFadeIgnoredSpells[actionId] then return true end
 	return false
@@ -2579,10 +2603,42 @@ local function clearTable(tbl)
 	end
 end
 
-local function getRangeFadeConfig()
+local function normalizeRangeFadeConfig(enabled, alpha, ignoreUnlimited)
+	enabled = enabled == true
+	alpha = tonumber(alpha)
+	if alpha == nil then alpha = 1 end
+	if alpha < 0 then alpha = 0 end
+	if alpha > 1 then alpha = 1 end
+	if ignoreUnlimited == nil then
+		ignoreUnlimited = true
+	else
+		ignoreUnlimited = ignoreUnlimited == true
+	end
+	return enabled, alpha, ignoreUnlimited
+end
+
+local function syncRangeFadeConfig()
 	local fn = rangeFadeHandlers.getConfig
-	if not fn then return false, 1, true end
-	return fn()
+	local enabled, alpha, ignoreUnlimited
+	if fn then
+		enabled, alpha, ignoreUnlimited = fn()
+	else
+		enabled, alpha, ignoreUnlimited = false, 1, true
+	end
+	enabled, alpha, ignoreUnlimited = normalizeRangeFadeConfig(enabled, alpha, ignoreUnlimited)
+
+	if rangeFadeState.configValid and rangeFadeState.ignoreUnlimited ~= ignoreUnlimited then rangeFadeState.spellListDirty = true end
+
+	rangeFadeState.enabled = enabled
+	rangeFadeState.alpha = alpha
+	rangeFadeState.ignoreUnlimited = ignoreUnlimited
+	rangeFadeState.configValid = true
+	rangeFadeState.configDirty = false
+end
+
+getRangeFadeConfig = function()
+	if rangeFadeState.configDirty or not rangeFadeState.configValid then syncRangeFadeConfig() end
+	return rangeFadeState.enabled, rangeFadeState.alpha, rangeFadeState.ignoreUnlimited
 end
 
 local function applyRangeFadeAlpha(inRange, force)
@@ -2633,6 +2689,9 @@ end
 function H.RangeFadeRegister(getConfigFn, applyAlphaFn)
 	rangeFadeHandlers.getConfig = getConfigFn
 	rangeFadeHandlers.applyAlpha = applyAlphaFn
+	rangeFadeState.configDirty = true
+	rangeFadeState.spellListDirty = true
+	rangeFadeState.spellListCache = nil
 end
 
 function H.RangeFadeReset()
@@ -2642,6 +2701,13 @@ function H.RangeFadeReset()
 end
 
 function H.RangeFadeApplyCurrent(force) applyRangeFadeAlpha(rangeFadeState.inRange, force) end
+
+function H.RangeFadeMarkConfigDirty() rangeFadeState.configDirty = true end
+
+function H.RangeFadeMarkSpellListDirty()
+	rangeFadeState.spellListDirty = true
+	rangeFadeState.spellListCache = nil
+end
 
 function H.RangeFadeUpdateFromEvent(spellIdentifier, isInRange, checksRange)
 	local enabled = getRangeFadeConfig()
@@ -2669,7 +2735,11 @@ function H.RangeFadeUpdateSpells()
 		H.RangeFadeReset()
 		return
 	end
-	local wanted = buildRangeFadeSpellList()
+	if rangeFadeState.spellListDirty or not rangeFadeState.spellListCache then
+		rangeFadeState.spellListCache = buildRangeFadeSpellList()
+		rangeFadeState.spellListDirty = false
+	end
+	local wanted = rangeFadeState.spellListCache or {}
 	for spellId in pairs(rangeFadeState.activeSpells) do
 		if not wanted[spellId] then
 			EnableSpellRangeCheck(spellId, false)

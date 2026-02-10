@@ -312,6 +312,7 @@ addon.SharedMedia.sounds = {
 	{ key = "Drink", label = "EQOL: Drink", path = voiceoverPath .. "Drink.ogg" },
 	{ key = "OOM", label = "EQOL: OOM", path = voiceoverPath .. "OOM.ogg" },
 	{ key = "Offhealing active", label = "EQOL: Offhealing active", path = voiceoverPath .. "Offhealing active.ogg" },
+	{ key = "Beacon", label = "EQOL: |cFF000000|rBeacon |T236247:16|t", path = voiceoverPath .. "Beacon.ogg" },
 
 	-- Crafting order
 	{ key = "New Crafting Order", label = "EQOL: Crafting Order - New", path = voiceoverPath .. "New Crafting Order.ogg" },

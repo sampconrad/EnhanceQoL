@@ -4463,16 +4463,34 @@ end
 
 function CooldownPanels:IsInEditMode() return EditMode and EditMode.IsInEditMode and EditMode:IsInEditMode() end
 
+local function playerHasVehicleUI()
+	if UnitHasVehicleUI then return UnitHasVehicleUI("player") == true end
+	if UnitInVehicle then return UnitInVehicle("player") == true end
+	return false
+end
+
+local function isPetBattleActive() return C_PetBattles and C_PetBattles.IsInBattle and C_PetBattles.IsInBattle() == true end
+local function isClientSceneActive()
+	local runtime = CooldownPanels.runtime
+	return runtime and runtime.clientSceneActive == true
+end
+
 function CooldownPanels:ShouldShowPanel(panelId)
 	local panel = self:GetPanel(panelId)
 	if not panel or panel.enabled == false then return false end
 	if not panelAllowsSpec(panel) then return false end
 	if self:IsInEditMode() == true then return true end
+	panel.layout = panel.layout or Helper.CopyTableShallow(Helper.PANEL_LAYOUT_DEFAULTS)
+	if panel.layout.hideInPetBattle == true and isPetBattleActive() then return false end
+	if panel.layout.hideInVehicle == true and playerHasVehicleUI() then return false end
+	local hideInClientScene = panel.layout.hideInClientScene
+	if hideInClientScene == nil then hideInClientScene = Helper.PANEL_LAYOUT_DEFAULTS.hideInClientScene == true end
+	if hideInClientScene and isClientSceneActive() then return false end
 	local runtime = getRuntime(panelId)
 	return runtime.visibleCount and runtime.visibleCount > 0
 end
 
-function CooldownPanels:UpdatePanelOpacity(panelId)
+function CooldownPanels:UpdatePanelOpacity(panelId, forcedAlpha)
 	local panel = self:GetPanel(panelId)
 	if not panel then return end
 	local runtime = getRuntime(panelId)
@@ -4485,7 +4503,9 @@ function CooldownPanels:UpdatePanelOpacity(panelId)
 	local outAlpha = Helper.NormalizeOpacity(layout.opacityOutOfCombat, fallbackOut)
 	local inAlpha = Helper.NormalizeOpacity(layout.opacityInCombat, fallbackIn)
 	local alpha
-	if self:IsInEditMode() == true then
+	if forcedAlpha ~= nil then
+		alpha = forcedAlpha
+	elseif self:IsInEditMode() == true then
 		alpha = 1
 	else
 		local inCombat = (InCombatLockdown and InCombatLockdown()) or (UnitAffectingCombat and UnitAffectingCombat("player")) or false
@@ -4503,12 +4523,22 @@ function CooldownPanels:UpdateVisibility(panelId)
 	local frame = runtime.frame
 	if not frame then return end
 	local shouldShow = self:ShouldShowPanel(panelId)
+	local forceAlphaHidden = false
 	if frame:IsShown() ~= shouldShow then
 		local inCombat = (InCombatLockdown and InCombatLockdown()) or false
 		local isProtected = frame.IsProtected and frame:IsProtected()
-		if not (inCombat and isProtected) then frame:SetShown(shouldShow) end
+		if not (inCombat and isProtected) then
+			frame:SetShown(shouldShow)
+		elseif not shouldShow then
+			-- Protected frames cannot be shown/hidden in combat; use alpha fallback.
+			forceAlphaHidden = true
+		end
+	elseif not shouldShow then
+		local inCombat = (InCombatLockdown and InCombatLockdown()) or false
+		local isProtected = frame.IsProtected and frame:IsProtected()
+		if inCombat and isProtected then forceAlphaHidden = true end
 	end
-	self:UpdatePanelOpacity(panelId)
+	self:UpdatePanelOpacity(panelId, forceAlphaHidden and 0 or nil)
 	self:UpdatePanelMouseState(panelId)
 end
 
@@ -4708,6 +4738,12 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 	elseif field == "showOnCooldown" then
 		layout.showOnCooldown = value == true
 		if layout.showOnCooldown then layout.hideOnCooldown = false end
+	elseif field == "hideInVehicle" then
+		layout.hideInVehicle = value == true
+	elseif field == "hideInPetBattle" then
+		layout.hideInPetBattle = value == true
+	elseif field == "hideInClientScene" then
+		layout.hideInClientScene = value == true
 	elseif field == "cooldownTextFont" then
 		if type(value) == "string" and value ~= "" then layout.cooldownTextFont = value end
 	elseif field == "cooldownTextSize" then
@@ -4819,6 +4855,9 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 	applyEditLayout(panelId, "showIconTexture", data.showIconTexture, true)
 	applyEditLayout(panelId, "hideOnCooldown", data.hideOnCooldown, true)
 	applyEditLayout(panelId, "showOnCooldown", data.showOnCooldown, true)
+	applyEditLayout(panelId, "hideInVehicle", data.hideInVehicle, true)
+	applyEditLayout(panelId, "hideInPetBattle", data.hideInPetBattle, true)
+	applyEditLayout(panelId, "hideInClientScene", data.hideInClientScene, true)
 	applyEditLayout(panelId, "cooldownTextFont", data.cooldownTextFont, true)
 	applyEditLayout(panelId, "cooldownTextSize", data.cooldownTextSize, true)
 	applyEditLayout(panelId, "cooldownTextStyle", data.cooldownTextStyle, true)
@@ -5592,23 +5631,50 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return layout.showOnCooldown == true end,
 				set = function(_, value) applyEditLayout(panelId, "showOnCooldown", value) end,
 			},
-			{
-				name = L["CooldownPanelOpacityOutOfCombat"] or "Opacity (out of combat)",
-				kind = SettingType.Slider,
-				field = "opacityOutOfCombat",
-				parentId = "cooldownPanelDisplay",
-				default = Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat),
-				minValue = 0,
-				maxValue = 1,
-				valueStep = 0.05,
-				allowInput = true,
-				get = function() return Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat) end,
-				set = function(_, value) applyEditLayout(panelId, "opacityOutOfCombat", value) end,
-				formatter = function(value)
-					local num = tonumber(value) or 0
-					return tostring(math.floor((num * 100) + 0.5)) .. "%"
-				end,
-			},
+				{
+					name = L["CooldownPanelHideInVehicle"] or "Hide in vehicles",
+					kind = SettingType.Checkbox,
+					field = "hideInVehicle",
+					parentId = "cooldownPanelDisplay",
+					default = layout.hideInVehicle == true,
+					get = function() return layout.hideInVehicle == true end,
+					set = function(_, value) applyEditLayout(panelId, "hideInVehicle", value) end,
+				},
+				{
+					name = L["CooldownPanelHideInPetBattle"] or "Hide in pet battles",
+					kind = SettingType.Checkbox,
+					field = "hideInPetBattle",
+					parentId = "cooldownPanelDisplay",
+					default = layout.hideInPetBattle == true,
+					get = function() return layout.hideInPetBattle == true end,
+					set = function(_, value) applyEditLayout(panelId, "hideInPetBattle", value) end,
+				},
+				{
+					name = L["CooldownPanelHideInClientScene"] or "Hide in client scenes",
+					kind = SettingType.Checkbox,
+					field = "hideInClientScene",
+					parentId = "cooldownPanelDisplay",
+					default = layout.hideInClientScene ~= false,
+					get = function() return layout.hideInClientScene ~= false end,
+					set = function(_, value) applyEditLayout(panelId, "hideInClientScene", value) end,
+				},
+				{
+					name = L["CooldownPanelOpacityOutOfCombat"] or "Opacity (out of combat)",
+					kind = SettingType.Slider,
+					field = "opacityOutOfCombat",
+					parentId = "cooldownPanelDisplay",
+					default = Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat),
+					minValue = 0,
+					maxValue = 1,
+					valueStep = 0.05,
+					allowInput = true,
+					get = function() return Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat) end,
+					set = function(_, value) applyEditLayout(panelId, "opacityOutOfCombat", value) end,
+					formatter = function(value)
+						local num = tonumber(value) or 0
+						return tostring(math.floor((num * 100) + 0.5)) .. "%"
+					end,
+				},
 			{
 				name = L["CooldownPanelOpacityInCombat"] or "Opacity (in combat)",
 				kind = SettingType.Slider,
@@ -6331,13 +6397,16 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			cooldownGcdDrawEdge = layout.cooldownGcdDrawEdge == true,
 			cooldownGcdDrawBling = layout.cooldownGcdDrawBling == true,
 			cooldownGcdDrawSwipe = layout.cooldownGcdDrawSwipe == true,
-			opacityOutOfCombat = Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat),
-			opacityInCombat = Helper.NormalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat),
-			showTooltips = layout.showTooltips == true,
-			showIconTexture = layout.showIconTexture ~= false,
-			hideOnCooldown = layout.hideOnCooldown == true,
-			showOnCooldown = layout.showOnCooldown == true,
-			cooldownTextFont = layout.cooldownTextFont,
+				opacityOutOfCombat = Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat),
+				opacityInCombat = Helper.NormalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat),
+				showTooltips = layout.showTooltips == true,
+				showIconTexture = layout.showIconTexture ~= false,
+				hideOnCooldown = layout.hideOnCooldown == true,
+				showOnCooldown = layout.showOnCooldown == true,
+				hideInVehicle = layout.hideInVehicle == true,
+				hideInPetBattle = layout.hideInPetBattle == true,
+				hideInClientScene = layout.hideInClientScene ~= false,
+				cooldownTextFont = layout.cooldownTextFont,
 			cooldownTextSize = layout.cooldownTextSize or 12,
 			cooldownTextStyle = Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, "NONE"),
 			cooldownTextX = layout.cooldownTextX or 0,
@@ -6882,6 +6951,12 @@ local UPDATE_FRAME_EVENTS = {
 	"SPELL_RANGE_CHECK_UPDATE",
 	"PLAYER_REGEN_DISABLED",
 	"PLAYER_REGEN_ENABLED",
+	"UNIT_ENTERED_VEHICLE",
+	"UNIT_EXITED_VEHICLE",
+	"PET_BATTLE_OPENING_START",
+	"PET_BATTLE_CLOSE",
+	"CLIENT_SCENE_OPENED",
+	"CLIENT_SCENE_CLOSED",
 }
 
 local function hasEnabledPanels()
@@ -7039,14 +7114,25 @@ local function ensureUpdateFrame()
 			refreshPanelsForCharges()
 			return
 		end
-		if event == "PLAYER_ENTERING_WORLD" then
-			updateItemCountCache()
-			scheduleSpecAwareRebuild(event)
-			return
-		end
-		if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_ENTERING_WORLD" then updateItemCountCache() end
-		CooldownPanels:RequestUpdate("Event:" .. event)
-	end)
+			if event == "PLAYER_ENTERING_WORLD" then
+				updateItemCountCache()
+				scheduleSpecAwareRebuild(event)
+				return
+			end
+			if event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" then
+				local unit = ...
+				if unit and unit ~= "player" then return end
+			end
+			if event == "CLIENT_SCENE_OPENED" then
+				CooldownPanels.runtime = CooldownPanels.runtime or {}
+				CooldownPanels.runtime.clientSceneActive = true
+			elseif event == "CLIENT_SCENE_CLOSED" then
+				CooldownPanels.runtime = CooldownPanels.runtime or {}
+				CooldownPanels.runtime.clientSceneActive = false
+			end
+			if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_ENTERING_WORLD" then updateItemCountCache() end
+			CooldownPanels:RequestUpdate("Event:" .. event)
+		end)
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	CooldownPanels.runtime.updateFrame = frame
 	if CooldownPanels.UpdateEventRegistration then CooldownPanels:UpdateEventRegistration() end

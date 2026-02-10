@@ -1152,6 +1152,7 @@ function addon.functions.initUIOptions()
 	addon.functions.InitDBValue("gcdBarAnchorOffsetX", defaults.anchorOffsetX or 0)
 	addon.functions.InitDBValue("gcdBarAnchorOffsetY", defaults.anchorOffsetY or -120)
 	addon.functions.InitDBValue("gcdBarAnchorMatchWidth", defaults.anchorMatchRelativeWidth == true)
+	addon.functions.InitDBValue("gcdBarHideInPetBattle", defaults.hideInPetBattle == true)
 
 	if addon.GCDBar and addon.GCDBar.OnSettingChanged then addon.GCDBar:OnSettingChanged(addon.db["gcdBarEnabled"]) end
 
@@ -1263,13 +1264,19 @@ local function createCastbarCategory()
 		addon.db = addon.db or {}
 		addon.db.castbar = type(addon.db.castbar) == "table" and addon.db.castbar or {}
 		local castbar = addon.Aura and (addon.Aura.Castbar or addon.Aura.UFStandaloneCastbar)
+		local hasStandaloneModule = type(castbar) == "table" and type(castbar.GetConfig) == "function"
+		if not hasStandaloneModule then addon.db.castbar.enabled = false end
 		local cfg, defaults
-		if castbar and castbar.GetConfig then
+		if hasStandaloneModule then
 			cfg, defaults = castbar.GetConfig()
 		end
 		cfg = type(cfg) == "table" and cfg or addon.db.castbar
 		defaults = type(defaults) == "table" and defaults or {}
-		if cfg.enabled == nil then cfg.enabled = defaults.enabled == true end
+		if hasStandaloneModule then
+			if cfg.enabled == nil then cfg.enabled = defaults.enabled == true end
+		else
+			cfg.enabled = false
+		end
 		return cfg
 	end
 

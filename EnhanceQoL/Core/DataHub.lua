@@ -10,7 +10,7 @@ end
 
 local eventFrame = CreateFrame("Frame")
 local driver = CreateFrame("Frame")
-local DRIVER_TICK = 0.05
+local DRIVER_TICK = 0.1
 
 DataHub.streams = {}
 DataHub.eventMap = {}

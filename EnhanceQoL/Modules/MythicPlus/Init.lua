@@ -1105,7 +1105,6 @@ do
 end
 
 addon.MythicPlus.variables.collapseFrames = {
-	{ frame = ScenarioObjectiveTracker, name = "ScenarioObjectiveTracker" },
 	{ frame = UIWidgetObjectiveTracker, name = "UIWidgetObjectiveTracker" },
 	{ frame = CampaignQuestObjectiveTracker, name = "CampaignQuestObjectiveTracker" },
 	{ frame = QuestObjectiveTracker, name = "QuestObjectiveTracker" },

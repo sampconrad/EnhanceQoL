@@ -393,19 +393,50 @@ local C_EditMode_ConvertLayoutInfoToString = C_EditMode and C_EditMode.ConvertLa
 local C_SpecializationInfo = _G.C_SpecializationInfo
 local GetSpecialization = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization
 
--- layout names are lazily resolved so we do not need early API availability
+-- layout names are lazily resolved and cached to avoid repeated C_EditMode.GetLayouts calls.
 local layoutNames = lib.layoutNames
 	or setmetatable({ _G.LAYOUT_STYLE_MODERN or "Modern", _G.LAYOUT_STYLE_CLASSIC or "Classic" }, {
 		__index = function(t, key)
-			if key <= 2 then return rawget(t, key) end
+			if type(key) ~= "number" or key <= 2 then return rawget(t, key) end
+			local idx = key - 2
+			local snapshot = State.layoutSnapshot or Internal.layoutNameSnapshot
+			local cached = snapshot and snapshot[idx]
+			if cached and cached ~= "" then
+				rawset(t, key, cached)
+				return cached
+			end
 			local layouts = C_EditMode_GetLayouts and C_EditMode_GetLayouts()
 			layouts = layouts and layouts.layouts
 			if not layouts then return nil end
-			local idx = key - 2
-			return layouts[idx] and layouts[idx].layoutName
+			local name = layouts[idx] and layouts[idx].layoutName
+			if name and name ~= "" then rawset(t, key, name) end
+			return name
 		end,
 	})
 lib.layoutNames = layoutNames
+
+local function syncLayoutNameCache(snapshot)
+	snapshot = snapshot or {}
+	for key in pairs(layoutNames) do
+		if type(key) == "number" and key > 2 then
+			local idx = key - 2
+			local name = snapshot[idx]
+			if name and name ~= "" then
+				rawset(layoutNames, key, name)
+			else
+				rawset(layoutNames, key, nil)
+			end
+		end
+	end
+	for idx, name in ipairs(snapshot) do
+		local uiIndex = idx + 2
+		if name and name ~= "" then
+			rawset(layoutNames, uiIndex, name)
+		else
+			rawset(layoutNames, uiIndex, nil)
+		end
+	end
+end
 
 -- Setting types: we keep Blizzard enums but extend for custom widgets
 lib.SettingType = lib.SettingType or CopyTable(Enum.EditModeSettingDisplayType)
@@ -1575,6 +1606,7 @@ local function updateActiveLayoutFromAPI()
 	end
 	State.layoutSnapshot = snapshotLayoutNames(layouts)
 	Internal.layoutNameSnapshot = State.layoutSnapshot
+	syncLayoutNameCache(State.layoutSnapshot)
 end
 
 if not lib.activeLayoutName and C_EditMode and C_EditMode.GetLayouts then
@@ -1585,6 +1617,7 @@ if not lib.activeLayoutName and C_EditMode and C_EditMode.GetLayouts then
 	end
 	State.layoutSnapshot = snapshotLayoutNames(layouts)
 	Internal.layoutNameSnapshot = State.layoutSnapshot
+	syncLayoutNameCache(State.layoutSnapshot)
 end
 
 function Layout:HandleLayoutsChanged(_, layoutInfo)
@@ -1613,6 +1646,7 @@ function Layout:HandleLayoutsChanged(_, layoutInfo)
 	if layoutInfo and layoutInfo.layouts then recordDeletedLayouts(oldSnapshot, newSnapshot) end
 	State.layoutSnapshot = newSnapshot
 	Internal.layoutNameSnapshot = State.layoutSnapshot
+	syncLayoutNameCache(State.layoutSnapshot)
 
 	if layoutName and layoutIndex and (layoutName ~= lib.activeLayoutName or layoutIndex ~= lib.activeLayoutIndex) then
 		lib.activeLayoutName = layoutName
@@ -1827,7 +1861,7 @@ local function buildDropdown()
 					rootDescription:CreateRadio(value.text, dropdownGet, dropdownSet, {
 						get = data.get,
 						set = data.set,
-						value = value.text,
+						value = value.value or value.text,
 					})
 				end
 			end)
@@ -2392,7 +2426,7 @@ local function buildDropdownColor()
 			end
 			if data.values then
 				for _, value in next, data.values do
-					rootDescription:CreateRadio(value.text, function() return getCurrent() == value.text end, makeSetter(value.text))
+					rootDescription:CreateRadio(value.text, function() return getCurrent() == value.text end, makeSetter(value.value or value.text))
 				end
 			end
 		end
@@ -3730,7 +3764,7 @@ function lib:AddFrame(frame, callback, default)
 		local combatWatcher = CreateFrame("Frame")
 		combatWatcher:RegisterEvent("PLAYER_REGEN_DISABLED")
 		combatWatcher:RegisterEvent("PLAYER_REGEN_ENABLED")
-		combatWatcher:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+		combatWatcher:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
 		combatWatcher:SetScript("OnEvent", function(_, event)
 			if event == "PLAYER_REGEN_DISABLED" then
 				resetSelectionIndicators()

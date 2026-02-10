@@ -3384,12 +3384,25 @@ local function initUnitFrame()
 		FocusFrameSpellBar = function() return _G.FocusFrameSpellBar end,
 	}
 
+	local function getStandaloneCastbarModule()
+		local castbarModule = addon.Aura and (addon.Aura.Castbar or addon.Aura.UFStandaloneCastbar)
+		if type(castbarModule) ~= "table" then return nil end
+		if type(castbarModule.GetConfig) ~= "function" then return nil end
+		return castbarModule
+	end
+
+	local function guardStandaloneCastbarDisabledWhenUnavailable()
+		addon.db = addon.db or {}
+		addon.db.castbar = type(addon.db.castbar) == "table" and addon.db.castbar or {}
+		if getStandaloneCastbarModule() ~= nil then return false end
+		if addon.db.castbar.enabled ~= true then return false end
+		addon.db.castbar.enabled = false
+		return true
+	end
+
 	local function isCustomPlayerCastbarEnabled()
 		local standaloneEnabled = false
-		local castCfg = addon.db and addon.db.castbar
-		if type(castCfg) == "table" and castCfg.enabled ~= nil then standaloneEnabled = castCfg.enabled == true end
-
-		local castbarModule = addon.Aura and (addon.Aura.Castbar or addon.Aura.UFStandaloneCastbar)
+		local castbarModule = getStandaloneCastbarModule()
 		if castbarModule and castbarModule.GetConfig then
 			local cfg = castbarModule.GetConfig()
 			if type(cfg) == "table" and cfg.enabled ~= nil then standaloneEnabled = cfg.enabled == true end
@@ -3419,6 +3432,7 @@ local function initUnitFrame()
 	function addon.functions.ApplyCastBarVisibility()
 		if not addon.db then return end
 		if type(addon.db.hiddenCastBars) ~= "table" then addon.db.hiddenCastBars = {} end
+		guardStandaloneCastbarDisabledWhenUnavailable()
 		local hidePlayerForCustom = isCustomPlayerCastbarEnabled()
 		for key, getter in pairs(castBarFrames) do
 			local frame = getter and getter() or _G[key]

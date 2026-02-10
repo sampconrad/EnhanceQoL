@@ -280,6 +280,7 @@ Tigers Lust;190;"[[pbas -40]]";Tiger's Lust;|T651727:16|t
 # Paladin
 Aura Mastery;180;"[[pbas -60]]";Aura Mastery;|T135872:16|t
 Autumn;180;"[[pbas -40]]";;|T3636843:16|t
+Beacon;220;"[[pbas -30]]";;|T236247:16|t;Beeacon
 Freedom;180;"[[pbas -30]]";;|T135968:16|t
 Devotion Aura;180;"[[pbas -30]]";Devotion Aura;|T135893:16|t
 Lay on Hands;180;"[[pbas -60]]";Lay on Hands;|T135928:16|t
