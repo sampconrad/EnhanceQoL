@@ -1,6 +1,6 @@
 # Changelog
 
-## [7.12.0] - 2026-02-12
+## [7.12.0] - 2026-02-11
 
 ### ✨ Added
 
@@ -17,6 +17,7 @@
 
 - Unit Frames: `setBackdrop`/`applyBarBackdrop` now run with style-diff caching, so unchanged backdrop styles are skipped instead of being reapplied every refresh.
 - Unit Frames: Edit Mode registration now batches refresh requests and skips no-op anchor `onApply` refreshes, reducing load-time spikes during UF frame/settings registration.
+- Drinks: Improved sorting
 
 ### 🐛 Fixed
 

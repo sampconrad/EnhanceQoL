@@ -372,12 +372,20 @@ end
 local function getUnitClassToken(unit)
 	if not unit then return nil end
 	local _, class = UnitClass and UnitClass(unit)
-	if class then return class end
+	if issecretvalue and issecretvalue(class) then class = nil end
+	if class and class ~= "" then return tostring(class) end
 	if UnitInRaid and GetRaidRosterInfo then
 		local raidIndex = UnitInRaid(unit)
 		if raidIndex and not (issecretvalue and issecretvalue(raidIndex)) then
 			local _, _, _, _, _, classFile = GetRaidRosterInfo(raidIndex)
-			if classFile and classFile ~= "" then return classFile end
+			if not (issecretvalue and issecretvalue(classFile)) and classFile and classFile ~= "" then return tostring(classFile) end
+		end
+	end
+	if UnitGUID and GetPlayerInfoByGUID then
+		local guid = UnitGUID(unit)
+		if not (issecretvalue and issecretvalue(guid)) and guid and guid ~= "" then
+			local _, classFile = GetPlayerInfoByGUID(guid)
+			if not (issecretvalue and issecretvalue(classFile)) and classFile and classFile ~= "" then return tostring(classFile) end
 		end
 	end
 	return nil
@@ -1965,6 +1973,44 @@ function GF:CacheUnitStatic(self)
 	else
 		st._classR, st._classG, st._classB, st._classA = nil, nil, nil, nil
 	end
+end
+
+function GF:EnsureUnitClassColor(frame, st, unit)
+	st = st or getState(frame)
+	if not st then return false end
+	if st._classR then return true end
+
+	unit = unit or getUnit(frame)
+	if not unit then return false end
+
+	local class = st._class
+	if isEditModeActive() and frame and frame._eqolPreview and st._previewClass then class = st._previewClass end
+	if not class then class = getUnitClassToken(unit) end
+	if not class then return false end
+
+	st._class = class
+	local r, g, b, a = getClassColor(class)
+	if not r then return false end
+	st._classR, st._classG, st._classB, st._classA = r, g, b, a or 1
+	return true
+end
+
+function GF:NeedsClassColor(frame, st, cfg)
+	if not frame then return false end
+	cfg = cfg or frame._eqolCfg or getCfg(frame._eqolGroupKind or "party")
+	local hc = cfg and cfg.health or {}
+	local tc = cfg and cfg.text or {}
+	local sc = cfg and cfg.status or {}
+
+	if hc.useClassColor == true then return true end
+
+	local nameMode = sc.nameColorMode
+	if nameMode == nil then nameMode = (tc.useClassColor ~= false) and "CLASS" or "CUSTOM" end
+	if (st == nil or st._wantsName ~= false) and nameMode == "CLASS" then return true end
+
+	if (st == nil or st._wantsLevel ~= false) and sc.levelColorMode == "CLASS" then return true end
+
+	return false
 end
 
 function GF:BuildButton(self)
@@ -3702,8 +3748,11 @@ function GF:UpdateName(self)
 	if nameMode == nil then nameMode = (tc.useClassColor ~= false) and "CLASS" or "CUSTOM" end
 	if nameMode == "CUSTOM" then
 		r, g, b, a = unpackColor(sc.nameColor, GFH.COLOR_WHITE)
-	elseif nameMode == "CLASS" and st._classR then
-		r, g, b, a = st._classR, st._classG, st._classB, st._classA or 1
+	elseif nameMode == "CLASS" then
+		if not st._classR then GF:EnsureUnitClassColor(self, st, unit) end
+		if st._classR then
+			r, g, b, a = st._classR, st._classG, st._classB, st._classA or 1
+		end
 	end
 	if connected == false then
 		r, g, b, a = 0.7, 0.7, 0.7, 1
@@ -3763,8 +3812,11 @@ function GF:UpdateLevel(self)
 	local r, g, b, a = 1, 0.85, 0, 1
 	if scfg.levelColorMode == "CUSTOM" then
 		r, g, b, a = unpackColor(scfg.levelColor, GFH.COLOR_LEVEL)
-	elseif scfg.levelColorMode == "CLASS" and st._classR then
-		r, g, b, a = st._classR, st._classG, st._classB, st._classA or 1
+	elseif scfg.levelColorMode == "CLASS" then
+		if not st._classR then GF:EnsureUnitClassColor(self, st, unit) end
+		if st._classR then
+			r, g, b, a = st._classR, st._classG, st._classB, st._classA or 1
+		end
 	end
 	if st._lastLevelR ~= r or st._lastLevelG ~= g or st._lastLevelB ~= b or st._lastLevelA ~= a then
 		st._lastLevelR, st._lastLevelG, st._lastLevelB, st._lastLevelA = r, g, b, a
@@ -4593,8 +4645,13 @@ function GF:UpdateHealthStyle(self)
 	local useCustom = hc.useCustomColor == true
 	if useCustom then
 		r, g, b, a = unpackColor(hc.color, defH.color or GFH.COLOR_HEALTH_DEFAULT)
-	elseif hc.useClassColor == true and st._classR then
-		r, g, b, a = st._classR, st._classG, st._classB, st._classA or 1
+	elseif hc.useClassColor == true then
+		if not st._classR then GF:EnsureUnitClassColor(self, st, unit) end
+		if st._classR then
+			r, g, b, a = st._classR, st._classG, st._classB, st._classA or 1
+		else
+			r, g, b, a = unpackColor(hc.color, defH.color or GFH.COLOR_HEALTH_DEFAULT)
+		end
 	else
 		r, g, b, a = unpackColor(hc.color, defH.color or GFH.COLOR_HEALTH_DEFAULT)
 	end
@@ -6731,7 +6788,18 @@ function GF:RefreshChangedUnitButtons()
 		end
 
 		local guid = UnitGUID and UnitGUID(unit) or nil
-		if st._guid == guid and st._unitToken == unit and child.unit == unit then return end
+		if st._guid == guid and st._unitToken == unit and child.unit == unit then
+			local cfg = child._eqolCfg or getCfg(child._eqolGroupKind or "party")
+			if st._classR == nil and GF:NeedsClassColor(child, st, cfg) then
+				GF:CacheUnitStatic(child)
+				GF:EnsureUnitClassColor(child, st, unit)
+				GF:UpdateHealthStyle(child)
+				GF:UpdateName(child)
+				GF:UpdateLevel(child)
+				updated = updated + 1
+			end
+			return
+		end
 
 		if child.unit ~= unit then
 			GF:UnitButton_SetUnit(child, unit)
