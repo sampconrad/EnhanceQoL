@@ -594,107 +594,17 @@ local function MigrateLegacyVisibilityFlags()
 	MigrateLegacyVisibilityFlag("hideBagsBar", "unitframeSettingBagsBar")
 end
 
-local FRAME_VISIBILITY_FADE_DURATION = 0.15
-local FRAME_VISIBILITY_FADE_THRESHOLD = 0.01
-local FRAME_VISIBILITY_FADE_DISABLED = (_G.EQOL_ENABLE_FRAME_VISIBILITY_FADE ~= true)
-
 local function StopFrameFade(target)
 	local group = target and target.EQOL_FadeGroup
 	if group and group.Stop then group:Stop() end
 	if group then group.targetAlpha = nil end
 end
 
-local function ApplyAlphaToRegion(target, alpha, useFade)
-	if FRAME_VISIBILITY_FADE_DISABLED then return end
+local function ApplyAlphaToRegion(target, alpha, _useFade)
 	if not target or not target.SetAlpha then return end
-	if not useFade or not target.CreateAnimationGroup then
-		StopFrameFade(target)
-		target:SetAlpha(alpha)
-		return
-	end
-
-	-- TODO disable for midnight for now until a fix is found:
-	--[[
-		6x ...aceBlizzard_UnitFrame/Mainline/UnitFrame.lua:256: attempt to compare local 'myCurrentHealAbsorb' (a secret value)
-		[Blizzard_UnitFrame/Mainline/UnitFrame.lua]:256: in function 'UnitFrameHealPredictionBars_Update'
-		[Blizzard_UnitFrame/Mainline/UnitFrame.lua]:230: in function 'UnitFrameHealPredictionBars_UpdateSize'
-		[Blizzard_UnitFrame/Mainline/PetFrame.lua]:221: in function <...faceBlizzard_UnitFrame/Mainline/PetFrame.lua:220>
-		[C]: in function 'Play'
-		[EnhanceQoL/EnhanceQoL.lua]:581: in function <EnhanceQoL/EnhanceQoL.lua:512>
-		[EnhanceQoL/EnhanceQoL.lua]:814: in function <EnhanceQoL/EnhanceQoL.lua:812>
-		[EnhanceQoL/EnhanceQoL.lua]:895: in function <EnhanceQoL/EnhanceQoL.lua:858>
-		[EnhanceQoL/EnhanceQoL.lua]:907: in function <EnhanceQoL/EnhanceQoL.lua:903>
-	--]]
-	if addon.variables.isMidnight then
-		StopFrameFade(target)
-		target:SetAlpha(alpha)
-		return
-	end
-
-	if issecretvalue and issecretvalue(alpha) then
-		StopFrameFade(target)
-		target:SetAlpha(alpha)
-		return
-	end
-
-	local current = target:GetAlpha()
-	if issecretvalue and issecretvalue(current) then
-		StopFrameFade(target)
-		target:SetAlpha(alpha)
-		return
-	end
-
-	local delta = current - alpha
-	if issecretvalue and issecretvalue(delta) then
-		StopFrameFade(target)
-		target:SetAlpha(alpha)
-		return
-	end
-
-	if math.abs(delta) < FRAME_VISIBILITY_FADE_THRESHOLD then
-		StopFrameFade(target)
-		target:SetAlpha(alpha)
-		return
-	end
-
-	local group = target.EQOL_FadeGroup
-	if not group or not group.fade then
-		if not target.CreateAnimationGroup then
-			target:SetAlpha(alpha)
-			return
-		end
-		group = target:CreateAnimationGroup()
-		if not group then
-			target:SetAlpha(alpha)
-			return
-		end
-		local anim = group:CreateAnimation("Alpha")
-		if anim and anim.SetSmoothing then anim:SetSmoothing("IN_OUT") end
-		group.fade = anim
-		group:SetScript("OnFinished", function(self)
-			local desired = self.targetAlpha
-			local owner = self:GetParent()
-			if owner and owner.SetAlpha and desired ~= nil then owner:SetAlpha(desired) end
-			self.targetAlpha = nil
-		end)
-		target.EQOL_FadeGroup = group
-	end
-
-	local anim = group.fade
-	if not anim or not anim.SetFromAlpha or not anim.SetToAlpha or not anim.SetDuration then
-		StopFrameFade(target)
-		target:SetAlpha(alpha)
-		return
-	end
-
-	if group.targetAlpha ~= nil and group.targetAlpha == alpha and group.IsPlaying and group:IsPlaying() then return end
-	if group:IsPlaying() then group:Stop() end
-	anim:SetFromAlpha(current)
-	anim:SetToAlpha(alpha)
-	anim:SetDuration(FRAME_VISIBILITY_FADE_DURATION)
-	group.targetAlpha = alpha
-
-	group:Play()
+	-- Keep visibility alpha behavior, but apply immediately (no animated fade).
+	StopFrameFade(target)
+	target:SetAlpha(alpha)
 end
 
 local function RestoreUnitFrameVisibility(frame, cbData)
