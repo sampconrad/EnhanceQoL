@@ -366,7 +366,7 @@ end
 
 local function getUnitClassToken(unit)
 	if not unit then return nil end
-	local _, class = UnitClass and UnitClass(unit)
+	local _, class = UnitClass(unit)
 	if issecretvalue and issecretvalue(class) then class = nil end
 	if class and class ~= "" then return tostring(class) end
 	if UnitInRaid and GetRaidRosterInfo then
