@@ -245,6 +245,7 @@ local function buildSettings()
 	})
 
 	local qualities = {
+		{ q = 0, key = "Poor" },
 		{ q = 1, key = "Common" },
 		{ q = 2, key = "Uncommon" },
 		{ q = 3, key = "Rare" },
@@ -269,6 +270,11 @@ local function buildSettings()
 			func = function(value)
 				addon.db["vendor" .. tabName .. "Enable"] = value and true or false
 				addon.Vendor.variables.itemQualityFilter[quality] = addon.db["vendor" .. tabName .. "Enable"]
+				if quality == 0 and addon.db["vendor" .. tabName .. "Enable"] then
+					addon.db["sellAllJunk"] = false
+					local sellAllJunkEntry = addon.SettingsLayout and addon.SettingsLayout.elements and addon.SettingsLayout.elements["sellAllJunk"]
+					if sellAllJunkEntry and sellAllJunkEntry.setting then sellAllJunkEntry.setting:SetValue(false) end
+				end
 				refreshSellMarks()
 			end,
 			default = addon.db["vendor" .. tabName .. "Enable"],
@@ -334,7 +340,7 @@ local function buildSettings()
 			parentSection = autoSellExpandable,
 		})
 
-		if quality ~= 1 then
+		if quality > 1 then
 			table.insert(qualityCheckboxes, {
 				var = "vendor" .. tabName .. "IgnoreUpgradable",
 				text = L["vendorIgnoreUpgradable"],
@@ -376,24 +382,26 @@ local function buildSettings()
 		applyParentSection(qualityCheckboxes, autoSellExpandable)
 		addon.functions.SettingsCreateCheckboxes(cVendor, qualityCheckboxes)
 
-		addon.functions.SettingsCreateMultiDropdown(cVendor, {
-			var = "vendor" .. tabName .. "CraftingExpansions",
-			text = L["vendorCraftingExpansions"],
-			parent = true,
-			element = enable.element,
-			parentCheck = parentCheck,
-			options = expansions,
-			isSelectedFunc = function(value)
-				local store = addon.db["vendor" .. tabName .. "CraftingExpansions"]
-				return store and store[value] == true
-			end,
-			setSelectedFunc = function(value, selected)
-				addon.db["vendor" .. tabName .. "CraftingExpansions"] = addon.db["vendor" .. tabName .. "CraftingExpansions"] or {}
-				addon.db["vendor" .. tabName .. "CraftingExpansions"][value] = selected or nil
-				refreshSellMarks()
-			end,
-			parentSection = autoSellExpandable,
-		})
+		if quality > 0 then
+			addon.functions.SettingsCreateMultiDropdown(cVendor, {
+				var = "vendor" .. tabName .. "CraftingExpansions",
+				text = L["vendorCraftingExpansions"],
+				parent = true,
+				element = enable.element,
+				parentCheck = parentCheck,
+				options = expansions,
+				isSelectedFunc = function(value)
+					local store = addon.db["vendor" .. tabName .. "CraftingExpansions"]
+					return store and store[value] == true
+				end,
+				setSelectedFunc = function(value, selected)
+					addon.db["vendor" .. tabName .. "CraftingExpansions"] = addon.db["vendor" .. tabName .. "CraftingExpansions"] or {}
+					addon.db["vendor" .. tabName .. "CraftingExpansions"][value] = selected or nil
+					refreshSellMarks()
+				end,
+				parentSection = autoSellExpandable,
+			})
+		end
 
 		syncBindFilters(quality, tabName)
 		addon.Vendor.variables.itemQualityFilter[quality] = addon.db["vendor" .. tabName .. "Enable"]

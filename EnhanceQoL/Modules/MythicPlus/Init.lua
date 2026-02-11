@@ -669,6 +669,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			[163830] = { text = "ENGI", isToy = true, toyID = 112059, isEngineering = true, zoneID = 572 },
 			[171253] = { text = GARRISON_LOCATION_TOOLTIP, isToy = true, toyID = 110560, isHearthstone = true },
 			[189838] = { text = GARRISON_LOCATION_TOOLTIP, isItem = true, itemID = 128353, icon = 134234, isHearthstone = true },
+			[194812] = { text = "ESM", isToy = true, toyID = 129929, icon = 458243 },
 
 			[49359] = { text = "THER", isClassTP = "MAGE", faction = FACTION_ALLIANCE, locID = 70, x = 0.6628, y = 0.4828, zoneID = 70 },
 			[49360] = { text = "THER", isMagePortal = true, faction = FACTION_ALLIANCE, locID = 70, x = 0.6628, y = 0.4828, zoneID = 70 },

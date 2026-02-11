@@ -100,54 +100,18 @@ function addon.functions.updateRaidToolsHook()
 	end
 end
 
-local function safeUnitHealthPercent(unit, usePredicted, curve)
-	if not UnitHealthPercent or not unit then return nil end
-	local predicted = usePredicted
-	if predicted == nil then predicted = true end
-	curve = curve or (CurveConstants and CurveConstants.ScaleTo100)
-	if curve then
-		local ok, pct = pcall(UnitHealthPercent, unit, predicted, curve)
-		if ok and pct ~= nil then return pct end
-	end
-	local ok, pct = pcall(UnitHealthPercent, unit, predicted)
-	if ok and pct ~= nil then return pct end
-	return nil
-end
-
 function addon.functions.GetHealthPercent(unit, cur, max, usePredicted, curve)
 	if not unit then return 0 end
-	local pct = safeUnitHealthPercent(unit, usePredicted, curve)
-	if pct ~= nil then return pct end
-	cur = cur or (UnitHealth and UnitHealth(unit)) or 0
-	max = max or (UnitHealthMax and UnitHealthMax(unit)) or 0
-	if max > 0 then return (cur / max) * 100 end
-	return 0
-end
-
-local function safeUnitPowerPercent(unit, powerType, useUnmodified, curve)
-	if not UnitPowerPercent or not unit then return nil end
-	local unmodified = useUnmodified
-	if unmodified == nil then unmodified = true end
-	powerType = powerType or 0
 	curve = curve or (CurveConstants and CurveConstants.ScaleTo100)
-	if curve then
-		local ok, pct = pcall(UnitPowerPercent, unit, powerType, unmodified, curve)
-		if ok and pct ~= nil then return pct end
-	end
-	local ok, pct = pcall(UnitPowerPercent, unit, powerType, unmodified)
-	if ok and pct ~= nil then return pct end
-	return nil
+	return UnitHealthPercent(unit, usePredicted, curve)
 end
 
 function addon.functions.GetPowerPercent(unit, powerType, cur, max, useUnmodified, curve)
 	if not unit then return 0 end
 	powerType = powerType or 0
-	local pct = safeUnitPowerPercent(unit, powerType, useUnmodified, curve)
-	if pct ~= nil then return pct end
-	cur = cur or (UnitPower and UnitPower(unit, powerType)) or 0
-	max = max or (UnitPowerMax and UnitPowerMax(unit, powerType)) or 0
-	if max > 0 then return (cur / max) * 100 end
-	return 0
+
+	curve = curve or (CurveConstants and CurveConstants.ScaleTo100)
+	return UnitPowerPercent(unit, powerType, useUnmodified, curve)
 end
 
 local GOLD_ICON = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t"

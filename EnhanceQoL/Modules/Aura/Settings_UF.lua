@@ -31,7 +31,7 @@ local clampNumber = UFHelper and UFHelper.ClampNumber
 
 local MIN_WIDTH = 50
 local OFFSET_RANGE = 1000
-local defaultStrata = (_G.PlayerFrame and _G.PlayerFrame.GetFrameStrata and _G.PlayerFrame:GetFrameStrata()) or "MEDIUM"
+local defaultStrata = "LOW"
 local defaultLevel = (_G.PlayerFrame and _G.PlayerFrame.GetFrameLevel and _G.PlayerFrame:GetFrameLevel()) or 0
 
 local strataOptions = {
@@ -192,6 +192,12 @@ local totemFrameClasses = {
 	SHAMAN = true,
 	WARLOCK = true,
 }
+
+local function getPlayerClassFrameSupportFlags()
+	local classToken = addon.variables and addon.variables.unitClass
+	if not classToken then return false, false end
+	return classResourceClasses[classToken] == true, totemFrameClasses[classToken] == true
+end
 
 local bossUnitLookup = { boss = true }
 for i = 1, (MAX_BOSS_FRAMES or 5) do
@@ -702,6 +708,144 @@ local function checkboxColor(args)
 	}
 end
 
+local function setRangeFadeSpecSpell(unit, specId, kind, value)
+	local cfg = ensureConfig(unit)
+	cfg.rangeFade = cfg.rangeFade or {}
+	if type(cfg.rangeFade.specSpells) ~= "table" then cfg.rangeFade.specSpells = {} end
+	local specKey = tonumber(specId)
+	if not specKey or specKey <= 0 then return end
+	local entry = cfg.rangeFade.specSpells[specKey]
+	if type(entry) ~= "table" then
+		entry = {}
+		cfg.rangeFade.specSpells[specKey] = entry
+	end
+
+	if value == "NONE" then
+		entry[kind] = false
+	elseif value == "DEFAULT" then
+		entry[kind] = nil
+	else
+		local spellId = tonumber(value)
+		if spellId and spellId > 0 then
+			entry[kind] = math.floor(spellId)
+		else
+			entry[kind] = nil
+		end
+	end
+
+	if entry.friendly == nil and entry.enemy == nil then cfg.rangeFade.specSpells[specKey] = nil end
+	if not next(cfg.rangeFade.specSpells) then cfg.rangeFade.specSpells = nil end
+end
+
+local function getRangeFadeSpecSpellState(unit, specId, kind)
+	local cfg = ensureConfig(unit)
+	local rangeCfg = cfg and cfg.rangeFade or nil
+	local specKey = tonumber(specId)
+	local stored
+	if rangeCfg and type(rangeCfg.specSpells) == "table" and specKey then
+		local entry = rangeCfg.specSpells[specKey]
+		if type(entry) == "table" then stored = entry[kind] end
+	end
+
+	local resolvedFriendly, resolvedEnemy
+	if UFHelper and UFHelper.RangeFadeResolveSpellPair then
+		resolvedFriendly, resolvedEnemy = UFHelper.RangeFadeResolveSpellPair(rangeCfg, specKey)
+	end
+	local resolved = (kind == "friendly") and resolvedFriendly or resolvedEnemy
+	if stored == false or stored == 0 or stored == "0" then return "none", nil end
+	if tonumber(stored) and tonumber(stored) > 0 then return "custom", math.floor(tonumber(stored)) end
+	if resolved and tonumber(resolved) and tonumber(resolved) > 0 then return "default", math.floor(tonumber(resolved)) end
+	return "default", nil
+end
+
+local function getRangeFadeSpellDisplay(unit, specId, kind)
+	local mode, spellId = getRangeFadeSpecSpellState(unit, specId, kind)
+	if mode == "none" then return NONE or "None" end
+	if spellId and UFHelper and UFHelper.RangeFadeGetSpellLabel then return UFHelper.RangeFadeGetSpellLabel(spellId, false) or tostring(spellId) end
+	if mode == "default" then return L["UFRangeFadeDefaultNone"] or "Default (none)" end
+	return NONE or "None"
+end
+
+local function createRangeFadeSpellPickerSetting(unit, isRangeFadeEnabled, refreshSelf, refreshRangeFadeRuntime)
+	return {
+		name = L["UFRangeFadeSpells"] or "Range check spells",
+		kind = settingType.Dropdown,
+		height = 300,
+		parentId = "rangeFade",
+		default = nil,
+		generator = function(_, root)
+			local specOptions = (UFHelper and UFHelper.RangeFadeGetSpecOptions and UFHelper.RangeFadeGetSpecOptions()) or {}
+			local friendlyLabel = L["UFRangeFadeFriendlySpell"] or "Friendly spell"
+			local enemyLabel = L["UFRangeFadeEnemySpell"] or "Enemy spell"
+			local defaultLabel = L["Default"] or "Default"
+			local defaultNoneLabel = L["UFRangeFadeDefaultNone"] or "Default (none)"
+			local noneLabel = NONE or "None"
+			if #specOptions == 0 then
+				root:CreateButton(noneLabel)
+				return
+			end
+
+			local function buildSpellMenu(parent, specId, kind, options)
+				if parent and parent.SetScrollMode then parent:SetScrollMode(280) end
+				local mode, currentSpellId = getRangeFadeSpecSpellState(unit, specId, kind)
+				local modeDefault = mode == "default"
+				local modeNone = mode == "none"
+				parent:CreateRadio(defaultLabel, function() return modeDefault end, function()
+					setRangeFadeSpecSpell(unit, specId, kind, "DEFAULT")
+					refreshRangeFadeRuntime(true, false)
+					refreshSelf()
+					refreshSettingsUI()
+				end)
+				parent:CreateRadio(noneLabel, function() return modeNone end, function()
+					setRangeFadeSpecSpell(unit, specId, kind, "NONE")
+					refreshRangeFadeRuntime(true, false)
+					refreshSelf()
+					refreshSettingsUI()
+				end)
+				local defaultFriendly, defaultEnemy = nil, nil
+				if UFHelper and UFHelper.RangeFadeGetDefaultSpellPair then
+					defaultFriendly, defaultEnemy = UFHelper.RangeFadeGetDefaultSpellPair(specId)
+				end
+				local defaultSpellId = kind == "friendly" and defaultFriendly or defaultEnemy
+				if defaultSpellId and UFHelper and UFHelper.RangeFadeGetSpellLabel then
+					parent:CreateButton(string.format("%s: %s", defaultLabel, UFHelper.RangeFadeGetSpellLabel(defaultSpellId, true) or tostring(defaultSpellId)))
+				elseif defaultSpellId == nil then
+					parent:CreateButton(defaultNoneLabel)
+				end
+				for i = 1, #options do
+					local option = options[i]
+					local spellId = option and option.value
+					if spellId then
+						parent:CreateRadio(option.label, function() return mode == "custom" and currentSpellId == spellId end, function()
+							setRangeFadeSpecSpell(unit, specId, kind, spellId)
+							refreshRangeFadeRuntime(true, false)
+							refreshSelf()
+							refreshSettingsUI()
+						end)
+					end
+				end
+			end
+
+			for i = 1, #specOptions do
+				local specEntry = specOptions[i]
+				local specId = specEntry and specEntry.value
+				if specId then
+					local classToken = specEntry.classToken
+					local friendlyOptions = (UFHelper and UFHelper.RangeFadeGetSpellOptions and UFHelper.RangeFadeGetSpellOptions("friendly", classToken)) or {}
+					local enemyOptions = (UFHelper and UFHelper.RangeFadeGetSpellOptions and UFHelper.RangeFadeGetSpellOptions("enemy", classToken)) or {}
+					local specMenu = root:CreateButton(specEntry.label or ("Spec " .. tostring(specId)))
+					if specMenu and specMenu.SetScrollMode then specMenu:SetScrollMode(220) end
+					local friendlyMenu = specMenu:CreateButton(string.format("%s: %s", friendlyLabel, getRangeFadeSpellDisplay(unit, specId, "friendly")))
+					local enemyMenu = specMenu:CreateButton(string.format("%s: %s", enemyLabel, getRangeFadeSpellDisplay(unit, specId, "enemy")))
+					buildSpellMenu(friendlyMenu, specId, "friendly", friendlyOptions)
+					buildSpellMenu(enemyMenu, specId, "enemy", enemyOptions)
+				end
+			end
+		end,
+		isEnabled = isRangeFadeEnabled,
+	}
+end
+
 local function anchorUsesUIParent(unit)
 	local cfg = ensureConfig(unit)
 	local def = defaultsFor(unit)
@@ -793,8 +937,11 @@ local function buildUnitSettings(unit)
 	local refresh = refreshSelf
 	local isPlayer = unit == "player"
 	local isPet = unit == "pet"
-	local classHasResource = isPlayer and classResourceClasses[addon.variables and addon.variables.unitClass]
-	local classHasTotemFrame = isPlayer and totemFrameClasses[addon.variables and addon.variables.unitClass]
+	local classHasResource = false
+	local classHasTotemFrame = false
+	if isPlayer then
+		classHasResource, classHasTotemFrame = getPlayerClassFrameSupportFlags()
+	end
 	local copyOptions = availableCopySources(unit)
 	local visibilityOptions = getVisibilityRuleOptions(unit)
 	local function getVisibilityConfig()
@@ -1342,17 +1489,20 @@ local function buildUnitSettings(unit)
 	if unit == "target" then
 		local rangeDef = def.rangeFade or {}
 		local function isRangeFadeEnabled() return getValue(unit, { "rangeFade", "enabled" }, rangeDef.enabled == true) == true end
+		local function refreshRangeFadeRuntime(rebuildSpellList, applyCurrent)
+			if not UFHelper then return end
+			if UFHelper.RangeFadeMarkConfigDirty then UFHelper.RangeFadeMarkConfigDirty() end
+			if rebuildSpellList and UFHelper.RangeFadeMarkSpellListDirty then UFHelper.RangeFadeMarkSpellListDirty() end
+			if applyCurrent and UFHelper.RangeFadeApplyCurrent then UFHelper.RangeFadeApplyCurrent(true) end
+			if UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+		end
 
 		list[#list + 1] = { name = L["UFRangeFade"] or "Range fade", kind = settingType.Collapsible, id = "rangeFade", defaultCollapsed = true }
 
 		list[#list + 1] = checkbox(L["UFRangeFadeEnable"] or "Enable range fade", isRangeFadeEnabled, function(val)
 			setValue(unit, { "rangeFade", "enabled" }, val and true or false)
 			refreshSelf()
-			if UFHelper then
-				if UFHelper.RangeFadeMarkConfigDirty then UFHelper.RangeFadeMarkConfigDirty() end
-				if UFHelper.RangeFadeMarkSpellListDirty then UFHelper.RangeFadeMarkSpellListDirty() end
-				if UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
-			end
+			refreshRangeFadeRuntime(true, false)
 		end, rangeDef.enabled == true, "rangeFade")
 
 		local rangeFadeAlpha = slider(L["UFRangeFadeAlpha"] or "Out of range opacity", 0, 100, 1, function()
@@ -1367,13 +1517,12 @@ local function buildUnitSettings(unit)
 			if pct > 100 then pct = 100 end
 			setValue(unit, { "rangeFade", "alpha" }, pct / 100)
 			refreshSelf()
-			if UFHelper then
-				if UFHelper.RangeFadeMarkConfigDirty then UFHelper.RangeFadeMarkConfigDirty() end
-				if UFHelper.RangeFadeApplyCurrent then UFHelper.RangeFadeApplyCurrent(true) end
-			end
+			refreshRangeFadeRuntime(false, true)
 		end, math.floor(((rangeDef.alpha or 0.5) * 100) + 0.5), "rangeFade", true, function(v) return tostring(v) .. "%" end)
 		rangeFadeAlpha.isEnabled = isRangeFadeEnabled
 		list[#list + 1] = rangeFadeAlpha
+
+		list[#list + 1] = createRangeFadeSpellPickerSetting(unit, isRangeFadeEnabled, refreshSelf, refreshRangeFadeRuntime)
 	end
 
 	list[#list + 1] = { name = L["HealthBar"] or "Health Bar", kind = settingType.Collapsible, id = "health", defaultCollapsed = true }

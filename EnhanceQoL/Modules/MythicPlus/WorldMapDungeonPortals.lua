@@ -249,6 +249,7 @@ local function isRestrictedContent()
 	end
 	return false
 end
+
 local function SetCombatScrolling(enabled)
 	if not panel or not panel.Scroll then return end
 	local s = panel.Scroll
@@ -278,6 +279,50 @@ local function SetButtonsInteractable(enabled)
 		if b and b.EnableMouse then b:EnableMouse(enabled and true or false) end
 	end
 end
+
+local function SetBlockerEnabled(enabled)
+	if panel and panel.Blocker then
+		panel.Blocker:SetAlpha(enabled and 1 or 0)
+		panel.Blocker:EnableMouse(enabled and true or false)
+		panel.Blocker:EnableMouseWheel(enabled and true or false)
+	end
+end
+
+local function IsPanelSuppressed()
+	return isRestrictedContent()
+end
+
+local function LeaveDisplayModeIfNeeded()
+	if not QuestMapFrame or not QuestMapFrame.GetDisplayMode then return end
+	if QuestMapFrame:GetDisplayMode() ~= DISPLAY_MODE then return end
+	if InCombatLockdown and InCombatLockdown() then return end
+
+	if QuestMapFrame.SetDisplayMode and QuestLogDisplayMode and QuestLogDisplayMode.MapLegend then
+		QuestMapFrame:SetDisplayMode(QuestLogDisplayMode.MapLegend)
+		return
+	end
+	if QuestMapFrame.MapLegendTab and QuestMapFrame.MapLegendTab.Click then
+		QuestMapFrame.MapLegendTab:Click()
+	elseif QuestMapFrame.QuestsTab and QuestMapFrame.QuestsTab.Click then
+		QuestMapFrame.QuestsTab:Click()
+	end
+end
+
+local function ApplySuppressedPanelState()
+	SetCombatScrolling(false)
+	SetButtonsInteractable(false)
+	SetBlockerEnabled(true)
+	if panel then SafeSetVisible(panel, false) end
+	if tabButton then SafeSetVisible(tabButton, false) end
+	LeaveDisplayModeIfNeeded()
+end
+
+local function ApplyNormalPanelState()
+	SetCombatScrolling(true)
+	SetButtonsInteractable(true)
+	SetBlockerEnabled(false)
+end
+
 local function EnsurePanel(parent)
 	local targetParent = QuestMapFrame or parent
 	if panel and panel:GetParent() ~= targetParent then panel:SetParent(targetParent) end
@@ -923,6 +968,10 @@ local function EnsureTab(parent, anchorTo)
 	tabButton:SetScript("OnMouseUp", function(self, button, upInside)
 		if button ~= "LeftButton" or not upInside then return end
 		if not panel then return end
+		if IsPanelSuppressed() then
+			ApplySuppressedPanelState()
+			return
+		end
 		if QuestMapFrame and QuestMapFrame.SetDisplayMode then
 			QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
 		else
@@ -942,6 +991,10 @@ function f:TryInit()
 	if not addon.db or not addon.db["teleportsWorldMapEnabled"] then
 		if panel then SafeSetVisible(panel, false) end
 		if tabButton then SafeSetVisible(tabButton, false) end
+		return
+	end
+	if IsPanelSuppressed() then
+		ApplySuppressedPanelState()
 		return
 	end
 
@@ -1035,6 +1088,10 @@ function f:TryInit()
 	if EventRegistry and not f._eqolDisplayEvent then
 		EventRegistry:RegisterCallback("QuestLog.SetDisplayMode", function(_, mode)
 			if mode == DISPLAY_MODE then
+				if IsPanelSuppressed() then
+					ApplySuppressedPanelState()
+					return
+				end
 				if tabButton and tabButton.SetChecked then tabButton:SetChecked(true) end
 				if panel then SafeSetVisible(panel, true) end
 				QueuePanelRefresh({ delay = 0 })
@@ -1050,6 +1107,10 @@ function f:TryInit()
 	if QuestMapFrame and QuestMapFrame.SetDisplayMode and not QuestMapFrame._eqolSetDisplayHook then
 		hooksecurefunc(QuestMapFrame, "SetDisplayMode", function(_, mode)
 			if mode == DISPLAY_MODE then
+				if IsPanelSuppressed() then
+					ApplySuppressedPanelState()
+					return
+				end
 				if panel then SafeSetVisible(panel, true) end
 			else
 				if panel then SafeSetVisible(panel, false) end
@@ -1063,31 +1124,19 @@ function f:TryInit()
 end
 
 function f:RefreshPanel()
-	if not InCombatLockdown() then
-		if isRestrictedContent() then
-			SetCombatScrolling(false)
-			SetButtonsInteractable(false)
-			if panel and panel.Blocker then
-				panel.Blocker:SetAlpha(1)
-				panel.Blocker:EnableMouse(true)
-				panel.Blocker:EnableMouseWheel(true)
-			end
-			return
-		end
-		if panel and panel.Blocker then
-			panel.Blocker:SetAlpha(0)
-			panel.Blocker:EnableMouse(false)
-			panel.Blocker:EnableMouseWheel(false)
-		end
-		SetCombatScrolling(true)
-		if not addon.db or not addon.db["teleportsWorldMapEnabled"] then
-			if panel then SafeSetVisible(panel, false) end
-			if tabButton then SafeSetVisible(tabButton, false) end
-			return
-		end
-		if not panel then return end
-		PopulatePanel()
+	if InCombatLockdown and InCombatLockdown() then return end
+	if IsPanelSuppressed() then
+		ApplySuppressedPanelState()
+		return
 	end
+	ApplyNormalPanelState()
+	if not addon.db or not addon.db["teleportsWorldMapEnabled"] then
+		if panel then SafeSetVisible(panel, false) end
+		if tabButton then SafeSetVisible(tabButton, false) end
+		return
+	end
+	if not panel then return end
+	PopulatePanel()
 end
 
 -- Only recompute and apply cooldowns for existing buttons
@@ -1124,20 +1173,14 @@ local function worldMapEventHandler(self, event, arg1)
 	if event == "PLAYER_REGEN_DISABLED" then
 		SetCombatScrolling(false)
 		SetButtonsInteractable(false)
-		if panel and panel.Blocker then
-			panel.Blocker:SetAlpha(1)
-			panel.Blocker:EnableMouse(true)
-			panel.Blocker:EnableMouseWheel(true)
-		end
+		SetBlockerEnabled(true)
 		-- Avoid Show/Hide while in combat
 		return
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		SetCombatScrolling(true)
-		SetButtonsInteractable(true)
-		if panel and panel.Blocker then
-			panel.Blocker:SetAlpha(0)
-			panel.Blocker:EnableMouse(false)
-			panel.Blocker:EnableMouseWheel(false)
+		if IsPanelSuppressed() then
+			ApplySuppressedPanelState()
+		else
+			ApplyNormalPanelState()
 		end
 		-- Apply any deferred visibility changes now that combat ended
 		if panel and panel._eqolPendingVisible ~= nil then
@@ -1148,7 +1191,7 @@ local function worldMapEventHandler(self, event, arg1)
 			SafeSetVisible(tabButton, tabButton._eqolPendingVisible)
 			tabButton._eqolPendingVisible = nil
 		end
-		if f._pendingOpen then
+		if f._pendingOpen and not IsPanelSuppressed() then
 			f._pendingOpen = nil
 			if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.OpenWorldMapTeleportPanel then addon.MythicPlus.functions.OpenWorldMapTeleportPanel(true) end
 		end
@@ -1162,7 +1205,7 @@ local function worldMapEventHandler(self, event, arg1)
 				if addon.db and addon.db["teleportsWorldMapEnabled"] then
 					f:TryInit()
 					if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
-					if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode then
+					if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode and not IsPanelSuppressed() then
 						QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
 						f._selectOnNextShow = nil
 					end
@@ -1210,7 +1253,7 @@ function addon.MythicPlus.functions.InitWorldMapTeleportPanel()
 			if addon.db and addon.db["teleportsWorldMapEnabled"] then
 				f:TryInit()
 				if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
-				if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode then
+				if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode and not IsPanelSuppressed() then
 					QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
 					f._selectOnNextShow = nil
 				end
@@ -1240,7 +1283,7 @@ function addon.MythicPlus.functions.RefreshWorldMapTeleportPanel()
 				if addon.db and addon.db["teleportsWorldMapEnabled"] then
 					f:TryInit()
 					if QuestMapFrame and QuestMapFrame.ValidateTabs then QuestMapFrame:ValidateTabs() end
-					if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode then
+					if f._selectOnNextShow and QuestMapFrame and QuestMapFrame.SetDisplayMode and not IsPanelSuppressed() then
 						QuestMapFrame:SetDisplayMode(DISPLAY_MODE)
 						f._selectOnNextShow = nil
 					end
@@ -1271,6 +1314,10 @@ function addon.MythicPlus.functions.RefreshWorldMapTeleportPanel()
 		end
 
 		if WorldMapFrame:IsShown() then
+			if IsPanelSuppressed() then
+				ApplySuppressedPanelState()
+				return
+			end
 			if tabButton then SafeSetVisible(tabButton, true) end
 			if QuestMapFrame and QuestMapFrame.SetDisplayMode then QuestMapFrame:SetDisplayMode(DISPLAY_MODE) end
 			QueuePanelRefresh({ delay = 0, invalidate = true })
@@ -1284,6 +1331,10 @@ function addon.MythicPlus.functions.OpenWorldMapTeleportPanel(force)
 	if not addon or not addon.db or not addon.db["teleportsWorldMapEnabled"] then return end
 	if not force and InCombatLockdown and InCombatLockdown() then
 		f._pendingOpen = true
+		return
+	end
+	if IsPanelSuppressed() then
+		ApplySuppressedPanelState()
 		return
 	end
 

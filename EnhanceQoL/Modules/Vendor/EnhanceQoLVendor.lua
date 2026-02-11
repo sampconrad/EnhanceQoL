@@ -950,6 +950,7 @@ local function addVendorFrame(container, type)
 	local vendorEnable = addon.functions.createCheckboxAce(L["vendorEnable"]:format(iqColor), addon.db["vendor" .. value .. "Enable"], function(self, _, checked)
 		addon.db["vendor" .. value .. "Enable"] = checked
 		addon.Vendor.variables.itemQualityFilter[type] = checked
+		if type == 0 and checked then addon.db["sellAllJunk"] = false end
 
 		container:ReleaseChildren()
 		addVendorFrame(container, type)
@@ -968,7 +969,7 @@ local function addVendorFrame(container, type)
 			{ text = L["vendorIgnoreBoE"], var = "vendor" .. value .. "IgnoreBoE", filter = { 2 } },
 			{ text = L["vendorIgnoreWarbound"], var = "vendor" .. value .. "IgnoreWarbound", filter = { 7, 8, 9 } },
 		}
-		if type ~= 1 then
+		if type > 1 then
 			table.insert(data, { text = L["vendorIgnoreUpgradable"], var = "vendor" .. value .. "IgnoreUpgradable" })
 			if type == 4 then
 				table.insert(data, { text = L["vendorIgnoreHeroicTrack"], var = "vendor" .. value .. "IgnoreHeroicTrack" })
@@ -1008,20 +1009,22 @@ local function addVendorFrame(container, type)
 		end)
 		groupCore:AddChild(vendorIlvl)
 
-		local expList = {}
-		for i = 0, LE_EXPANSION_LEVEL_CURRENT do
-			expList[i] = _G["EXPANSION_NAME" .. i]
+		if type > 0 then
+			local expList = {}
+			for i = 0, LE_EXPANSION_LEVEL_CURRENT do
+				expList[i] = _G["EXPANSION_NAME" .. i]
+			end
+			local list, order = addon.functions.prepareListForDropdown(expList, true)
+			local dropCrafting = addon.functions.createDropdownAce(L["vendorCraftingExpansions"], list, order, function(self, event, key, checked)
+				addon.db["vendor" .. value .. "CraftingExpansions"][key] = checked or nil
+				updateSellMarks(nil, true)
+			end)
+			dropCrafting:SetMultiselect(true)
+			for id, val in pairs(addon.db["vendor" .. value .. "CraftingExpansions"]) do
+				if val then dropCrafting:SetItemValue(tonumber(id), true) end
+			end
+			groupCore:AddChild(dropCrafting)
 		end
-		local list, order = addon.functions.prepareListForDropdown(expList, true)
-		local dropCrafting = addon.functions.createDropdownAce(L["vendorCraftingExpansions"], list, order, function(self, event, key, checked)
-			addon.db["vendor" .. value .. "CraftingExpansions"][key] = checked or nil
-			updateSellMarks(nil, true)
-		end)
-		dropCrafting:SetMultiselect(true)
-		for id, val in pairs(addon.db["vendor" .. value .. "CraftingExpansions"]) do
-			if val then dropCrafting:SetItemValue(tonumber(id), true) end
-		end
-		groupCore:AddChild(dropCrafting)
 
 		if addon.db["vendor" .. value .. "IgnoreWarbound"] then table.insert(text, L["vendorIgnoreWarbound"]) end
 		if addon.db["vendor" .. value .. "IgnoreBoE"] then table.insert(text, L["vendorIgnoreBoE"]) end

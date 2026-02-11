@@ -83,7 +83,7 @@ end
 local function GetCooldownData(spellInfo)
 	if not spellInfo then return end
 
-	local cooldownData
+	local cooldownData, isSecret = nil, false
 	if spellInfo.isToy then
 		if spellInfo.toyID then
 			local startTime, duration, enable = GetItemCooldown(spellInfo.toyID)
@@ -111,9 +111,10 @@ local function GetCooldownData(spellInfo)
 			spellID = FindSpellOverrideByID(spellID)
 			spellInfo.spellID = spellID
 		end
-		cooldownData = C_Spell.GetSpellCooldown(spellID)
+		cooldownData = C_Spell.GetSpellCooldownDuration(spellID)
+		isSecret = true
 	end
-	return cooldownData
+	return cooldownData, isSecret
 end
 
 local function getCurrentSeasonPortal()
@@ -1051,8 +1052,10 @@ function checkCooldown()
 
 	for _, button in pairs(frameAnchor.buttons or {}) do
 		if isKnown[button.spellID] then
-			local cooldownData = GetCooldownData(button)
-			if cooldownData and cooldownData.isEnabled then
+			local cooldownData, isSecret = GetCooldownData(button)
+			if isSecret and button.cooldownFrame.SetCooldownFromDuration then
+				if cooldownData then button.cooldownFrame:SetCooldownFromDuration(cooldownData) end
+			elseif cooldownData and cooldownData.isEnabled then
 				button.cooldownFrame:SetCooldown(cooldownData.startTime, cooldownData.duration, cooldownData.modRate)
 			else
 				button.cooldownFrame:SetCooldown(0, 0)
@@ -1074,226 +1077,262 @@ local function waitCooldown(arg3)
 end
 
 local textList = {}
+local textListUsed = 0
 local gFrameAnchorScore
 
-local function createString(textLeft, textRight, colorLeft, colorRight, anchor, selected)
-	local titleScore1 = gFrameAnchorScore:CreateFontString(nil, "OVERLAY")
-	titleScore1:SetFont(addon.variables.defaultFont, 14, "OUTLINE")
-	titleScore1:SetFormattedText(textLeft)
-	titleScore1:SetPoint("TOPLEFT", 7, (addon.functions.getHeightOffset(anchor) - 10))
-	if colorLeft then titleScore1:SetTextColor(colorLeft.r, colorLeft.g, colorLeft.b, 1) end
-	if selected then titleScore1:SetTextColor(0, 1, 0, 1) end
-	table.insert(textList, titleScore1)
+local function acquireRioText(index)
+	local fs = textList[index]
+	if fs then return fs end
+	fs = gFrameAnchorScore:CreateFontString(nil, "OVERLAY")
+	fs:SetFont(addon.variables.defaultFont, 14, "OUTLINE")
+	textList[index] = fs
+	return fs
+end
 
-	local titleScoreValue = gFrameAnchorScore:CreateFontString(nil, "OVERLAY")
-	titleScoreValue:SetFont(addon.variables.defaultFont, 14, "OUTLINE")
+local function updateRioLockButton(button)
+	if not (button and button.icon) then return end
+	button.isDocked = addon.db.dungeonScoreFrameLocked and true or false
+	if button.isDocked then
+		button.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\ClosedLock.tga")
+	else
+		button.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\OpenLock.tga")
+	end
+end
+
+local function hideUnusedRioText()
+	for i = textListUsed + 1, #textList do
+		textList[i]:Hide()
+	end
+end
+
+local function createString(textLeft, textRight, colorLeft, colorRight, anchor, selected)
+	textListUsed = textListUsed + 1
+	local titleScore1 = acquireRioText(textListUsed)
+	titleScore1:SetFormattedText(textLeft)
+	titleScore1:ClearAllPoints()
+	titleScore1:SetPoint("TOPLEFT", 7, (addon.functions.getHeightOffset(anchor) - 10))
+	if selected then
+		titleScore1:SetTextColor(0, 1, 0, 1)
+	elseif colorLeft then
+		titleScore1:SetTextColor(colorLeft.r, colorLeft.g, colorLeft.b, 1)
+	else
+		titleScore1:SetTextColor(1, 1, 1, 1)
+	end
+	titleScore1:Show()
+
+	textListUsed = textListUsed + 1
+	local titleScoreValue = acquireRioText(textListUsed)
 	titleScoreValue:SetFormattedText(textRight)
+	titleScoreValue:ClearAllPoints()
 	titleScoreValue:SetPoint("TOPRIGHT", -7, (addon.functions.getHeightOffset(anchor) - 10))
-	if colorRight then titleScoreValue:SetTextColor(colorRight.r, colorRight.g, colorRight.b, 1) end
-	table.insert(textList, titleScoreValue)
+	if colorRight then
+		titleScoreValue:SetTextColor(colorRight.r, colorRight.g, colorRight.b, 1)
+	else
+		titleScoreValue:SetTextColor(1, 1, 1, 1)
+	end
+	titleScoreValue:Show()
 	return titleScore1
 end
 
-local function CreateRioScore()
-	if gFrameAnchorScore then
-		gFrameAnchorScore:Hide()
-		gFrameAnchorScore:SetScript("OnUpdate", nil)
-		gFrameAnchorScore:SetScript("OnEvent", nil)
-		gFrameAnchorScore:UnregisterAllEvents()
-		gFrameAnchorScore:SetParent(nil)
-		gFrameAnchorScore = nil
-	end
-	if _G["EQOLDungeonScoreFrame"] then
-		_G["EQOLDungeonScoreFrame"]:Hide()
-		_G["EQOLDungeonScoreFrame"]:SetScript("OnUpdate", nil)
-		_G["EQOLDungeonScoreFrame"]:SetScript("OnEvent", nil)
-		_G["EQOLDungeonScoreFrame"]:UnregisterAllEvents()
-		_G["EQOLDungeonScoreFrame"]:SetParent(nil)
-		_G["EQOLDungeonScoreFrame"] = nil
-	end
-	-- Skip creating the Mythic+ Dungeons/Score frame for Timerunners
-	if addon and addon.functions and addon.functions.IsTimerunner and addon.functions.IsTimerunner() then return end
-	if addon.variables.maxLevel ~= UnitLevel("player") then return end
+local function ensureRioScoreFrame()
+	if gFrameAnchorScore then return gFrameAnchorScore end
 
-	if addon.db["groupfinderShowDungeonScoreFrame"] == true then
-		local frameAnchorScore = CreateFrame("Frame", "EQOLDungeonScoreFrame", parentFrame, "BackdropTemplate")
-		gFrameAnchorScore = frameAnchorScore
-		frameAnchorScore:SetBackdrop({
-			bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", -- Hintergrund
-			edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", -- Rahmen
-			edgeSize = 16,
-			insets = { left = 4, right = 4, top = 4, bottom = 4 },
-		})
-		frameAnchorScore:SetBackdropColor(0, 0, 0, 0.8) -- Dunkler Hintergrund mit 80% Transparenz
-		frameAnchorScore:SetFrameStrata("TOOLTIP")
+	local frameAnchorScore = _G["EQOLDungeonScoreFrame"]
+	if not frameAnchorScore then frameAnchorScore = CreateFrame("Frame", "EQOLDungeonScoreFrame", parentFrame, "BackdropTemplate") end
+	gFrameAnchorScore = frameAnchorScore
+	if frameAnchorScore._eqolRioInitialized then return frameAnchorScore end
 
-		frameAnchorScore:SetMovable(true)
-		frameAnchorScore:EnableMouse(true)
-		frameAnchorScore:SetClampedToScreen(true)
-		frameAnchorScore:RegisterForDrag("LeftButton")
-		frameAnchorScore:SetScript("OnDragStart", function(self)
-			if addon.db.dungeonScoreFrameLocked then return end
-			if InCombatLockdown() then return end
-			if not IsShiftKeyDown() then return end
-			self:StartMoving()
-		end)
-		frameAnchorScore:SetScript("OnDragStop", function(self)
-			if InCombatLockdown() then return end
-			self:StopMovingOrSizing()
-			local point, _, parentPoint, xOfs, yOfs = self:GetPoint()
-			addon.db.dungeonScoreFrameData.point = point
-			addon.db.dungeonScoreFrameData.parentPoint = parentPoint
-			addon.db.dungeonScoreFrameData.x = xOfs
-			addon.db.dungeonScoreFrameData.y = yOfs
-		end)
+	frameAnchorScore._eqolRioInitialized = true
+	frameAnchorScore:SetBackdrop({
+		bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+		edgeSize = 16,
+		insets = { left = 4, right = 4, top = 4, bottom = 4 },
+	})
+	frameAnchorScore:SetBackdropColor(0, 0, 0, 0.8)
+	frameAnchorScore:SetFrameStrata("TOOLTIP")
+	frameAnchorScore:SetMovable(true)
+	frameAnchorScore:EnableMouse(true)
+	frameAnchorScore:SetClampedToScreen(true)
+	frameAnchorScore:RegisterForDrag("LeftButton")
+	frameAnchorScore:SetScript("OnDragStart", function(self)
+		if addon.db.dungeonScoreFrameLocked then return end
+		if InCombatLockdown() then return end
+		if not IsShiftKeyDown() then return end
+		self:StartMoving()
+	end)
+	frameAnchorScore:SetScript("OnDragStop", function(self)
+		if InCombatLockdown() then return end
+		self:StopMovingOrSizing()
+		local point, _, parentPoint, xOfs, yOfs = self:GetPoint()
+		addon.db.dungeonScoreFrameData.point = point
+		addon.db.dungeonScoreFrameData.parentPoint = parentPoint
+		addon.db.dungeonScoreFrameData.x = xOfs
+		addon.db.dungeonScoreFrameData.y = yOfs
+	end)
 
-		local btnDockScore = CreateFrame("Button", nil, frameAnchorScore)
-		btnDockScore:SetPoint("TOPRIGHT", frameAnchorScore, "TOPRIGHT", -5, -5)
-		btnDockScore:SetSize(16, 16)
-		btnDockScore.isDocked = addon.db.dungeonScoreFrameLocked
-		local iconScore = btnDockScore:CreateTexture(nil, "ARTWORK")
-		iconScore:SetAllPoints(btnDockScore)
-		btnDockScore.icon = iconScore
-		if btnDockScore.isDocked then
-			iconScore:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\ClosedLock.tga")
+	local btnDockScore = CreateFrame("Button", nil, frameAnchorScore)
+	btnDockScore:SetPoint("TOPRIGHT", frameAnchorScore, "TOPRIGHT", -5, -5)
+	btnDockScore:SetSize(16, 16)
+	local iconScore = btnDockScore:CreateTexture(nil, "ARTWORK")
+	iconScore:SetAllPoints(btnDockScore)
+	btnDockScore.icon = iconScore
+	updateRioLockButton(btnDockScore)
+	btnDockScore:SetScript("OnClick", function(self)
+		self.isDocked = not self.isDocked
+		addon.db.dungeonScoreFrameLocked = self.isDocked
+		updateRioLockButton(self)
+		addon.MythicPlus.functions.toggleFrame()
+	end)
+	btnDockScore:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		if self.isDocked then
+			GameTooltip:SetText(L["frameUnlock"])
 		else
-			iconScore:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\OpenLock.tga")
+			GameTooltip:SetText(L["frameLock"])
 		end
-		btnDockScore:SetScript("OnClick", function(self)
-			self.isDocked = not self.isDocked
-			addon.db.dungeonScoreFrameLocked = self.isDocked
-			if self.isDocked then
-				self.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\ClosedLock.tga")
-			else
-				self.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\OpenLock.tga")
-			end
-			addon.MythicPlus.functions.toggleFrame()
-		end)
-		btnDockScore:SetScript("OnEnter", function(self)
-			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-			if self.isDocked then
-				GameTooltip:SetText(L["frameUnlock"])
-			else
-				GameTooltip:SetText(L["frameLock"])
-			end
-			GameTooltip:Show()
-		end)
-		btnDockScore:SetScript("OnLeave", function() GameTooltip:Hide() end)
+		GameTooltip:Show()
+	end)
+	btnDockScore:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	frameAnchorScore.btnDockScore = btnDockScore
 
-		-- Überschrift hinzufügen
-		local titleScore = frameAnchorScore:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-		titleScore:SetFormattedText(DUNGEON_SCORE)
-		titleScore:SetPoint("TOP", 0, -10)
+	local titleScore = frameAnchorScore:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	titleScore:SetFormattedText(DUNGEON_SCORE)
+	titleScore:SetPoint("TOP", 0, -10)
+	frameAnchorScore.titleScore = titleScore
 
-		minFrameSize = max(titleScore:GetStringWidth() + 20, title:GetStringWidth() + 20, 205, minFrameSize)
-		SafeSetSize(frameAnchorScore, minFrameSize, 170)
-		if addon.db["teleportFrame"] then
-			frameAnchorScore:SetPoint("TOPLEFT", DungeonTeleportFrame, "BOTTOMLEFT", 0, 0)
-		elseif nil ~= RaiderIO_ProfileTooltip then
-			local offsetX = RaiderIO_ProfileTooltip:GetSize()
-			frameAnchorScore:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", offsetX, 0)
-		else
-			frameAnchorScore:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 0, 0)
+	return frameAnchorScore
+end
+
+local function updateRioScoreFrame()
+	if not gFrameAnchorScore then return end
+
+	local frameAnchorScore = gFrameAnchorScore
+	local titleScore = frameAnchorScore.titleScore
+	updateRioLockButton(frameAnchorScore.btnDockScore)
+	titleScore:SetFormattedText(DUNGEON_SCORE)
+
+	minFrameSize = max(titleScore:GetStringWidth() + 20, title:GetStringWidth() + 20, 205, minFrameSize)
+	SafeSetSize(frameAnchorScore, minFrameSize, 170)
+	if addon.db["teleportFrame"] then
+		frameAnchorScore:ClearAllPoints()
+		frameAnchorScore:SetPoint("TOPLEFT", DungeonTeleportFrame, "BOTTOMLEFT", 0, 0)
+	elseif nil ~= RaiderIO_ProfileTooltip then
+		local offsetX = RaiderIO_ProfileTooltip:GetSize()
+		frameAnchorScore:ClearAllPoints()
+		frameAnchorScore:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", offsetX, 0)
+	else
+		frameAnchorScore:ClearAllPoints()
+		frameAnchorScore:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 0, 0)
+	end
+	if not addon.db.dungeonScoreFrameLocked and addon.db.dungeonScoreFrameData and addon.db.dungeonScoreFrameData.point then
+		frameAnchorScore:ClearAllPoints()
+		frameAnchorScore:SetPoint(addon.db.dungeonScoreFrameData.point, UIParent, addon.db.dungeonScoreFrameData.parentPoint, addon.db.dungeonScoreFrameData.x, addon.db.dungeonScoreFrameData.y)
+	end
+	SafeSetSize(frameAnchor, minFrameSize, 170)
+
+	textListUsed = 0
+
+	local ratingInfo = {}
+	local _, _, timeLimit
+	local rating = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player")
+	if rating then
+		for _, key in pairs(rating.runs) do
+			ratingInfo[key.challengeModeID] = key
 		end
-		if not addon.db.dungeonScoreFrameLocked and addon.db.dungeonScoreFrameData.point then
-			frameAnchorScore:ClearAllPoints()
-			frameAnchorScore:SetPoint(addon.db.dungeonScoreFrameData.point, UIParent, addon.db.dungeonScoreFrameData.parentPoint, addon.db.dungeonScoreFrameData.x, addon.db.dungeonScoreFrameData.y)
-		end
-		SafeSetSize(frameAnchor, minFrameSize, 170)
 
-		local ratingInfo = {}
+		local r, g, b = C_ChallengeMode.GetDungeonScoreRarityColor(rating.currentSeasonScore):GetRGB()
+		local l1 = createString(BATTLEGROUND_RATING, rating.currentSeasonScore, nil, { r = r, g = g, b = b }, titleScore)
+		local nWidth = l1:GetStringWidth() + 60
+		local dungeonList = {}
 
-		for i, v in pairs(textList) do
-			v:Hide()
-		end
+		for _, key in pairs(C_ChallengeMode.GetMapTable()) do
+			_, _, timeLimit = C_ChallengeMode.GetMapUIInfo(key)
+			r, g, b = 0.5, 0.5, 0.5
 
-		local _, _, timeLimit
-		local rating = C_PlayerInfo.GetPlayerMythicPlusRatingSummary("player")
-		if rating then
-			for _, key in pairs(rating.runs) do
-				ratingInfo[key.challengeModeID] = key
-			end
+			local data = key
+			local mId = key
+			local stars = 0
+			local score = 0
+			if ratingInfo[key] then
+				data = ratingInfo[key]
+				mId = data.challengeModeID
 
-			local r, g, b = C_ChallengeMode.GetDungeonScoreRarityColor(rating.currentSeasonScore):GetRGB()
+				if data.bestRunLevel > 0 then
+					r, g, b = 1, 1, 1
 
-			local l1 = createString(BATTLEGROUND_RATING, rating.currentSeasonScore, nil, { r = r, g = g, b = b }, titleScore)
-
-			local nWidth = l1:GetStringWidth() + 60
-
-			local dungeonList = {}
-
-			for _, key in pairs(rating.runs) do
-				ratingInfo[key.challengeModeID] = key
-			end
-
-			for _, key in pairs(C_ChallengeMode.GetMapTable()) do
-				_, _, timeLimit = C_ChallengeMode.GetMapUIInfo(key)
-				r, g, b = 0.5, 0.5, 0.5
-
-				local data = key
-				local mId = key
-				local stars = 0
-				local score = 0
-				if ratingInfo[key] then
-					data = ratingInfo[key]
-					mId = data.challengeModeID
-
-					if data.bestRunLevel > 0 then
-						r, g, b = 1, 1, 1
-
-						local bestRunDuration = data.bestRunDurationMS / 1000
-						local timeForPlus3 = timeLimit * 0.6
-						local timeForPlus2 = timeLimit * 0.8
-						local timeForPlus1 = timeLimit
-						score = data.mapScore
-						if bestRunDuration <= timeForPlus3 then
-							stars = "|cFFFFD700+++|r" -- Gold für 3 Sterne
-						elseif bestRunDuration <= timeForPlus2 then
-							stars = "|cFFFFD700++|r" -- Gold für 2 Sterne
-						elseif bestRunDuration <= timeForPlus1 then
-							stars = "|cFFFFD700+|r" -- Gold für 1 Stern
-						else
-							stars = ""
-							r = 0.5
-							g = 0.5
-							b = 0.5
-						end
-						stars = stars .. data.bestRunLevel
+					local bestRunDuration = data.bestRunDurationMS / 1000
+					local timeForPlus3 = timeLimit * 0.6
+					local timeForPlus2 = timeLimit * 0.8
+					local timeForPlus1 = timeLimit
+					score = data.mapScore
+					if bestRunDuration <= timeForPlus3 then
+						stars = "|cFFFFD700+++|r"
+					elseif bestRunDuration <= timeForPlus2 then
+						stars = "|cFFFFD700++|r"
+					elseif bestRunDuration <= timeForPlus1 then
+						stars = "|cFFFFD700+|r"
 					else
-						stars = 0
+						stars = ""
 						r = 0.5
 						g = 0.5
 						b = 0.5
 					end
+					stars = stars .. data.bestRunLevel
+				else
+					stars = 0
+					r = 0.5
+					g = 0.5
+					b = 0.5
 				end
-
-				local selected = false
-				if key == selectedMapId then selected = true end
-				table.insert(dungeonList, {
-					text = addon.MythicPlus.variables.challengeMapID[mId] or "UNKNOWN",
-					stars = stars,
-					score = score,
-					r = r,
-					g = g,
-					b = b,
-					select = selected,
-				})
 			end
 
-			table.sort(dungeonList, function(a, b) return a.score > b.score end)
-
-			local lastElement = l1 -- Speichert das letzte UI-Element, um die richtige Position zu setzen
-
-			for _, dungeon in ipairs(dungeonList) do
-				lastElement = createString(dungeon.text, dungeon.stars, nil, { r = dungeon.r, g = dungeon.g, b = dungeon.b }, lastElement, dungeon.select)
-			end
-
-			local _, _, _, _, lp = lastElement:GetPoint()
-			minFrameSize = max(nWidth + 20, 205, title:GetStringWidth() + 20, minFrameSize)
-			SafeSetSize(frameAnchorScore, minFrameSize, max(lp * -1 + 30, 170))
-			SafeSetSize(frameAnchor, minFrameSize, 170)
+			local selected = false
+			if key == selectedMapId then selected = true end
+			table.insert(dungeonList, {
+				text = addon.MythicPlus.variables.challengeMapID[mId] or "UNKNOWN",
+				stars = stars,
+				score = score,
+				r = r,
+				g = g,
+				b = b,
+				select = selected,
+			})
 		end
+
+		table.sort(dungeonList, function(a, b) return a.score > b.score end)
+
+		local lastElement = l1
+		for _, dungeon in ipairs(dungeonList) do
+			lastElement = createString(dungeon.text, dungeon.stars, nil, { r = dungeon.r, g = dungeon.g, b = dungeon.b }, lastElement, dungeon.select)
+		end
+
+		local _, _, _, _, lp = lastElement:GetPoint()
+		minFrameSize = max(nWidth + 20, 205, title:GetStringWidth() + 20, minFrameSize)
+		SafeSetSize(frameAnchorScore, minFrameSize, max(lp * -1 + 30, 170))
+		SafeSetSize(frameAnchor, minFrameSize, 170)
 	end
+
+	hideUnusedRioText()
+	frameAnchorScore:Show()
+end
+
+local function CreateRioScore()
+	if addon and addon.functions and addon.functions.IsTimerunner and addon.functions.IsTimerunner() then
+		if gFrameAnchorScore then gFrameAnchorScore:Hide() end
+		return
+	end
+	if addon.variables.maxLevel ~= UnitLevel("player") then
+		if gFrameAnchorScore then gFrameAnchorScore:Hide() end
+		return
+	end
+	if addon.db["groupfinderShowDungeonScoreFrame"] ~= true then
+		if gFrameAnchorScore then gFrameAnchorScore:Hide() end
+		return
+	end
+
+	ensureRioScoreFrame()
+	updateRioScoreFrame()
 end
 
 local keyStoneFrame

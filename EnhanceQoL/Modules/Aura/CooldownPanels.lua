@@ -7124,8 +7124,9 @@ local function ensureUpdateFrame()
 				if unit and unit ~= "player" then return end
 			end
 			if event == "CLIENT_SCENE_OPENED" then
+				local sceneType = ...
 				CooldownPanels.runtime = CooldownPanels.runtime or {}
-				CooldownPanels.runtime.clientSceneActive = true
+				CooldownPanels.runtime.clientSceneActive = (sceneType == 1)
 			elseif event == "CLIENT_SCENE_CLOSED" then
 				CooldownPanels.runtime = CooldownPanels.runtime or {}
 				CooldownPanels.runtime.clientSceneActive = false

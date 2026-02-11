@@ -1850,18 +1850,25 @@ local function join3(a, b, c, sep1, sep2) return a .. sep1 .. b .. sep2 .. c end
 
 local function join4(a, b, c, d, sep1, sep2, sep3) return a .. sep1 .. b .. sep2 .. c .. sep3 .. d end
 
+local function formatPercentModeText(mode, curText, maxText, percentText, levelText, joinPrimary, joinSecondary, joinTertiary)
+	if not percentText then return "" end
+	if mode == "PERCENT" then return percentText end
+	if mode == "CURPERCENT" or mode == "CURPERCENTDASH" then return join2(curText, percentText, joinPrimary) end
+	if mode == "CURMAXPERCENT" then return join3(curText, maxText, percentText, joinPrimary, joinSecondary) end
+	if mode == "MAXPERCENT" then return join2(maxText, percentText, joinPrimary) end
+	if mode == "PERCENTMAX" then return join2(percentText, maxText, joinPrimary) end
+	if mode == "PERCENTCUR" then return join2(percentText, curText, joinPrimary) end
+	if mode == "PERCENTCURMAX" then return join3(percentText, curText, maxText, joinPrimary, joinSecondary) end
+	if mode == "LEVELPERCENT" then return join2(levelText, percentText, joinPrimary) end
+	if mode == "LEVELPERCENTMAX" then return join3(levelText, percentText, maxText, joinPrimary, joinSecondary) end
+	if mode == "LEVELPERCENTCUR" then return join3(levelText, percentText, curText, joinPrimary, joinSecondary) end
+	if mode == "LEVELPERCENTCURMAX" then return join4(levelText, percentText, curText, maxText, joinPrimary, joinSecondary, joinTertiary) end
+	return ""
+end
+
 function H.shortValue(val)
 	if val == nil then return "" end
-	if addon.variables and addon.variables.isMidnight then return AbbreviateNumbers(val) end
-	local absVal = abs(val)
-	if absVal >= 1e9 then
-		return ("%.1fB"):format(val / 1e9):gsub("%.0B", "B")
-	elseif absVal >= 1e6 then
-		return ("%.1fM"):format(val / 1e6):gsub("%.0M", "M")
-	elseif absVal >= 1e3 then
-		return ("%.1fK"):format(val / 1e3):gsub("%.0K", "K")
-	end
-	return tostring(floor(val + 0.5))
+	return AbbreviateNumbers(val)
 end
 
 function H.textModeUsesLevel(mode) return type(mode) == "string" and mode:find("LEVEL", 1, true) ~= nil end
@@ -1886,15 +1893,24 @@ function H.getUnitLevelText(unit, levelOverride, hideClassificationText)
 	return levelText
 end
 
-function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, missingValue, roundPercent)
+function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, missingValue, roundPercent, delimitersResolved)
 	if mode == "NONE" then return "" end
-	local joinPrimary, joinSecondary, joinTertiary = H.resolveTextDelimiters(delimiter, delimiter2, delimiter3)
+	local joinPrimary, joinSecondary, joinTertiary
+	if delimitersResolved then
+		joinPrimary = delimiter
+		joinSecondary = delimiter2
+		joinTertiary = delimiter3
+	else
+		joinPrimary, joinSecondary, joinTertiary = H.resolveTextDelimiters(delimiter, delimiter2, delimiter3)
+	end
+	if joinPrimary == nil then joinPrimary = " " end
+	if joinSecondary == nil then joinSecondary = joinPrimary end
+	if joinTertiary == nil then joinTertiary = joinSecondary end
 	local percentSuffix = hidePercentSymbol and "" or "%"
 	if levelText == nil or levelText == "" then levelText = "??" end
 	local isPercentMode = type(mode) == "string" and mode:find("PERCENT", 1, true) ~= nil
 	if mode == "DEFICIT" then
 		if issecretvalue and issecretvalue(missingValue) then
-			if not (addon.variables and addon.variables.isMidnight) then return "" end
 			local infix = useShort and H.shortValue(missingValue) or BreakUpLargeNumbers(missingValue)
 			return "-" .. infix
 		end
@@ -1903,21 +1919,6 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimi
 		if missNum <= 0 then return "" end
 		local infix = useShort == false and tostring(missNum) or (AbbreviateNumbers and AbbreviateNumbers(missNum) or H.shortValue(missNum))
 		return "-" .. infix
-	end
-	local function formatPercentMode(curText, maxText, percentText)
-		if not percentText then return "" end
-		if mode == "PERCENT" then return percentText end
-		if mode == "CURPERCENT" or mode == "CURPERCENTDASH" then return join2(curText, percentText, joinPrimary) end
-		if mode == "CURMAXPERCENT" then return join3(curText, maxText, percentText, joinPrimary, joinSecondary) end
-		if mode == "MAXPERCENT" then return join2(maxText, percentText, joinPrimary) end
-		if mode == "PERCENTMAX" then return join2(percentText, maxText, joinPrimary) end
-		if mode == "PERCENTCUR" then return join2(percentText, curText, joinPrimary) end
-		if mode == "PERCENTCURMAX" then return join3(percentText, curText, maxText, joinPrimary, joinSecondary) end
-		if mode == "LEVELPERCENT" then return join2(levelText, percentText, joinPrimary) end
-		if mode == "LEVELPERCENTMAX" then return join3(levelText, percentText, maxText, joinPrimary, joinSecondary) end
-		if mode == "LEVELPERCENTCUR" then return join3(levelText, percentText, curText, joinPrimary, joinSecondary) end
-		if mode == "LEVELPERCENTCURMAX" then return join4(levelText, percentText, curText, maxText, joinPrimary, joinSecondary, joinTertiary) end
-		return ""
 	end
 	if addon.variables and addon.variables.isMidnight and issecretvalue then
 		if (cur and issecretvalue(cur)) or (maxv and issecretvalue(maxv)) then
@@ -1935,7 +1936,7 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimi
 			if mode == "CURRENT" then return tostring(scur) end
 			if mode == "MAX" then return tostring(smax) end
 			if mode == "CURMAX" then return join2(tostring(scur), tostring(smax), joinPrimary) end
-			if isPercentMode then return formatPercentMode(tostring(scur), tostring(smax), percentText) end
+			if isPercentMode then return formatPercentModeText(mode, tostring(scur), tostring(smax), percentText, levelText, joinPrimary, joinSecondary, joinTertiary) end
 			return ""
 		end
 	end
@@ -1961,7 +1962,7 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimi
 	if isPercentMode then
 		local curText = useShort == false and tostring(cur or 0) or H.shortValue(cur or 0)
 		local maxText = useShort == false and tostring(maxv or 0) or H.shortValue(maxv or 0)
-		return formatPercentMode(curText, maxText, percentText)
+		return formatPercentModeText(mode, curText, maxText, percentText, levelText, joinPrimary, joinSecondary, joinTertiary)
 	end
 	if useShort == false then return tostring(cur or 0) end
 	return H.shortValue(cur or 0)
@@ -2560,15 +2561,105 @@ end
 
 local EnableSpellRangeCheck = C_Spell and C_Spell.EnableSpellRangeCheck
 local GetSpellIDForSpellIdentifier = C_Spell and C_Spell.GetSpellIDForSpellIdentifier
+local GetSpellName = C_Spell and C_Spell.GetSpellName
+local GetSpellInfo = _G.GetSpellInfo
 local SpellBook = _G.C_SpellBook
 local SpellBookItemType = Enum and Enum.SpellBookItemType
 local SpellBookSpellBank = Enum and Enum.SpellBookSpellBank
+local UnitClass = _G.UnitClass
+local GetSpecialization = _G.GetSpecialization
+local GetSpecializationInfo = _G.GetSpecializationInfo
+local GetSpecializationInfoForClassID = _G.GetSpecializationInfoForClassID
+local GetNumSpecializationsForClassID = _G.GetNumSpecializationsForClassID
+local GetNumClasses = _G.GetNumClasses
+local GetClassInfo = _G.GetClassInfo
+local IsHelpfulSpell = _G.IsHelpfulSpell
+local IsHarmfulSpell = _G.IsHarmfulSpell
+local C_CreatureInfo = _G.C_CreatureInfo
 local wipeTable = wipe or (table and table.wipe)
+local floor = math.floor
+local tinsert = table.insert
+local tsort = table.sort
+
+local rangeFadeClassDefaultSpells = {
+	DEATHKNIGHT = { friendly = 47541, enemy = 49576 },
+	DEMONHUNTER = { friendly = nil, enemy = 278326 },
+	DRUID = { friendly = 8936, enemy = 8921 },
+	EVOKER = { friendly = 355913, enemy = 362969 },
+	HUNTER = { friendly = nil, enemy = 75 },
+	MAGE = { friendly = 1459, enemy = 2139 },
+	MONK = { friendly = 116670, enemy = 115546 },
+	PALADIN = { friendly = 85673, enemy = 20271 },
+	PRIEST = { friendly = 17, enemy = 589 },
+	ROGUE = { friendly = nil, enemy = 36554 },
+	SHAMAN = { friendly = 8004, enemy = 8042 },
+	WARLOCK = { friendly = 5697, enemy = 234153 },
+	WARRIOR = { friendly = nil, enemy = 355 },
+}
+
+local rangeFadeSpecOptionsCache
+local rangeFadeSpellOptionCache = { friendly = {}, enemy = {} }
+local rangeFadeClassSpellOptions = {
+	DEATHKNIGHT = {
+		friendly = {},
+		enemy = { 49576, 47541 },
+	},
+	DEMONHUNTER = {
+		friendly = {},
+		enemy = { 185123, 183752, 204021 },
+	},
+	DRUID = {
+		friendly = { 8936, 774, 2782, 88423 },
+		enemy = { 5176, 339, 6795, 33786, 22568, 8921 },
+	},
+	EVOKER = {
+		friendly = { 355913, 361469, 360823 },
+		enemy = { 362969 },
+	},
+	HUNTER = {
+		friendly = {},
+		enemy = { 75 },
+	},
+	MAGE = {
+		friendly = { 1459, 475 },
+		enemy = { 44614, 118, 116, 133, 44425 },
+	},
+	MONK = {
+		friendly = { 115450, 115546, 116670 },
+		enemy = { 115546, 115078, 100780, 117952 },
+	},
+	PALADIN = {
+		friendly = { 19750, 85673, 4987, 213644 },
+		enemy = { 853, 35395, 62124, 183218, 20271, 20473 },
+	},
+	PRIEST = {
+		friendly = { 21562, 17, 527, 2061 },
+		enemy = { 589, 8092, 585 },
+	},
+	ROGUE = {
+		friendly = { 36554, 921 },
+		enemy = { 185565, 36554, 185763, 2094, 921 },
+	},
+	SHAMAN = {
+		friendly = { 546, 8004, 188070 },
+		enemy = { 370, 8042, 117014, 188196, 73899 },
+	},
+	WARLOCK = {
+		friendly = { 20707, 5697 },
+		enemy = { 234153, 198590, 232670, 686, 5782 },
+	},
+	WARRIOR = {
+		friendly = {},
+		enemy = { 355, 5246, 100 },
+	},
+}
 
 local rangeFadeHandlers = {}
 local rangeFadeState = {
 	activeSpells = {},
 	spellStates = {},
+	numChecked = 0,
+	numInRange = 0,
 	inRange = true,
 	configDirty = true,
 	configValid = false,
@@ -2601,6 +2692,257 @@ local function clearTable(tbl)
 			tbl[k] = nil
 		end
 	end
+end
+
+local function getRangeFadeClassInfo()
+	local _, classToken, classID = UnitClass and UnitClass("player")
+	return classToken, classID
+end
+
+local function getClassInfoById(classId)
+	if GetClassInfo then return GetClassInfo(classId) end
+	if C_CreatureInfo and C_CreatureInfo.GetClassInfo then
+		local info = C_CreatureInfo.GetClassInfo(classId)
+		if info then return info.className, info.classFile, info.classID end
+	end
+	return nil, nil, nil
+end
+
+local getCurrentSpecId
+
+local function buildRangeFadeSpecEntries()
+	local entries = {}
+	local bySpecId = {}
+	local sex = UnitSex and UnitSex("player") or nil
+
+	if GetNumClasses and GetNumSpecializationsForClassID and GetSpecializationInfoForClassID then
+		local numClasses = GetNumClasses() or 0
+		for classIndex = 1, numClasses do
+			local className, classToken, classID = getClassInfoById(classIndex)
+			if classID then
+				local specCount = GetNumSpecializationsForClassID(classID) or 0
+				for specIndex = 1, specCount do
+					local specID, specName = GetSpecializationInfoForClassID(classID, specIndex, sex)
+					if specID then
+						local label = specName or ("Spec " .. tostring(specID))
+						local classLabel = className or classToken
+						if classLabel and classLabel ~= "" then label = classLabel .. " - " .. label end
+						local entry = {
+							value = specID,
+							label = label,
+							specName = specName or ("Spec " .. tostring(specID)),
+							className = className or classToken,
+							classToken = classToken,
+							classID = classID,
+						}
+						tinsert(entries, entry)
+						bySpecId[specID] = entry
+					end
+				end
+			end
+		end
+	end
+
+	if #entries == 0 then
+		local specID = getCurrentSpecId()
+		if specID then
+			local classToken, classID = getRangeFadeClassInfo()
+			local entry = {
+				value = specID,
+				label = "Spec " .. tostring(specID),
+				specName = "Spec " .. tostring(specID),
+				className = classToken,
+				classToken = classToken,
+				classID = classID,
+			}
+			tinsert(entries, entry)
+			bySpecId[specID] = entry
+		end
+	end
+
+	tsort(entries, function(a, b)
+		local aClass = tostring((a and a.className) or "")
+		local bClass = tostring((b and b.className) or "")
+		if aClass ~= bClass then return aClass < bClass end
+		local aSpec = tostring((a and a.specName) or "")
+		local bSpec = tostring((b and b.specName) or "")
+		if aSpec ~= bSpec then return aSpec < bSpec end
+		return (tonumber(a and a.value) or 0) < (tonumber(b and b.value) or 0)
+	end)
+
+	return entries, bySpecId
+end
+
+getCurrentSpecId = function()
+	if not (GetSpecialization and GetSpecializationInfo) then return nil end
+	local specIndex = GetSpecialization()
+	if not specIndex then return nil end
+	local specID = GetSpecializationInfo(specIndex)
+	if not specID or specID <= 0 then return nil end
+	return specID
+end
+
+local function getRangeFadeSpellDisplayName(spellId, includeId)
+	local id = tonumber(spellId)
+	if not id or id <= 0 then return nil end
+	local name = GetSpellName and GetSpellName(id) or nil
+	if (not name or name == "") and GetSpellInfo then name = GetSpellInfo(id) end
+	if not name or name == "" then name = tostring(id) end
+	if includeId then return string.format("%s (%d)", tostring(name), id) end
+	return tostring(name)
+end
+
+local function normalizeConfiguredSpellId(value)
+	if value == false or value == 0 or value == "0" then return false end
+	local id = tonumber(value)
+	if not id or id <= 0 then return nil end
+	return floor(id)
+end
+
+function H.RangeFadeGetDefaultSpellPair(specValue)
+	local specId = tonumber(specValue)
+	local classToken
+	if specId and specId > 0 then
+		H.RangeFadeGetSpecOptions()
+		local cache = rangeFadeSpecOptionsCache
+		if cache and cache.bySpecId and cache.bySpecId[specId] then classToken = cache.bySpecId[specId].classToken end
+	end
+	if not classToken then classToken = getRangeFadeClassInfo() end
+	local defaults = classToken and rangeFadeClassDefaultSpells[classToken] or nil
+	if not defaults then return nil, nil end
+	return defaults.friendly, defaults.enemy
+end
+
+function H.RangeFadeGetCurrentSpecId() return getCurrentSpecId() end
+
+function H.RangeFadeGetSpecOptions()
+	if rangeFadeSpecOptionsCache and rangeFadeSpecOptionsCache.entries then return rangeFadeSpecOptionsCache.entries end
+	local entries, bySpecId = buildRangeFadeSpecEntries()
+	rangeFadeSpecOptionsCache = {
+		entries = entries,
+		bySpecId = bySpecId,
+	}
+	return entries
+end
+
+function H.RangeFadeResolveSpellPair(rangeFadeConfig, specId)
+	local spec = tonumber(specId)
+	if not spec or spec <= 0 then spec = getCurrentSpecId() end
+	local defaultsFriendly, defaultsEnemy = H.RangeFadeGetDefaultSpellPair(spec)
+
+	local specEntry
+	if type(rangeFadeConfig) == "table" and spec then
+		local bySpec = rangeFadeConfig.specSpells
+		if type(bySpec) == "table" then specEntry = bySpec[spec] end
+	end
+
+	local configuredFriendly = specEntry and normalizeConfiguredSpellId(specEntry.friendly)
+	local configuredEnemy = specEntry and normalizeConfiguredSpellId(specEntry.enemy)
+
+	local friendly
+	if configuredFriendly == false then
+		friendly = nil
+	elseif type(configuredFriendly) == "number" then
+		friendly = configuredFriendly
+	else
+		friendly = defaultsFriendly
+	end
+
+	local enemy
+	if configuredEnemy == false then
+		enemy = nil
+	elseif type(configuredEnemy) == "number" then
+		enemy = configuredEnemy
+	else
+		enemy = defaultsEnemy
+	end
+
+	return friendly, enemy
+end
+
+function H.RangeFadeBuildSpellListForConfig(rangeFadeConfig, specId)
+	local friendly, enemy = H.RangeFadeResolveSpellPair(rangeFadeConfig, specId)
+	local list = {}
+	if friendly then list[#list + 1] = friendly end
+	if enemy and enemy ~= friendly then list[#list + 1] = enemy end
+	return list
+end
+
+function H.RangeFadeGetSpellLabel(spellId, includeId) return getRangeFadeSpellDisplayName(spellId, includeId == true) end
+
+local function buildRangeFadeSpellOptionsFromIds(spellIds)
+	local options = {}
+	local seen = {}
+	if type(spellIds) ~= "table" then return options end
+	for i = 1, #spellIds do
+		local spellId = tonumber(spellIds[i])
+		if spellId and spellId > 0 and not seen[spellId] then
+			seen[spellId] = true
+			tinsert(options, {
+				value = spellId,
+				label = getRangeFadeSpellDisplayName(spellId, true) or tostring(spellId),
+			})
+		end
+	end
+	tsort(options, function(a, b) return tostring(a.label) < tostring(b.label) end)
+	return options
+end
+
+local function buildRangeFadeSpellOptionsFromSpellBook(kind)
+	local options = {}
+	local seen = {}
+	if not (SpellBook and SpellBook.GetNumSpellBookSkillLines and SpellBook.GetSpellBookSkillLineInfo and SpellBook.GetSpellBookItemInfo) then return options end
+	local bank = SpellBookSpellBank and SpellBookSpellBank.Player or 0
+	local spellType = (SpellBookItemType and SpellBookItemType.Spell) or 1
+	local numLines = SpellBook.GetNumSpellBookSkillLines() or 0
+	for line = 1, numLines do
+		local lineInfo = SpellBook.GetSpellBookSkillLineInfo(line)
+		local offset = lineInfo and lineInfo.itemIndexOffset or 0
+		local count = lineInfo and lineInfo.numSpellBookItems or 0
+		for slot = offset + 1, offset + count do
+			local info = SpellBook.GetSpellBookItemInfo(slot, bank)
+			if info and info.itemType == spellType and info.isPassive ~= true then
+				local spellId = info.spellID or info.actionID
+				local include = spellId and not seen[spellId]
+				if include and kind == "friendly" and IsHelpfulSpell then include = IsHelpfulSpell(spellId) == true end
+				if include and kind == "enemy" and IsHarmfulSpell then include = IsHarmfulSpell(spellId) == true end
+				if include and spellId then
+					seen[spellId] = true
+					tinsert(options, {
+						value = spellId,
+						label = getRangeFadeSpellDisplayName(spellId, true) or tostring(spellId),
+					})
+				end
+			end
+		end
+	end
+	tsort(options, function(a, b) return tostring(a.label) < tostring(b.label) end)
+	return options
+end
+
+function H.RangeFadeGetSpellOptions(kind, classToken)
+	local key = (kind == "enemy") and "enemy" or "friendly"
+	local cache = rangeFadeSpellOptionCache[key]
+	if type(cache) ~= "table" then
+		cache = {}
+		rangeFadeSpellOptionCache[key] = cache
+	end
+
+	local currentClassToken = getRangeFadeClassInfo()
+	local normalizedClassToken = type(classToken) == "string" and classToken or currentClassToken
+	if cache[normalizedClassToken] then return cache[normalizedClassToken] end
+
+	local classLists = rangeFadeClassSpellOptions[normalizedClassToken]
+	local options
+	if classLists and type(classLists[key]) == "table" then
+		options = buildRangeFadeSpellOptionsFromIds(classLists[key])
+	elseif normalizedClassToken == currentClassToken then
+		options = buildRangeFadeSpellOptionsFromSpellBook(key)
+	else
+		options = {}
+	end
+	cache[normalizedClassToken] = options
+	return options
 end
 
 local function normalizeRangeFadeConfig(enabled, alpha, ignoreUnlimited)
@@ -2649,22 +2991,58 @@ local function applyRangeFadeAlpha(inRange, force)
 	applyFn(targetAlpha, force)
 end
 
-local function recomputeRangeFade()
-	local anyChecked = false
-	local anyInRange = false
-	for _, inRange in pairs(rangeFadeState.spellStates) do
-		anyChecked = true
-		if inRange == true then
-			anyInRange = true
-			break
-		end
+local function removeRangeFadeSpellState(spellId)
+	local oldState = rangeFadeState.spellStates[spellId]
+	if oldState == nil then return false end
+	rangeFadeState.spellStates[spellId] = nil
+	if oldState == true then rangeFadeState.numInRange = math.max(0, (rangeFadeState.numInRange or 0) - 1) end
+	rangeFadeState.numChecked = math.max(0, (rangeFadeState.numChecked or 0) - 1)
+	return true
+end
+
+local function setRangeFadeSpellState(spellId, inRange)
+	local newState = (inRange == true)
+	local oldState = rangeFadeState.spellStates[spellId]
+	if oldState == nil then
+		rangeFadeState.spellStates[spellId] = newState
+		rangeFadeState.numChecked = (rangeFadeState.numChecked or 0) + 1
+		if newState then rangeFadeState.numInRange = (rangeFadeState.numInRange or 0) + 1 end
+		return true
 	end
-	rangeFadeState.inRange = (not anyChecked) or anyInRange
+	if oldState == newState then return false end
+	rangeFadeState.spellStates[spellId] = newState
+	if oldState == true then rangeFadeState.numInRange = math.max(0, (rangeFadeState.numInRange or 0) - 1) end
+	if newState then rangeFadeState.numInRange = (rangeFadeState.numInRange or 0) + 1 end
+	return true
+end
+
+local function recomputeRangeFade()
+	local numChecked = rangeFadeState.numChecked or 0
+	local numInRange = rangeFadeState.numInRange or 0
+	rangeFadeState.inRange = (numChecked == 0) or (numInRange > 0)
 	applyRangeFadeAlpha(rangeFadeState.inRange)
 end
 
 local function buildRangeFadeSpellList()
 	local list = {}
+	local spellListFn = rangeFadeHandlers.getSpells
+	if spellListFn then
+		local explicit = spellListFn()
+		if type(explicit) == "table" then
+			for key, value in pairs(explicit) do
+				local spellId
+				if type(key) == "number" and value == true then
+					spellId = key
+				else
+					spellId = value
+				end
+				spellId = tonumber(spellId)
+				if spellId and spellId > 0 and not isRangeFadeIgnored(spellId) then list[spellId] = true end
+			end
+		end
+		return list
+	end
+
 	if not (EnableSpellRangeCheck and SpellBook and SpellBook.GetNumSpellBookSkillLines and SpellBook.GetSpellBookSkillLineInfo and SpellBook.GetSpellBookItemInfo) then return list end
 	local bank = SpellBookSpellBank and SpellBookSpellBank.Player or 0
 	local spellType = (SpellBookItemType and SpellBookItemType.Spell) or 1
@@ -2686,16 +3064,21 @@ local function buildRangeFadeSpellList()
 	return list
 end
 
-function H.RangeFadeRegister(getConfigFn, applyAlphaFn)
+function H.RangeFadeRegister(getConfigFn, applyAlphaFn, getSpellListFn)
 	rangeFadeHandlers.getConfig = getConfigFn
 	rangeFadeHandlers.applyAlpha = applyAlphaFn
+	rangeFadeHandlers.getSpells = getSpellListFn
 	rangeFadeState.configDirty = true
 	rangeFadeState.spellListDirty = true
 	rangeFadeState.spellListCache = nil
+	rangeFadeSpellOptionCache.friendly = {}
+	rangeFadeSpellOptionCache.enemy = {}
 end
 
 function H.RangeFadeReset()
 	clearTable(rangeFadeState.spellStates)
+	rangeFadeState.numChecked = 0
+	rangeFadeState.numInRange = 0
 	rangeFadeState.inRange = true
 	applyRangeFadeAlpha(true, true)
 end
@@ -2707,6 +3090,9 @@ function H.RangeFadeMarkConfigDirty() rangeFadeState.configDirty = true end
 function H.RangeFadeMarkSpellListDirty()
 	rangeFadeState.spellListDirty = true
 	rangeFadeState.spellListCache = nil
+	rangeFadeSpellOptionCache.friendly = {}
+	rangeFadeSpellOptionCache.enemy = {}
+	rangeFadeSpecOptionsCache = nil
 end
 
 function H.RangeFadeUpdateFromEvent(spellIdentifier, isInRange, checksRange)
@@ -2717,9 +3103,9 @@ function H.RangeFadeUpdateFromEvent(spellIdentifier, isInRange, checksRange)
 	if isRangeFadeIgnored(id) then return end
 	if not id or not rangeFadeState.activeSpells[id] then return end
 	if checksRange then
-		rangeFadeState.spellStates[id] = (isInRange == true)
+		setRangeFadeSpellState(id, isInRange == true)
 	else
-		rangeFadeState.spellStates[id] = nil
+		removeRangeFadeSpellState(id)
 	end
 	recomputeRangeFade()
 end
@@ -2744,7 +3130,7 @@ function H.RangeFadeUpdateSpells()
 		if not wanted[spellId] then
 			EnableSpellRangeCheck(spellId, false)
 			rangeFadeState.activeSpells[spellId] = nil
-			rangeFadeState.spellStates[spellId] = nil
+			removeRangeFadeSpellState(spellId)
 		end
 	end
 	for spellId in pairs(wanted) do

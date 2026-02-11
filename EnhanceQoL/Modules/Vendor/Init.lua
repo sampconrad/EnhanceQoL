@@ -17,6 +17,7 @@ addon.Vendor.variables.avgItemLevelEquipped = avgItemLevelEquipped
 addon.Vendor.variables.itemQualityFilter = addon.Vendor.variables.itemQualityFilter or {} -- Filter for Enable/Disable Qualities
 addon.Vendor.variables.itemBindTypeQualityFilter = addon.Vendor.variables.itemBindTypeQualityFilter or {} -- Filter for BindType in Quality
 addon.Vendor.variables.tabNames = addon.Vendor.variables.tabNames or { -- Used to create autosell tabs
+	[0] = "Poor",
 	[1] = "Common",
 	[2] = "Uncommon",
 	[3] = "Rare",
@@ -55,7 +56,7 @@ function addon.Vendor.functions.InitDB()
 		init("vendor" .. value .. "AbsolutIlvl", false)
 		init("vendor" .. value .. "CraftingExpansions", {})
 
-		if key ~= 1 then
+		if key > 1 then
 			init("vendor" .. value .. "IgnoreUpgradable", false)
 			if key == 4 then
 				init("vendor" .. value .. "IgnoreHeroicTrack", false)

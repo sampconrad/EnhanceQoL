@@ -842,6 +842,7 @@ function H.QueueInspect(unit)
 	local name = H.GetUnitFullName(unit)
 	if name and H.specCache[name] then return end
 	local guid = UnitGUID and UnitGUID(unit)
+	if issecretvalue and issecretvalue(guid) then return end
 	if not guid or guid == "" then return end
 	if H.inspectQueue[guid] then return end
 	H.inspectQueue[guid] = unit
@@ -859,7 +860,10 @@ function H.ProcessInspectQueue()
 		return
 	end
 	local unitGuid = UnitGUID and UnitGUID(unit)
-	if unitGuid and unitGuid ~= guid then
+	if issecretvalue and issecretvalue(unitGuid) then unitGuid = nil end
+	local queueGuid = guid
+	if issecretvalue and issecretvalue(queueGuid) then queueGuid = nil end
+	if unitGuid and queueGuid and unitGuid ~= queueGuid then
 		H.inspectQueue[guid] = nil
 		if C_Timer and C_Timer.After then C_Timer.After(0.1, function() H.ProcessInspectQueue() end) end
 		return
