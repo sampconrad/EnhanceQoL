@@ -29,6 +29,7 @@
 - Tooltip: Fixed a rare error when hovering unit tooltips.
 - Objective Tracker: Hiding of M+ timer fixed
 - Unit Frames: Main frame strata fallback is now stable `LOW` (instead of inheriting Blizzard `PlayerFrame` strata), preventing addon interaction from unexpectedly forcing Player/Target/ToT/Focus frames to `MEDIUM`.
+- LibButtonGlow Update - Secret error
 
 ---
 
