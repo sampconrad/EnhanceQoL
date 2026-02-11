@@ -297,8 +297,9 @@ local function LeaveDisplayModeIfNeeded()
 	if QuestMapFrame:GetDisplayMode() ~= DISPLAY_MODE then return end
 	if InCombatLockdown and InCombatLockdown() then return end
 
-	if QuestMapFrame.SetDisplayMode and QuestLogDisplayMode and QuestLogDisplayMode.MapLegend then
-		QuestMapFrame:SetDisplayMode(QuestLogDisplayMode.MapLegend)
+	local questLogDisplayMode = _G.QuestLogDisplayMode
+	if QuestMapFrame.SetDisplayMode and questLogDisplayMode and questLogDisplayMode.MapLegend then
+		QuestMapFrame:SetDisplayMode(questLogDisplayMode.MapLegend)
 		return
 	end
 	if QuestMapFrame.MapLegendTab and QuestMapFrame.MapLegendTab.Click then
@@ -1177,7 +1178,8 @@ local function worldMapEventHandler(self, event, arg1)
 		-- Avoid Show/Hide while in combat
 		return
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		if IsPanelSuppressed() then
+		local suppressed = IsPanelSuppressed()
+		if suppressed then
 			ApplySuppressedPanelState()
 		else
 			ApplyNormalPanelState()
@@ -1190,6 +1192,12 @@ local function worldMapEventHandler(self, event, arg1)
 		if tabButton and tabButton._eqolPendingVisible ~= nil then
 			SafeSetVisible(tabButton, tabButton._eqolPendingVisible)
 			tabButton._eqolPendingVisible = nil
+		end
+		if not suppressed then
+			local modeActive = QuestMapFrame and QuestMapFrame.GetDisplayMode and QuestMapFrame:GetDisplayMode() == DISPLAY_MODE
+			if tabButton then SafeSetVisible(tabButton, true) end
+			if tabButton and tabButton.SetChecked then tabButton:SetChecked(modeActive and true or false) end
+			if panel then SafeSetVisible(panel, modeActive and true or false) end
 		end
 		if f._pendingOpen and not IsPanelSuppressed() then
 			f._pendingOpen = nil

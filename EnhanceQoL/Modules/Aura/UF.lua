@@ -124,6 +124,40 @@ local BLIZZ_FRAME_NAMES = {
 	focus = "FocusFrame",
 	pet = "PetFrame",
 }
+local RELATIVE_ANCHOR_FRAME_MAP = {
+	PlayerFrame = { uf = UF_FRAME_NAMES.player.frame, blizz = BLIZZ_FRAME_NAMES.player, ufKey = "player" },
+	EQOLUFPlayerFrame = { uf = UF_FRAME_NAMES.player.frame, blizz = BLIZZ_FRAME_NAMES.player, ufKey = "player" },
+	TargetFrame = { uf = UF_FRAME_NAMES.target.frame, blizz = BLIZZ_FRAME_NAMES.target, ufKey = "target" },
+	EQOLUFTargetFrame = { uf = UF_FRAME_NAMES.target.frame, blizz = BLIZZ_FRAME_NAMES.target, ufKey = "target" },
+	TargetFrameToT = { uf = UF_FRAME_NAMES.targettarget.frame, blizz = BLIZZ_FRAME_NAMES.targettarget, ufKey = "targettarget" },
+	EQOLUFToTFrame = { uf = UF_FRAME_NAMES.targettarget.frame, blizz = BLIZZ_FRAME_NAMES.targettarget, ufKey = "targettarget" },
+	FocusFrame = { uf = UF_FRAME_NAMES.focus.frame, blizz = BLIZZ_FRAME_NAMES.focus, ufKey = "focus" },
+	EQOLUFFocusFrame = { uf = UF_FRAME_NAMES.focus.frame, blizz = BLIZZ_FRAME_NAMES.focus, ufKey = "focus" },
+	PetFrame = { uf = UF_FRAME_NAMES.pet.frame, blizz = BLIZZ_FRAME_NAMES.pet, ufKey = "pet" },
+	EQOLUFPetFrame = { uf = UF_FRAME_NAMES.pet.frame, blizz = BLIZZ_FRAME_NAMES.pet, ufKey = "pet" },
+	BossTargetFrameContainer = { uf = "EQOLUFBossContainer", blizz = "BossTargetFrameContainer", ufKey = "boss" },
+	EQOLUFBossContainer = { uf = "EQOLUFBossContainer", blizz = "BossTargetFrameContainer", ufKey = "boss" },
+}
+
+local function isMappedUFEnabled(ufKey)
+	local ufCfg = addon.db and addon.db.ufFrames
+	local cfg = ufCfg and ufCfg[ufKey]
+	return cfg and cfg.enabled == true
+end
+
+local function resolveRelativeAnchorFrame(relativeName)
+	if type(relativeName) ~= "string" or relativeName == "" or relativeName == "UIParent" then return UIParent end
+	local mapped = RELATIVE_ANCHOR_FRAME_MAP[relativeName]
+	if mapped then
+		if mapped.ufKey and isMappedUFEnabled(mapped.ufKey) then
+			local ufFrame = _G[mapped.uf]
+			if ufFrame then return ufFrame end
+		end
+		local blizzFrame = _G[mapped.blizz]
+		if blizzFrame then return blizzFrame end
+	end
+	return _G[relativeName] or UIParent
+end
 local MIN_WIDTH = 50
 local classResourceFramesByClass = {
 	DEATHKNIGHT = { "RuneFrame" },
@@ -434,6 +468,11 @@ local defaults = {
 			enabled = true,
 			size = 18,
 			offset = { x = 0, y = -2 },
+		},
+		leaderIcon = {
+			enabled = false,
+			size = 12,
+			offset = { x = 0, y = 0 },
 		},
 		pvpIndicator = {
 			enabled = false,
@@ -1371,7 +1410,7 @@ local function anchorBossContainer(cfg)
 	local def = defaultsFor("boss")
 	local anchor = (cfg and cfg.anchor) or (def and def.anchor) or { point = "CENTER", relativeTo = "UIParent", relativePoint = "CENTER", x = 0, y = 0 }
 	bossContainer:ClearAllPoints()
-	bossContainer:SetPoint(anchor.point or "CENTER", _G[anchor.relativeTo] or UIParent, anchor.relativePoint or anchor.point or "CENTER", anchor.x or 0, anchor.y or 0)
+	bossContainer:SetPoint(anchor.point or "CENTER", resolveRelativeAnchorFrame(anchor.relativeTo), anchor.relativePoint or anchor.point or "CENTER", anchor.x or 0, anchor.y or 0)
 end
 
 local function ensureBossContainer()
@@ -1740,9 +1779,22 @@ function AuraUtil.styleAuraCount(btn, ac, countFontSizeOverride)
 	if size == nil then size = ac.countFontSize end
 	local flags = ac.countFontOutline
 	local fontKey = ac.countFont or (addon.variables and addon.variables.defaultFont) or (LSM and LSM.DefaultMedia and LSM.DefaultMedia.font) or STANDARD_TEXT_FONT
-	local key = anchor .. "|" .. ox .. "|" .. oy .. "|" .. tostring(fontKey) .. "|" .. tostring(size) .. "|" .. tostring(flags)
-	if btn._countStyleKey == key then return end
-	btn._countStyleKey = key
+	if
+		btn._countStyleAnchor == anchor
+		and btn._countStyleOx == ox
+		and btn._countStyleOy == oy
+		and btn._countStyleFontKey == fontKey
+		and btn._countStyleSize == size
+		and btn._countStyleFlags == flags
+	then
+		return
+	end
+	btn._countStyleAnchor = anchor
+	btn._countStyleOx = ox
+	btn._countStyleOy = oy
+	btn._countStyleFontKey = fontKey
+	btn._countStyleSize = size
+	btn._countStyleFlags = flags
 	btn.count:ClearAllPoints()
 	btn.count:SetPoint(anchor, btn.overlay or btn, anchor, ox, oy)
 	if size == nil or flags == nil then
@@ -1771,9 +1823,22 @@ function AuraUtil.styleAuraCooldownText(btn, ac, cooldownFontSizeOverride)
 	if size == nil then size = curSize or 12 end
 	if outline == nil then outline = curFlags end
 	if fontKey == nil then fontKey = curFont end
-	local key = anchor .. "|" .. ox .. "|" .. oy .. "|" .. tostring(fontKey) .. "|" .. tostring(size) .. "|" .. tostring(outline)
-	if btn._cooldownStyleKey == key then return end
-	btn._cooldownStyleKey = key
+	if
+		btn._cooldownStyleAnchor == anchor
+		and btn._cooldownStyleOx == ox
+		and btn._cooldownStyleOy == oy
+		and btn._cooldownStyleFontKey == fontKey
+		and btn._cooldownStyleSize == size
+		and btn._cooldownStyleOutline == outline
+	then
+		return
+	end
+	btn._cooldownStyleAnchor = anchor
+	btn._cooldownStyleOx = ox
+	btn._cooldownStyleOy = oy
+	btn._cooldownStyleFontKey = fontKey
+	btn._cooldownStyleSize = size
+	btn._cooldownStyleOutline = outline
 	fs:ClearAllPoints()
 	fs:SetPoint(anchor, btn.overlay or btn, anchor, ox, oy)
 	if UFHelper and UFHelper.applyFont then
@@ -1794,9 +1859,13 @@ function AuraUtil.styleAuraDRText(btn, ac, drFontSizeOverride)
 	if size == nil then size = ac.drFontSize end
 	local flags = ac.drFontOutline
 	local fontKey = ac.drFont or (addon.variables and addon.variables.defaultFont) or (LSM and LSM.DefaultMedia and LSM.DefaultMedia.font) or STANDARD_TEXT_FONT
-	local key = anchor .. "|" .. ox .. "|" .. oy .. "|" .. tostring(fontKey) .. "|" .. tostring(size) .. "|" .. tostring(flags)
-	if btn._drStyleKey == key then return end
-	btn._drStyleKey = key
+	if btn._drStyleAnchor == anchor and btn._drStyleOx == ox and btn._drStyleOy == oy and btn._drStyleFontKey == fontKey and btn._drStyleSize == size and btn._drStyleFlags == flags then return end
+	btn._drStyleAnchor = anchor
+	btn._drStyleOx = ox
+	btn._drStyleOy = oy
+	btn._drStyleFontKey = fontKey
+	btn._drStyleSize = size
+	btn._drStyleFlags = flags
 	btn.drText:ClearAllPoints()
 	btn.drText:SetPoint(anchor, btn.overlay or btn, anchor, ox, oy)
 	if size == nil or flags == nil then
@@ -1911,8 +1980,7 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 					if borderFrame then
 						local edgeSize = (UFHelper and UFHelper.calcAuraBorderSize and UFHelper.calcAuraBorderSize(btn, ac)) or 1
 						local insetVal = edgeSize
-						local key = tostring(borderTex) .. "|" .. tostring(edgeSize)
-						if borderFrame._eqolAuraBorderKey ~= key then
+						if borderFrame._eqolAuraBorderTex ~= borderTex or borderFrame._eqolAuraBorderEdgeSize ~= edgeSize then
 							borderFrame:SetBackdrop({
 								bgFile = "Interface\\Buttons\\WHITE8x8",
 								edgeFile = borderTex,
@@ -1920,7 +1988,8 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 								insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
 							})
 							borderFrame:SetBackdropColor(0, 0, 0, 0)
-							borderFrame._eqolAuraBorderKey = key
+							borderFrame._eqolAuraBorderTex = borderTex
+							borderFrame._eqolAuraBorderEdgeSize = edgeSize
 						end
 						borderFrame:SetBackdropBorderColor(r, g, b, 1)
 						borderFrame:Show()
@@ -4586,7 +4655,7 @@ local function layoutFrame(cfg, unit)
 		if st.frame.SetParent then st.frame:SetParent(container) end
 		if st.frame:GetNumPoints() == 0 then st.frame:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0) end
 	else
-		local rel = (anchor and _G[anchor.relativeTo]) or UIParent
+		local rel = resolveRelativeAnchorFrame(anchor and anchor.relativeTo)
 		st.frame:ClearAllPoints()
 		st.frame:SetPoint(anchor.point or "CENTER", rel or UIParent, anchor.relativePoint or anchor.point or "CENTER", anchor.x or 0, anchor.y or 0)
 	end
@@ -4905,6 +4974,10 @@ local function ensureFrames(unit)
 	st.raidIcon:SetPoint("TOP", st.frame, "TOP", 0, -2)
 	st.raidIcon:Hide()
 	if unit == UNIT.PLAYER or unit == UNIT.TARGET or unit == UNIT.FOCUS then
+		st.leaderIcon = st.statusTextLayer:CreateTexture(nil, "OVERLAY", nil, 7)
+		st.leaderIcon:SetSize(12, 12)
+		st.leaderIcon:SetPoint("TOPLEFT", st.health, "TOPLEFT", 0, 0)
+		st.leaderIcon:Hide()
 		st.pvpIcon = st.statusTextLayer:CreateTexture(nil, "OVERLAY", nil, 7)
 		st.pvpIcon:SetSize(20, 20)
 		st.pvpIcon:SetPoint("TOP", st.frame, "TOP", -24, -2)
@@ -5227,6 +5300,7 @@ local function applyConfig(unit)
 	updatePower(cfg, unit)
 	updatePortrait(cfg, unit)
 	checkRaidTargetIcon(unit, st)
+	UFHelper.updateLeaderIndicator(st, unit, cfg, defaultsFor(unit), false)
 	UFHelper.updatePvPIndicator(st, unit, cfg, defaultsFor(unit), false)
 	UFHelper.updateRoleIndicator(st, unit, cfg, defaultsFor(unit), false)
 	if st.privateAuras and UFHelper and UFHelper.ApplyPrivateAuras then
@@ -5606,6 +5680,7 @@ local unitEvents = {
 	"UNIT_SPELLCAST_EMPOWER_UPDATE",
 	"UNIT_SPELLCAST_DELAYED",
 	"UNIT_SPELLCAST_EMPOWER_STOP",
+	"UNIT_PET",
 }
 local unitEventsMap = {}
 for _, evt in ipairs(unitEvents) do
@@ -5640,7 +5715,7 @@ local generalEvents = {
 	"PLAYER_FLAGS_CHANGED",
 	"PLAYER_UPDATE_RESTING",
 	"GROUP_ROSTER_UPDATE",
-	"UNIT_PET",
+	"PARTY_LEADER_CHANGED",
 	"PLAYER_FOCUS_CHANGED",
 	"INSTANCE_ENCOUNTER_ENGAGE_UNIT",
 	"ENCOUNTER_START",
@@ -5652,7 +5727,8 @@ local generalEvents = {
 }
 
 local eventFrame
-local portraitEventsActive
+UF._unitEventFrames = UF._unitEventFrames or {}
+local onEvent
 
 local function anyUFEnabled()
 	local p = ensureDB("player").enabled
@@ -5685,19 +5761,75 @@ local function anyPortraitEnabled()
 	return false
 end
 
-local function updatePortraitEventRegistration()
-	if not eventFrame then return end
-	local shouldRegister = anyPortraitEnabled()
-	if shouldRegister and not portraitEventsActive then
-		for _, evt in ipairs(portraitEvents) do
-			eventFrame:RegisterEvent(evt)
+function UF._clearUnitEventFrames()
+	local unitEventFrames = UF._unitEventFrames
+	for i = 1, #unitEventFrames do
+		local frame = unitEventFrames[i]
+		if frame then
+			if frame.UnregisterAllEvents then frame:UnregisterAllEvents() end
+			frame:SetScript("OnEvent", nil)
+			unitEventFrames[i] = nil
 		end
-		portraitEventsActive = true
-	elseif not shouldRegister and portraitEventsActive then
-		for _, evt in ipairs(portraitEvents) do
-			eventFrame:UnregisterEvent(evt)
+	end
+end
+
+function UF._buildRegisteredUnitTokens()
+	local tokens = {}
+	local seen = {}
+	local function addToken(token)
+		if token and token ~= "" and not seen[token] then
+			seen[token] = true
+			tokens[#tokens + 1] = token
 		end
-		portraitEventsActive = false
+	end
+
+	local playerCfg = ensureDB(UNIT.PLAYER)
+	local targetCfg = ensureDB(UNIT.TARGET)
+	local totCfg = ensureDB(UNIT.TARGET_TARGET)
+	local focusCfg = ensureDB(UNIT.FOCUS)
+	local petCfg = ensureDB(UNIT.PET)
+	local bossCfg = ensureDB("boss")
+
+	if playerCfg.enabled then addToken(UNIT.PLAYER) end
+	if targetCfg.enabled or totCfg.enabled then addToken(UNIT.TARGET) end
+	if totCfg.enabled then addToken(UNIT.TARGET_TARGET) end
+	if focusCfg.enabled then addToken(UNIT.FOCUS) end
+	if petCfg.enabled then
+		addToken(UNIT.PET)
+		addToken(UNIT.PLAYER) -- UNIT_PET uses "player" as event unit
+	end
+	if bossCfg.enabled then
+		for i = 1, maxBossFrames do
+			addToken("boss" .. i)
+		end
+	end
+
+	return tokens
+end
+
+function UF._registerUnitScopedEvents(includePortraitEvents)
+	UF._clearUnitEventFrames()
+
+	local tokens = UF._buildRegisteredUnitTokens()
+	if #tokens == 0 then return end
+
+	local unitEventFrames = UF._unitEventFrames
+	for i = 1, #tokens do
+		local token = tokens[i]
+		local frame = unitEventFrames[i]
+		if not frame then
+			frame = CreateFrame("Frame")
+			unitEventFrames[i] = frame
+		end
+		for _, evt in ipairs(unitEvents) do
+			frame:RegisterUnitEvent(evt, token)
+		end
+		if includePortraitEvents then
+			for _, evt in ipairs(portraitEvents) do
+				frame:RegisterUnitEvent(evt, token)
+			end
+		end
+		frame:SetScript("OnEvent", onEvent)
 	end
 end
 
@@ -5894,6 +6026,7 @@ local function updateFocusFrame(cfg, forceApply)
 		AuraUtil.resetTargetAuras(UNIT.FOCUS)
 	end
 	checkRaidTargetIcon(UNIT.FOCUS, st)
+	UFHelper.updateLeaderIndicator(st, UNIT.FOCUS, cfg, defaultsFor(UNIT.FOCUS), not forceApply)
 	UFHelper.updatePvPIndicator(st, UNIT.FOCUS, cfg, defaultsFor(UNIT.FOCUS), not forceApply)
 	UFHelper.updateRoleIndicator(st, UNIT.FOCUS, cfg, defaultsFor(UNIT.FOCUS), not forceApply)
 	updateUnitStatusIndicator(cfg, UNIT.FOCUS)
@@ -6114,9 +6247,24 @@ function UF.UpdateAllRoleIndicators(skipDisabled)
 	UFHelper.updateRoleIndicator(states[UNIT.FOCUS], UNIT.FOCUS, getCfg(UNIT.FOCUS), defaultsFor(UNIT.FOCUS), skipDisabled)
 end
 
-local function onEvent(self, event, unit, ...)
+function UF.UpdateAllLeaderIndicators(skipDisabled)
+	UFHelper.updateLeaderIndicator(states[UNIT.PLAYER], UNIT.PLAYER, getCfg(UNIT.PLAYER), defaultsFor(UNIT.PLAYER), skipDisabled)
+	UFHelper.updateLeaderIndicator(states[UNIT.TARGET], UNIT.TARGET, getCfg(UNIT.TARGET), defaultsFor(UNIT.TARGET), skipDisabled)
+	UFHelper.updateLeaderIndicator(states[UNIT.FOCUS], UNIT.FOCUS, getCfg(UNIT.FOCUS), defaultsFor(UNIT.FOCUS), skipDisabled)
+end
+
+onEvent = function(self, event, unit, ...)
 	local arg1 = ...
-	if (unitEventsMap[event] or portraitEventsMap[event]) and unit and not allowedEventUnit[unit] and event ~= "UNIT_THREAT_SITUATION_UPDATE" and event ~= "UNIT_THREAT_LIST_UPDATE" then return end
+	if
+		(unitEventsMap[event] or portraitEventsMap[event])
+		and unit
+		and not allowedEventUnit[unit]
+		and event ~= "UNIT_THREAT_SITUATION_UPDATE"
+		and event ~= "UNIT_THREAT_LIST_UPDATE"
+		and event ~= "UNIT_PET"
+	then
+		return
+	end
 	if (unitEventsMap[event] or portraitEventsMap[event]) and unit and isBossUnit(unit) and not isBossFrameSettingEnabled() then return end
 	if event == "SPELL_RANGE_CHECK_UPDATE" then
 		local spellIdentifier = unit
@@ -6151,6 +6299,7 @@ local function onEvent(self, event, unit, ...)
 		updateUnitStatusIndicator(petCfg, UNIT.PET)
 		UF.UpdateAllPvPIndicators()
 		UF.UpdateAllRoleIndicators(false)
+		UF.UpdateAllLeaderIndicators(false)
 		UFHelper.updateAllHighlights(states, UNIT, maxBossFrames)
 		updateAllRaidTargetIcons()
 		if bossCfg.enabled then
@@ -6178,6 +6327,7 @@ local function onEvent(self, event, unit, ...)
 			updateUnitStatusIndicator(getCfg(UNIT.PLAYER), UNIT.PLAYER)
 		end
 		UFHelper.updatePvPIndicator(states[UNIT.PLAYER], UNIT.PLAYER, getCfg(UNIT.PLAYER), defaultsFor(UNIT.PLAYER), true)
+		UFHelper.updateLeaderIndicator(states[UNIT.PLAYER], UNIT.PLAYER, getCfg(UNIT.PLAYER), defaultsFor(UNIT.PLAYER), true)
 		if allowedEventUnit[UNIT.TARGET_TARGET] then updateUnitStatusIndicator(getCfg(UNIT.TARGET_TARGET), UNIT.TARGET_TARGET) end
 	elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
 		local playerCfg = getCfg(UNIT.PLAYER)
@@ -6261,6 +6411,7 @@ local function onEvent(self, event, unit, ...)
 		if totCfg.enabled then updateTargetTargetFrame(totCfg) end
 		if focusCfg.enabled then updateFocusFrame(focusCfg) end
 		updateUnitStatusIndicator(targetCfg, UNIT.TARGET)
+		UFHelper.updateLeaderIndicator(states[UNIT.TARGET], UNIT.TARGET, targetCfg, defaultsFor(UNIT.TARGET), true)
 		UFHelper.updatePvPIndicator(states[UNIT.TARGET], UNIT.TARGET, targetCfg, defaultsFor(UNIT.TARGET), true)
 		UFHelper.updateRoleIndicator(states[UNIT.TARGET], UNIT.TARGET, targetCfg, defaultsFor(UNIT.TARGET), true)
 		updateUnitStatusIndicator(totCfg, UNIT.TARGET_TARGET)
@@ -6491,6 +6642,7 @@ local function onEvent(self, event, unit, ...)
 		if unit and states[unit] then UFHelper.updateClassificationIndicator(states[unit], unit, getCfg(unit), defaultsFor(unit), true) end
 	elseif event == "UNIT_FLAGS" then
 		updateUnitStatusIndicator(getCfg(unit), unit)
+		UFHelper.updateLeaderIndicator(states[unit], unit, getCfg(unit), defaultsFor(unit), true)
 		UFHelper.updatePvPIndicator(states[unit], unit, getCfg(unit), defaultsFor(unit), true)
 		if states[unit] then states[unit]._healthColorDirty = true end
 		if unit == UNIT.TARGET then updateHealth(getCfg(UNIT.TARGET), UNIT.TARGET) end
@@ -6612,18 +6764,20 @@ local function onEvent(self, event, unit, ...)
 			checkRaidTargetIcon(UNIT.FOCUS, states[UNIT.FOCUS])
 		end
 		updateUnitStatusIndicator(focusCfg, UNIT.FOCUS)
+		UFHelper.updateLeaderIndicator(states[UNIT.FOCUS], UNIT.FOCUS, focusCfg, defaultsFor(UNIT.FOCUS), true)
 		UFHelper.updatePvPIndicator(states[UNIT.FOCUS], UNIT.FOCUS, focusCfg, defaultsFor(UNIT.FOCUS), true)
 		UFHelper.updateRoleIndicator(states[UNIT.FOCUS], UNIT.FOCUS, focusCfg, defaultsFor(UNIT.FOCUS), true)
 		UFHelper.updateHighlight(states[UNIT.FOCUS], UNIT.FOCUS, UNIT.PLAYER)
 	elseif event == "PLAYER_UPDATE_RESTING" then
 		updateRestingIndicator(getCfg(UNIT.PLAYER))
-	elseif event == "GROUP_ROSTER_UPDATE" then
+	elseif event == "GROUP_ROSTER_UPDATE" or event == "PARTY_LEADER_CHANGED" then
 		local playerCfg = getCfg(UNIT.PLAYER)
 		local defStatus = (defaultsFor(UNIT.PLAYER) and defaultsFor(UNIT.PLAYER).status) or {}
 		local usDef = defStatus.unitStatus or {}
 		local usCfg = (playerCfg.status and playerCfg.status.unitStatus) or usDef or {}
 		if playerCfg.enabled ~= false and usCfg.enabled == true and usCfg.showGroup == true then updateUnitStatusIndicator(playerCfg, UNIT.PLAYER) end
 		UF.UpdateAllRoleIndicators(true)
+		UF.UpdateAllLeaderIndicators(true)
 	elseif event == "CLIENT_SCENE_OPENED" then
 		local sceneType = unit
 		UF._clientSceneActive = (sceneType == 1)
@@ -6646,17 +6800,11 @@ local function ensureEventHandling()
 		if eventFrame and eventFrame.UnregisterAllEvents then eventFrame:UnregisterAllEvents() end
 		if eventFrame then eventFrame:SetScript("OnEvent", nil) end
 		eventFrame = nil
-		portraitEventsActive = nil
+		UF._clearUnitEventFrames()
 		return
 	end
 	if not eventFrame then
 		eventFrame = CreateFrame("Frame")
-		for _, evt in ipairs(unitEvents) do
-			eventFrame:RegisterEvent(evt)
-		end
-		for _, evt in ipairs(generalEvents) do
-			eventFrame:RegisterEvent(evt)
-		end
 		eventFrame:SetScript("OnEvent", onEvent)
 		if not editModeHooked then
 			editModeHooked = true
@@ -6668,6 +6816,7 @@ local function ensureEventHandling()
 				updateAllRaidTargetIcons()
 				UF.UpdateAllPvPIndicators()
 				UF.UpdateAllRoleIndicators(false)
+				UF.UpdateAllLeaderIndicators(false)
 				applyVisibilityRulesAll()
 				if UF.Refresh then UF.Refresh() end
 				if states[UNIT.PLAYER] and states[UNIT.PLAYER].castBar then setCastInfoFromUnit(UNIT.PLAYER) end
@@ -6683,6 +6832,7 @@ local function ensureEventHandling()
 				updateAllRaidTargetIcons()
 				UF.UpdateAllPvPIndicators()
 				UF.UpdateAllRoleIndicators(false)
+				UF.UpdateAllLeaderIndicators(false)
 				applyVisibilityRulesAll()
 				if UF.Refresh then UF.Refresh() end
 				if ensureDB("target").enabled then AuraUtil.fullScanTargetAuras(UNIT.TARGET) end
@@ -6699,7 +6849,11 @@ local function ensureEventHandling()
 			end)
 		end
 	end
-	updatePortraitEventRegistration()
+	if eventFrame.UnregisterAllEvents then eventFrame:UnregisterAllEvents() end
+	for _, evt in ipairs(generalEvents) do
+		eventFrame:RegisterEvent(evt)
+	end
+	UF._registerUnitScopedEvents(anyPortraitEnabled())
 	syncTargetRangeFadeConfig(ensureDB(UNIT.TARGET), defaultsFor(UNIT.TARGET))
 	refreshRangeFadeSpells(false)
 	UF.EnsureTextTicker()

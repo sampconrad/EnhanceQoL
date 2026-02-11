@@ -651,12 +651,62 @@ local function stripCooldownEdge(anchor)
 	end
 end
 
+local function ensurePrivateAuraMousePassthrough(anchor)
+	if not anchor then return nil end
+	local blocker = anchor._eqolPrivateAuraBlocker
+	if not blocker then
+		blocker = CreateFrame("Button", nil, anchor)
+		blocker:EnableMouse(true)
+		if blocker.SetMouseClickEnabled then
+			blocker:SetMouseClickEnabled(false)
+		elseif blocker.SetPropagateMouseClicks then
+			blocker:SetPropagateMouseClicks(true)
+		end
+		if blocker.SetPropagateMouseMotion then blocker:SetPropagateMouseMotion(false) end
+		if blocker.SetScript then
+			blocker:SetScript("OnEnter", function()
+				if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+			end)
+			blocker:SetScript("OnLeave", function()
+				if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+			end)
+		end
+		if blocker.SetAllPoints then blocker:SetAllPoints(anchor) end
+		anchor._eqolPrivateAuraBlocker = blocker
+	end
+	if blocker.GetParent and blocker:GetParent() ~= anchor then blocker:SetParent(anchor) end
+	if blocker.SetFrameStrata and anchor.GetFrameStrata then blocker:SetFrameStrata(anchor:GetFrameStrata()) end
+	if blocker.SetFrameLevel and anchor.GetFrameLevel then blocker:SetFrameLevel((anchor:GetFrameLevel() or 0) + 30) end
+	if blocker.SetMouseClickEnabled then
+		blocker:SetMouseClickEnabled(false)
+	elseif blocker.SetPropagateMouseClicks then
+		blocker:SetPropagateMouseClicks(true)
+	end
+	if blocker.SetPropagateMouseMotion then blocker:SetPropagateMouseMotion(false) end
+	if blocker.SetScript then
+		blocker:SetScript("OnEnter", function()
+			if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+		end)
+		blocker:SetScript("OnLeave", function()
+			if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+		end)
+	end
+	if blocker.ClearAllPoints and blocker.SetPoint then
+		blocker:ClearAllPoints()
+		blocker:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0)
+		blocker:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, 0)
+	end
+	blocker:Show()
+	return blocker
+end
+
 function H.RemovePrivateAuras(container)
 	if not container then return end
 	updatePrivateAuraShowDispelType(container, false)
 	if container._eqolPrivateAuraFrames then
 		for _, anchor in ipairs(container._eqolPrivateAuraFrames) do
 			removePrivateAuraAnchor(anchor)
+			if anchor._eqolPrivateAuraBlocker and anchor._eqolPrivateAuraBlocker.Hide then anchor._eqolPrivateAuraBlocker:Hide() end
 			if anchor.Hide then anchor:Hide() end
 		end
 	end
@@ -775,6 +825,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 		end
 		anchor:SetSize(size, size)
 		anchor:Show()
+		ensurePrivateAuraMousePassthrough(anchor)
 		if showSample then
 			local tex = ensurePrivateAuraSampleTexture(anchor)
 			if tex then tex:Show() end
@@ -814,6 +865,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 	end
 	for i = amount + 1, #anchors do
 		removePrivateAuraAnchor(anchors[i])
+		if anchors[i]._eqolPrivateAuraBlocker and anchors[i]._eqolPrivateAuraBlocker.Hide then anchors[i]._eqolPrivateAuraBlocker:Hide() end
 		if anchors[i].Hide then anchors[i]:Hide() end
 	end
 end
@@ -2183,6 +2235,44 @@ function H.updateRoleIndicator(st, unit, cfg, def, skipDisabled)
 	end
 end
 
+function H.updateLeaderIndicator(st, unit, cfg, def, skipDisabled)
+	if unit ~= "player" and unit ~= "target" and unit ~= "focus" then return end
+	if not st or not st.leaderIcon then return end
+	def = def or {}
+	local lcfg = (cfg and cfg.leaderIcon) or (def and def.leaderIcon) or {}
+	local enabled = lcfg.enabled == true and not (cfg and cfg.enabled == false)
+	if not enabled and skipDisabled then return end
+
+	local offsetDef = def and def.leaderIcon and def.leaderIcon.offset or {}
+	local sizeDef = def and def.leaderIcon and def.leaderIcon.size or 12
+	local size = H.clamp(lcfg.size or sizeDef or 12, 8, 40)
+	local ox = (lcfg.offset and lcfg.offset.x) or offsetDef.x or 0
+	local oy = (lcfg.offset and lcfg.offset.y) or offsetDef.y or 0
+	local anchor = st.health or st.frame
+	st.leaderIcon:ClearAllPoints()
+	if anchor then
+		st.leaderIcon:SetPoint("TOPLEFT", anchor, "TOPLEFT", ox, oy)
+	else
+		st.leaderIcon:SetPoint("TOPLEFT", st.frame, "TOPLEFT", ox, oy)
+	end
+	st.leaderIcon:SetSize(size, size)
+
+	if not enabled then
+		st.leaderIcon:Hide()
+		return
+	end
+
+	local inEditMode = addon.EditModeLib and addon.EditModeLib:IsInEditMode()
+	local showLeader = UnitIsGroupLeader and UnitIsGroupLeader(unit)
+	if not showLeader and inEditMode then showLeader = true end
+	if showLeader then
+		st.leaderIcon:SetAtlas("UI-HUD-UnitFrame-Player-Group-LeaderIcon", false)
+		st.leaderIcon:Show()
+	else
+		st.leaderIcon:Hide()
+	end
+end
+
 function H.updateClassificationIndicator(st, unit, cfg, def, skipDisabled)
 	if unit == "player" then
 		if st and st.classificationIcon then st.classificationIcon:Hide() end
@@ -2577,7 +2667,6 @@ local IsHelpfulSpell = _G.IsHelpfulSpell
 local IsHarmfulSpell = _G.IsHarmfulSpell
 local C_CreatureInfo = _G.C_CreatureInfo
 local wipeTable = wipe or (table and table.wipe)
-local floor = math.floor
 local tinsert = table.insert
 local tsort = table.sort
 
@@ -2695,7 +2784,8 @@ local function clearTable(tbl)
 end
 
 local function getRangeFadeClassInfo()
-	local _, classToken, classID = UnitClass and UnitClass("player")
+	if not UnitClass then return nil, nil end
+	local _, classToken, classID = UnitClass("player")
 	return classToken, classID
 end
 

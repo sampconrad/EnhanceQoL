@@ -24,6 +24,20 @@ local EDITMODE_SETTINGS_MAX_HEIGHT = 900
 local MIN_CASTBAR_WIDTH = 50
 local CASTBAR_CONFIG_VERSION = 1
 local DEFAULT_NOT_INTERRUPTIBLE_COLOR = { 204 / 255, 204 / 255, 204 / 255, 1 }
+local RELATIVE_ANCHOR_FRAME_MAP = {
+	PlayerFrame = { uf = "EQOLUFPlayerFrame", blizz = "PlayerFrame", ufKey = "player" },
+	EQOLUFPlayerFrame = { uf = "EQOLUFPlayerFrame", blizz = "PlayerFrame", ufKey = "player" },
+	TargetFrame = { uf = "EQOLUFTargetFrame", blizz = "TargetFrame", ufKey = "target" },
+	EQOLUFTargetFrame = { uf = "EQOLUFTargetFrame", blizz = "TargetFrame", ufKey = "target" },
+	TargetFrameToT = { uf = "EQOLUFToTFrame", blizz = "TargetFrameToT", ufKey = "targettarget" },
+	EQOLUFToTFrame = { uf = "EQOLUFToTFrame", blizz = "TargetFrameToT", ufKey = "targettarget" },
+	FocusFrame = { uf = "EQOLUFFocusFrame", blizz = "FocusFrame", ufKey = "focus" },
+	EQOLUFFocusFrame = { uf = "EQOLUFFocusFrame", blizz = "FocusFrame", ufKey = "focus" },
+	PetFrame = { uf = "EQOLUFPetFrame", blizz = "PetFrame", ufKey = "pet" },
+	EQOLUFPetFrame = { uf = "EQOLUFPetFrame", blizz = "PetFrame", ufKey = "pet" },
+	BossTargetFrameContainer = { uf = "EQOLUFBossContainer", blizz = "BossTargetFrameContainer", ufKey = "boss" },
+	EQOLUFBossContainer = { uf = "EQOLUFBossContainer", blizz = "BossTargetFrameContainer", ufKey = "boss" },
+}
 local VALID_ANCHOR_POINTS = {
 	TOPLEFT = true,
 	TOP = true,
@@ -148,10 +162,46 @@ end
 
 local function wantsRelativeFrameWidthMatch(anchor) return anchor and (anchor.relativeFrame or "UIParent") ~= "UIParent" and anchor.matchRelativeWidth == true end
 
+local function isMappedUFEnabled(ufKey)
+	local ufCfg = addon.db and addon.db.ufFrames
+	local cfg = ufCfg and ufCfg[ufKey]
+	return cfg and cfg.enabled == true
+end
+
+local function resolveRelativeFrameByName(relativeName)
+	if not relativeName or relativeName == "" or relativeName == "UIParent" then return UIParent end
+	local mapped = RELATIVE_ANCHOR_FRAME_MAP[relativeName]
+	if mapped then
+		if mapped.ufKey and isMappedUFEnabled(mapped.ufKey) then
+			local ufFrame = _G[mapped.uf]
+			if ufFrame then return ufFrame end
+		end
+		local blizzFrame = _G[mapped.blizz]
+		if blizzFrame then return blizzFrame end
+	end
+	return _G[relativeName] or UIParent
+end
+
+local function getRelativeFrameHookTargets(relativeName)
+	local targets = {}
+	local seen = {}
+	local function add(name)
+		if type(name) ~= "string" or name == "" or seen[name] then return end
+		seen[name] = true
+		targets[#targets + 1] = name
+	end
+	local mapped = RELATIVE_ANCHOR_FRAME_MAP[relativeName]
+	if mapped then
+		add(mapped.blizz)
+		add(mapped.uf)
+	end
+	add(relativeName)
+	return targets
+end
+
 local function resolveRelativeFrame(anchor)
 	local relativeName = anchor and anchor.relativeFrame or "UIParent"
-	if not relativeName or relativeName == "" or relativeName == "UIParent" then return UIParent end
-	return _G[relativeName] or UIParent
+	return resolveRelativeFrameByName(relativeName)
 end
 
 local function getIconLayoutInfo(castCfg, castDefaults, barHeight)
@@ -305,8 +355,24 @@ local function onRelativeFrameGeometryChanged() scheduleRelativeFrameWidthSync()
 
 local function ensureRelativeFrameHooks(frameName)
 	if not frameName or frameName == "" or frameName == "UIParent" then return end
-	local frame = _G[frameName]
-	if not frame then
+	local foundFrame = false
+	for _, targetName in ipairs(getRelativeFrameHookTargets(frameName)) do
+		local frame = _G[targetName]
+		if frame then
+			foundFrame = true
+			if not relativeFrameWidthHooked[targetName] and frame.HookScript then
+				local okSize = pcall(frame.HookScript, frame, "OnSizeChanged", onRelativeFrameGeometryChanged)
+				local okShow = pcall(frame.HookScript, frame, "OnShow", onRelativeFrameGeometryChanged)
+				local okHide = pcall(frame.HookScript, frame, "OnHide", onRelativeFrameGeometryChanged)
+				if okSize or okShow or okHide then
+					relativeFrameWidthHooked[targetName] = true
+					scheduleRelativeFrameWidthSync()
+				end
+			end
+		end
+	end
+	if foundFrame then return end
+	if not foundFrame then
 		if After and not pendingRelativeFrameHookRetry[frameName] then
 			pendingRelativeFrameHookRetry[frameName] = true
 			After(1, function()
@@ -315,16 +381,6 @@ local function ensureRelativeFrameHooks(frameName)
 			end)
 		end
 		return
-	end
-	if relativeFrameWidthHooked[frameName] then return end
-	if not frame.HookScript then return end
-
-	local okSize = pcall(frame.HookScript, frame, "OnSizeChanged", onRelativeFrameGeometryChanged)
-	local okShow = pcall(frame.HookScript, frame, "OnShow", onRelativeFrameGeometryChanged)
-	local okHide = pcall(frame.HookScript, frame, "OnHide", onRelativeFrameGeometryChanged)
-	if okSize or okShow or okHide then
-		relativeFrameWidthHooked[frameName] = true
-		scheduleRelativeFrameWidthSync()
 	end
 end
 
@@ -335,7 +391,7 @@ local function resolveCastbarWidth(castCfg, castDefaults, barHeight)
 	if not wantsRelativeFrameWidthMatch(anchor) then return width end
 	ensureRelativeFrameHooks(anchor.relativeFrame)
 	local relFrame = resolveRelativeFrame(anchor)
-	if not relFrame or not relFrame.GetWidth then return width end
+	if not relFrame or relFrame == UIParent or not relFrame.GetWidth then return width end
 	local relWidth = relFrame:GetWidth() or 0
 	if relWidth <= 0 then return width end
 	local relScale = getEffectiveScale(relFrame)

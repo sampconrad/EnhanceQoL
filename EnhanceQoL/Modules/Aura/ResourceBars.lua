@@ -87,6 +87,65 @@ local ResourcebarVars = {
 	AURA_POWER_CONFIG = {},
 }
 local RB = ResourcebarVars
+RB.UNITFRAME_ANCHOR_MAP = {
+	PlayerFrame = { uf = "EQOLUFPlayerFrame", blizz = "PlayerFrame", ufKey = "player" },
+	EQOLUFPlayerFrame = { uf = "EQOLUFPlayerFrame", blizz = "PlayerFrame", ufKey = "player" },
+	TargetFrame = { uf = "EQOLUFTargetFrame", blizz = "TargetFrame", ufKey = "target" },
+	EQOLUFTargetFrame = { uf = "EQOLUFTargetFrame", blizz = "TargetFrame", ufKey = "target" },
+	TargetFrameToT = { uf = "EQOLUFToTFrame", blizz = "TargetFrameToT", ufKey = "targettarget" },
+	EQOLUFToTFrame = { uf = "EQOLUFToTFrame", blizz = "TargetFrameToT", ufKey = "targettarget" },
+	FocusFrame = { uf = "EQOLUFFocusFrame", blizz = "FocusFrame", ufKey = "focus" },
+	EQOLUFFocusFrame = { uf = "EQOLUFFocusFrame", blizz = "FocusFrame", ufKey = "focus" },
+	PetFrame = { uf = "EQOLUFPetFrame", blizz = "PetFrame", ufKey = "pet" },
+	EQOLUFPetFrame = { uf = "EQOLUFPetFrame", blizz = "PetFrame", ufKey = "pet" },
+	BossTargetFrameContainer = { uf = "EQOLUFBossContainer", blizz = "BossTargetFrameContainer", ufKey = "boss" },
+	EQOLUFBossContainer = { uf = "EQOLUFBossContainer", blizz = "BossTargetFrameContainer", ufKey = "boss" },
+}
+
+function ResourceBars.IsMappedUFEnabled(ufKey)
+	local ufCfg = addon.db and addon.db.ufFrames
+	local cfg = ufCfg and ufCfg[ufKey]
+	return cfg and cfg.enabled == true
+end
+
+function ResourceBars.ResolveRelativeFrameByName(relativeName)
+	if type(relativeName) ~= "string" or relativeName == "" or relativeName == "UIParent" then return UIParent end
+	local mapped = RB.UNITFRAME_ANCHOR_MAP[relativeName]
+	if mapped then
+		if mapped.ufKey and ResourceBars.IsMappedUFEnabled(mapped.ufKey) then
+			local ufFrame = _G[mapped.uf]
+			if ufFrame then return ufFrame end
+		end
+		local blizzFrame = _G[mapped.blizz]
+		if blizzFrame then return blizzFrame end
+	end
+	return _G[relativeName] or UIParent
+end
+
+function ResourceBars.RelativeFrameMatchesName(relativeName, frameName)
+	if not relativeName or not frameName then return false end
+	if relativeName == frameName then return true end
+	local mapped = RB.UNITFRAME_ANCHOR_MAP[relativeName]
+	if not mapped then return false end
+	return frameName == mapped.uf or frameName == mapped.blizz
+end
+
+function ResourceBars.GetRelativeFrameHookTargets(relativeName)
+	local targets = {}
+	local seen = {}
+	local function add(name)
+		if type(name) ~= "string" or name == "" or seen[name] then return end
+		seen[name] = true
+		targets[#targets + 1] = name
+	end
+	local mapped = RB.UNITFRAME_ANCHOR_MAP[relativeName]
+	if mapped then
+		add(mapped.blizz)
+		add(mapped.uf)
+	end
+	add(relativeName)
+	return targets
+end
 
 local requestActiveRefresh
 local getStatusbarDropdownLists
@@ -2230,7 +2289,7 @@ function getAnchor(name, spec)
 end
 
 local function resolveAnchor(info, type)
-	local frame = _G[info and info.relativeFrame]
+	local frame = ResourceBars.ResolveRelativeFrameByName(info and info.relativeFrame)
 	if not frame or frame == UIParent then return frame or UIParent, false end
 
 	local visited = {}
@@ -2254,7 +2313,7 @@ local function resolveAnchor(info, type)
 
 		if not bType then break end
 		local anch = getAnchor(bType, addon.variables.unitSpec)
-		check = _G[anch and anch.relativeFrame]
+		check = ResourceBars.ResolveRelativeFrameByName(anch and anch.relativeFrame)
 		if check == nil or check == UIParent then break end
 		limit = limit - 1
 	end
@@ -2540,8 +2599,8 @@ local function syncBarWidthWithAnchor(pType)
 	end
 	local relativeFrameName = anchor.relativeFrame
 	ensureRelativeFrameHooks(relativeFrameName)
-	local relFrame = relativeFrameName and _G[relativeFrameName]
-	if not relFrame or not relFrame.GetWidth then
+	local relFrame = ResourceBars.ResolveRelativeFrameByName(relativeFrameName)
+	if not relFrame or relFrame == UIParent or not relFrame.GetWidth then
 		local current = frame:GetWidth() or 0
 		if abs(current - baseWidth) < 0.5 then return false end
 		frame:SetWidth(baseWidth)
@@ -2580,8 +2639,21 @@ local pendingHookRetries = {}
 
 ensureRelativeFrameHooks = function(frameName)
 	if not frameName or frameName == "UIParent" then return end
-	local frame = _G[frameName]
-	if not frame then
+	local foundFrame = false
+	for _, targetName in ipairs(ResourceBars.GetRelativeFrameHookTargets(frameName)) do
+		local frame = _G[targetName]
+		if frame then
+			foundFrame = true
+			if not widthMatchHookedFrames[targetName] and frame.HookScript then
+				local okSize = pcall(frame.HookScript, frame, "OnSizeChanged", handleRelativeFrameGeometryChanged)
+				local okShow = pcall(frame.HookScript, frame, "OnShow", handleRelativeFrameGeometryChanged)
+				local okHide = pcall(frame.HookScript, frame, "OnHide", handleRelativeFrameGeometryChanged)
+				if okSize or okShow or okHide then widthMatchHookedFrames[targetName] = true end
+			end
+		end
+	end
+	if foundFrame then return end
+	if not foundFrame then
 		if After and not pendingHookRetries[frameName] then
 			pendingHookRetries[frameName] = true
 			After(1, function()
@@ -2590,13 +2662,6 @@ ensureRelativeFrameHooks = function(frameName)
 			end)
 		end
 		return
-	end
-	if widthMatchHookedFrames[frameName] then return end
-	if frame.HookScript then
-		local okSize = pcall(frame.HookScript, frame, "OnSizeChanged", handleRelativeFrameGeometryChanged)
-		local okShow = pcall(frame.HookScript, frame, "OnShow", handleRelativeFrameGeometryChanged)
-		local okHide = pcall(frame.HookScript, frame, "OnHide", handleRelativeFrameGeometryChanged)
-		if okSize or okShow or okHide then widthMatchHookedFrames[frameName] = true end
 	end
 end
 
@@ -4659,7 +4724,7 @@ function ResourceBars.SetPowerBarSize(w, h, pType)
 				if anchor and changed[anchor.relativeFrame] then
 					local frame = bType == "HEALTH" and healthBar or powerbar[bType]
 					if frame then
-						local rel = _G[anchor.relativeFrame] or UIParent
+						local rel = ResourceBars.ResolveRelativeFrameByName(anchor.relativeFrame)
 						-- Ensure we don't accumulate multiple points to stale relatives
 						frame:ClearAllPoints()
 						frame:SetPoint(anchor.point or "CENTER", rel, anchor.relativePoint or anchor.point or "CENTER", anchor.x or 0, anchor.y or 0)
@@ -4682,10 +4747,10 @@ function ResourceBars.ReanchorDependentsOf(frameName)
 	for bType, cfg in pairs(specCfg) do
 		if type(cfg) == "table" then
 			local anch = cfg.anchor
-			if anch and anch.relativeFrame == frameName then
+			if anch and ResourceBars.RelativeFrameMatchesName(anch.relativeFrame, frameName) then
 				local frame = (bType == "HEALTH") and healthBar or powerbar[bType]
 				if frame then
-					local rel = _G[anch.relativeFrame] or UIParent
+					local rel = ResourceBars.ResolveRelativeFrameByName(anch.relativeFrame)
 					frame:ClearAllPoints()
 					frame:SetPoint(anch.point or "TOPLEFT", rel, anch.relativePoint or anch.point or "TOPLEFT", anch.x or 0, anch.y or 0)
 				end

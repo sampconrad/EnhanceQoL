@@ -3799,6 +3799,58 @@ local function buildUnitSettings(unit)
 		)
 		roleOffsetY.isEnabled = isRoleIndicatorEnabled
 		list[#list + 1] = roleOffsetY
+
+		local leaderDef = def.leaderIcon or { enabled = false, size = 12, offset = { x = 0, y = 0 } }
+		local function isLeaderIndicatorEnabled() return getValue(unit, { "leaderIcon", "enabled" }, leaderDef.enabled == true) == true end
+
+		list[#list + 1] = checkbox(L["UFLeaderIndicatorEnable"] or "Show party leader icon", isLeaderIndicatorEnabled, function(val)
+			setValue(unit, { "leaderIcon", "enabled" }, val and true or false)
+			refreshSelf()
+		end, leaderDef.enabled == true, "unitStatus")
+
+		local leaderIconSize = slider(L["Icon size"] or "Icon size", 8, 40, 1, function() return getValue(unit, { "leaderIcon", "size" }, leaderDef.size or 12) end, function(val)
+			local v = val or leaderDef.size or 12
+			if v < 8 then v = 8 end
+			if v > 40 then v = 40 end
+			setValue(unit, { "leaderIcon", "size" }, v)
+			refreshSelf()
+		end, leaderDef.size or 12, "unitStatus", true)
+		leaderIconSize.isEnabled = isLeaderIndicatorEnabled
+		list[#list + 1] = leaderIconSize
+
+		local leaderOffsetX = slider(
+			L["Offset X"] or "Offset X",
+			-OFFSET_RANGE,
+			OFFSET_RANGE,
+			1,
+			function() return getValue(unit, { "leaderIcon", "offset", "x" }, (leaderDef.offset and leaderDef.offset.x) or 0) end,
+			function(val)
+				setValue(unit, { "leaderIcon", "offset", "x" }, val or 0)
+				refreshSelf()
+			end,
+			(leaderDef.offset and leaderDef.offset.x) or 0,
+			"unitStatus",
+			true
+		)
+		leaderOffsetX.isEnabled = isLeaderIndicatorEnabled
+		list[#list + 1] = leaderOffsetX
+
+		local leaderOffsetY = slider(
+			L["Offset Y"] or "Offset Y",
+			-OFFSET_RANGE,
+			OFFSET_RANGE,
+			1,
+			function() return getValue(unit, { "leaderIcon", "offset", "y" }, (leaderDef.offset and leaderDef.offset.y) or 0) end,
+			function(val)
+				setValue(unit, { "leaderIcon", "offset", "y" }, val or 0)
+				refreshSelf()
+			end,
+			(leaderDef.offset and leaderDef.offset.y) or 0,
+			"unitStatus",
+			true
+		)
+		leaderOffsetY.isEnabled = isLeaderIndicatorEnabled
+		list[#list + 1] = leaderOffsetY
 		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "unitStatus" }
 	end
 

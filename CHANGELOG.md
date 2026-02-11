@@ -6,6 +6,7 @@
 
 - Unit Frames: Added configurable `Castbar strata` + `Castbar frame level offset` (Player/Target/Focus/Boss).
 - Unit Frames: Added configurable `Level text strata` + `Level text frame level offset`.
+- Unit Frames: Added optional `Party leader icon` indicator for Player/Target/Focus.
 - GCD Bar: Added `Match relative frame width` for anchored layouts, including live width sync with the selected relative frame.
 - GCD Bar: Anchor target list now focuses on supported EQoL anchors (legacy ActionBar/StanceBar entries removed).
 - Unit Frames: Added per-frame `Hide in vehicles` visibility option.

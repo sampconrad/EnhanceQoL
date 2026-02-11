@@ -733,20 +733,10 @@ local function UpdateItemLevel()
 	local statFrame = CharacterStatsPane and CharacterStatsPane.ItemLevelFrame
 	if not (statFrame and statFrame.Value and GetAverageItemLevel) then return end
 
+	if not CharOpt("ilvl") then return end
+
 	local avgItemLevel, equippedItemLevel = GetAverageItemLevel()
 	if not avgItemLevel or not equippedItemLevel then return end
-
-	local showDetailed = addon.db and addon.db.charDisplayOptions and addon.db.charDisplayOptions["ilvl"]
-	if not showDetailed then
-		local minItemLevel = C_PaperDollInfo and C_PaperDollInfo.GetMinItemLevel and C_PaperDollInfo.GetMinItemLevel()
-		local displayItemLevel = math.max(minItemLevel or 0, equippedItemLevel)
-		statFrame.Value:SetText(math.floor(displayItemLevel))
-		if GetItemLevelColor then
-			local r, g, b = GetItemLevelColor()
-			if r and g and b then statFrame.Value:SetTextColor(r, g, b) end
-		end
-		return
-	end
 
 	local equippedText = string.format("%.2f", equippedItemLevel)
 	local avgText = string.format("%.2f", avgItemLevel)

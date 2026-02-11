@@ -81,40 +81,64 @@ local function FirstOwnedItemID(itemID)
 end
 
 local function GetCooldownData(spellInfo)
-	if not spellInfo then return end
+	if not spellInfo then return nil end
 
-	local cooldownData, isSecret = nil, false
+	local startTime, duration, modRate, isEnabled
 	if spellInfo.isToy then
 		if spellInfo.toyID then
-			local startTime, duration, enable = GetItemCooldown(spellInfo.toyID)
-			cooldownData = {
-				startTime = startTime,
-				duration = duration,
-				modRate = 1,
-				isEnabled = enable,
-			}
+			local st, dur, en = GetItemCooldown(spellInfo.toyID)
+			startTime, duration, modRate, isEnabled = st, dur, 1, en
 		end
 	elseif spellInfo.isItem then
 		if spellInfo.itemID then
 			local id = FirstOwnedItemID(spellInfo.itemID)
-			local startTime, duration, enable = GetItemCooldown(id)
-			cooldownData = {
-				startTime = startTime,
-				duration = duration,
-				modRate = 1,
-				isEnabled = enable,
-			}
+			local st, dur, en = GetItemCooldown(id)
+			startTime, duration, modRate, isEnabled = st, dur, 1, en
 		end
 	else
 		local spellID = spellInfo.spellID
-		if FindSpellOverrideByID(spellID) and FindSpellOverrideByID(spellID) ~= spellID then
-			spellID = FindSpellOverrideByID(spellID)
-			spellInfo.spellID = spellID
+		if FindSpellOverrideByID then
+			local overrideSpellID = FindSpellOverrideByID(spellID)
+			if overrideSpellID and overrideSpellID ~= spellID then
+				spellID = overrideSpellID
+				spellInfo.spellID = spellID
+			end
 		end
-		cooldownData = C_Spell.GetSpellCooldownDuration(spellID)
-		isSecret = true
+		local cd = C_Spell.GetSpellCooldown(spellID)
+		if cd then
+			startTime, duration, modRate, isEnabled = cd.startTime, cd.duration, cd.modRate, cd.isEnabled
+		end
 	end
-	return cooldownData, isSecret
+
+	if startTime == nil and duration == nil and modRate == nil and isEnabled == nil then return nil end
+	return {
+		startTime = startTime,
+		duration = duration,
+		modRate = modRate,
+		isEnabled = isEnabled,
+	}
+end
+
+local function ApplyCooldownToButton(button)
+	if not button or not button.cooldownFrame then return end
+
+	local cooldownData = GetCooldownData(button)
+	local startTime = cooldownData and cooldownData.startTime
+	local duration = cooldownData and cooldownData.duration
+	local modRate = cooldownData and cooldownData.modRate
+	local enabled = cooldownData and cooldownData.isEnabled
+
+	if issecretvalue and issecretvalue(enabled) then
+		button.cooldownFrame:SetCooldown(startTime or 0, duration or 0, modRate or 1)
+	elseif enabled and duration and duration > 0 then
+		button.cooldownFrame:SetCooldown(startTime or 0, duration or 0, modRate or 1)
+	else
+		if button.cooldownFrame.Clear then
+			button.cooldownFrame:Clear()
+		else
+			button.cooldownFrame:SetCooldown(0, 0, 0)
+		end
+	end
 end
 
 local function getCurrentSeasonPortal()
@@ -1051,16 +1075,7 @@ function checkCooldown()
 	if addon.db["teleportFrame"] then CreatePortalButtonsWithCooldown(frameAnchor, portalSpells) end
 
 	for _, button in pairs(frameAnchor.buttons or {}) do
-		if isKnown[button.spellID] then
-			local cooldownData, isSecret = GetCooldownData(button)
-			if isSecret and button.cooldownFrame.SetCooldownFromDuration then
-				if cooldownData then button.cooldownFrame:SetCooldownFromDuration(cooldownData) end
-			elseif cooldownData and cooldownData.isEnabled then
-				button.cooldownFrame:SetCooldown(cooldownData.startTime, cooldownData.duration, cooldownData.modRate)
-			else
-				button.cooldownFrame:SetCooldown(0, 0)
-			end
-		end
+		if isKnown[button.spellID] then ApplyCooldownToButton(button) end
 	end
 end
 
@@ -1068,7 +1083,7 @@ local function waitCooldown(arg3)
 	C_Timer.After(0.1, function()
 		local spellInfo = allSpells[arg3]
 		local cooldownData = GetCooldownData(spellInfo)
-		if cooldownData and cooldownData.duration > 0 then
+		if cooldownData and cooldownData.duration and cooldownData.duration > 0 then
 			checkCooldown()
 		else
 			waitCooldown(arg3)
@@ -1459,7 +1474,8 @@ local function updateKeystoneInfo()
 					-- Überprüfen, ob der Zauber bekannt ist
 					if mapData.spellId and C_SpellBook.IsSpellInSpellBook(mapData.spellId) then
 						local cooldownData = C_Spell.GetSpellCooldown(mapData.spellId)
-						if cooldownData and cooldownData.isEnabled then
+						local enabled = cooldownData and cooldownData.isEnabled
+						if cooldownData and ((issecretvalue and issecretvalue(enabled)) or enabled) then
 							button:EnableMouse(true) -- Aktiviert Klicks
 
 							-- Cooldown-Spirale
