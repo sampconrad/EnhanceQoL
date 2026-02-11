@@ -662,13 +662,35 @@ local function ensurePrivateAuraMousePassthrough(anchor)
 		elseif blocker.SetPropagateMouseClicks then
 			blocker:SetPropagateMouseClicks(true)
 		end
-		if blocker.SetPropagateMouseMotion then blocker:SetPropagateMouseMotion(true) end
+		if blocker.SetPropagateMouseMotion then blocker:SetPropagateMouseMotion(false) end
+		if blocker.SetScript then
+			blocker:SetScript("OnEnter", function()
+				if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+			end)
+			blocker:SetScript("OnLeave", function()
+				if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+			end)
+		end
 		if blocker.SetAllPoints then blocker:SetAllPoints(anchor) end
 		anchor._eqolPrivateAuraBlocker = blocker
 	end
 	if blocker.GetParent and blocker:GetParent() ~= anchor then blocker:SetParent(anchor) end
 	if blocker.SetFrameStrata and anchor.GetFrameStrata then blocker:SetFrameStrata(anchor:GetFrameStrata()) end
 	if blocker.SetFrameLevel and anchor.GetFrameLevel then blocker:SetFrameLevel((anchor:GetFrameLevel() or 0) + 30) end
+	if blocker.SetMouseClickEnabled then
+		blocker:SetMouseClickEnabled(false)
+	elseif blocker.SetPropagateMouseClicks then
+		blocker:SetPropagateMouseClicks(true)
+	end
+	if blocker.SetPropagateMouseMotion then blocker:SetPropagateMouseMotion(false) end
+	if blocker.SetScript then
+		blocker:SetScript("OnEnter", function()
+			if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+		end)
+		blocker:SetScript("OnLeave", function()
+			if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+		end)
+	end
 	if blocker.ClearAllPoints and blocker.SetPoint then
 		blocker:ClearAllPoints()
 		blocker:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0)
