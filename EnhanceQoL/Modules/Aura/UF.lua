@@ -1740,9 +1740,15 @@ function AuraUtil.styleAuraCount(btn, ac, countFontSizeOverride)
 	if size == nil then size = ac.countFontSize end
 	local flags = ac.countFontOutline
 	local fontKey = ac.countFont or (addon.variables and addon.variables.defaultFont) or (LSM and LSM.DefaultMedia and LSM.DefaultMedia.font) or STANDARD_TEXT_FONT
-	local key = anchor .. "|" .. ox .. "|" .. oy .. "|" .. tostring(fontKey) .. "|" .. tostring(size) .. "|" .. tostring(flags)
-	if btn._countStyleKey == key then return end
-	btn._countStyleKey = key
+	if btn._countStyleAnchor == anchor and btn._countStyleOx == ox and btn._countStyleOy == oy and btn._countStyleFontKey == fontKey and btn._countStyleSize == size and btn._countStyleFlags == flags then
+		return
+	end
+	btn._countStyleAnchor = anchor
+	btn._countStyleOx = ox
+	btn._countStyleOy = oy
+	btn._countStyleFontKey = fontKey
+	btn._countStyleSize = size
+	btn._countStyleFlags = flags
 	btn.count:ClearAllPoints()
 	btn.count:SetPoint(anchor, btn.overlay or btn, anchor, ox, oy)
 	if size == nil or flags == nil then
@@ -1771,9 +1777,15 @@ function AuraUtil.styleAuraCooldownText(btn, ac, cooldownFontSizeOverride)
 	if size == nil then size = curSize or 12 end
 	if outline == nil then outline = curFlags end
 	if fontKey == nil then fontKey = curFont end
-	local key = anchor .. "|" .. ox .. "|" .. oy .. "|" .. tostring(fontKey) .. "|" .. tostring(size) .. "|" .. tostring(outline)
-	if btn._cooldownStyleKey == key then return end
-	btn._cooldownStyleKey = key
+	if btn._cooldownStyleAnchor == anchor and btn._cooldownStyleOx == ox and btn._cooldownStyleOy == oy and btn._cooldownStyleFontKey == fontKey and btn._cooldownStyleSize == size and btn._cooldownStyleOutline == outline then
+		return
+	end
+	btn._cooldownStyleAnchor = anchor
+	btn._cooldownStyleOx = ox
+	btn._cooldownStyleOy = oy
+	btn._cooldownStyleFontKey = fontKey
+	btn._cooldownStyleSize = size
+	btn._cooldownStyleOutline = outline
 	fs:ClearAllPoints()
 	fs:SetPoint(anchor, btn.overlay or btn, anchor, ox, oy)
 	if UFHelper and UFHelper.applyFont then
@@ -1794,9 +1806,15 @@ function AuraUtil.styleAuraDRText(btn, ac, drFontSizeOverride)
 	if size == nil then size = ac.drFontSize end
 	local flags = ac.drFontOutline
 	local fontKey = ac.drFont or (addon.variables and addon.variables.defaultFont) or (LSM and LSM.DefaultMedia and LSM.DefaultMedia.font) or STANDARD_TEXT_FONT
-	local key = anchor .. "|" .. ox .. "|" .. oy .. "|" .. tostring(fontKey) .. "|" .. tostring(size) .. "|" .. tostring(flags)
-	if btn._drStyleKey == key then return end
-	btn._drStyleKey = key
+	if btn._drStyleAnchor == anchor and btn._drStyleOx == ox and btn._drStyleOy == oy and btn._drStyleFontKey == fontKey and btn._drStyleSize == size and btn._drStyleFlags == flags then
+		return
+	end
+	btn._drStyleAnchor = anchor
+	btn._drStyleOx = ox
+	btn._drStyleOy = oy
+	btn._drStyleFontKey = fontKey
+	btn._drStyleSize = size
+	btn._drStyleFlags = flags
 	btn.drText:ClearAllPoints()
 	btn.drText:SetPoint(anchor, btn.overlay or btn, anchor, ox, oy)
 	if size == nil or flags == nil then
@@ -1911,8 +1929,7 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 					if borderFrame then
 						local edgeSize = (UFHelper and UFHelper.calcAuraBorderSize and UFHelper.calcAuraBorderSize(btn, ac)) or 1
 						local insetVal = edgeSize
-						local key = tostring(borderTex) .. "|" .. tostring(edgeSize)
-						if borderFrame._eqolAuraBorderKey ~= key then
+						if borderFrame._eqolAuraBorderTex ~= borderTex or borderFrame._eqolAuraBorderEdgeSize ~= edgeSize then
 							borderFrame:SetBackdrop({
 								bgFile = "Interface\\Buttons\\WHITE8x8",
 								edgeFile = borderTex,
@@ -1920,7 +1937,8 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 								insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
 							})
 							borderFrame:SetBackdropColor(0, 0, 0, 0)
-							borderFrame._eqolAuraBorderKey = key
+							borderFrame._eqolAuraBorderTex = borderTex
+							borderFrame._eqolAuraBorderEdgeSize = edgeSize
 						end
 						borderFrame:SetBackdropBorderColor(r, g, b, 1)
 						borderFrame:Show()
@@ -5598,6 +5616,7 @@ local unitEvents = {
 	"UNIT_SPELLCAST_EMPOWER_UPDATE",
 	"UNIT_SPELLCAST_DELAYED",
 	"UNIT_SPELLCAST_EMPOWER_STOP",
+	"UNIT_PET",
 }
 local unitEventsMap = {}
 for _, evt in ipairs(unitEvents) do
@@ -5632,7 +5651,6 @@ local generalEvents = {
 	"PLAYER_FLAGS_CHANGED",
 	"PLAYER_UPDATE_RESTING",
 	"GROUP_ROSTER_UPDATE",
-	"UNIT_PET",
 	"PLAYER_FOCUS_CHANGED",
 	"INSTANCE_ENCOUNTER_ENGAGE_UNIT",
 	"ENCOUNTER_START",
@@ -5644,7 +5662,8 @@ local generalEvents = {
 }
 
 local eventFrame
-local portraitEventsActive
+UF._unitEventFrames = UF._unitEventFrames or {}
+local onEvent
 
 local function anyUFEnabled()
 	local p = ensureDB("player").enabled
@@ -5677,19 +5696,75 @@ local function anyPortraitEnabled()
 	return false
 end
 
-local function updatePortraitEventRegistration()
-	if not eventFrame then return end
-	local shouldRegister = anyPortraitEnabled()
-	if shouldRegister and not portraitEventsActive then
-		for _, evt in ipairs(portraitEvents) do
-			eventFrame:RegisterEvent(evt)
+function UF._clearUnitEventFrames()
+	local unitEventFrames = UF._unitEventFrames
+	for i = 1, #unitEventFrames do
+		local frame = unitEventFrames[i]
+		if frame then
+			if frame.UnregisterAllEvents then frame:UnregisterAllEvents() end
+			frame:SetScript("OnEvent", nil)
+			unitEventFrames[i] = nil
 		end
-		portraitEventsActive = true
-	elseif not shouldRegister and portraitEventsActive then
-		for _, evt in ipairs(portraitEvents) do
-			eventFrame:UnregisterEvent(evt)
+	end
+end
+
+function UF._buildRegisteredUnitTokens()
+	local tokens = {}
+	local seen = {}
+	local function addToken(token)
+		if token and token ~= "" and not seen[token] then
+			seen[token] = true
+			tokens[#tokens + 1] = token
 		end
-		portraitEventsActive = false
+	end
+
+	local playerCfg = ensureDB(UNIT.PLAYER)
+	local targetCfg = ensureDB(UNIT.TARGET)
+	local totCfg = ensureDB(UNIT.TARGET_TARGET)
+	local focusCfg = ensureDB(UNIT.FOCUS)
+	local petCfg = ensureDB(UNIT.PET)
+	local bossCfg = ensureDB("boss")
+
+	if playerCfg.enabled then addToken(UNIT.PLAYER) end
+	if targetCfg.enabled or totCfg.enabled then addToken(UNIT.TARGET) end
+	if totCfg.enabled then addToken(UNIT.TARGET_TARGET) end
+	if focusCfg.enabled then addToken(UNIT.FOCUS) end
+	if petCfg.enabled then
+		addToken(UNIT.PET)
+		addToken(UNIT.PLAYER) -- UNIT_PET uses "player" as event unit
+	end
+	if bossCfg.enabled then
+		for i = 1, maxBossFrames do
+			addToken("boss" .. i)
+		end
+	end
+
+	return tokens
+end
+
+function UF._registerUnitScopedEvents(includePortraitEvents)
+	UF._clearUnitEventFrames()
+
+	local tokens = UF._buildRegisteredUnitTokens()
+	if #tokens == 0 then return end
+
+	local unitEventFrames = UF._unitEventFrames
+	for i = 1, #tokens do
+		local token = tokens[i]
+		local frame = unitEventFrames[i]
+		if not frame then
+			frame = CreateFrame("Frame")
+			unitEventFrames[i] = frame
+		end
+		for _, evt in ipairs(unitEvents) do
+			frame:RegisterUnitEvent(evt, token)
+		end
+		if includePortraitEvents then
+			for _, evt in ipairs(portraitEvents) do
+				frame:RegisterUnitEvent(evt, token)
+			end
+		end
+		frame:SetScript("OnEvent", onEvent)
 	end
 end
 
@@ -6106,9 +6181,9 @@ function UF.UpdateAllRoleIndicators(skipDisabled)
 	UFHelper.updateRoleIndicator(states[UNIT.FOCUS], UNIT.FOCUS, getCfg(UNIT.FOCUS), defaultsFor(UNIT.FOCUS), skipDisabled)
 end
 
-local function onEvent(self, event, unit, ...)
+onEvent = function(self, event, unit, ...)
 	local arg1 = ...
-	if (unitEventsMap[event] or portraitEventsMap[event]) and unit and not allowedEventUnit[unit] and event ~= "UNIT_THREAT_SITUATION_UPDATE" and event ~= "UNIT_THREAT_LIST_UPDATE" then return end
+	if (unitEventsMap[event] or portraitEventsMap[event]) and unit and not allowedEventUnit[unit] and event ~= "UNIT_THREAT_SITUATION_UPDATE" and event ~= "UNIT_THREAT_LIST_UPDATE" and event ~= "UNIT_PET" then return end
 	if (unitEventsMap[event] or portraitEventsMap[event]) and unit and isBossUnit(unit) and not isBossFrameSettingEnabled() then return end
 	if event == "SPELL_RANGE_CHECK_UPDATE" then
 		local spellIdentifier = unit
@@ -6638,17 +6713,11 @@ local function ensureEventHandling()
 		if eventFrame and eventFrame.UnregisterAllEvents then eventFrame:UnregisterAllEvents() end
 		if eventFrame then eventFrame:SetScript("OnEvent", nil) end
 		eventFrame = nil
-		portraitEventsActive = nil
+		UF._clearUnitEventFrames()
 		return
 	end
 	if not eventFrame then
 		eventFrame = CreateFrame("Frame")
-		for _, evt in ipairs(unitEvents) do
-			eventFrame:RegisterEvent(evt)
-		end
-		for _, evt in ipairs(generalEvents) do
-			eventFrame:RegisterEvent(evt)
-		end
 		eventFrame:SetScript("OnEvent", onEvent)
 		if not editModeHooked then
 			editModeHooked = true
@@ -6691,7 +6760,11 @@ local function ensureEventHandling()
 			end)
 		end
 	end
-	updatePortraitEventRegistration()
+	if eventFrame.UnregisterAllEvents then eventFrame:UnregisterAllEvents() end
+	for _, evt in ipairs(generalEvents) do
+		eventFrame:RegisterEvent(evt)
+	end
+	UF._registerUnitScopedEvents(anyPortraitEnabled())
 	syncTargetRangeFadeConfig(ensureDB(UNIT.TARGET), defaultsFor(UNIT.TARGET))
 	refreshRangeFadeSpells(false)
 	UF.EnsureTextTicker()
