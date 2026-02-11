@@ -271,17 +271,43 @@ local function applyBarBackdrop(bar, cfg)
 	if not bar or not bar.SetBackdrop then return end
 	cfg = cfg or {}
 	local bd = cfg.backdrop or {}
-	if bd.enabled == false then
+	local enabled = bd.enabled ~= false
+	local col = bd.color or { 0, 0, 0, 0.6 }
+	local r = col[1] or 0
+	local g = col[2] or 0
+	local b = col[3] or 0
+	local a = col[4] or 0.6
+
+	if not enabled then
+		if bar._eqolBackdropEnabled == false then return end
 		bar:SetBackdrop(nil)
+		bar._eqolBackdropEnabled = false
+		bar._eqolBackdropR, bar._eqolBackdropG, bar._eqolBackdropB, bar._eqolBackdropA = nil, nil, nil, nil
+		bar._eqolBackdropConfigured = nil
 		return
 	end
-	local col = bd.color or { 0, 0, 0, 0.6 }
-	bar:SetBackdrop({
-		bgFile = "Interface\\Buttons\\WHITE8x8",
-		edgeFile = nil,
-		tile = false,
-	})
-	bar:SetBackdropColor(col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.6)
+	if
+		bar._eqolBackdropEnabled == true
+		and bar._eqolBackdropConfigured == true
+		and bar._eqolBackdropR == r
+		and bar._eqolBackdropG == g
+		and bar._eqolBackdropB == b
+		and bar._eqolBackdropA == a
+	then
+		return
+	end
+
+	if bar._eqolBackdropConfigured ~= true then
+		bar:SetBackdrop({
+			bgFile = "Interface\\Buttons\\WHITE8x8",
+			edgeFile = nil,
+			tile = false,
+		})
+		bar._eqolBackdropConfigured = true
+	end
+	bar:SetBackdropColor(r, g, b, a)
+	bar._eqolBackdropEnabled = true
+	bar._eqolBackdropR, bar._eqolBackdropG, bar._eqolBackdropB, bar._eqolBackdropA = r, g, b, a
 end
 
 local function getEffectiveBarTexture(cfg, barCfg)
@@ -997,6 +1023,16 @@ local DEFAULTS = {
 		relativeTo = "UIParent",
 		x = 500,
 		y = -300,
+		groupBy = "ASSIGNEDROLE",
+		groupingOrder = GFH.ROLE_ORDER,
+		customSort = {
+			enabled = false,
+			separateMeleeRanged = false,
+			roleOrder = GFH.ROLE_TOKENS or { "TANK", "HEALER", "DAMAGER" },
+			classOrder = GFH.CLASS_TOKENS,
+		},
+		sortMethod = "INDEX",
+		sortDir = "ASC",
 		growth = "RIGHT",
 		barTexture = "SOLID",
 		border = {
@@ -2182,10 +2218,11 @@ function GF:BuildButton(self)
 	if not st.statusText then st.statusText = st.healthTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
 	if not st.groupNumberText then st.groupNumberText = st.healthTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
 	if not st.privateAuras then
-		st.privateAuras = CreateFrame("Frame", nil, st.barGroup or self)
+		st.privateAuras = CreateFrame("Frame", nil, st.health or st.barGroup or self)
 		st.privateAuras:EnableMouse(false)
 	end
-	if st.privateAuras.GetParent and st.barGroup and st.privateAuras:GetParent() ~= st.barGroup then st.privateAuras:SetParent(st.barGroup) end
+	local privateAuraParent = st.health or st.barGroup or self
+	if st.privateAuras.GetParent and privateAuraParent and st.privateAuras:GetParent() ~= privateAuraParent then st.privateAuras:SetParent(privateAuraParent) end
 
 	local indicatorLayer = st.healthTextLayer
 	if not st.leaderIcon then st.leaderIcon = indicatorLayer:CreateTexture(nil, "OVERLAY", nil, 7) end
@@ -2284,6 +2321,8 @@ function GF:LayoutButton(self)
 	st.health:ClearAllPoints()
 	st.health:SetPoint("TOPLEFT", st.barGroup, "TOPLEFT", borderOffset, -borderOffset)
 	st.health:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", -borderOffset, powerH + borderOffset)
+	applyBarBackdrop(st.health, hc)
+	applyBarBackdrop(st.power, cfg.power or {})
 
 	self.powerBarUsedHeight = powerH > 0 and powerH or 0
 	if st.dispelTint and st.dispelTint.SetOrientation and DispelOverlayOrientation then st.dispelTint:SetOrientation(self, DispelOverlayOrientation.VerticalTopToBottom, 0, 0) end
@@ -4398,11 +4437,14 @@ function GF:UpdatePrivateAuras(self)
 	local cfg = self._eqolCfg or getCfg(kind)
 	local def = DEFAULTS[kind] or {}
 	local pcfg = (cfg and cfg.privateAuras) or def.privateAuras
+	local privateAuraParent = st.health or st.barGroup or self
+	local privateAuraLevelParent = st.healthTextLayer or st.health or st.barGroup or self
 	if not st.privateAuras then
 		if not (pcfg and pcfg.enabled == true) then return end
-		st.privateAuras = CreateFrame("Frame", nil, st.barGroup or self)
+		st.privateAuras = CreateFrame("Frame", nil, privateAuraParent)
 		st.privateAuras:EnableMouse(false)
 	end
+	if st.privateAuras.GetParent and privateAuraParent and st.privateAuras:GetParent() ~= privateAuraParent then st.privateAuras:SetParent(privateAuraParent) end
 	if not (pcfg and pcfg.enabled == true) then
 		if UFHelper and UFHelper.RemovePrivateAuras then UFHelper.RemovePrivateAuras(st.privateAuras) end
 		if UFHelper and UFHelper.UpdatePrivateAuraSound then UFHelper.UpdatePrivateAuraSound(st.privateAuras, nil, pcfg or {}) end
@@ -4417,7 +4459,7 @@ function GF:UpdatePrivateAuras(self)
 		if st.privateAuras and st.privateAuras.Hide then st.privateAuras:Hide() end
 		return
 	end
-	UFHelper.ApplyPrivateAuras(st.privateAuras, self.unit, pcfg, st.barGroup or self, st.healthTextLayer or st.barGroup or self, showSample)
+	UFHelper.ApplyPrivateAuras(st.privateAuras, self.unit, pcfg, privateAuraParent, privateAuraLevelParent, showSample)
 end
 
 function GF:UpdateHealthValue(self, unit, st)
@@ -6155,23 +6197,31 @@ function GF:UpdateHealthColorMode(kind)
 	end
 end
 
-function GF:RefreshCustomSortNameList()
+function GF:RefreshCustomSortNameList(kind)
 	if not isFeatureEnabled() then return end
-	local cfg = getCfg("raid")
-	local header = GF.headers and GF.headers.raid
+	kind = kind or "raid"
+	if kind ~= "raid" and kind ~= "party" then return end
+	local cfg = getCfg(kind)
+	local header = GF.headers and GF.headers[kind]
 	if not header then return end
 	if InCombatLockdown and InCombatLockdown() then
-		GF:MarkPendingHeaderRefresh("raid")
+		GF:MarkPendingHeaderRefresh(kind)
 		return
 	end
 	local sortMethod = resolveSortMethod(cfg)
 	if sortMethod ~= "NAMELIST" then
 		GF:SetHeaderAttributeIfChanged(header, "nameList", nil)
-		if GF._raidGroupHeaders then
+		if kind == "raid" and GF._raidGroupHeaders then
 			for _, gh in ipairs(GF._raidGroupHeaders) do
 				if gh then GF:SetHeaderAttributeIfChanged(gh, "nameList", nil) end
 			end
 		end
+		return
+	end
+	if kind == "party" then
+		local nameList = GFH.BuildCustomSortNameList(cfg, "party")
+		if nameList == "" then nameList = nil end
+		GF:SetHeaderAttributeIfChanged(header, "nameList", nameList)
 		return
 	end
 	local customSort = GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
@@ -6191,7 +6241,7 @@ function GF:RefreshCustomSortNameList()
 		end
 		GF:SetHeaderAttributeIfChanged(header, "nameList", nil)
 	else
-		local nameList = GFH.BuildCustomSortNameList(cfg)
+		local nameList = GFH.BuildCustomSortNameList(cfg, "raid")
 		if nameList == "" then nameList = nil end
 		GF:SetHeaderAttributeIfChanged(header, "nameList", nameList)
 	end
@@ -6347,8 +6397,22 @@ function GF:ApplyHeaderAttributes(kind)
 		setAttr("showRaid", false)
 		setAttr("showPlayer", cfg.showPlayer and true or false)
 		setAttr("showSolo", cfg.showSolo and true or false)
-		setAttr("sortMethod", "INDEX")
-		setAttr("sortDir", "ASC")
+		setAttr("groupBy", "ASSIGNEDROLE")
+		setAttr("groupingOrder", GFH.ROLE_ORDER)
+		setAttr("groupFilter", nil)
+		setAttr("roleFilter", nil)
+		setAttr("strictFiltering", false)
+		sortMethod = resolveSortMethod(cfg)
+		local sortDir = (GFH and GFH.NormalizeSortDir and GFH.NormalizeSortDir(cfg.sortDir)) or "ASC"
+		setAttr("sortMethod", sortMethod)
+		setAttr("sortDir", sortDir)
+		if sortMethod == "NAMELIST" then
+			local nameList = GFH.BuildCustomSortNameList(cfg, "party")
+			if nameList == "" then nameList = nil end
+			setAttr("nameList", nameList)
+		else
+			setAttr("nameList", nil)
+		end
 		setAttr("maxColumns", 1)
 		setAttr("unitsPerColumn", 5)
 	elseif kind == "raid" then
@@ -6376,7 +6440,7 @@ function GF:ApplyHeaderAttributes(kind)
 		setAttr("sortMethod", sortMethod)
 		setAttr("sortDir", cfg.sortDir or "ASC")
 		if sortMethod == "NAMELIST" then
-			local nameList = GFH.BuildCustomSortNameList(cfg)
+			local nameList = GFH.BuildCustomSortNameList(cfg, "raid")
 			if nameList == "" then nameList = nil end
 			setAttr("nameList", nameList)
 		else
@@ -7070,7 +7134,7 @@ local function buildEditModeSettings(kind, editModeId)
 		return normalizeGroupBy(cfg and cfg.groupBy) or (DEFAULTS[kind] and DEFAULTS[kind].groupBy) or "GROUP"
 	end
 	local function isCustomSortingEnabled()
-		if kind ~= "raid" then return false end
+		if kind ~= "raid" and kind ~= "party" then return false end
 		local cfg = getCfg(kind)
 		return resolveSortMethod(cfg) == "NAMELIST"
 	end
@@ -14616,6 +14680,99 @@ local function buildEditModeSettings(kind, editModeId)
 				GF:ApplyHeaderAttributes(kind)
 			end,
 		}
+		settings[#settings + 1] = {
+			name = "Sort method",
+			kind = SettingType.Dropdown,
+			field = "sortMethod",
+			parentId = "party",
+			default = (DEFAULTS.party and DEFAULTS.party.sortMethod) or "INDEX",
+			customDefaultText = getSortMethodLabel(),
+			get = function() return getSortMethodValue() end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg or not value then return end
+				local v = tostring(value):upper()
+				local custom = GFH.EnsureCustomSortConfig(cfg)
+				if v == "CUSTOM" then
+					custom.enabled = true
+					cfg.sortMethod = "NAMELIST"
+					if EditMode and EditMode.SetValue then
+						EditMode:SetValue(editModeId, "sortMethod", "CUSTOM", nil, true)
+						EditMode:SetValue(editModeId, "customSortEnabled", true, nil, true)
+					end
+				else
+					custom.enabled = false
+					cfg.sortMethod = v
+					if EditMode and EditMode.SetValue then
+						EditMode:SetValue(editModeId, "sortMethod", cfg.sortMethod, nil, true)
+						EditMode:SetValue(editModeId, "customSortEnabled", false, nil, true)
+					end
+				end
+				GF:ApplyHeaderAttributes(kind)
+				GF:RefreshCustomSortNameList(kind)
+				if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
+				if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
+			end,
+			generator = function(_, root, data)
+				for _, option in ipairs(sortMethodOptions) do
+					root:CreateRadio(option.label, function() return getSortMethodValue() == option.value end, function()
+						local cfg = getCfg(kind)
+						if not cfg then return end
+						local v = tostring(option.value):upper()
+						local custom = GFH.EnsureCustomSortConfig(cfg)
+						if v == "CUSTOM" then
+							custom.enabled = true
+							cfg.sortMethod = "NAMELIST"
+							if EditMode and EditMode.SetValue then
+								EditMode:SetValue(editModeId, "sortMethod", "CUSTOM", nil, true)
+								EditMode:SetValue(editModeId, "customSortEnabled", true, nil, true)
+							end
+						else
+							custom.enabled = false
+							cfg.sortMethod = v
+							if EditMode and EditMode.SetValue then
+								EditMode:SetValue(editModeId, "sortMethod", cfg.sortMethod, nil, true)
+								EditMode:SetValue(editModeId, "customSortEnabled", false, nil, true)
+							end
+						end
+						GF:ApplyHeaderAttributes(kind)
+						GF:RefreshCustomSortNameList(kind)
+						if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
+						data.customDefaultText = option.label
+						if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
+					end)
+				end
+			end,
+		}
+		settings[#settings + 1] = {
+			name = "Sort direction",
+			kind = SettingType.Dropdown,
+			field = "sortDir",
+			parentId = "party",
+			default = (DEFAULTS.party and DEFAULTS.party.sortDir) or "ASC",
+			customDefaultText = getSortDirLabel(),
+			get = function() return getSortDirValue() end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg or not value then return end
+				cfg.sortDir = tostring(value):upper()
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "sortDir", cfg.sortDir, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			generator = function(_, root, data)
+				for _, option in ipairs(sortDirOptions) do
+					root:CreateRadio(option.label, function() return getSortDirValue() == option.value end, function()
+						local cfg = getCfg(kind)
+						if not cfg then return end
+						cfg.sortDir = option.value
+						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "sortDir", cfg.sortDir, nil, true) end
+						GF:ApplyHeaderAttributes(kind)
+						data.customDefaultText = option.label
+						if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
+					end)
+				end
+			end,
+		}
 	elseif raidLikeKind then
 		local raidSectionName = (kind == "mt" and "Main Tank") or (kind == "ma" and "Main Assist") or (RAID or "Raid")
 		settings[#settings + 1] = {
@@ -14837,7 +14994,7 @@ local function buildEditModeSettings(kind, editModeId)
 				end
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "customSortSeparateMeleeRanged", custom.separateMeleeRanged, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
-				GF:RefreshCustomSortNameList()
+				GF:RefreshCustomSortNameList(kind)
 				if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
 				if GF._customSortEditor and GF._customSortEditor.Refresh then GF._customSortEditor:Refresh() end
 			end,
@@ -15884,6 +16041,26 @@ local function applyEditModeData(kind, data)
 	if kind == "party" then
 		if data.showPlayer ~= nil then cfg.showPlayer = data.showPlayer and true or false end
 		if data.showSolo ~= nil then cfg.showSolo = data.showSolo and true or false end
+		local custom = GFH.EnsureCustomSortConfig(cfg)
+		if data.sortMethod ~= nil then
+			local sortMethod = tostring(data.sortMethod):upper()
+			if sortMethod == "CUSTOM" then sortMethod = "NAMELIST" end
+			if sortMethod ~= "INDEX" and sortMethod ~= "NAME" and sortMethod ~= "NAMELIST" then sortMethod = (DEFAULTS.party and DEFAULTS.party.sortMethod) or "INDEX" end
+			cfg.sortMethod = sortMethod
+			if custom then custom.enabled = sortMethod == "NAMELIST" end
+		end
+		if data.sortDir ~= nil then
+			local sortDir = tostring(data.sortDir):upper()
+			cfg.sortDir = (GFH and GFH.NormalizeSortDir and GFH.NormalizeSortDir(sortDir)) or ((sortDir == "DESC") and "DESC" or "ASC")
+		end
+		if data.customSortEnabled ~= nil then
+			custom.enabled = data.customSortEnabled and true or false
+			if custom.enabled then
+				cfg.sortMethod = "NAMELIST"
+			elseif resolveSortMethod(cfg) == "NAMELIST" then
+				cfg.sortMethod = (DEFAULTS.party and DEFAULTS.party.sortMethod) or "INDEX"
+			end
+		end
 	elseif isRaidLikeKind(kind) then
 		if kind == "raid" then
 			local custom = GFH.EnsureCustomSortConfig(cfg)
@@ -16477,7 +16654,8 @@ function GF:RunPostEnterWorldRefreshPass()
 	self:RefreshGroupIcons()
 	self:RefreshStatusText()
 	self:RefreshGroupIndicators()
-	self:RefreshCustomSortNameList()
+	self:RefreshCustomSortNameList("raid")
+	self:RefreshCustomSortNameList("party")
 	queueGroupIndicatorRefresh(0.05, 4)
 end
 
@@ -16546,7 +16724,7 @@ do
 			if GFH and GFH.OnInspectReady then
 				local updated = GFH.OnInspectReady(...)
 				if updated then
-					GF:RefreshCustomSortNameList()
+					GF:RefreshCustomSortNameList("raid")
 					if GF._previewActive and GF._previewActive.raid then GF:UpdatePreviewLayout("raid") end
 				end
 			end
@@ -16566,7 +16744,9 @@ do
 			else
 				updatedCount = GF:RefreshChangedUnitButtons()
 			end
-			if sortMethod == "NAMELIST" then GF:RefreshCustomSortNameList() end
+			if sortMethod == "NAMELIST" then GF:RefreshCustomSortNameList("raid") end
+			local partyCfg = getCfg("party")
+			if partyCfg and resolveSortMethod(partyCfg) == "NAMELIST" then GF:RefreshCustomSortNameList("party") end
 			if needsFullRefresh or updatedCount > 0 then
 				GF:RefreshGroupIndicators()
 				queueGroupIndicatorRefresh(0, 4)
@@ -16574,7 +16754,8 @@ do
 			if custom and custom.separateMeleeRanged == true and sortMethod == "NAMELIST" and GFH and GFH.QueueInspectGroup then GFH.QueueInspectGroup() end
 		elseif event == "PLAYER_ROLES_ASSIGNED" then
 			GF:RefreshRoleIcons()
-			GF:RefreshCustomSortNameList()
+			GF:RefreshCustomSortNameList("raid")
+			GF:RefreshCustomSortNameList("party")
 			local cfg = getCfg("raid")
 			local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
 			if custom and custom.separateMeleeRanged == true and resolveSortMethod(cfg) == "NAMELIST" and GFH and GFH.QueueInspectGroup then GFH.QueueInspectGroup() end
@@ -16585,7 +16766,8 @@ do
 			GF:RefreshGroupIndicators()
 		elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
 			GF:RefreshPowerVisibility()
-			GF:RefreshCustomSortNameList()
+			GF:RefreshCustomSortNameList("raid")
+			GF:RefreshCustomSortNameList("party")
 			local cfg = getCfg("raid")
 			local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
 			if custom and custom.separateMeleeRanged == true and resolveSortMethod(cfg) == "NAMELIST" and GFH and GFH.QueueInspectGroup then GFH.QueueInspectGroup() end

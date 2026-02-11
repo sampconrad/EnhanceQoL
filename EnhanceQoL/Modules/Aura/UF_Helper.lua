@@ -651,12 +651,40 @@ local function stripCooldownEdge(anchor)
 	end
 end
 
+local function ensurePrivateAuraMousePassthrough(anchor)
+	if not anchor then return nil end
+	local blocker = anchor._eqolPrivateAuraBlocker
+	if not blocker then
+		blocker = CreateFrame("Button", nil, anchor)
+		blocker:EnableMouse(true)
+		if blocker.SetMouseClickEnabled then
+			blocker:SetMouseClickEnabled(false)
+		elseif blocker.SetPropagateMouseClicks then
+			blocker:SetPropagateMouseClicks(true)
+		end
+		if blocker.SetPropagateMouseMotion then blocker:SetPropagateMouseMotion(true) end
+		if blocker.SetAllPoints then blocker:SetAllPoints(anchor) end
+		anchor._eqolPrivateAuraBlocker = blocker
+	end
+	if blocker.GetParent and blocker:GetParent() ~= anchor then blocker:SetParent(anchor) end
+	if blocker.SetFrameStrata and anchor.GetFrameStrata then blocker:SetFrameStrata(anchor:GetFrameStrata()) end
+	if blocker.SetFrameLevel and anchor.GetFrameLevel then blocker:SetFrameLevel((anchor:GetFrameLevel() or 0) + 30) end
+	if blocker.ClearAllPoints and blocker.SetPoint then
+		blocker:ClearAllPoints()
+		blocker:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0)
+		blocker:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, 0)
+	end
+	blocker:Show()
+	return blocker
+end
+
 function H.RemovePrivateAuras(container)
 	if not container then return end
 	updatePrivateAuraShowDispelType(container, false)
 	if container._eqolPrivateAuraFrames then
 		for _, anchor in ipairs(container._eqolPrivateAuraFrames) do
 			removePrivateAuraAnchor(anchor)
+			if anchor._eqolPrivateAuraBlocker and anchor._eqolPrivateAuraBlocker.Hide then anchor._eqolPrivateAuraBlocker:Hide() end
 			if anchor.Hide then anchor:Hide() end
 		end
 	end
@@ -775,6 +803,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 		end
 		anchor:SetSize(size, size)
 		anchor:Show()
+		ensurePrivateAuraMousePassthrough(anchor)
 		if showSample then
 			local tex = ensurePrivateAuraSampleTexture(anchor)
 			if tex then tex:Show() end
@@ -814,6 +843,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 	end
 	for i = amount + 1, #anchors do
 		removePrivateAuraAnchor(anchors[i])
+		if anchors[i]._eqolPrivateAuraBlocker and anchors[i]._eqolPrivateAuraBlocker.Hide then anchors[i]._eqolPrivateAuraBlocker:Hide() end
 		if anchors[i].Hide then anchors[i]:Hide() end
 	end
 end

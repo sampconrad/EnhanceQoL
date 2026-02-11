@@ -949,7 +949,7 @@ function H.GetUnitFullName(unit)
 	return name
 end
 
-function H.BuildCustomSortNameList(cfg)
+function H.BuildCustomSortNameList(cfg, mode)
 	local custom = H.EnsureCustomSortConfig(cfg)
 	if not custom then return "" end
 
@@ -960,26 +960,65 @@ function H.BuildCustomSortNameList(cfg)
 	local classMap = H.BuildOrderMapFromList(classOrder)
 
 	local entries = {}
-	local num = (GetNumGroupMembers and GetNumGroupMembers()) or 0
-	for i = 1, num do
-		local unit = "raid" .. i
-		if UnitExists and UnitExists(unit) then
+	local groupMode = tostring(mode or "raid"):lower()
+	if groupMode == "party" then
+		local function addPartyUnit(unit)
+			if not (unit and UnitExists and UnitExists(unit)) then return end
 			local name = H.GetUnitFullName(unit)
-			if name then
-				local _, classToken = UnitClass(unit)
-				local role = UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit) or nil
-				if role == "NONE" or role == nil then role = "DAMAGER" end
-				local sortRole = role
-				if separate and role == "DAMAGER" then
-					local specId = H.GetUnitSpecIdCached(unit)
-					sortRole = H.GetDpsRangeRole(specId, classToken)
+			if not name then return end
+			local _, classToken = UnitClass(unit)
+			local role = UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit) or nil
+			if role == "NONE" or role == nil then role = "DAMAGER" end
+			local sortRole = role
+			if separate and role == "DAMAGER" then
+				local specId = H.GetUnitSpecIdCached(unit)
+				sortRole = H.GetDpsRangeRole(specId, classToken)
+			end
+			entries[#entries + 1] = {
+				name = name,
+				role = role,
+				sortRole = sortRole,
+				class = classToken,
+			}
+		end
+		local showPlayer = cfg and cfg.showPlayer == true
+		local showSolo = cfg and cfg.showSolo == true
+		local inRaid = IsInRaid and IsInRaid()
+		local inGroup = IsInGroup and IsInGroup()
+		if inRaid then
+			showPlayer = false
+			showSolo = false
+		end
+		if inGroup then
+			if showPlayer then addPartyUnit("player") end
+			for i = 1, 4 do
+				addPartyUnit("party" .. i)
+			end
+		elseif showSolo then
+			addPartyUnit("player")
+		end
+	else
+		local num = (GetNumGroupMembers and GetNumGroupMembers()) or 0
+		for i = 1, num do
+			local unit = "raid" .. i
+			if UnitExists and UnitExists(unit) then
+				local name = H.GetUnitFullName(unit)
+				if name then
+					local _, classToken = UnitClass(unit)
+					local role = UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit) or nil
+					if role == "NONE" or role == nil then role = "DAMAGER" end
+					local sortRole = role
+					if separate and role == "DAMAGER" then
+						local specId = H.GetUnitSpecIdCached(unit)
+						sortRole = H.GetDpsRangeRole(specId, classToken)
+					end
+					entries[#entries + 1] = {
+						name = name,
+						role = role,
+						sortRole = sortRole,
+						class = classToken,
+					}
 				end
-				entries[#entries + 1] = {
-					name = name,
-					role = role,
-					sortRole = sortRole,
-					class = classToken,
-				}
 			end
 		end
 	end
