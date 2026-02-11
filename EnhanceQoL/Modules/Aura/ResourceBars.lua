@@ -1220,9 +1220,19 @@ end
 local function configureSpecialTexture(bar, pType, cfg)
 	if not bar then return end
 	local atlas = RB.ATLAS_BY_POWER[pType]
-	if not atlas then return end
+	if not atlas then
+		bar._eqolSpecialAtlas = nil
+		bar._eqolSpecialAtlasNormalized = nil
+		return
+	end
 	cfg = cfg or bar._cfg
-	if not isDefaultTextureSelection(cfg, pType) then return end
+	if not isDefaultTextureSelection(cfg, pType) then
+		bar._eqolSpecialAtlas = nil
+		bar._eqolSpecialAtlasNormalized = nil
+		return
+	end
+	local shouldNormalize = shouldNormalizeAtlasColor(cfg, pType, bar)
+	if bar._eqolSpecialAtlas == atlas and bar._eqolSpecialAtlasNormalized == shouldNormalize then return end
 	if bar.SetStatusBarTexture then bar:SetStatusBarTexture(atlas) end
 	local tex = bar:GetStatusBarTexture()
 	if tex and tex.SetAtlas then
@@ -1230,7 +1240,6 @@ local function configureSpecialTexture(bar, pType, cfg)
 		if currentAtlas ~= atlas then tex:SetAtlas(atlas, true) end
 		if tex.SetHorizTile then tex:SetHorizTile(false) end
 		if tex.SetVertTile then tex:SetVertTile(false) end
-		local shouldNormalize = shouldNormalizeAtlasColor(cfg, pType, bar)
 		if shouldNormalize then
 			bar:SetStatusBarColor(1, 1, 1, 1)
 			bar._baseColor = bar._baseColor or {}
@@ -1240,6 +1249,8 @@ local function configureSpecialTexture(bar, pType, cfg)
 			bar._usingMaxColor = false
 		end
 	end
+	bar._eqolSpecialAtlas = atlas
+	bar._eqolSpecialAtlasNormalized = shouldNormalize
 end
 
 local function isValidStatusbarPath(path)

@@ -604,6 +604,7 @@ local function StopFrameFade(target)
 end
 
 local function ApplyAlphaToRegion(target, alpha, useFade)
+	if true then return end
 	if not target or not target.SetAlpha then return end
 	if not useFade or not target.CreateAnimationGroup then
 		StopFrameFade(target)

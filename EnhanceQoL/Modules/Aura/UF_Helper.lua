@@ -1850,18 +1850,25 @@ local function join3(a, b, c, sep1, sep2) return a .. sep1 .. b .. sep2 .. c end
 
 local function join4(a, b, c, d, sep1, sep2, sep3) return a .. sep1 .. b .. sep2 .. c .. sep3 .. d end
 
+local function formatPercentModeText(mode, curText, maxText, percentText, levelText, joinPrimary, joinSecondary, joinTertiary)
+	if not percentText then return "" end
+	if mode == "PERCENT" then return percentText end
+	if mode == "CURPERCENT" or mode == "CURPERCENTDASH" then return join2(curText, percentText, joinPrimary) end
+	if mode == "CURMAXPERCENT" then return join3(curText, maxText, percentText, joinPrimary, joinSecondary) end
+	if mode == "MAXPERCENT" then return join2(maxText, percentText, joinPrimary) end
+	if mode == "PERCENTMAX" then return join2(percentText, maxText, joinPrimary) end
+	if mode == "PERCENTCUR" then return join2(percentText, curText, joinPrimary) end
+	if mode == "PERCENTCURMAX" then return join3(percentText, curText, maxText, joinPrimary, joinSecondary) end
+	if mode == "LEVELPERCENT" then return join2(levelText, percentText, joinPrimary) end
+	if mode == "LEVELPERCENTMAX" then return join3(levelText, percentText, maxText, joinPrimary, joinSecondary) end
+	if mode == "LEVELPERCENTCUR" then return join3(levelText, percentText, curText, joinPrimary, joinSecondary) end
+	if mode == "LEVELPERCENTCURMAX" then return join4(levelText, percentText, curText, maxText, joinPrimary, joinSecondary, joinTertiary) end
+	return ""
+end
+
 function H.shortValue(val)
 	if val == nil then return "" end
-	if addon.variables and addon.variables.isMidnight then return AbbreviateNumbers(val) end
-	local absVal = abs(val)
-	if absVal >= 1e9 then
-		return ("%.1fB"):format(val / 1e9):gsub("%.0B", "B")
-	elseif absVal >= 1e6 then
-		return ("%.1fM"):format(val / 1e6):gsub("%.0M", "M")
-	elseif absVal >= 1e3 then
-		return ("%.1fK"):format(val / 1e3):gsub("%.0K", "K")
-	end
-	return tostring(floor(val + 0.5))
+	return AbbreviateNumbers(val)
 end
 
 function H.textModeUsesLevel(mode) return type(mode) == "string" and mode:find("LEVEL", 1, true) ~= nil end
@@ -1886,15 +1893,24 @@ function H.getUnitLevelText(unit, levelOverride, hideClassificationText)
 	return levelText
 end
 
-function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, missingValue, roundPercent)
+function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, missingValue, roundPercent, delimitersResolved)
 	if mode == "NONE" then return "" end
-	local joinPrimary, joinSecondary, joinTertiary = H.resolveTextDelimiters(delimiter, delimiter2, delimiter3)
+	local joinPrimary, joinSecondary, joinTertiary
+	if delimitersResolved then
+		joinPrimary = delimiter
+		joinSecondary = delimiter2
+		joinTertiary = delimiter3
+	else
+		joinPrimary, joinSecondary, joinTertiary = H.resolveTextDelimiters(delimiter, delimiter2, delimiter3)
+	end
+	if joinPrimary == nil then joinPrimary = " " end
+	if joinSecondary == nil then joinSecondary = joinPrimary end
+	if joinTertiary == nil then joinTertiary = joinSecondary end
 	local percentSuffix = hidePercentSymbol and "" or "%"
 	if levelText == nil or levelText == "" then levelText = "??" end
 	local isPercentMode = type(mode) == "string" and mode:find("PERCENT", 1, true) ~= nil
 	if mode == "DEFICIT" then
 		if issecretvalue and issecretvalue(missingValue) then
-			if not (addon.variables and addon.variables.isMidnight) then return "" end
 			local infix = useShort and H.shortValue(missingValue) or BreakUpLargeNumbers(missingValue)
 			return "-" .. infix
 		end
@@ -1903,21 +1919,6 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimi
 		if missNum <= 0 then return "" end
 		local infix = useShort == false and tostring(missNum) or (AbbreviateNumbers and AbbreviateNumbers(missNum) or H.shortValue(missNum))
 		return "-" .. infix
-	end
-	local function formatPercentMode(curText, maxText, percentText)
-		if not percentText then return "" end
-		if mode == "PERCENT" then return percentText end
-		if mode == "CURPERCENT" or mode == "CURPERCENTDASH" then return join2(curText, percentText, joinPrimary) end
-		if mode == "CURMAXPERCENT" then return join3(curText, maxText, percentText, joinPrimary, joinSecondary) end
-		if mode == "MAXPERCENT" then return join2(maxText, percentText, joinPrimary) end
-		if mode == "PERCENTMAX" then return join2(percentText, maxText, joinPrimary) end
-		if mode == "PERCENTCUR" then return join2(percentText, curText, joinPrimary) end
-		if mode == "PERCENTCURMAX" then return join3(percentText, curText, maxText, joinPrimary, joinSecondary) end
-		if mode == "LEVELPERCENT" then return join2(levelText, percentText, joinPrimary) end
-		if mode == "LEVELPERCENTMAX" then return join3(levelText, percentText, maxText, joinPrimary, joinSecondary) end
-		if mode == "LEVELPERCENTCUR" then return join3(levelText, percentText, curText, joinPrimary, joinSecondary) end
-		if mode == "LEVELPERCENTCURMAX" then return join4(levelText, percentText, curText, maxText, joinPrimary, joinSecondary, joinTertiary) end
-		return ""
 	end
 	if addon.variables and addon.variables.isMidnight and issecretvalue then
 		if (cur and issecretvalue(cur)) or (maxv and issecretvalue(maxv)) then
@@ -1935,7 +1936,7 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimi
 			if mode == "CURRENT" then return tostring(scur) end
 			if mode == "MAX" then return tostring(smax) end
 			if mode == "CURMAX" then return join2(tostring(scur), tostring(smax), joinPrimary) end
-			if isPercentMode then return formatPercentMode(tostring(scur), tostring(smax), percentText) end
+			if isPercentMode then return formatPercentModeText(mode, tostring(scur), tostring(smax), percentText, levelText, joinPrimary, joinSecondary, joinTertiary) end
 			return ""
 		end
 	end
@@ -1961,7 +1962,7 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimi
 	if isPercentMode then
 		local curText = useShort == false and tostring(cur or 0) or H.shortValue(cur or 0)
 		local maxText = useShort == false and tostring(maxv or 0) or H.shortValue(maxv or 0)
-		return formatPercentMode(curText, maxText, percentText)
+		return formatPercentModeText(mode, curText, maxText, percentText, levelText, joinPrimary, joinSecondary, joinTertiary)
 	end
 	if useShort == false then return tostring(cur or 0) end
 	return H.shortValue(cur or 0)

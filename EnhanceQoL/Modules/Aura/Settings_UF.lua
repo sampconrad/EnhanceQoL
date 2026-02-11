@@ -31,7 +31,7 @@ local clampNumber = UFHelper and UFHelper.ClampNumber
 
 local MIN_WIDTH = 50
 local OFFSET_RANGE = 1000
-local defaultStrata = (_G.PlayerFrame and _G.PlayerFrame.GetFrameStrata and _G.PlayerFrame:GetFrameStrata()) or "MEDIUM"
+local defaultStrata = "LOW"
 local defaultLevel = (_G.PlayerFrame and _G.PlayerFrame.GetFrameLevel and _G.PlayerFrame:GetFrameLevel()) or 0
 
 local strataOptions = {

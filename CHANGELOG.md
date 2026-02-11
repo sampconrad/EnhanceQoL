@@ -20,11 +20,15 @@
 - Unit Frames: Edit Mode registration now batches refresh requests and skips no-op anchor `onApply` refreshes, reducing load-time spikes during UF frame/settings registration.
 - Health/Power percent: Removed some pcalls
 - Drinks: Improved sorting
+- Unit Frames: Health updates now cache absorb/heal-absorb values and refresh them on absorb events instead of querying absorb APIs every health tick.
+- Unit Frames: `formatPercentMode` was moved out of `formatText` hot-path to avoid per-update closure allocations.
+- Resource Bars: `configureSpecialTexture` now caches special atlas state (`atlas` + normalize mode) and skips redundant texture/color reconfiguration.
 
 ### 🐛 Fixed
 
 - Tooltip: Fixed a rare error when hovering unit tooltips.
 - Objective Tracker: Hiding of M+ timer fixed
+- Unit Frames: Main frame strata fallback is now stable `LOW` (instead of inheriting Blizzard `PlayerFrame` strata), preventing addon interaction from unexpectedly forcing Player/Target/ToT/Focus frames to `MEDIUM`.
 
 ---
 

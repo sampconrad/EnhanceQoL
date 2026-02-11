@@ -25,7 +25,7 @@ addon.variables.ufSampleHealAbsorb = addon.variables.ufSampleHealAbsorb or {}
 local maxBossFrames = MAX_BOSS_FRAMES or 5
 local UF_PROFILE_SHARE_KIND = "EQOL_UF_PROFILE"
 local smoothFill = Enum.StatusBarInterpolation.ExponentialEaseOut
-local SECRET_TEXT_UPDATE_INTERVAL = 0.1
+local TEXT_UPDATE_INTERVAL = 0.1
 UF._clientSceneActive = false
 
 local function getSmoothInterpolation(cfg, def)
@@ -230,7 +230,7 @@ local defaults = {
 		powerHeight = 16,
 		statusHeight = 18,
 		anchor = { point = "CENTER", relativeTo = "UIParent", relativePoint = "CENTER", x = 0, y = -200 },
-		strata = nil,
+		strata = "LOW",
 		frameLevel = nil,
 		border = {
 			enabled = true,
@@ -3738,8 +3738,20 @@ local function updateHealth(cfg, unit)
 		hr, hg, hb, ha = color[1] or 0, color[2] or 0.8, color[3] or 0, color[4] or 1
 	end
 	st.health:SetStatusBarColor(hr or 0, hg or 0.8, hb or 0, ha or 1)
+	if allowAbsorb and (st.absorb or st.healAbsorb) then
+		local cacheGuid = UnitGUID and UnitGUID(unit) or unit
+		if st._absorbCacheGuid ~= cacheGuid then
+			st._absorbCacheGuid = cacheGuid
+			st._absorbAmount = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0
+			st._healAbsorbAmount = UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit) or 0
+		end
+	end
 	if allowAbsorb and st.absorb then
-		local abs = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0
+		local abs = st._absorbAmount
+		if abs == nil then
+			abs = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0
+			st._absorbAmount = abs
+		end
 		local maxForValue
 		if issecretvalue and issecretvalue(maxv) then
 			maxForValue = maxv or 1
@@ -3756,11 +3768,7 @@ local function updateHealth(cfg, unit)
 			local _, maxHealth = st.health:GetMinMaxValues()
 			if maxHealth == nil then maxHealth = maxForValue end
 			st.absorb2:SetMinMaxValues(0, maxHealth or 1)
-			if UFHelper and UFHelper.getClampedAbsorbAmount then
-				st.absorb2:SetValue(UFHelper.getClampedAbsorbAmount(unit), interpolation)
-			else
-				st.absorb2:SetValue(UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0, interpolation)
-			end
+			st.absorb2:SetValue(abs or 0, interpolation)
 		end
 		if reverseAbsorb and st.absorb2 then
 			st.absorb2:Show()
@@ -3787,7 +3795,11 @@ local function updateHealth(cfg, unit)
 		end
 	end
 	if allowAbsorb and st.healAbsorb then
-		local healAbs = UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit) or 0
+		local healAbs = st._healAbsorbAmount
+		if healAbs == nil then
+			healAbs = UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit) or 0
+			st._healAbsorbAmount = healAbs
+		end
 		local maxForValue
 		if issecretvalue and issecretvalue(maxv) then
 			maxForValue = maxv or 1
@@ -3807,24 +3819,29 @@ local function updateHealth(cfg, unit)
 	local leftMode = hc.textLeft or "PERCENT"
 	local centerMode = hc.textCenter or "NONE"
 	local rightMode = hc.textRight or "CURMAX"
-	local secretHealth = issecretvalue and (issecretvalue(cur) or issecretvalue(maxv))
 	local allowTextRefresh = true
-	if secretHealth then
+	do
 		local now = GetTime and GetTime() or 0
 		local nextAt = st._nextHealthTextUpdateAt or 0
 		if now < nextAt then
 			allowTextRefresh = false
 		else
-			st._nextHealthTextUpdateAt = now + SECRET_TEXT_UPDATE_INTERVAL
+			st._nextHealthTextUpdateAt = now + TEXT_UPDATE_INTERVAL
 		end
-	else
-		st._nextHealthTextUpdateAt = nil
 	end
 	local delimiter, delimiter2, delimiter3, hidePercentSymbol, roundPercent, levelText
 	if allowTextRefresh then
-		delimiter = UFHelper.getTextDelimiter(hc, defH)
-		delimiter2 = UFHelper.getTextDelimiterSecondary(hc, defH, delimiter)
-		delimiter3 = UFHelper.getTextDelimiterTertiary(hc, defH, delimiter, delimiter2)
+		delimiter, delimiter2, delimiter3 = st._healthTextDelimiter1, st._healthTextDelimiter2, st._healthTextDelimiter3
+		if not delimiter or not delimiter2 or not delimiter3 then
+			local d1 = UFHelper.getTextDelimiter(hc, defH)
+			local d2 = UFHelper.getTextDelimiterSecondary(hc, defH, d1)
+			local d3 = UFHelper.getTextDelimiterTertiary(hc, defH, d1, d2)
+			if UFHelper.resolveTextDelimiters then
+				delimiter, delimiter2, delimiter3 = UFHelper.resolveTextDelimiters(d1, d2, d3)
+			else
+				delimiter, delimiter2, delimiter3 = d1, d2, d3
+			end
+		end
 		hidePercentSymbol = hc.hidePercentSymbol == true
 		roundPercent = hc.roundPercent == true
 		local hideClassText = shouldHideClassificationText(cfg, unit)
@@ -3837,7 +3854,7 @@ local function updateHealth(cfg, unit)
 			st.healthTextLeft:SetText("")
 		elseif allowTextRefresh then
 			st.healthTextLeft:SetText(
-				UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent)
+				UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
 			)
 		end
 	end
@@ -3846,7 +3863,7 @@ local function updateHealth(cfg, unit)
 			st.healthTextCenter:SetText("")
 		elseif allowTextRefresh then
 			st.healthTextCenter:SetText(
-				UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent)
+				UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
 			)
 		end
 	end
@@ -3855,7 +3872,7 @@ local function updateHealth(cfg, unit)
 			st.healthTextRight:SetText("")
 		elseif allowTextRefresh then
 			st.healthTextRight:SetText(
-				UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent)
+				UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
 			)
 		end
 	end
@@ -3920,16 +3937,39 @@ local function updatePower(cfg, unit)
 		if bar.SetAlpha then bar:SetAlpha(1) end
 		if st.powerGroup and st.powerGroup.SetAlpha then st.powerGroup:SetAlpha(1) end
 	end
-	local delimiter = UFHelper.getTextDelimiter(pcfg, defP)
-	local delimiter2 = UFHelper.getTextDelimiterSecondary(pcfg, defP, delimiter)
-	local delimiter3 = UFHelper.getTextDelimiterTertiary(pcfg, defP, delimiter, delimiter2)
+	local allowTextRefresh = true
+	do
+		local now = GetTime and GetTime() or 0
+		local nextAt = st._nextPowerTextUpdateAt or 0
+		if now < nextAt then
+			allowTextRefresh = false
+		else
+			st._nextPowerTextUpdateAt = now + TEXT_UPDATE_INTERVAL
+		end
+	end
+	local delimiter, delimiter2, delimiter3
+	if allowTextRefresh then
+		delimiter, delimiter2, delimiter3 = st._powerTextDelimiter1, st._powerTextDelimiter2, st._powerTextDelimiter3
+		if not delimiter or not delimiter2 or not delimiter3 then
+			local d1 = UFHelper.getTextDelimiter(pcfg, defP)
+			local d2 = UFHelper.getTextDelimiterSecondary(pcfg, defP, d1)
+			local d3 = UFHelper.getTextDelimiterTertiary(pcfg, defP, d1, d2)
+			if UFHelper.resolveTextDelimiters then
+				delimiter, delimiter2, delimiter3 = UFHelper.resolveTextDelimiters(d1, d2, d3)
+			else
+				delimiter, delimiter2, delimiter3 = d1, d2, d3
+			end
+		end
+	end
 	local function setPowerText(fs, mode)
 		if not fs then return end
 		if maxZero or mode == "NONE" then
 			fs:SetText("")
 			return
 		end
-		fs:SetText(UFHelper.formatText(mode, cur, maxv, pcfg.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent))
+		if allowTextRefresh then
+			fs:SetText(UFHelper.formatText(mode, cur, maxv, pcfg.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true))
+		end
 	end
 	setPowerText(st.powerTextLeft, leftMode)
 	setPowerText(st.powerTextCenter, centerMode)
@@ -4470,12 +4510,8 @@ local function layoutFrame(cfg, unit)
 	st._portraitSpace = portraitSpace
 	st._portraitCenterOffset = barCenterOffset
 	st.frame:SetWidth(width + borderOffset * 2 + portraitSpace)
-	if cfg.strata then
-		st.frame:SetFrameStrata(cfg.strata)
-	else
-		local pf = _G.PlayerFrame
-		if pf and pf.GetFrameStrata then st.frame:SetFrameStrata(pf:GetFrameStrata()) end
-	end
+	local frameStrata = normalizeStrataToken(cfg.strata) or normalizeStrataToken(def.strata) or "LOW"
+	if st.frame.GetFrameStrata and st.frame:GetFrameStrata() ~= frameStrata then st.frame:SetFrameStrata(frameStrata) end
 	local selection = st.frame.Selection
 	if selection and selection.SetFrameStrata then
 		if not st._selectionBaseStrata then
@@ -5095,6 +5131,8 @@ local function applyConfig(unit)
 	states[unit] = states[unit] or {}
 	local st = states[unit]
 	st.cfg = cfg
+	st._nextHealthTextUpdateAt = nil
+	st._nextPowerTextUpdateAt = nil
 	if not cfg.enabled then
 		if st and st.frame then
 			if st.barGroup then st.barGroup:Hide() end
@@ -5132,6 +5170,30 @@ local function applyConfig(unit)
 	ensureFrames(unit)
 	st = states[unit]
 	st.cfg = cfg
+	if UFHelper then
+		local hc = (cfg and cfg.health) or {}
+		local defH = (def and def.health) or {}
+		local pcfg = (cfg and cfg.power) or {}
+		local defP = (def and def.power) or {}
+
+		local h1 = UFHelper.getTextDelimiter(hc, defH)
+		local h2 = UFHelper.getTextDelimiterSecondary(hc, defH, h1)
+		local h3 = UFHelper.getTextDelimiterTertiary(hc, defH, h1, h2)
+		if UFHelper.resolveTextDelimiters then
+			st._healthTextDelimiter1, st._healthTextDelimiter2, st._healthTextDelimiter3 = UFHelper.resolveTextDelimiters(h1, h2, h3)
+		else
+			st._healthTextDelimiter1, st._healthTextDelimiter2, st._healthTextDelimiter3 = h1, h2, h3
+		end
+
+		local p1 = UFHelper.getTextDelimiter(pcfg, defP)
+		local p2 = UFHelper.getTextDelimiterSecondary(pcfg, defP, p1)
+		local p3 = UFHelper.getTextDelimiterTertiary(pcfg, defP, p1, p2)
+		if UFHelper.resolveTextDelimiters then
+			st._powerTextDelimiter1, st._powerTextDelimiter2, st._powerTextDelimiter3 = UFHelper.resolveTextDelimiters(p1, p2, p3)
+		else
+			st._powerTextDelimiter1, st._powerTextDelimiter2, st._powerTextDelimiter3 = p1, p2, p3
+		end
+	end
 	st._highlightCfg = UFHelper.buildHighlightConfig(cfg, def)
 	applyVisibilityDriver(unit, cfg.enabled)
 	if unit == UNIT.PLAYER then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.player, true) end
@@ -6083,6 +6145,19 @@ local function onEvent(self, event, unit, ...)
 		end
 		if firstChanged then AuraUtil.updateTargetAuraIcons(firstChanged, unit) end
 	elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED" or event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" then
+		if event == "UNIT_ABSORB_AMOUNT_CHANGED" and unit then
+			local st = states[unit]
+			if st then
+				st._absorbCacheGuid = UnitGUID and UnitGUID(unit) or unit
+				st._absorbAmount = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0
+			end
+		elseif event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" and unit then
+			local st = states[unit]
+			if st then
+				st._absorbCacheGuid = UnitGUID and UnitGUID(unit) or unit
+				st._healAbsorbAmount = UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit) or 0
+			end
+		end
 		if unit == UNIT.PLAYER then updateHealth(getCfg(UNIT.PLAYER), UNIT.PLAYER) end
 		if unit == UNIT.TARGET then updateHealth(getCfg(UNIT.TARGET), UNIT.TARGET) end
 		if unit == UNIT.PET then updateHealth(getCfg(UNIT.PET), UNIT.PET) end

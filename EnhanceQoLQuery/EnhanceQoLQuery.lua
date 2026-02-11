@@ -1048,3 +1048,5 @@ addon.Query.frame = eventFrame
 -- 		cd:SetCooldownFromDurationObject(durObj)
 -- 	end
 -- end)
+
+DEVTOOLS_USE_USERDATA_CACHE = false
