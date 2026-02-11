@@ -4239,10 +4239,24 @@ function GF:UpdateDispelTint(self, cache, dispelFilter, allowSample, requiredFla
 				st._dispelAuraIdDirty = nil
 			end
 			if dispelAura then
-				local dispelName = dispelAura.dispelName
-				if not (issecretvalue and issecretvalue(dispelName)) and dispelName and dispelName ~= "" then
-					colorKey = dispelName
-					r, g, b = GFH.GetDebuffColorFromName(dispelName)
+				local auraId = dispelAura.auraInstanceID or dispelAuraId
+				if auraId and C_UnitAuras and C_UnitAuras.GetAuraDispelTypeColor and GFH and GFH.DispelColorCurve then
+					local color = C_UnitAuras.GetAuraDispelTypeColor(unit, auraId, GFH.DispelColorCurve)
+					if color then
+						if color.GetRGBA then
+							r, g, b = color:GetRGBA()
+						elseif color.r then
+							r, g, b = color.r, color.g, color.b
+						end
+						colorKey = auraId
+					end
+				end
+				if not r then
+					local dispelName = dispelAura.dispelName
+					if not (issecretvalue and issecretvalue(dispelName)) and dispelName and dispelName ~= "" then
+						colorKey = dispelName
+						r, g, b = GFH.GetDebuffColorFromName(dispelName)
+					end
 				end
 			end
 		end
