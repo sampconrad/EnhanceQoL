@@ -4109,7 +4109,7 @@ local function hideGroupIndicators(container)
 	end
 end
 
-local function updateGroupIndicatorsForFrames(container, frames, cfg, def, isPreview)
+local function updateGroupIndicatorsForFrames(container, frames, cfg, def, isPreview, fixedSubgroup)
 	if not container then return end
 	if not (cfg and resolveGroupIndicatorEnabled(cfg, def) and isGroupIndicatorAvailable(cfg, def)) then
 		hideGroupIndicators(container)
@@ -4120,84 +4120,33 @@ local function updateGroupIndicatorsForFrames(container, frames, cfg, def, isPre
 		return
 	end
 
-	local sortMethod = resolveSortMethod(cfg)
-	local sortDir = (GFH and GFH.NormalizeSortDir and GFH.NormalizeSortDir(cfg.sortDir)) or "ASC"
-	local nameOrder
-	if sortMethod == "NAMELIST" then
-		local nameList
-		if container and container.GetAttribute then nameList = container:GetAttribute("nameList") end
-		if not nameList or nameList == "" then nameList = cfg and cfg.nameList end
-		if type(nameList) == "string" and nameList ~= "" then
-			nameOrder = {}
-			local idx = 0
-			for token in nameList:gmatch("[^,]+") do
-				local name = strtrim and strtrim(token) or tostring(token):gsub("^%s+", ""):gsub("%s+$", "")
-				if name ~= "" then
-					idx = idx + 1
-					nameOrder[name] = idx
-				end
-			end
-			if not next(nameOrder) then nameOrder = nil end
-		end
-		if not nameOrder then sortMethod = "INDEX" end
-	end
 	local candidates = {}
 
-	for _, frame in ipairs(frames) do
-		if frame and frame.IsShown and frame:IsShown() then
-			local st = getState(frame)
-			local subgroup
-			local sortIndex
-			local name
-			if isPreview then
-				if st then
-					subgroup = st._previewGroup
-					sortIndex = st._previewIndex
-					name = st._previewName
-				end
-			else
-				local unit = getUnit(frame)
-				if unit then
-					subgroup = getRaidSubgroupForUnit(unit)
-					if type(unit) == "string" then
-						local raidIndex = unit:match("^raid(%d+)$")
-						if raidIndex then sortIndex = tonumber(raidIndex) end
-					end
-					if sortIndex == nil and UnitInRaid then
-						local idx = UnitInRaid(unit)
-						if not (issecretvalue and issecretvalue(idx)) then sortIndex = idx end
-					end
-				end
-				if unit and UnitName then name = UnitName(unit) end
+	local fixedGroup = tonumber(fixedSubgroup)
+	if fixedGroup and fixedGroup >= 1 and fixedGroup <= 8 then
+		for visualIndex, frame in ipairs(frames) do
+			if frame and frame.IsShown and frame:IsShown() then
+				candidates[fixedGroup] = { frame = frame, key = visualIndex }
+				break
 			end
+		end
+	else
+		for visualIndex, frame in ipairs(frames) do
+			if frame and frame.IsShown and frame:IsShown() then
+				local st = getState(frame)
+				local subgroup
+				if isPreview then
+					if st then subgroup = st._previewGroup end
+				else
+					local unit = getUnit(frame)
+					if unit then subgroup = getRaidSubgroupForUnit(unit) end
+				end
 
-			if subgroup then
-				subgroup = tonumber(subgroup) or subgroup
-				local key
-				if sortMethod == "NAME" then
-					local base = name
-					if base == nil or base == "" then base = sortIndex and tostring(sortIndex) or "" end
-					key = tostring(base):upper()
-				elseif sortMethod == "NAMELIST" and nameOrder then
-					local order = nameOrder[name or ""]
-					key = order or (tonumber(sortIndex) or 0)
-				else
-					key = tonumber(sortIndex) or 0
+				if subgroup then
+					subgroup = tonumber(subgroup) or subgroup
+					local current = candidates[subgroup]
+					if not current or visualIndex < current.key then candidates[subgroup] = { frame = frame, key = visualIndex } end
 				end
-				local current = candidates[subgroup]
-				local better
-				if not current then
-					better = true
-				elseif GFH and GFH.IsBetterSortKey then
-					better = GFH.IsBetterSortKey(key, current.key, sortDir)
-				else
-					if sortDir == "DESC" then
-						better = key > current.key
-					else
-						better = key < current.key
-					end
-				end
-				if better then candidates[subgroup] = { frame = frame, key = key } end
 			end
 		end
 	end
@@ -6069,7 +6018,7 @@ function GF:RefreshGroupIndicators()
 				forEachChild(gh, function(child)
 					if child then frames[#frames + 1] = child end
 				end)
-				updateGroupIndicatorsForFrames(gh, frames, cfg, def, false)
+				updateGroupIndicatorsForFrames(gh, frames, cfg, def, false, gh._eqolDisplayGroup)
 			end
 		end
 	elseif header then
@@ -6331,6 +6280,7 @@ local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHi
 			if active then
 				local function setAttr(key, value) GF:SetHeaderAttributeIfChanged(header, key, value) end
 				local specSortMethod = tostring(spec.sortMethod or "INDEX"):upper()
+				header._eqolDisplayGroup = tonumber(spec.group) or i
 				setAttr("showParty", false)
 				setAttr("showRaid", true)
 				setAttr("showPlayer", true)
@@ -6415,6 +6365,7 @@ local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHi
 			end
 
 			if not active and header.Hide then header:Hide() end
+			if not active then header._eqolDisplayGroup = nil end
 		end
 	end
 end
