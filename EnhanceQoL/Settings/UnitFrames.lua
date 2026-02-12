@@ -148,19 +148,6 @@ addon.functions.SettingsCreateHeadline(cUnitFrame, (L["UnitFrameUFExplain"]:form
 
 data = {
 	{
-		var = "showLeaderIconRaidFrame",
-		text = L["showLeaderIconRaidFrame"],
-		func = function(v)
-			addon.db["showLeaderIconRaidFrame"] = v
-			if v then
-				addon.functions.setLeaderIcon()
-			else
-				addon.functions.removeLeaderIcon()
-			end
-		end,
-		parentSection = expandable,
-	},
-	{
 		var = "raidFramesDisplayClassColor",
 		text = L["raidFramesDisplayClassColor"],
 		get = function() return getCVarOptionState("raidFramesDisplayClassColor") end,

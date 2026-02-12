@@ -1291,11 +1291,13 @@ local function configureSpecialTexture(bar, pType, cfg)
 		return
 	end
 	local shouldNormalize = shouldNormalizeAtlasColor(cfg, pType, bar)
-	if bar._eqolSpecialAtlas == atlas and bar._eqolSpecialAtlasNormalized == shouldNormalize then return end
+	local tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture() or nil
+	local currentAtlas = tex and tex.GetAtlas and tex:GetAtlas() or nil
+	if bar._eqolSpecialAtlas == atlas and bar._eqolSpecialAtlasNormalized == shouldNormalize and currentAtlas == atlas then return end
 	if bar.SetStatusBarTexture then bar:SetStatusBarTexture(atlas) end
-	local tex = bar:GetStatusBarTexture()
+	tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture() or nil
 	if tex and tex.SetAtlas then
-		local currentAtlas = tex.GetAtlas and tex:GetAtlas()
+		currentAtlas = tex.GetAtlas and tex:GetAtlas()
 		if currentAtlas ~= atlas then tex:SetAtlas(atlas, true) end
 		if tex.SetHorizTile then tex:SetHorizTile(false) end
 		if tex.SetVertTile then tex:SetVertTile(false) end

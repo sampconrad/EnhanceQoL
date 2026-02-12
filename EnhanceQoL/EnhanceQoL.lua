@@ -295,97 +295,6 @@ function EQOL.PersistSignUpNote()
 	end
 end
 
-local function ensureAssistFrame(key, parent, refFrame)
-	addon.variables.assistFrame = addon.variables.assistFrame or {}
-	local af = addon.variables.assistFrame[key]
-	if not af then
-		af = CreateFrame("Frame", nil, parent)
-		af:SetFrameStrata(refFrame:GetFrameStrata())
-		af:SetFrameLevel(refFrame:GetFrameLevel() + 1)
-		af.leaderIcon = af:CreateTexture(nil, "OVERLAY")
-		af.leaderIcon:SetTexture(132061)
-		af.leaderIcon:SetSize(16, 16)
-		addon.variables.assistFrame[key] = af
-	else
-		af:SetParent(parent)
-	end
-	af.leaderIcon:ClearAllPoints()
-	af.leaderIcon:SetPoint("TOPRIGHT", refFrame, "TOPRIGHT", 5, 6)
-	af:Show()
-	return af
-end
-
-local function removeAssistIcon()
-	if addon.variables.assistFrame then
-		for _, f in pairs(addon.variables.assistFrame) do
-			f:Hide()
-			f.leaderIcon:ClearAllPoints()
-		end
-	end
-end
-
-local function ensureLeaderFrame(parent, anchor)
-	if not addon.variables.leaderFrame then
-		local f = CreateFrame("Frame", nil, parent)
-		f.leaderIcon = f:CreateTexture(nil, "OVERLAY")
-		f.leaderIcon:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
-		f.leaderIcon:SetSize(16, 16)
-		addon.variables.leaderFrame = f
-	else
-		addon.variables.leaderFrame:SetParent(parent)
-	end
-	addon.variables.leaderFrame.leaderIcon:ClearAllPoints()
-	addon.variables.leaderFrame.leaderIcon:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 5, 6)
-	addon.variables.leaderFrame:SetFrameStrata(anchor:GetFrameStrata())
-	addon.variables.leaderFrame:SetFrameLevel(anchor:GetFrameLevel() + 1)
-	addon.variables.leaderFrame:Show()
-	return addon.variables.leaderFrame
-end
-
-local function removeLeaderIcon()
-	local f = addon.variables.leaderFrame
-	if f then
-		f:Hide()
-		f.leaderIcon:ClearAllPoints()
-	end
-	removeAssistIcon()
-end
-addon.functions.removeLeaderIcon = removeLeaderIcon
-
-local function setLeaderIcon()
-	if addon.EditModeLib:IsInEditMode() then return end
-	local leaderFound = false
-	if UnitInParty("player") and not UnitInRaid("player") then
-		for i = 1, 5 do
-			if _G["CompactPartyFrameMember" .. i] and _G["CompactPartyFrameMember" .. i]:IsShown() and _G["CompactPartyFrameMember" .. i].unit then
-				if UnitIsGroupLeader(_G["CompactPartyFrameMember" .. i].unit) then
-					ensureLeaderFrame(_G["CompactPartyFrameMember" .. i], _G["CompactPartyFrameMember" .. i])
-					leaderFound = true
-					break
-				end
-			end
-		end
-	elseif UnitInRaid("player") then
-		removeAssistIcon()
-		for i = 1, 8 do
-			for j = 1, 5 do
-				if _G["CompactRaidGroup" .. i .. "Member" .. j] and _G["CompactRaidGroup" .. i .. "Member" .. j]:IsShown() and _G["CompactRaidGroup" .. i .. "Member" .. j].unit then
-					local tmpUnit = _G["CompactRaidGroup" .. i .. "Member" .. j].unit
-					if UnitIsGroupLeader(tmpUnit) then
-						ensureLeaderFrame(_G["CompactRaidFrameContainer"], _G["CompactRaidGroup" .. i .. "Member" .. j])
-						leaderFound = true
-					elseif UnitIsRaidOfficer(tmpUnit) then
-						ensureAssistFrame(tmpUnit, _G["CompactRaidFrameContainer"], _G["CompactRaidGroup" .. i .. "Member" .. j])
-					end
-				end
-			end
-		end
-	end
-
-	if not leaderFound then removeLeaderIcon() end
-end
-addon.functions.setLeaderIcon = setLeaderIcon
-
 local function GameTooltipActionButton(button)
 	button:HookScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_NONE")
@@ -2693,38 +2602,6 @@ local function initParty()
 	addon.functions.InitDBValue("autoAcceptGroupInviteFriendOnly", false)
 	addon.functions.InitDBValue("autoAcceptGroupInviteGuildOnly", false)
 	addon.functions.InitDBValue("autoAcceptSummon", false)
-	addon.functions.InitDBValue("showLeaderIconRaidFrame", false)
-
-	if CompactUnitFrame_SetUnit then
-		hooksecurefunc("CompactUnitFrame_SetUnit", function(s, type)
-			if addon.db["showLeaderIconRaidFrame"] then
-				if type then
-					if (_G["CompactPartyFrame"]:IsShown() and strmatch(type, "party%d")) or (_G["CompactRaidFrameContainer"]:IsShown() and strmatch(type, "raid%d+")) then setLeaderIcon() end
-				end
-			end
-		end)
-	end
-
-	local leaderUpdateFrame = CreateFrame("Frame")
-	leaderUpdateFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
-	leaderUpdateFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-	leaderUpdateFrame:SetScript("OnEvent", function()
-		if addon.db["showLeaderIconRaidFrame"] then
-			setLeaderIcon()
-		else
-			removeLeaderIcon()
-		end
-	end)
-
-	addon.EditModeLib:RegisterCallback("enter", function()
-		removeLeaderIcon()
-		removeAssistIcon()
-		if InCombatLockdown() then return end
-		CompactRaidFrameContainer:Layout()
-	end)
-	addon.EditModeLib:RegisterCallback("exit", function()
-		if addon.db["showLeaderIconRaidFrame"] then setLeaderIcon() end
-	end)
 end
 
 local function setupQuickSkipCinematic()
@@ -5153,11 +5030,14 @@ local function CreateUI()
 	})
 end
 
+local ensureClassResourceHideHook
+
 local function updateClassResourceVisibility()
 	if not addon.db then return end
 	local ufActive = addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
 	local _, classTag = UnitClass("player")
 	if not classTag then return end
+	if ensureClassResourceHideHook then ensureClassResourceHideHook() end
 
 	local function showFrame(frame)
 		if not frame then return end
@@ -5196,75 +5076,40 @@ end
 
 addon.functions.UpdateClassResourceVisibility = updateClassResourceVisibility
 
+local classResourceHideHooks = {}
+local classResourceHideConfig = {
+	DEATHKNIGHT = { frameName = "RuneFrame", hideKey = "deathknight_HideRuneFrame" },
+	DRUID = { frameName = "DruidComboPointBarFrame", hideKey = "druid_HideComboPoint" },
+	EVOKER = { frameName = "EssencePlayerFrame", hideKey = "evoker_HideEssence" },
+	MONK = { frameName = "MonkHarmonyBarFrame", hideKey = "monk_HideHarmonyBar" },
+	ROGUE = { frameName = "RogueComboPointBarFrame", hideKey = "rogue_HideComboPoint" },
+	PALADIN = { frameName = "PaladinPowerBarFrame", hideKey = "paladin_HideHolyPower" },
+	WARLOCK = { frameName = "WarlockPowerFrame", hideKey = "warlock_HideSoulShardBar" },
+}
+
+local function isPlayerUFActive()
+	return addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
+end
+
+local function shouldHideClassResource(hideKey)
+	return addon.db and addon.db[hideKey] and not isPlayerUFActive()
+end
+
+ensureClassResourceHideHook = function()
+	local _, classTag = UnitClass("player")
+	local cfg = classTag and classResourceHideConfig[classTag]
+	if not cfg or not addon.db or not addon.db[cfg.hideKey] then return end
+	if classResourceHideHooks[cfg.hideKey] then return end
+	local frame = _G[cfg.frameName]
+	if not frame then return end
+	classResourceHideHooks[cfg.hideKey] = true
+	hooksecurefunc(frame, "Show", function(self)
+		if shouldHideClassResource(cfg.hideKey) then self:Hide() end
+	end)
+end
+
 local function setAllHooks()
-	if RuneFrame then
-		RuneFrame:HookScript("OnShow", function(self)
-			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
-			if addon.db["deathknight_HideRuneFrame"] and not ufActive then
-				RuneFrame:Hide()
-			else
-				RuneFrame:Show()
-			end
-		end)
-
-		if addon.db["deathknight_HideRuneFrame"] and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled) then RuneFrame:Hide() end
-	end
-
-	if DruidComboPointBarFrame then
-		DruidComboPointBarFrame:HookScript("OnShow", function(self)
-			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
-			if addon.db["druid_HideComboPoint"] and not ufActive then
-				DruidComboPointBarFrame:Hide()
-			else
-				DruidComboPointBarFrame:Show()
-			end
-		end)
-		if addon.db["druid_HideComboPoint"] and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled) then DruidComboPointBarFrame:Hide() end
-	end
-
-	if EssencePlayerFrame then
-		EssencePlayerFrame:HookScript("OnShow", function(self)
-			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
-			if addon.db["evoker_HideEssence"] and not ufActive then EssencePlayerFrame:Hide() end
-		end)
-		if addon.db["evoker_HideEssence"] and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled) then EssencePlayerFrame:Hide() end -- Initialset
-	end
-
-	if MonkHarmonyBarFrame then
-		MonkHarmonyBarFrame:HookScript("OnShow", function(self)
-			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
-			if addon.db["monk_HideHarmonyBar"] and not ufActive then
-				MonkHarmonyBarFrame:Hide()
-			else
-				MonkHarmonyBarFrame:Show()
-			end
-		end)
-		if addon.db["monk_HideHarmonyBar"] and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled) then MonkHarmonyBarFrame:Hide() end
-	end
-
-	if RogueComboPointBarFrame then
-		RogueComboPointBarFrame:HookScript("OnShow", function(self)
-			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
-			if addon.db["rogue_HideComboPoint"] and not ufActive then
-				RogueComboPointBarFrame:Hide()
-			else
-				RogueComboPointBarFrame:Show()
-			end
-		end)
-		if addon.db["rogue_HideComboPoint"] and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled) then RogueComboPointBarFrame:Hide() end
-	end
-
-	if PaladinPowerBarFrame then
-		PaladinPowerBarFrame:HookScript("OnShow", function(self)
-			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
-			if addon.db["paladin_HideHolyPower"] and not ufActive then
-				PaladinPowerBarFrame:Hide()
-			else
-				PaladinPowerBarFrame:Show()
-			end
-		end)
-		if addon.db["paladin_HideHolyPower"] and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled) then PaladinPowerBarFrame:Hide() end
-	end
+	updateClassResourceVisibility()
 
 	if TotemFrame then
 		local classname = string.lower(select(2, UnitClass("player")))
@@ -5276,18 +5121,6 @@ local function setAllHooks()
 			end
 		end)
 		if addon.db[classname .. "_HideTotemBar"] then TotemFrame:Hide() end
-	end
-
-	if WarlockPowerFrame then
-		WarlockPowerFrame:HookScript("OnShow", function(self)
-			local ufActive = addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
-			if addon.db["warlock_HideSoulShardBar"] and not ufActive then
-				WarlockPowerFrame:Hide()
-			else
-				WarlockPowerFrame:Show()
-			end
-		end)
-		if addon.db["warlock_HideSoulShardBar"] and not (addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled) then WarlockPowerFrame:Hide() end
 	end
 
 	local ignoredApplicants = {}

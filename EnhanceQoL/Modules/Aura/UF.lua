@@ -2945,21 +2945,36 @@ local function unpackColor(color, defaultR, defaultG, defaultB, defaultA)
 	return color[1] or color.r or defaultR, color[2] or color.g or defaultG, color[3] or color.b or defaultB, color[4] or color.a or defaultA
 end
 
-local function setBackdrop(frame, borderCfg)
+UF._isFrameBorderEnabled = UF._isFrameBorderEnabled
+	or function(borderCfg, borderDef, fallback)
+		if borderCfg == true then return true end
+		if borderCfg == false then return false end
+		local enabled = type(borderCfg) == "table" and borderCfg.enabled or nil
+		if enabled == nil and type(borderDef) == "table" then enabled = borderDef.enabled end
+		if enabled == nil then enabled = fallback end
+		if enabled == nil then enabled = true end
+		return enabled == true
+	end
+
+local function setBackdrop(frame, borderCfg, borderDef, fallbackEnabled)
 	if not frame then return end
 	if frame.SetBackdrop and not frame._ufBackdropCleared then
 		frame:SetBackdrop(nil)
 		frame._ufBackdropCleared = true
 	end
-	if borderCfg and borderCfg.enabled then
+	if UF._isFrameBorderEnabled(borderCfg, borderDef, fallbackEnabled) then
+		if type(borderCfg) ~= "table" then borderCfg = {} end
 		local borderFrame = ensureBorderFrame(frame)
 		if not borderFrame then return end
-		local colorR, colorG, colorB, colorA = unpackColor(borderCfg.color, 0, 0, 0, 0.8)
+		local colorR, colorG, colorB, colorA = unpackColor(borderCfg.color or (borderDef and borderDef.color), 0, 0, 0, 0.8)
 		local edgeSize = tonumber(borderCfg.edgeSize) or 1
+		if edgeSize <= 0 and borderDef then edgeSize = tonumber(borderDef.edgeSize) or 1 end
+		if edgeSize <= 0 then edgeSize = 1 end
 		local insetVal = borderCfg.inset
+		if insetVal == nil and borderDef then insetVal = borderDef.inset end
 		if insetVal == nil then insetVal = edgeSize end
 		insetVal = tonumber(insetVal) or edgeSize
-		local edgeFile = UFHelper.resolveBorderTexture(borderCfg.texture)
+		local edgeFile = UFHelper.resolveBorderTexture(borderCfg.texture or (borderDef and borderDef.texture))
 		local cache = borderFrame._ufBorderCache
 		local styleChanged = not cache
 			or cache.enabled ~= true
@@ -2971,28 +2986,13 @@ local function setBackdrop(frame, borderCfg)
 			or cache.colorB ~= colorB
 			or cache.colorA ~= colorA
 		if styleChanged then
-			local style = borderFrame._ufBorderStyle
-			if not style then
-				style = {
-					bgFile = "Interface\\Buttons\\WHITE8x8",
-					edgeFile = edgeFile,
-					edgeSize = edgeSize,
-					insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
-				}
-				borderFrame._ufBorderStyle = style
-			else
-				style.edgeFile = edgeFile
-				style.edgeSize = edgeSize
-				local insets = style.insets
-				if not insets then
-					insets = {}
-					style.insets = insets
-				end
-				insets.left = insetVal
-				insets.right = insetVal
-				insets.top = insetVal
-				insets.bottom = insetVal
-			end
+			local style = {
+				bgFile = "Interface\\Buttons\\WHITE8x8",
+				edgeFile = edgeFile,
+				edgeSize = edgeSize,
+				insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
+			}
+			borderFrame._ufBorderStyle = style
 			borderFrame:SetBackdrop(style)
 			borderFrame:SetBackdropColor(0, 0, 0, 0)
 			borderFrame:SetBackdropBorderColor(colorR, colorG, colorB, colorA)
@@ -4443,10 +4443,10 @@ end
 
 local function getPortraitSeparatorConfig(cfg, unit, portraitEnabled)
 	if not portraitEnabled or not cfg or cfg.enabled == false then return false, 0, "SOLID" end
-	local borderCfg = cfg.border or {}
-	if borderCfg.enabled ~= true then return false, 0, "SOLID" end
 	local def = defaultsFor(unit)
 	local borderDef = def and def.border or {}
+	local borderCfg = cfg.border or {}
+	if not UF._isFrameBorderEnabled(borderCfg, borderDef, true) then return false, 0, "SOLID" end
 	local pdef = def and def.portrait or {}
 	local pcfg = (cfg and cfg.portrait) or {}
 	local sdef = pdef.separator or {}
@@ -4560,8 +4560,9 @@ local function layoutFrame(cfg, unit)
 	local stackHeight = healthHeight + (powerDetached and 0 or powerHeight)
 	local borderCfg = cfg.border or {}
 	local borderDef = def.border or {}
+	local borderEnabled = UF._isFrameBorderEnabled(borderCfg, borderDef, true)
 	local borderOffset = 0
-	if borderCfg.enabled then
+	if borderEnabled then
 		borderOffset = borderCfg.offset
 		if borderOffset == nil then borderOffset = borderCfg.edgeSize or borderDef.edgeSize or 1 end
 		borderOffset = max(0, borderOffset or 0)
@@ -4755,7 +4756,7 @@ local function layoutFrame(cfg, unit)
 	if st.castBar and unit == UNIT.TARGET then applyCastLayout(cfg, unit) end
 
 	-- Apply border only around the bar region wrapper
-	if st.barGroup then setBackdrop(st.barGroup, cfg.border) end
+	if st.barGroup then setBackdrop(st.barGroup, cfg.border, borderDef, true) end
 	if st.powerGroup then
 		local showPowerBorder = detachedPowerBorder and powerEnabled
 		local powerBorderCfg
@@ -4771,7 +4772,7 @@ local function layoutFrame(cfg, unit)
 				inset = borderCfg.inset or borderDef.inset,
 			}
 		end
-		setBackdrop(st.powerGroup, powerBorderCfg)
+		setBackdrop(st.powerGroup, powerBorderCfg, nil, false)
 	end
 	UFHelper.applyHighlightStyle(st, st._highlightCfg)
 

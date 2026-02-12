@@ -662,7 +662,6 @@ local function ensurePrivateAuraMousePassthrough(anchor)
 		elseif blocker.SetPropagateMouseClicks then
 			blocker:SetPropagateMouseClicks(true)
 		end
-		if blocker.SetPropagateMouseMotion then blocker:SetPropagateMouseMotion(false) end
 		if blocker.SetScript then
 			blocker:SetScript("OnEnter", function()
 				if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
@@ -682,7 +681,6 @@ local function ensurePrivateAuraMousePassthrough(anchor)
 	elseif blocker.SetPropagateMouseClicks then
 		blocker:SetPropagateMouseClicks(true)
 	end
-	if blocker.SetPropagateMouseMotion then blocker:SetPropagateMouseMotion(false) end
 	if blocker.SetScript then
 		blocker:SetScript("OnEnter", function()
 			if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end

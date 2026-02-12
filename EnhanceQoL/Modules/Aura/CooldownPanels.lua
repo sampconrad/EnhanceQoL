@@ -127,7 +127,7 @@ local function isSpellPassiveSafe(spellId, effectiveId)
 end
 
 local function setPowerInsufficient(runtime, spellId, isUsable, insufficientPower)
-	if not runtime or not spellId then return end
+	if not runtime or not spellId then return false end
 	runtime.powerInsufficient = runtime.powerInsufficient or {}
 	runtime.spellUnusable = runtime.spellUnusable or {}
 	local usable = isUsable == true
@@ -135,14 +135,28 @@ local function setPowerInsufficient(runtime, spellId, isUsable, insufficientPowe
 	local unusableValue = (not usable and insufficientPower ~= true) and true or nil
 	local baseId = getBaseSpellId(spellId)
 	local effectiveId = getEffectiveSpellId(spellId)
+	local changed = false
 	if baseId then
-		runtime.powerInsufficient[baseId] = powerValue
-		runtime.spellUnusable[baseId] = unusableValue
+		if runtime.powerInsufficient[baseId] ~= powerValue then
+			runtime.powerInsufficient[baseId] = powerValue
+			changed = true
+		end
+		if runtime.spellUnusable[baseId] ~= unusableValue then
+			runtime.spellUnusable[baseId] = unusableValue
+			changed = true
+		end
 	end
 	if effectiveId and effectiveId ~= baseId then
-		runtime.powerInsufficient[effectiveId] = powerValue
-		runtime.spellUnusable[effectiveId] = unusableValue
+		if runtime.powerInsufficient[effectiveId] ~= powerValue then
+			runtime.powerInsufficient[effectiveId] = powerValue
+			changed = true
+		end
+		if runtime.spellUnusable[effectiveId] ~= unusableValue then
+			runtime.spellUnusable[effectiveId] = unusableValue
+			changed = true
+		end
 	end
+	return changed
 end
 
 local function getSpellPowerCostNamesFromCosts(costs)
@@ -441,27 +455,81 @@ end
 local getEditor
 local refreshPanelsForSpell
 local refreshPanelsForCharges
+local normalizedRoots = setmetatable({}, { __mode = "k" })
+local normalizedPanels = setmetatable({}, { __mode = "k" })
+local POWER_USABLE_REFRESH_DELAY = 0.05
 
-local function getLayoutKey(layout)
-	if not layout then return "" end
+local function clearRuntimeLayoutShapeCache(runtime)
+	if not runtime then return end
+	runtime._eqolLastLayoutCount = nil
+	runtime._eqolLayoutIconSize = nil
+	runtime._eqolLayoutSpacing = nil
+	runtime._eqolLayoutMode = nil
+	runtime._eqolLayoutDirection = nil
+	runtime._eqolLayoutWrapCount = nil
+	runtime._eqolLayoutWrapDirection = nil
+	runtime._eqolLayoutGrowthPoint = nil
+	runtime._eqolLayoutRadialRadius = nil
+	runtime._eqolLayoutRadialRotation = nil
+	runtime._eqolLayoutRowSize1 = nil
+	runtime._eqolLayoutRowSize2 = nil
+	runtime._eqolLayoutRowSize3 = nil
+	runtime._eqolLayoutRowSize4 = nil
+	runtime._eqolLayoutRowSize5 = nil
+	runtime._eqolLayoutRowSize6 = nil
+end
+
+local function didLayoutShapeChange(runtime, layout, layoutCount)
+	if not runtime then return true end
+	if not layout then
+		local changed = runtime._eqolLastLayoutCount ~= layoutCount
+		runtime._eqolLastLayoutCount = layoutCount
+		return changed
+	end
 	local rowSizes = layout.rowSizes
-	return table.concat({
-		tostring(layout.iconSize or ""),
-		tostring(layout.spacing or ""),
-		tostring(layout.layoutMode or ""),
-		tostring(layout.direction or ""),
-		tostring(layout.wrapCount or ""),
-		tostring(layout.wrapDirection or ""),
-		tostring(layout.growthPoint or ""),
-		tostring(layout.radialRadius or ""),
-		tostring(layout.radialRotation or ""),
-		tostring(rowSizes and rowSizes[1] or ""),
-		tostring(rowSizes and rowSizes[2] or ""),
-		tostring(rowSizes and rowSizes[3] or ""),
-		tostring(rowSizes and rowSizes[4] or ""),
-		tostring(rowSizes and rowSizes[5] or ""),
-		tostring(rowSizes and rowSizes[6] or ""),
-	}, "|")
+	local rowSize1 = rowSizes and rowSizes[1] or nil
+	local rowSize2 = rowSizes and rowSizes[2] or nil
+	local rowSize3 = rowSizes and rowSizes[3] or nil
+	local rowSize4 = rowSizes and rowSizes[4] or nil
+	local rowSize5 = rowSizes and rowSizes[5] or nil
+	local rowSize6 = rowSizes and rowSizes[6] or nil
+	if
+		runtime._eqolLastLayoutCount == layoutCount
+		and runtime._eqolLayoutIconSize == layout.iconSize
+		and runtime._eqolLayoutSpacing == layout.spacing
+		and runtime._eqolLayoutMode == layout.layoutMode
+		and runtime._eqolLayoutDirection == layout.direction
+		and runtime._eqolLayoutWrapCount == layout.wrapCount
+		and runtime._eqolLayoutWrapDirection == layout.wrapDirection
+		and runtime._eqolLayoutGrowthPoint == layout.growthPoint
+		and runtime._eqolLayoutRadialRadius == layout.radialRadius
+		and runtime._eqolLayoutRadialRotation == layout.radialRotation
+		and runtime._eqolLayoutRowSize1 == rowSize1
+		and runtime._eqolLayoutRowSize2 == rowSize2
+		and runtime._eqolLayoutRowSize3 == rowSize3
+		and runtime._eqolLayoutRowSize4 == rowSize4
+		and runtime._eqolLayoutRowSize5 == rowSize5
+		and runtime._eqolLayoutRowSize6 == rowSize6
+	then
+		return false
+	end
+	runtime._eqolLastLayoutCount = layoutCount
+	runtime._eqolLayoutIconSize = layout.iconSize
+	runtime._eqolLayoutSpacing = layout.spacing
+	runtime._eqolLayoutMode = layout.layoutMode
+	runtime._eqolLayoutDirection = layout.direction
+	runtime._eqolLayoutWrapCount = layout.wrapCount
+	runtime._eqolLayoutWrapDirection = layout.wrapDirection
+	runtime._eqolLayoutGrowthPoint = layout.growthPoint
+	runtime._eqolLayoutRadialRadius = layout.radialRadius
+	runtime._eqolLayoutRadialRotation = layout.radialRotation
+	runtime._eqolLayoutRowSize1 = rowSize1
+	runtime._eqolLayoutRowSize2 = rowSize2
+	runtime._eqolLayoutRowSize3 = rowSize3
+	runtime._eqolLayoutRowSize4 = rowSize4
+	runtime._eqolLayoutRowSize5 = rowSize5
+	runtime._eqolLayoutRowSize6 = rowSize6
+	return true
 end
 
 ensurePanelAnchor = function(panel)
@@ -888,12 +956,14 @@ end
 
 ensureRoot = function()
 	if not addon.db then return nil end
-	if type(addon.db.cooldownPanels) ~= "table" then
-		addon.db.cooldownPanels = Helper.CreateRoot()
-	else
-		Helper.NormalizeRoot(addon.db.cooldownPanels)
+	if type(addon.db.cooldownPanels) ~= "table" then addon.db.cooldownPanels = Helper.CreateRoot() end
+	local root = addon.db.cooldownPanels
+	local needsNormalize = not normalizedRoots[root] or type(root.panels) ~= "table" or type(root.order) ~= "table" or type(root.defaults) ~= "table"
+	if needsNormalize then
+		Helper.NormalizeRoot(root)
+		normalizedRoots[root] = true
 	end
-	return addon.db.cooldownPanels
+	return root
 end
 
 local function markRootOrderDirty(root)
@@ -920,7 +990,10 @@ function CooldownPanels:GetPanel(panelId)
 	if not root then return nil end
 	panelId = normalizeId(panelId)
 	local panel = root.panels and root.panels[panelId]
-	if panel then Helper.NormalizePanel(panel, root.defaults) end
+	if panel and not normalizedPanels[panel] then
+		Helper.NormalizePanel(panel, root.defaults)
+		normalizedPanels[panel] = true
+	end
 	return panel
 end
 
@@ -1198,11 +1271,13 @@ function CooldownPanels:NormalizeAll()
 	local root = ensureRoot()
 	if not root then return end
 	Helper.NormalizeRoot(root)
+	normalizedRoots[root] = true
 	Helper.SyncOrder(root.order, root.panels)
 	root._orderDirty = nil
 	for panelId, panel in pairs(root.panels) do
 		if panel and panel.id == nil then panel.id = panelId end
 		Helper.NormalizePanel(panel, root.defaults)
+		normalizedPanels[panel] = true
 		Helper.SyncOrder(panel.order, panel.entries)
 		for entryId, entry in pairs(panel.entries) do
 			if entry and entry.id == nil then entry.id = entryId end
@@ -1582,9 +1657,25 @@ local function hasItem(itemID)
 end
 
 local function itemHasUseSpell(itemID)
-	if not itemID or not Api.GetItemSpell then return false end
+	if not itemID then return false end
+	CooldownPanels.runtime = CooldownPanels.runtime or {}
+	local runtime = CooldownPanels.runtime
+	runtime.itemUseSpellCache = runtime.itemUseSpellCache or {}
+	local cached = runtime.itemUseSpellCache[itemID]
+	if cached ~= nil then return cached == true end
+	if not Api.GetItemSpell then
+		runtime.itemUseSpellCache[itemID] = false
+		return false
+	end
 	local _, spellId = Api.GetItemSpell(itemID)
-	return spellId ~= nil
+	local hasUseSpell = spellId ~= nil
+	runtime.itemUseSpellCache[itemID] = hasUseSpell
+	return hasUseSpell
+end
+
+local function clearItemUseSpellCache()
+	local runtime = CooldownPanels.runtime
+	if runtime and runtime.itemUseSpellCache then wipe(runtime.itemUseSpellCache) end
 end
 
 local function createPanelFrame(panelId, panel)
@@ -2119,6 +2210,147 @@ local function showSlotMenu(owner, panelId)
 	end)
 end
 
+local function getSpellIdFromCooldownManagerChild(child)
+	if not child then return nil end
+	local spellId
+	if type(child.GetSpellID) == "function" then
+		local ok, value = pcall(child.GetSpellID, child)
+		if ok then spellId = tonumber(value) end
+	end
+	if not spellId and type(child.GetSpellId) == "function" then
+		local ok, value = pcall(child.GetSpellId, child)
+		if ok then spellId = tonumber(value) end
+	end
+	if not spellId and type(child.GetSpell) == "function" then
+		local ok, value = pcall(child.GetSpell, child)
+		if ok then spellId = tonumber(value) end
+	end
+	if not spellId and type(child.GetData) == "function" then
+		local ok, data = pcall(child.GetData, child)
+		if ok and type(data) == "table" then spellId = tonumber(data.spellID or data.spellId or data.spell) end
+	end
+	if not spellId and type(child) == "table" then spellId = tonumber(child.spellID or child.spellId or child.spell) end
+	return spellId
+end
+
+local ensureImportCDMPopup
+
+local function getCooldownManagerSourceLabel(sourceKind)
+	if sourceKind == "UTILITY" then return L["CooldownPanelImportCDMUtility"] or "Utility Cooldowns" end
+	return L["CooldownPanelImportCDMEssential"] or "Essential Cooldowns"
+end
+
+local function getCooldownManagerLayoutChildren(sourceKind)
+	local viewerName = sourceKind == "UTILITY" and "UtilityCooldownViewer" or "EssentialCooldownViewer"
+	local sourceLabel = getCooldownManagerSourceLabel(sourceKind)
+	local viewer = _G[viewerName]
+	if type(viewer) ~= "table" then return nil, sourceLabel, "SOURCE_NOT_FOUND" end
+	local containers = {
+		viewer.oldGridSettings,
+		viewer.gridSettings,
+		viewer.currentGridSettings,
+		viewer.settings,
+		viewer,
+	}
+	for i = 1, #containers do
+		local container = containers[i]
+		local layoutChildren = container and container.layoutChildren
+		if type(layoutChildren) == "table" then return layoutChildren, sourceLabel end
+	end
+	return nil, sourceLabel, "SOURCE_NOT_FOUND"
+end
+
+local function importCooldownManagerSpells(panelId, sourceKind)
+	panelId = normalizeId(panelId)
+	local panel = CooldownPanels:GetPanel(panelId)
+	if not panel then return nil, "PANEL_NOT_FOUND" end
+	local layoutChildren, sourceLabel, sourceErr = getCooldownManagerLayoutChildren(sourceKind)
+	if sourceErr then return nil, sourceErr, sourceLabel end
+	local root = ensureRoot()
+	if not root then return nil, "NO_DB" end
+	panel.entries = panel.entries or {}
+	panel.order = panel.order or {}
+
+	local existingBySpellId = {}
+	for _, entry in pairs(panel.entries) do
+		if entry and entry.type == "SPELL" and entry.spellID then existingBySpellId[entry.spellID] = true end
+	end
+
+	local function importChild(child, stats)
+		local spellId = getSpellIdFromCooldownManagerChild(child)
+		if not spellId then
+			stats.invalid = stats.invalid + 1
+			return
+		end
+		local baseSpellId = getBaseSpellId(spellId) or spellId
+		if not spellExistsSafe(baseSpellId) then
+			stats.invalid = stats.invalid + 1
+			return
+		end
+		if existingBySpellId[baseSpellId] then
+			stats.duplicates = stats.duplicates + 1
+			return
+		end
+		local entryId = Helper.GetNextNumericId(panel.entries)
+		local entry = Helper.CreateEntry("SPELL", baseSpellId, root.defaults)
+		entry.id = entryId
+		panel.entries[entryId] = entry
+		panel.order[#panel.order + 1] = entryId
+		existingBySpellId[baseSpellId] = true
+		stats.added = stats.added + 1
+	end
+
+	local stats = { added = 0, duplicates = 0, invalid = 0, seen = 0 }
+	if #layoutChildren > 0 then
+		for i = 1, #layoutChildren do
+			stats.seen = stats.seen + 1
+			importChild(layoutChildren[i], stats)
+		end
+	else
+		local numericKeys = {}
+		for key in pairs(layoutChildren) do
+			if type(key) == "number" then numericKeys[#numericKeys + 1] = key end
+		end
+		table.sort(numericKeys)
+		for _, key in ipairs(numericKeys) do
+			stats.seen = stats.seen + 1
+			importChild(layoutChildren[key], stats)
+		end
+	end
+
+	if stats.added > 0 then
+		Helper.SyncOrder(panel.order, panel.entries)
+		CooldownPanels:RebuildSpellIndex()
+		CooldownPanels:RefreshPanel(panelId)
+	end
+	stats.sourceLabel = sourceLabel
+	return stats
+end
+
+local function showImportCDMMenu(owner, panelId)
+	if not panelId or not Api.MenuUtil or not Api.MenuUtil.CreateContextMenu then return end
+	Api.MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
+		rootDescription:SetTag("MENU_EQOL_COOLDOWN_PANEL_IMPORT_CDM")
+		rootDescription:CreateTitle(L["CooldownPanelImportCDMMenuTitle"] or "Import from Cooldown Manager")
+		rootDescription:CreateButton(getCooldownManagerSourceLabel("ESSENTIAL"), function()
+			ensureImportCDMPopup()
+			StaticPopup_Show("EQOL_COOLDOWN_PANEL_IMPORT_CDM", getCooldownManagerSourceLabel("ESSENTIAL"), nil, {
+				panelId = panelId,
+				sourceKind = "ESSENTIAL",
+				sourceLabel = getCooldownManagerSourceLabel("ESSENTIAL"),
+			})
+		end)
+		rootDescription:CreateButton(getCooldownManagerSourceLabel("UTILITY"), function()
+			ensureImportCDMPopup()
+			StaticPopup_Show("EQOL_COOLDOWN_PANEL_IMPORT_CDM", getCooldownManagerSourceLabel("UTILITY"), nil, {
+				panelId = panelId,
+				sourceKind = "UTILITY",
+				sourceLabel = getCooldownManagerSourceLabel("UTILITY"),
+			})
+		end)
+	end)
+end
+
 local function showSpecMenu(owner, panelId)
 	if not panelId or not Api.MenuUtil or not Api.MenuUtil.CreateContextMenu then return end
 	local panel = CooldownPanels:GetPanel(panelId)
@@ -2644,6 +2876,9 @@ local function ensureEditor()
 	local slotButton = Helper.CreateButton(middle, L["CooldownPanelAddSlot"] or "Add Slot", 120, 20)
 	slotButton:SetPoint("BOTTOMRIGHT", middle, "BOTTOMRIGHT", -12, 18)
 
+	local importCDMButton = Helper.CreateButton(middle, L["CooldownPanelImportCDM"] or "Import CDM", 120, 20)
+	importCDMButton:SetPoint("RIGHT", slotButton, "LEFT", -8, 0)
+
 	local function updateEditModeButton()
 		if not editModeButton then return end
 		if InCombatLockdown and InCombatLockdown() or addon.functions.isRestrictedContent() then
@@ -2694,6 +2929,7 @@ local function ensureEditor()
 		addSpellBox = addSpellBox,
 		addItemBox = addItemBox,
 		slotButton = slotButton,
+		importCDMButton = importCDMButton,
 		filterButton = filterButton,
 		inspector = {
 			scroll = rightScroll,
@@ -2762,6 +2998,11 @@ local function ensureEditor()
 	end)
 
 	slotButton:SetScript("OnClick", function(self) showSlotMenu(self, editor.selectedPanelId) end)
+	importCDMButton:SetScript("OnClick", function(self)
+		local panelId = editor.selectedPanelId
+		if not panelId then return end
+		showImportCDMMenu(self, panelId)
+	end)
 
 	local function commitPanelNameChange(self)
 		local panelId = editor.selectedPanelId
@@ -2953,6 +3194,44 @@ ensureDeletePopup = function()
 		OnAccept = function(self, data)
 			if not data or not data.panelId then return end
 			CooldownPanels:DeletePanel(data.panelId)
+			CooldownPanels:RefreshEditor()
+		end,
+	}
+end
+
+ensureImportCDMPopup = function()
+	if StaticPopupDialogs["EQOL_COOLDOWN_PANEL_IMPORT_CDM"] then return end
+	StaticPopupDialogs["EQOL_COOLDOWN_PANEL_IMPORT_CDM"] = {
+		text = L["CooldownPanelImportCDMConfirm"] or "Import all spells from %s?",
+		button1 = YES,
+		button2 = NO,
+		timeout = 0,
+		whileDead = true,
+		hideOnEscape = true,
+		preferredIndex = 3,
+		OnAccept = function(_, data)
+			if not data or not data.panelId then return end
+			local sourceKind = data.sourceKind or "ESSENTIAL"
+			local sourceLabel = data.sourceLabel or getCooldownManagerSourceLabel(sourceKind)
+			local result, err, resolvedSourceLabel = importCooldownManagerSpells(data.panelId, sourceKind)
+			local errorSourceLabel = resolvedSourceLabel or sourceLabel
+			if not result then
+				if err == "SOURCE_NOT_FOUND" then
+					showErrorMessage(string.format(L["CooldownPanelImportCDMNoSource"] or "Cooldown Manager data not found for %s.", tostring(errorSourceLabel or sourceLabel)))
+				elseif err == "PANEL_NOT_FOUND" then
+					showErrorMessage(L["CooldownPanelImportCDMNoPanel"] or "No panel selected.")
+				end
+			else
+				print(
+					string.format(
+						"[EnhanceQoL] " .. (L["CooldownPanelImportCDMResult"] or "Imported %d spell(s) from %s (%d duplicates, %d skipped)."),
+						result.added or 0,
+						tostring(result.sourceLabel or sourceLabel),
+						result.duplicates or 0,
+						result.invalid or 0
+					)
+				)
+			end
 			CooldownPanels:RefreshEditor()
 		end,
 	}
@@ -3665,6 +3944,13 @@ function CooldownPanels:RefreshEditor()
 			editor.slotButton:Disable()
 		end
 	end
+	if editor.importCDMButton then
+		if panelActive then
+			editor.importCDMButton:Enable()
+		else
+			editor.importCDMButton:Disable()
+		end
+	end
 
 	local entryId = editor.selectedEntryId
 	if panel and entryId and not (panel.entries and panel.entries[entryId]) then entryId = nil end
@@ -3834,6 +4120,7 @@ local function updateItemCountCache()
 	local runtime = CooldownPanels.runtime
 	local root = ensureRoot()
 	if not root or not root.panels then return false end
+	clearItemUseSpellCache()
 	runtime.itemCountCache = runtime.itemCountCache or {}
 	local cache = runtime.itemCountCache
 	local seen = {}
@@ -3859,6 +4146,7 @@ updateItemCountCacheForItem = function(itemID)
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	local runtime = CooldownPanels.runtime
 	runtime.itemCountCache = runtime.itemCountCache or {}
+	if runtime.itemUseSpellCache then runtime.itemUseSpellCache[itemID] = nil end
 	local count = Api.GetItemCount(itemID, true, false) or 0
 	local uses = Api.GetItemCount(itemID, true, true) or 0
 	runtime.itemCountCache[itemID] = { count = count, uses = uses }
@@ -3877,9 +4165,15 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		if runtime._eqolHiddenByEligibility then return end
 		runtime._eqolHiddenByEligibility = true
 		runtime.visibleCount = 0
+		runtime.visiblePowerSpellCount = 0
 		if runtime.visibleEntries then
 			for i = 1, #runtime.visibleEntries do
 				runtime.visibleEntries[i] = nil
+			end
+		end
+		if runtime.visiblePowerSpells then
+			for i = 1, #runtime.visiblePowerSpells do
+				runtime.visiblePowerSpells[i] = nil
 			end
 		end
 		ensureIconCount(frame, 0)
@@ -3913,11 +4207,30 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		runtime.visibleEntries = visible
 	end
 	local visibleCount = 0
+	local visiblePowerSpells = runtime.visiblePowerSpells
+	if not visiblePowerSpells then
+		visiblePowerSpells = {}
+		runtime.visiblePowerSpells = visiblePowerSpells
+	end
+	local visiblePowerSpellCount = 0
+	local visiblePowerSpellSeen = runtime._eqolVisiblePowerSpellSeen
+	if not visiblePowerSpellSeen then
+		visiblePowerSpellSeen = {}
+		runtime._eqolVisiblePowerSpellSeen = visiblePowerSpellSeen
+	end
+	for spellId in pairs(visiblePowerSpellSeen) do
+		visiblePowerSpellSeen[spellId] = nil
+	end
 
 	local order = panel.order or {}
 	runtime.readyAt = runtime.readyAt or {}
 	runtime.glowTimers = runtime.glowTimers or {}
 	local glowTimers = runtime.glowTimers
+	local overlayGlowSpells = shared and shared.overlayGlowSpells
+	local powerInsufficientSpells = shared and shared.powerInsufficient
+	local spellUnusableSpells = shared and shared.spellUnusable
+	local rangeOverlaySpells = shared and shared.rangeOverlaySpells
+	local powerCheckSpells = checkPower and shared and shared.powerCheckSpells or nil
 	for _, entryId in ipairs(order) do
 		local entry = panel.entries and panel.entries[entryId]
 		if entry then
@@ -3937,7 +4250,6 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local glowDuration = Helper.ClampInt(entry.glowDuration, 0, 30, 0)
 			local soundReady = entry.soundReady == true
 			local soundName = normalizeSoundName(entry.soundReadyFile)
-			local shared = CooldownPanels.runtime -- Root runtime (global state)
 			local baseSpellId = entry.type == "SPELL" and entry.spellID or nil
 			local effectiveSpellId = baseSpellId and getEffectiveSpellId(baseSpellId) or nil
 			local spellPassive = baseSpellId and isSpellPassiveSafe(baseSpellId, effectiveSpellId) or false
@@ -3948,10 +4260,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			-- 	return false
 			-- end
 
-			local overlayGlow = entry.type == "SPELL" and isSpellFlagged(shared.overlayGlowSpells, baseSpellId, effectiveSpellId)
-			local powerInsufficient = checkPower and entry.type == "SPELL" and isSpellFlagged(shared.powerInsufficient, baseSpellId, effectiveSpellId)
-			local spellUnusable = checkPower and entry.type == "SPELL" and isSpellFlagged(shared.spellUnusable, baseSpellId, effectiveSpellId)
-			local rangeOverlay = rangeOverlayEnabled and entry.type == "SPELL" and isSpellFlagged(shared.rangeOverlaySpells, baseSpellId, effectiveSpellId)
+			local overlayGlow = entry.type == "SPELL" and isSpellFlagged(overlayGlowSpells, baseSpellId, effectiveSpellId)
+			local powerInsufficient = checkPower and entry.type == "SPELL" and isSpellFlagged(powerInsufficientSpells, baseSpellId, effectiveSpellId)
+			local spellUnusable = checkPower and entry.type == "SPELL" and isSpellFlagged(spellUnusableSpells, baseSpellId, effectiveSpellId)
+			local rangeOverlay = rangeOverlayEnabled and entry.type == "SPELL" and isSpellFlagged(rangeOverlaySpells, baseSpellId, effectiveSpellId)
 			if rangeOverlay and Api.IsSpellUsableFn then
 				local checkId = effectiveSpellId or baseSpellId
 				if checkId then
@@ -4123,6 +4435,14 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.cooldownEnabled = cooldownEnabled
 				data.cooldownRate = cooldownRate or 1
 				data.cooldownGCD = cooldownGCD == true
+				if powerCheckSpells and entry.type == "SPELL" then
+					local spellId = effectiveSpellId or baseSpellId
+					if spellId and powerCheckSpells[spellId] and not visiblePowerSpellSeen[spellId] then
+						visiblePowerSpellSeen[spellId] = true
+						visiblePowerSpellCount = visiblePowerSpellCount + 1
+						visiblePowerSpells[visiblePowerSpellCount] = spellId
+					end
+				end
 			end
 		end
 	end
@@ -4130,15 +4450,14 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	for i = visibleCount + 1, #visible do
 		visible[i] = nil
 	end
+	for i = visiblePowerSpellCount + 1, #visiblePowerSpells do
+		visiblePowerSpells[i] = nil
+	end
+	runtime.visiblePowerSpellCount = visiblePowerSpellCount
 
 	local count = visibleCount
 	local layoutCount = count > 0 and count or 1
-	local layoutKey = getLayoutKey(layout)
-	if runtime._eqolLastLayoutCount ~= layoutCount or runtime._eqolLastLayoutKey ~= layoutKey then
-		self:ApplyLayout(panelId, layoutCount)
-		runtime._eqolLastLayoutCount = layoutCount
-		runtime._eqolLastLayoutKey = layoutKey
-	end
+	if didLayoutShapeChange(runtime, layout, layoutCount) then self:ApplyLayout(panelId, layoutCount) end
 	ensureIconCount(frame, count)
 
 	runtime.entryToIcon = runtime.entryToIcon or {}
@@ -4578,8 +4897,7 @@ function CooldownPanels:RefreshPanel(panelId)
 	self:EnsurePanelFrame(panelId)
 	local runtime = getRuntime(panelId)
 	if self:IsInEditMode() then
-		runtime._eqolLastLayoutCount = nil
-		runtime._eqolLastLayoutKey = nil
+		clearRuntimeLayoutShapeCache(runtime)
 		self:ApplyLayout(panelId)
 		self:UpdatePreviewIcons(panelId)
 	else
@@ -4597,10 +4915,16 @@ function CooldownPanels:HideAllRuntimePanels()
 		local runtime = allRuntime[panelId]
 		if runtime then
 			runtime.visibleCount = 0
+			runtime.visiblePowerSpellCount = 0
 			runtime._eqolHiddenByEligibility = true
 			if runtime.visibleEntries then
 				for i = 1, #runtime.visibleEntries do
 					runtime.visibleEntries[i] = nil
+				end
+			end
+			if runtime.visiblePowerSpells then
+				for i = 1, #runtime.visiblePowerSpells do
+					runtime.visiblePowerSpells[i] = nil
 				end
 			end
 			if runtime.frame then runtime.frame:Hide() end
@@ -5631,50 +5955,50 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return layout.showOnCooldown == true end,
 				set = function(_, value) applyEditLayout(panelId, "showOnCooldown", value) end,
 			},
-				{
-					name = L["CooldownPanelHideInVehicle"] or "Hide in vehicles",
-					kind = SettingType.Checkbox,
-					field = "hideInVehicle",
-					parentId = "cooldownPanelDisplay",
-					default = layout.hideInVehicle == true,
-					get = function() return layout.hideInVehicle == true end,
-					set = function(_, value) applyEditLayout(panelId, "hideInVehicle", value) end,
-				},
-				{
-					name = L["CooldownPanelHideInPetBattle"] or "Hide in pet battles",
-					kind = SettingType.Checkbox,
-					field = "hideInPetBattle",
-					parentId = "cooldownPanelDisplay",
-					default = layout.hideInPetBattle == true,
-					get = function() return layout.hideInPetBattle == true end,
-					set = function(_, value) applyEditLayout(panelId, "hideInPetBattle", value) end,
-				},
-				{
-					name = L["CooldownPanelHideInClientScene"] or "Hide in client scenes",
-					kind = SettingType.Checkbox,
-					field = "hideInClientScene",
-					parentId = "cooldownPanelDisplay",
-					default = layout.hideInClientScene ~= false,
-					get = function() return layout.hideInClientScene ~= false end,
-					set = function(_, value) applyEditLayout(panelId, "hideInClientScene", value) end,
-				},
-				{
-					name = L["CooldownPanelOpacityOutOfCombat"] or "Opacity (out of combat)",
-					kind = SettingType.Slider,
-					field = "opacityOutOfCombat",
-					parentId = "cooldownPanelDisplay",
-					default = Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat),
-					minValue = 0,
-					maxValue = 1,
-					valueStep = 0.05,
-					allowInput = true,
-					get = function() return Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat) end,
-					set = function(_, value) applyEditLayout(panelId, "opacityOutOfCombat", value) end,
-					formatter = function(value)
-						local num = tonumber(value) or 0
-						return tostring(math.floor((num * 100) + 0.5)) .. "%"
-					end,
-				},
+			{
+				name = L["CooldownPanelHideInVehicle"] or "Hide in vehicles",
+				kind = SettingType.Checkbox,
+				field = "hideInVehicle",
+				parentId = "cooldownPanelDisplay",
+				default = layout.hideInVehicle == true,
+				get = function() return layout.hideInVehicle == true end,
+				set = function(_, value) applyEditLayout(panelId, "hideInVehicle", value) end,
+			},
+			{
+				name = L["CooldownPanelHideInPetBattle"] or "Hide in pet battles",
+				kind = SettingType.Checkbox,
+				field = "hideInPetBattle",
+				parentId = "cooldownPanelDisplay",
+				default = layout.hideInPetBattle == true,
+				get = function() return layout.hideInPetBattle == true end,
+				set = function(_, value) applyEditLayout(panelId, "hideInPetBattle", value) end,
+			},
+			{
+				name = L["CooldownPanelHideInClientScene"] or "Hide in client scenes",
+				kind = SettingType.Checkbox,
+				field = "hideInClientScene",
+				parentId = "cooldownPanelDisplay",
+				default = layout.hideInClientScene ~= false,
+				get = function() return layout.hideInClientScene ~= false end,
+				set = function(_, value) applyEditLayout(panelId, "hideInClientScene", value) end,
+			},
+			{
+				name = L["CooldownPanelOpacityOutOfCombat"] or "Opacity (out of combat)",
+				kind = SettingType.Slider,
+				field = "opacityOutOfCombat",
+				parentId = "cooldownPanelDisplay",
+				default = Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat),
+				minValue = 0,
+				maxValue = 1,
+				valueStep = 0.05,
+				allowInput = true,
+				get = function() return Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat) end,
+				set = function(_, value) applyEditLayout(panelId, "opacityOutOfCombat", value) end,
+				formatter = function(value)
+					local num = tonumber(value) or 0
+					return tostring(math.floor((num * 100) + 0.5)) .. "%"
+				end,
+			},
 			{
 				name = L["CooldownPanelOpacityInCombat"] or "Opacity (in combat)",
 				kind = SettingType.Slider,
@@ -6397,16 +6721,16 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			cooldownGcdDrawEdge = layout.cooldownGcdDrawEdge == true,
 			cooldownGcdDrawBling = layout.cooldownGcdDrawBling == true,
 			cooldownGcdDrawSwipe = layout.cooldownGcdDrawSwipe == true,
-				opacityOutOfCombat = Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat),
-				opacityInCombat = Helper.NormalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat),
-				showTooltips = layout.showTooltips == true,
-				showIconTexture = layout.showIconTexture ~= false,
-				hideOnCooldown = layout.hideOnCooldown == true,
-				showOnCooldown = layout.showOnCooldown == true,
-				hideInVehicle = layout.hideInVehicle == true,
-				hideInPetBattle = layout.hideInPetBattle == true,
-				hideInClientScene = layout.hideInClientScene ~= false,
-				cooldownTextFont = layout.cooldownTextFont,
+			opacityOutOfCombat = Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat),
+			opacityInCombat = Helper.NormalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat),
+			showTooltips = layout.showTooltips == true,
+			showIconTexture = layout.showIconTexture ~= false,
+			hideOnCooldown = layout.hideOnCooldown == true,
+			showOnCooldown = layout.showOnCooldown == true,
+			hideInVehicle = layout.hideInVehicle == true,
+			hideInPetBattle = layout.hideInPetBattle == true,
+			hideInClientScene = layout.hideInClientScene ~= false,
+			cooldownTextFont = layout.cooldownTextFont,
 			cooldownTextSize = layout.cooldownTextSize or 12,
 			cooldownTextStyle = Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, "NONE"),
 			cooldownTextX = layout.cooldownTextX or 0,
@@ -6553,30 +6877,36 @@ end
 refreshPanelsForSpell = function(spellId)
 	local id = tonumber(spellId)
 	if not id then return false end
-	local index = CooldownPanels.runtime and CooldownPanels.runtime.spellIndex
-	if not index then return false end
-	local refreshed = false
-	local ids = {}
-	local count = 0
-	local function pushId(value)
-		if not value or ids[value] then return end
-		ids[value] = true
-		count = count + 1
+	local runtime = CooldownPanels.runtime
+	local index = runtime and runtime.spellIndex
+	if not runtime or not index then return false end
+	runtime._eqolSpellRefreshScratch = runtime._eqolSpellRefreshScratch or {}
+	local panelsToRefresh = runtime._eqolSpellRefreshScratch
+	for panelId in pairs(panelsToRefresh) do
+		panelsToRefresh[panelId] = nil
 	end
-	pushId(id)
-	local baseId = getBaseSpellId(id)
-	if baseId and baseId ~= id then pushId(baseId) end
-	local effectiveId = getEffectiveSpellId(id)
-	if effectiveId and effectiveId ~= id then pushId(effectiveId) end
-
-	if count == 0 then return false end
-	for lookupId in pairs(ids) do
+	local refreshed = false
+	local function collectPanels(lookupId)
+		if not lookupId then return end
 		local panels = index[lookupId]
-		if panels then
-			for panelId in pairs(panels) do
-				if CooldownPanels:GetPanel(panelId) then CooldownPanels:RefreshPanel(panelId) end
-			end
+		if not panels then return end
+		for panelId in pairs(panels) do
+			panelsToRefresh[panelId] = true
 			refreshed = true
+		end
+	end
+	collectPanels(id)
+	local baseId = getBaseSpellId(id)
+	if baseId and baseId ~= id then collectPanels(baseId) end
+	local effectiveId = getEffectiveSpellId(id)
+	if effectiveId and effectiveId ~= id and effectiveId ~= baseId then collectPanels(effectiveId) end
+	if not refreshed then return false end
+	for panelId in pairs(panelsToRefresh) do
+		panelsToRefresh[panelId] = nil
+		if CooldownPanels.RequestPanelRefresh then
+			CooldownPanels:RequestPanelRefresh(panelId)
+		elseif CooldownPanels:GetPanel(panelId) then
+			CooldownPanels:RefreshPanel(panelId)
 		end
 	end
 	return refreshed
@@ -6652,36 +6982,48 @@ local function updatePowerStatesVisible()
 	local enabledPanels = runtime and runtime.enabledPanels
 	if not powerCheckSpells or not runtime.powerCheckActive or not enabledPanels then return false end
 	runtime.powerInsufficient = runtime.powerInsufficient or {}
+	runtime.spellUnusable = runtime.spellUnusable or {}
+	runtime._eqolPowerCheckedScratch = runtime._eqolPowerCheckedScratch or {}
+	runtime._eqolPowerChangedScratch = runtime._eqolPowerChangedScratch or {}
+	local checked = runtime._eqolPowerCheckedScratch
+	local changedBySpell = runtime._eqolPowerChangedScratch
+	for spellId in pairs(checked) do
+		checked[spellId] = nil
+	end
+	for spellId in pairs(changedBySpell) do
+		changedBySpell[spellId] = nil
+	end
 	local panelsToRefresh
-	local checked = {}
 	for panelId in pairs(enabledPanels) do
 		local panelRuntime = runtime[panelId]
-		local visible = panelRuntime and panelRuntime.visibleEntries
-		if visible and #visible > 0 then
-			for i = 1, #visible do
-				local data = visible[i]
-				local entry = data and data.entry
-				if entry and entry.type == "SPELL" and entry.spellID then
-					local baseId = tonumber(entry.spellID)
-					if baseId then
-						local effectiveId = getEffectiveSpellId(baseId) or baseId
-						if powerCheckSpells[effectiveId] then
-							if not checked[effectiveId] then
-								checked[effectiveId] = true
-								local isUsable, insufficientPower = Api.IsSpellUsableFn(effectiveId)
-								setPowerInsufficient(runtime, effectiveId, isUsable, insufficientPower)
-							end
-							panelsToRefresh = panelsToRefresh or {}
-							panelsToRefresh[panelId] = true
-						end
+		local spellList = panelRuntime and panelRuntime.visiblePowerSpells
+		local spellCount = panelRuntime and panelRuntime.visiblePowerSpellCount or 0
+		if spellList and spellCount > 0 then
+			local panelChanged = false
+			for i = 1, spellCount do
+				local effectiveId = spellList[i]
+				if effectiveId and powerCheckSpells[effectiveId] then
+					if not checked[effectiveId] then
+						checked[effectiveId] = true
+						local isUsable, insufficientPower = Api.IsSpellUsableFn(effectiveId)
+						changedBySpell[effectiveId] = setPowerInsufficient(runtime, effectiveId, isUsable, insufficientPower) == true
 					end
+					if changedBySpell[effectiveId] then panelChanged = true end
 				end
+			end
+			if panelChanged then
+				panelsToRefresh = panelsToRefresh or {}
+				panelsToRefresh[panelId] = true
 			end
 		end
 	end
 	if panelsToRefresh then
 		for panelId in pairs(panelsToRefresh) do
-			if CooldownPanels:GetPanel(panelId) then CooldownPanels:RefreshPanel(panelId) end
+			if CooldownPanels.RequestPanelRefresh then
+				CooldownPanels:RequestPanelRefresh(panelId)
+			elseif CooldownPanels:GetPanel(panelId) then
+				CooldownPanels:RefreshPanel(panelId)
+			end
 		end
 	end
 	return true
@@ -6692,7 +7034,7 @@ local function schedulePowerUsableRefresh()
 	if not runtime or not runtime.powerCheckActive then return end
 	if runtime.powerRefreshPending then return end
 	runtime.powerRefreshPending = true
-	C_Timer.After(0, function()
+	C_Timer.After(POWER_USABLE_REFRESH_DELAY, function()
 		local rt = CooldownPanels.runtime
 		if not rt then return end
 		rt.powerRefreshPending = nil
@@ -6895,7 +7237,10 @@ local function setRangeOverlayForSpell(spellIdentifier, isInRange, checksRange)
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	local runtime = CooldownPanels.runtime
 	runtime.rangeOverlaySpells = runtime.rangeOverlaySpells or {}
-	if checksRange and isInRange == false then
+	local shouldShow = checksRange and isInRange == false
+	local wasShown = runtime.rangeOverlaySpells[id] == true
+	if shouldShow == wasShown then return false end
+	if shouldShow then
 		runtime.rangeOverlaySpells[id] = true
 	else
 		runtime.rangeOverlaySpells[id] = nil
@@ -6936,7 +7281,6 @@ local UPDATE_FRAME_EVENTS = {
 	"SPELL_UPDATE_USES",
 	"SPELLS_CHANGED",
 	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
-	"PLAYER_SPECIALIZATION_CHANGED",
 	"ACTIVE_TALENT_GROUP_CHANGED",
 	"PLAYER_TALENT_UPDATE",
 	"PLAYER_EQUIPMENT_CHANGED",
@@ -6951,8 +7295,6 @@ local UPDATE_FRAME_EVENTS = {
 	"SPELL_RANGE_CHECK_UPDATE",
 	"PLAYER_REGEN_DISABLED",
 	"PLAYER_REGEN_ENABLED",
-	"UNIT_ENTERED_VEHICLE",
-	"UNIT_EXITED_VEHICLE",
 	"PET_BATTLE_OPENING_START",
 	"PET_BATTLE_CLOSE",
 	"CLIENT_SCENE_OPENED",
@@ -6987,6 +7329,9 @@ local function setUpdateFrameEnabled(frame, enabled)
 			frame:RegisterEvent(event)
 		end
 		frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+		frame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
+		frame:RegisterUnitEvent("UNIT_ENTERED_VEHICLE", "player")
+		frame:RegisterUnitEvent("UNIT_EXITED_VEHICLE", "player")
 		frame._eqolEventsRegistered = true
 		if updatePowerEventRegistration then updatePowerEventRegistration() end
 	else
@@ -7114,26 +7459,26 @@ local function ensureUpdateFrame()
 			refreshPanelsForCharges()
 			return
 		end
-			if event == "PLAYER_ENTERING_WORLD" then
-				updateItemCountCache()
-				scheduleSpecAwareRebuild(event)
-				return
-			end
-			if event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" then
-				local unit = ...
-				if unit and unit ~= "player" then return end
-			end
-			if event == "CLIENT_SCENE_OPENED" then
-				local sceneType = ...
-				CooldownPanels.runtime = CooldownPanels.runtime or {}
-				CooldownPanels.runtime.clientSceneActive = (sceneType == 1)
-			elseif event == "CLIENT_SCENE_CLOSED" then
-				CooldownPanels.runtime = CooldownPanels.runtime or {}
-				CooldownPanels.runtime.clientSceneActive = false
-			end
-			if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_ENTERING_WORLD" then updateItemCountCache() end
-			CooldownPanels:RequestUpdate("Event:" .. event)
-		end)
+		if event == "PLAYER_ENTERING_WORLD" then
+			updateItemCountCache()
+			scheduleSpecAwareRebuild(event)
+			return
+		end
+		if event == "UNIT_ENTERED_VEHICLE" or event == "UNIT_EXITED_VEHICLE" then
+			local unit = ...
+			if unit and unit ~= "player" then return end
+		end
+		if event == "CLIENT_SCENE_OPENED" then
+			local sceneType = ...
+			CooldownPanels.runtime = CooldownPanels.runtime or {}
+			CooldownPanels.runtime.clientSceneActive = (sceneType == 1)
+		elseif event == "CLIENT_SCENE_CLOSED" then
+			CooldownPanels.runtime = CooldownPanels.runtime or {}
+			CooldownPanels.runtime.clientSceneActive = false
+		end
+		if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_ENTERING_WORLD" then updateItemCountCache() end
+		CooldownPanels:RequestUpdate("Event:" .. event)
+	end)
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	CooldownPanels.runtime.updateFrame = frame
 	if CooldownPanels.UpdateEventRegistration then CooldownPanels:UpdateEventRegistration() end

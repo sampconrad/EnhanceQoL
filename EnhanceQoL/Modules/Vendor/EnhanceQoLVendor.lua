@@ -766,7 +766,13 @@ local function lookupItems()
 								end
 							end
 						elseif sellPrice and sellPrice > 0 then
-							if classID == 4 and subclassID == 5 and not C_TransmogCollection.PlayerHasTransmog(itemID) then
+							if quality == 0 and addon.Vendor.variables.itemQualityFilter[quality] then
+								local bType = select(1, getTooltipInfo(bag, slot, quality))
+								local effectiveBindType = bindType or 0
+								if bType and effectiveBindType < bType then effectiveBindType = bType end
+								local bindFilter = addon.Vendor.variables.itemBindTypeQualityFilter[quality]
+								if bindFilter and bindFilter[effectiveBindType] then table.insert(itemsToSell, { bag = bag, slot = slot, itemID = itemID }) end
+							elseif classID == 4 and subclassID == 5 and not C_TransmogCollection.PlayerHasTransmog(itemID) then
 								-- do not sell appearances
 							elseif classID == 7 and addon.Vendor.variables.itemQualityFilter[quality] then
 								local expTable = addon.db["vendor" .. addon.Vendor.variables.tabNames[quality] .. "CraftingExpansions"]
@@ -774,12 +780,12 @@ local function lookupItems()
 							elseif addon.Vendor.variables.itemQualityFilter[quality] then
 								local effectiveILvl = C_Item.GetDetailedItemLevelInfo(itemLink)
 								local bType, canUpgrade, isIgnoredUpgradeTrack = getTooltipInfo(bag, slot, quality)
-								if bType and bindType < bType then bindType = bType end
-								if not bType then bindType = 0 end
+								local effectiveBindType = bindType or 0
+								if bType and effectiveBindType < bType then effectiveBindType = bType end
 								if
 									addon.Vendor.variables.itemTypeFilter[classID]
 									and (not addon.Vendor.variables.itemSubTypeFilter[classID] or (addon.Vendor.variables.itemSubTypeFilter[classID] and addon.Vendor.variables.itemSubTypeFilter[classID][subclassID]))
-									and addon.Vendor.variables.itemBindTypeQualityFilter[quality][bindType]
+									and addon.Vendor.variables.itemBindTypeQualityFilter[quality][effectiveBindType]
 								then
 									if not canUpgrade and not isIgnoredUpgradeTrack then
 										local rIlvl = (avgItemLevelEquipped - addon.db["vendor" .. addon.Vendor.variables.tabNames[quality] .. "MinIlvlDif"])

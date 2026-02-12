@@ -822,7 +822,6 @@ L["autoAcceptGroupInviteFriendOnly"] = "Friends"
 L["autoAcceptSummon"] = "Automatically accept summons"
 L["autoAcceptSummonDesc"] = "Accepts summon requests automatically while you are out of combat."
 
-L["showLeaderIconRaidFrame"] = "Show leader icon on raid-style party frames"
 L["hidePlayerFrame"] = "Hide Player Frame"
 L["hidePartyFrameTitle"] = "Hide party frame title"
 L["unitFrameTruncateNames"] = "Truncate unit names"

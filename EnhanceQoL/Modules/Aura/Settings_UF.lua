@@ -30,7 +30,7 @@ local clampNumber = UFHelper and UFHelper.ClampNumber
 	end
 
 local MIN_WIDTH = 50
-local OFFSET_RANGE = 1000
+local OFFSET_RANGE = 3000
 local defaultStrata = "LOW"
 local defaultLevel = (_G.PlayerFrame and _G.PlayerFrame.GetFrameLevel and _G.PlayerFrame:GetFrameLevel()) or 0
 
@@ -471,6 +471,21 @@ local function refreshEditModeFrame(unit)
 	if not (EditMode and EditMode.RefreshFrame) then return end
 	local frameId = frameIds[unit]
 	if not frameId then return end
+	if EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName then
+		local layoutName = EditMode:GetActiveLayoutName()
+		if layoutName then
+			local cfg = ensureConfig(unit)
+			local def = defaultsFor(unit)
+			local anchor = (cfg and cfg.anchor) or (def and def.anchor) or {}
+			local data = EditMode:EnsureLayoutData(frameId, layoutName)
+			if data then
+				data.point = anchor.point or "CENTER"
+				data.relativePoint = anchor.relativePoint or anchor.point or "CENTER"
+				data.x = anchor.x or 0
+				data.y = anchor.y or 0
+			end
+		end
+	end
 	EditMode:RefreshFrame(frameId)
 	if EditMode and EditMode.IsInEditMode and EditMode:IsInEditMode() then
 		local entry = EditMode.frames and EditMode.frames[frameId]
@@ -933,6 +948,7 @@ local function buildUnitSettings(unit)
 		else
 			refreshFunc(unit)
 		end
+		if addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode() then refreshEditModeFrame(isBoss and "boss" or unit) end
 	end
 	local refresh = refreshSelf
 	local isPlayer = unit == "player"
@@ -1090,6 +1106,44 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "width" }, math.max(MIN_WIDTH, val or MIN_WIDTH))
 		refreshSelf()
 	end, def.width or MIN_WIDTH, "frame", true)
+
+	list[#list + 1] = radioDropdown(L["Anchor point"] or "Anchor point", anchorOptions9, function()
+		local fallback = (def.anchor and def.anchor.point) or "CENTER"
+		return getValue(unit, { "anchor", "point" }, fallback)
+	end, function(val)
+		setValue(unit, { "anchor", "point" }, val or "CENTER")
+		local currentRelative = getValue(unit, { "anchor", "relativePoint" }, nil)
+		if not currentRelative then setValue(unit, { "anchor", "relativePoint" }, val or "CENTER") end
+		refreshSelf()
+		refreshSettingsUI()
+	end, (def.anchor and def.anchor.point) or "CENTER", "frame")
+
+	list[#list + 1] = radioDropdown(L["Relative point"] or "Relative point", anchorOptions9, function()
+		local fallback = (def.anchor and def.anchor.relativePoint) or (def.anchor and def.anchor.point) or "CENTER"
+		return getValue(unit, { "anchor", "relativePoint" }, fallback)
+	end, function(val)
+		setValue(unit, { "anchor", "relativePoint" }, val or "CENTER")
+		refreshSelf()
+		refreshSettingsUI()
+	end, (def.anchor and def.anchor.relativePoint) or (def.anchor and def.anchor.point) or "CENTER", "frame")
+
+	list[#list + 1] = slider(L["Offset X"] or "Offset X", -OFFSET_RANGE, OFFSET_RANGE, 1, function()
+		local fallback = def.anchor and def.anchor.x or 0
+		local value = getValue(unit, { "anchor", "x" }, fallback)
+		return tonumber(value) or 0
+	end, function(val)
+		setValue(unit, { "anchor", "x" }, tonumber(val) or 0)
+		refreshSelf()
+	end, (def.anchor and def.anchor.x) or 0, "frame", true)
+
+	list[#list + 1] = slider(L["Offset Y"] or "Offset Y", -OFFSET_RANGE, OFFSET_RANGE, 1, function()
+		local fallback = def.anchor and def.anchor.y or 0
+		local value = getValue(unit, { "anchor", "y" }, fallback)
+		return tonumber(value) or 0
+	end, function(val)
+		setValue(unit, { "anchor", "y" }, tonumber(val) or 0)
+		refreshSelf()
+	end, (def.anchor and def.anchor.y) or 0, "frame", true)
 
 	if isBoss then
 		list[#list + 1] = slider(L["UFBossSpacing"] or "Boss spacing", 0, 100, 1, function() return getValue(unit, { "spacing" }, def.spacing or 4) end, function(val)
@@ -5893,6 +5947,7 @@ local function registerUnitFrame(unit, info)
 			cfg.anchor.x = newX
 			cfg.anchor.y = newY
 			requestRefresh(unit)
+			refreshSettingsUI()
 		end,
 		onEnter = function(activeFrame) syncEditModeSelectionStrata(activeFrame) end,
 		isEnabled = function() return ensureConfig(unit).enabled == true end,
