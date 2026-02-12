@@ -6,6 +6,7 @@
 
 - Unit Frames: Border settings not working
 - Unit Frames: Removed raid-style party leader icon hooks (`showLeaderIconRaidFrame`) to prevent taint involving `secureexecuterange`.
+- Resource Bars: Atlas texture wasn't applying
 
 ---
 
