@@ -6,6 +6,7 @@
 
 - Unit Frames (Auras): Added sliders to change aura border size and position.
 - Unit Frames (Auras): Expanded the slider ranges for more control.
+- UI: Added a `4K` login UI scaling preset (`0.3556`).
 
 ### 🐛 Fixed
 

@@ -4989,9 +4989,11 @@ local function CreateUI()
 		root:CreateButton(L["CooldownPanelEditor"] or "Cooldown Panel Editor", function()
 			if addon.Aura and addon.Aura.CooldownPanels and addon.Aura.CooldownPanels.OpenEditor then addon.Aura.CooldownPanels:OpenEditor() end
 		end)
+		--@debug@
 		root:CreateButton(L["VisibilityEditor"] or "Visibility Configurator", function()
 			if addon.Visibility and addon.Visibility.OpenEditor then addon.Visibility:OpenEditor() end
 		end)
+		--@end-debug@
 	end
 
 	-- Datenobjekt fr den Minimap-Button

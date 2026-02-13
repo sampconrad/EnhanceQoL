@@ -4566,7 +4566,7 @@ local function buildUnitSettings(unit)
 		end, ((auraDef.borderRenderMode or "EDGE"):upper() == "OVERLAY") and "OVERLAY" or "EDGE", "auras")
 		list[#list].isEnabled = isAuraEnabled
 
-		list[#list + 1] = slider(L["Aura border size (Edge)"] or "Aura border size (Edge)", 1, 64, 1, function()
+		list[#list + 1] = slider(L["Border size (Edge)"] or "Border size (Edge)", 1, 64, 1, function()
 			local iconSize = getValue(unit, { "auraIcons", "size" }, auraDef.size or 24)
 			local fallback = math.floor((iconSize * 0.08) + 0.5)
 			if fallback < 1 then fallback = 1 end
@@ -4582,7 +4582,7 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isAuraEdgeBorderMode
 
 		list[#list + 1] = slider(
-			L["Aura border offset (Edge)"] or "Aura border offset (Edge)",
+			L["Border offset (Edge)"] or "Border offset (Edge)",
 			-64,
 			64,
 			1,
