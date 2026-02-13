@@ -59,17 +59,17 @@ local function fmt(mode, cur, max, unit)
 	cur = cur or 0
 	max = max or 0
 	if mode == "PERCENT" then
-		return string.format("%s%%", AbbreviateNumbers(healthPercent(unit, cur, max)))
+		return string.format("%s%%", AbbreviateLargeNumbers(healthPercent(unit, cur, max)))
 	elseif mode == "ABS" then
 		return AbbreviateNumbers(cur)
 	elseif mode == "BOTH" then
 		local pct = healthPercent(unit, cur, max)
-		return string.format("%s%% (%s)", AbbreviateNumbers(pct), AbbreviateNumbers(cur))
+		return string.format("%s%% (%s)", AbbreviateLargeNumbers(pct), AbbreviateNumbers(cur))
 	elseif mode == "CURMAX" then
 		return string.format("%s / %s", AbbreviateNumbers(cur), AbbreviateNumbers(max))
 	elseif mode == "CURMAXPERCENT" then
 		local pct = healthPercent(unit, cur, max)
-		return string.format("%s / %s (%s%%)", AbbreviateNumbers(cur), AbbreviateNumbers(max), AbbreviateNumbers(pct))
+		return string.format("%s / %s (%s%%)", AbbreviateNumbers(cur), AbbreviateNumbers(max), AbbreviateLargeNumbers(pct))
 	else
 		return ""
 	end
@@ -110,10 +110,32 @@ local function getPlayerHB()
 	return hb, pf
 end
 
-local function shouldApply(kind)
+local function isUFEnabledConfig(cfg) return type(cfg) == "table" and cfg.enabled == true end
+
+local function isEQoLUFEnabled(kind, idx)
+	local ufFrames = addon and addon.db and addon.db.ufFrames
+	if type(ufFrames) ~= "table" then return false end
+
+	if kind == "boss" then
+		if idx then
+			if isUFEnabledConfig(ufFrames["boss" .. idx]) then return true end
+			return isUFEnabledConfig(ufFrames.boss)
+		end
+		if isUFEnabledConfig(ufFrames.boss) then return true end
+		local n = _G.MAX_BOSS_FRAMES or 5
+		for i = 1, n do
+			if isUFEnabledConfig(ufFrames["boss" .. i]) then return true end
+		end
+		return false
+	end
+
+	return isUFEnabledConfig(ufFrames[kind])
+end
+
+local function shouldApply(kind, idx)
 	local mode = HealthText.modes[kind] or "OFF"
-	-- When a mode is selected (not OFF), we actively apply our text
-	return mode ~= "OFF"
+	-- Apply only when mode is active and Blizzard frame is not replaced by EQoL UF.
+	return mode ~= "OFF" and not isEQoLUFEnabled(kind, idx)
 end
 
 local function unitFor(kind, idx)
@@ -123,7 +145,7 @@ local function unitFor(kind, idx)
 end
 
 function HealthText:Update(kind, idx)
-	if not shouldApply(kind) then return end
+	if not shouldApply(kind, idx) then return end
 	local hb
 	if kind == "player" then
 		hb = getPlayerHB()
@@ -164,7 +186,7 @@ local function ensureBarHook(hb, ctx)
 		hooksecurefunc(hb, "UpdateTextStringWithValues", function(bar, textString, value, min, max)
 			if not addon or not addon.HealthText then return end
 			local kind, idx = ctx.kind, ctx.idx
-			if not shouldApply(kind) then return end
+			if not shouldApply(kind, idx) then return end
 			if not textString then return end
 			local unit = unitFor(kind, idx)
 			if unit ~= "player" and not UnitExists(unit) then return end
@@ -182,7 +204,7 @@ local function ensureBarHook(hb, ctx)
 			if statusBar ~= hb or not textString then return end
 			if not addon or not addon.HealthText then return end
 			local kind, idx = ctx.kind, ctx.idx
-			if not shouldApply(kind) then return end
+			if not shouldApply(kind, idx) then return end
 			local unit = unitFor(kind, idx)
 			if unit ~= "player" and not UnitExists(unit) then return end
 			if UnitIsDead(unit) then
@@ -198,17 +220,27 @@ local function ensureBarHook(hb, ctx)
 end
 
 function HealthText:HookBars()
-	-- Player
-	local hb = getPlayerHB()
-	if hb then ensureBarHook(hb, { kind = "player" }) end
-	-- Target
-	hb = getTargetHB()
-	if hb then ensureBarHook(hb, { kind = "target" }) end
-	-- Bosses
-	local n = _G.MAX_BOSS_FRAMES or 5
-	for i = 1, n do
-		hb = getBossHB(i)
-		if hb then ensureBarHook(hb, { kind = "boss", idx = i }) end
+	local hb
+
+	-- Only hook bars for modes that are actively controlled by this module.
+	if shouldApply("player") then
+		hb = getPlayerHB()
+		if hb then ensureBarHook(hb, { kind = "player" }) end
+	end
+
+	if shouldApply("target") then
+		hb = getTargetHB()
+		if hb then ensureBarHook(hb, { kind = "target" }) end
+	end
+
+	if shouldApply("boss") then
+		local n = _G.MAX_BOSS_FRAMES or 5
+		for i = 1, n do
+			if shouldApply("boss", i) then
+				hb = getBossHB(i)
+				if hb then ensureBarHook(hb, { kind = "boss", idx = i }) end
+			end
+		end
 	end
 
 	-- Post-hook: ensure our text after default updates for any TargetFrameHealthBarMixin
@@ -231,7 +263,7 @@ function HealthText:HookBars()
 				elseif name then
 					local i = tonumber(name:match("^Boss(%d)TargetFrame$"))
 					if i then
-						if shouldApply("boss") then ht:Update("boss", i) end
+						if shouldApply("boss", i) then ht:Update("boss", i) end
 						return
 					end
 				end
@@ -243,9 +275,10 @@ function HealthText:HookBars()
 end
 
 local function anyEnabled()
-	for _, v in pairs(HealthText.modes) do
-		if v and v ~= "OFF" then return true end
-	end
+	if shouldApply("player") then return true end
+	if shouldApply("target") then return true end
+	if shouldApply("boss") then return true end
+	return false
 end
 
 local function updateEventRegistration()
@@ -269,10 +302,17 @@ end
 
 function HealthText:SetMode(kind, mode)
 	if not kind then return end
-	self.modes[kind] = mode or "OFF"
+	local previousMode = self.modes[kind] or "OFF"
+	local nextMode = mode or "OFF"
+	self.modes[kind] = nextMode
 	updateEventRegistration()
-	self:HookBars()
+	if anyEnabled() then self:HookBars() end
 	self:UpdateAll()
+	if nextMode == "OFF" and previousMode ~= "OFF" then
+		addon.variables = addon.variables or {}
+		addon.variables.requireReload = true
+		if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
+	end
 end
 
 -- No explicit CVar override controls: OFF = respect Blizzard; others = override
@@ -318,8 +358,10 @@ local function initFromDB()
 	end
 
 	updateEventRegistration()
-	HealthText:HookBars()
-	HealthText:UpdateAll()
+	if anyEnabled() then
+		HealthText:HookBars()
+		HealthText:UpdateAll()
+	end
 end
 
 initFromDB()

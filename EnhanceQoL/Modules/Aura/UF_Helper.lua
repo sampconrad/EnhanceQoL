@@ -655,13 +655,23 @@ local function ensurePrivateAuraMousePassthrough(anchor)
 	if not anchor then return nil end
 	local blocker = anchor._eqolPrivateAuraBlocker
 	if not blocker then
-		blocker = CreateFrame("Button", nil, anchor)
+		blocker = CreateFrame("Frame", nil, anchor)
 		blocker:EnableMouse(true)
-		if blocker.SetMouseClickEnabled then
-			blocker:SetMouseClickEnabled(false)
-		elseif blocker.SetPropagateMouseClicks then
+		if blocker.SetMouseMotionEnabled then blocker:SetMouseMotionEnabled(true) end
+
+		local inCombat = InCombatLockdown and InCombatLockdown()
+		if not inCombat and blocker.SetPassThroughButtons then
+			blocker:SetPassThroughButtons("LeftButton", "RightButton", "MiddleButton", "Button4", "Button5")
+			blocker._eqolPassThroughConfigured = true
+		elseif not inCombat and blocker.SetPropagateMouseClicks then
 			blocker:SetPropagateMouseClicks(true)
+			blocker._eqolPassThroughConfigured = true
+		else
+			blocker:EnableMouse(false)
+			blocker._eqolPassThroughConfigured = false
 		end
+
+		if not (InCombatLockdown and InCombatLockdown()) and blocker.SetPropagateMouseMotion then blocker:SetPropagateMouseMotion(true) end
 		if blocker.SetScript then
 			blocker:SetScript("OnEnter", function()
 				if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
@@ -676,10 +686,19 @@ local function ensurePrivateAuraMousePassthrough(anchor)
 	if blocker.GetParent and blocker:GetParent() ~= anchor then blocker:SetParent(anchor) end
 	if blocker.SetFrameStrata and anchor.GetFrameStrata then blocker:SetFrameStrata(anchor:GetFrameStrata()) end
 	if blocker.SetFrameLevel and anchor.GetFrameLevel then blocker:SetFrameLevel((anchor:GetFrameLevel() or 0) + 30) end
-	if blocker.SetMouseClickEnabled then
-		blocker:SetMouseClickEnabled(false)
-	elseif blocker.SetPropagateMouseClicks then
-		blocker:SetPropagateMouseClicks(true)
+	local inCombat = InCombatLockdown and InCombatLockdown()
+	if not inCombat then
+		if blocker.SetMouseMotionEnabled then blocker:SetMouseMotionEnabled(true) end
+		if blocker.SetPassThroughButtons then
+			blocker:SetPassThroughButtons("LeftButton", "RightButton", "MiddleButton", "Button4", "Button5")
+			blocker._eqolPassThroughConfigured = true
+		elseif blocker.SetPropagateMouseClicks then
+			blocker:SetPropagateMouseClicks(true)
+			blocker._eqolPassThroughConfigured = true
+		end
+		if blocker.SetPropagateMouseMotion then blocker:SetPropagateMouseMotion(true) end
+	else
+		if not blocker._eqolPassThroughConfigured then blocker:EnableMouse(false) end
 	end
 	if blocker.SetScript then
 		blocker:SetScript("OnEnter", function()
@@ -759,7 +778,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 	local parentPoint = tostring(parentCfg.point or "CENTER"):upper()
 	local parentOffsetX = tonumber(parentCfg.offsetX) or 0
 	local parentOffsetY = tonumber(parentCfg.offsetY) or 0
-	local useInverse = inverseAnchor ~= false
+	local useInverse = inverseAnchor == true
 	local anchorPoint = useInverse and inversePoint(parentPoint) or parentPoint
 
 	if parent and container.GetParent and container:GetParent() ~= parent then container:SetParent(parent) end

@@ -182,39 +182,6 @@ data = {
 		parentSection = expandable,
 	},
 	{
-		var = "unitFrameTruncateNames",
-		text = L["unitFrameTruncateNames"],
-		func = function(v)
-			addon.db["unitFrameTruncateNames"] = v
-			if v and addon.functions.EnsureUnitFrameNameHooks then addon.functions.EnsureUnitFrameNameHooks() end
-			addon.functions.updateUnitFrameNames()
-		end,
-		parentSection = expandable,
-		children = {
-			{
-				var = "unitFrameMaxNameLength",
-				text = L["unitFrameMaxNameLength"],
-				get = function() return addon.db and addon.db.unitFrameMaxNameLength or 6 end,
-				set = function(val)
-					addon.db["unitFrameMaxNameLength"] = val
-					addon.functions.updateUnitFrameNames()
-				end,
-				min = 1,
-				max = 20,
-				step = 1,
-				default = 6,
-				sType = "slider",
-				parent = true,
-				parentCheck = function()
-					return addon.SettingsLayout.elements["unitFrameTruncateNames"]
-						and addon.SettingsLayout.elements["unitFrameTruncateNames"].setting
-						and addon.SettingsLayout.elements["unitFrameTruncateNames"].setting:GetValue() == true
-				end,
-				parentSection = expandable,
-			},
-		},
-	},
-	{
 		var = "unitFrameScaleEnabled",
 		text = L["unitFrameScaleEnable"],
 		func = function(v)

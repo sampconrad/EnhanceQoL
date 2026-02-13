@@ -1,6 +1,18 @@
 # Changelog
 
-## [7.12.1] - 2026-02-12
+## [7.13.1] - 2026-02-12
+
+### 🐛 Fixed
+
+- Unit Frames: Party/Raid-Frames were not clickthrough for auras and private auras
+
+---
+
+## [7.13.0] - 2026-02-12
+
+### ✨ Added
+
+- Group Frames (Party/Raid/MT/MA): Added Edit Mode `Status icons` section for Ready Check, Summon, Resurrect, and Phasing with per-icon enable, sample toggle, size, anchor, and X/Y offsets.
 
 ### 🐛 Fixed
 

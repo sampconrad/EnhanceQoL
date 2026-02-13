@@ -14,6 +14,8 @@ local frameLoad = CreateFrame("Frame")
 -- ==== Inspect cache (spec/ilvl/score) ====
 local InspectCache = {} -- [guid] = { ilvl, specName, score, last }
 local CACHE_TTL = 30 -- seconds
+local INSPECT_REQUEST_COOLDOWN = 1.25 -- avoid spamming NotifyInspect while hovering
+local INSPECT_PENDING_TIMEOUT = 2.0 -- fail-safe in case INSPECT_READY is dropped
 local function now() return GetTime() end
 
 local function isSecret(value) return issecretvalue and issecretvalue(value) end
@@ -56,9 +58,26 @@ end
 
 -- no compact score formatting needed anymore
 
-local pendingGUID, pendingUnit
+local pendingGUID, pendingUnit, pendingRequestedAt
 local EnsureUnitData -- forward declaration
 local fInspect = CreateFrame("Frame")
+
+local function IsInspectUIBusy()
+	if InspectFrame and InspectFrame.IsShown and InspectFrame:IsShown() then return true end
+	if PlayerSpellsFrame and PlayerSpellsFrame.IsInspecting and PlayerSpellsFrame:IsInspecting() then return true end
+	return false
+end
+
+local function ClearTooltipInspectState() pendingGUID, pendingUnit, pendingRequestedAt = nil, nil, nil end
+
+local function FinishTooltipInspectRequest()
+	ClearTooltipInspectState()
+	if C_Timer and C_Timer.After and ClearInspectPlayer and not IsInspectUIBusy() then
+		C_Timer.After(0, function()
+			if ClearInspectPlayer and not IsInspectUIBusy() then ClearInspectPlayer() end
+		end)
+	end
+end
 
 -- Decide whether we need INSPECT_READY at all (opt-in)
 local function ShouldUseInspectFeature() return (addon.db and (addon.db["TooltipUnitShowSpec"] or addon.db["TooltipUnitShowItemLevel"])) or false end
@@ -95,7 +114,7 @@ local function UpdateInspectEventRegistration()
 		fInspect:RegisterEvent("INSPECT_READY")
 		if addon.db["TooltipUnitInspectRequireModifier"] then fInspect:RegisterEvent("MODIFIER_STATE_CHANGED") end
 	else
-		pendingGUID, pendingUnit = nil, nil
+		ClearTooltipInspectState()
 	end
 end
 
@@ -171,11 +190,11 @@ fInspect:SetScript("OnEvent", function(_, ev, arg1, arg2)
 		if not safeEquals(guid, pendingGUID) then return end
 		local unitGuid = pendingUnit and UnitGUID(pendingUnit)
 		if isSecret(unitGuid) or isSecret(pendingUnit) then
-			pendingGUID, pendingUnit = nil, nil
+			FinishTooltipInspectRequest()
 			return
 		end
 		local unit = (unitGuid == guid) and pendingUnit or nil
-		pendingGUID, pendingUnit = nil, nil
+		FinishTooltipInspectRequest()
 		if not unit or not UnitExists(unit) then return end
 
 		local ilvl
@@ -228,8 +247,12 @@ EnsureUnitData = function(unit)
 	local guid = UnitGUID(unit)
 	if type(guid) == "nil" or issecretvalue(guid) then return end
 	if not guid then return end
+	local tNow = now()
 	local c = InspectCache[guid]
-	if c and (now() - (c.last or 0) < CACHE_TTL) then return end
+	if c then
+		if tNow - (c.last or 0) < CACHE_TTL then return end
+		if tNow - (c.requestAt or 0) < INSPECT_REQUEST_COOLDOWN then return end
+	end
 
 	-- Self: no inspect needed
 	if UnitIsUnit(unit, "player") then
@@ -248,18 +271,33 @@ EnsureUnitData = function(unit)
 
 	if addon.db["TooltipUnitInspectRequireModifier"] and not IsConfiguredModifierDown() then return end
 
+	if IsInspectUIBusy() then
+		ClearTooltipInspectState()
+		return
+	end
+
+	if pendingGUID and pendingRequestedAt and (tNow - pendingRequestedAt) >= INSPECT_PENDING_TIMEOUT then FinishTooltipInspectRequest() end
+
 	-- Others: request inspect if possible
 	if CanInspect and CanInspect(unit) and not InCombatLockdown() and not issecretvalue(unit) then
 		if pendingGUID and pendingUnit then
 			local pendingUnitGuid = UnitGUID(pendingUnit)
 			if issecretvalue(pendingUnitGuid) or issecretvalue(pendingGUID) or issecretvalue(guid) then
-				pendingGUID, pendingUnit = nil, nil
+				ClearTooltipInspectState()
 			elseif pendingUnitGuid == pendingGUID and pendingGUID == guid then
 				return
+			elseif pendingRequestedAt and (tNow - pendingRequestedAt) < INSPECT_PENDING_TIMEOUT then
+				return
+			else
+				ClearTooltipInspectState()
 			end
 		end
+		local cacheEntry = c or {}
+		cacheEntry.requestAt = tNow
+		InspectCache[guid] = cacheEntry
 		pendingGUID = guid
 		pendingUnit = unit
+		pendingRequestedAt = tNow
 		if NotifyInspect then NotifyInspect(unit) end
 	end
 end

@@ -2949,7 +2949,10 @@ UF._isFrameBorderEnabled = UF._isFrameBorderEnabled
 	or function(borderCfg, borderDef, fallback)
 		if borderCfg == true then return true end
 		if borderCfg == false then return false end
-		local enabled = type(borderCfg) == "table" and borderCfg.enabled or nil
+
+		local enabled
+		if type(borderCfg) == "table" then enabled = borderCfg.enabled end
+
 		if enabled == nil and type(borderDef) == "table" then enabled = borderDef.enabled end
 		if enabled == nil then enabled = fallback end
 		if enabled == nil then enabled = true end

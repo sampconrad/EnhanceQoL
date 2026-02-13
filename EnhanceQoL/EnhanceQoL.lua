@@ -3016,8 +3016,6 @@ local function initUnitFrame()
 	-- Player resting visuals (ZZZ + glow)
 	addon.functions.InitDBValue("hideRestingGlow", false)
 	addon.functions.InitDBValue("hidePartyFrameTitle", false)
-	addon.functions.InitDBValue("unitFrameTruncateNames", false)
-	addon.functions.InitDBValue("unitFrameMaxNameLength", addon.variables.unitFrameMaxNameLength)
 	addon.functions.InitDBValue("unitFrameScaleEnabled", false)
 	addon.functions.InitDBValue("unitFrameScale", addon.variables.unitFrameScale)
 	addon.functions.InitDBValue("ufUseCustomClassColors", false)
@@ -3103,56 +3101,10 @@ local function initUnitFrame()
 	end) end
 	addon.functions.togglePartyFrameTitle(addon.db["hidePartyFrameTitle"])
 
-	local function TruncateFrameName(cuf)
-		if not addon.db["unitFrameTruncateNames"] then return end
-		if not addon.db["unitFrameMaxNameLength"] then return end
-		if not cuf then return end
-		if issecretvalue and issecretvalue(cuf.unit) then return end
-
-		if cuf.unit and cuf.unit:match("^nameplate") then return end
-
-		local name
-		if cuf.unit and UnitExists(cuf.unit) then
-			name = UnitName(cuf.unit)
-		elseif cuf.displayedUnit and UnitExists(cuf.displayedUnit) then
-			name = UnitName(cuf.displayedUnit)
-		elseif cuf.name and type(cuf.name.GetText) == "function" then
-			name = cuf.name:GetText()
-		end
-
-		if issecretvalue and issecretvalue(name) then return end
-
-		if name and cuf.name and type(cuf.name.SetText) == "function" then
-			-- Remove server names before truncation
-			local shortName = strsplit("-", name)
-			if #shortName > addon.db["unitFrameMaxNameLength"] then shortName = strsub(shortName, 1, addon.db["unitFrameMaxNameLength"]) end
-			if shortName ~= name then cuf.name:SetText(shortName) end
-		end
-	end
-
-	local function ApplyFrameSettings(cuf) TruncateFrameName(cuf) end
-
-	local function EnsureUnitFrameNameHooks()
-		addon.variables = addon.variables or {}
-		if addon.variables._eqolUnitFrameNameHooks then return end
-		if CompactUnitFrame_UpdateName then hooksecurefunc("CompactUnitFrame_UpdateName", TruncateFrameName) end
-		if DefaultCompactUnitFrameSetup then hooksecurefunc("DefaultCompactUnitFrameSetup", ApplyFrameSettings) end
-		addon.variables._eqolUnitFrameNameHooks = true
-	end
-	addon.functions.EnsureUnitFrameNameHooks = EnsureUnitFrameNameHooks
-
-	function addon.functions.updateUnitFrameNames()
-		if not addon.db["unitFrameTruncateNames"] then return end
-		if addon.functions.EnsureUnitFrameNameHooks then addon.functions.EnsureUnitFrameNameHooks() end
-		for i = 1, 5 do
-			local f = _G["CompactPartyFrameMember" .. i]
-			TruncateFrameName(f)
-		end
-		for i = 1, 40 do
-			local f = _G["CompactRaidFrame" .. i]
-			TruncateFrameName(f)
-		end
-	end
+	-- Name truncation was removed to avoid touching CompactUnitFrame name update flows.
+	-- Keep no-op functions for compatibility with any lingering callers.
+	addon.functions.EnsureUnitFrameNameHooks = function() end
+	addon.functions.updateUnitFrameNames = function() end
 
 	function addon.functions.updatePartyFrameScale()
 		if not addon.db["unitFrameScaleEnabled"] then return end
@@ -3232,7 +3184,6 @@ local function initUnitFrame()
 		end
 	end
 
-	if addon.db["unitFrameTruncateNames"] then addon.functions.updateUnitFrameNames() end
 	if addon.db["unitFrameScaleEnabled"] then addon.functions.updatePartyFrameScale() end
 	-- Apply resting visuals if option is enabled
 	if addon.db["hideRestingGlow"] and addon.functions.ApplyRestingVisuals then addon.functions.ApplyRestingVisuals() end

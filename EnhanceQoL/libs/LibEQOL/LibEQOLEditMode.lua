@@ -2723,7 +2723,22 @@ local function buildSlider()
 			self.fixedHeight = sliderHeight
 			self:SetHeight(sliderHeight)
 		end
-		self.formatters[MinimalSliderWithSteppersMixin.Label.Right] = CreateMinimalSliderFormatter(MinimalSliderWithSteppersMixin.Label.Right, data.formatter)
+		local formatter = data.formatter
+		if not formatter then
+			local stepHint = tonumber(data.valueStep)
+			if stepHint and stepHint >= 1 and stepHint == math.floor(stepHint) then
+				formatter = function(value)
+					local n = tonumber(value) or 0
+					if n >= 0 then
+						n = math.floor(n + 0.5)
+					else
+						n = math.ceil(n - 0.5)
+					end
+					return tostring(n)
+				end
+			end
+		end
+		self.formatters[MinimalSliderWithSteppersMixin.Label.Right] = CreateMinimalSliderFormatter(MinimalSliderWithSteppersMixin.Label.Right, formatter)
 
 		local minV = tonumber(data.minValue) or 0
 		local maxV = tonumber(data.maxValue) or 1
@@ -2845,7 +2860,12 @@ local function buildSlider()
 
 		input:SetScript("OnEnterPressed", commitInput)
 		input:SetScript("OnEscapePressed", function(box)
-			if box:GetParent() and box:GetParent().currentValue then box:SetText(tostring(box:GetParent().currentValue)) end
+			local owner = box:GetParent()
+			local currentValue = owner and owner.currentValue
+			if currentValue ~= nil then
+				local fmt = owner and owner.formatters and owner.formatters[MinimalSliderWithSteppersMixin.Label.Right]
+				box:SetText(fmt and fmt(currentValue) or tostring(currentValue))
+			end
 			box:ClearFocus()
 		end)
 		input:SetScript("OnEditFocusLost", function(box)
