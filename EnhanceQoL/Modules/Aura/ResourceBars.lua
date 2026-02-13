@@ -688,6 +688,11 @@ local function specSecondaries(specInfo)
 	return list
 end
 
+function ResourceBars.GetEditModeFrameId(barType, classTag)
+	local class = classTag or addon.variables.unitClass or "UNKNOWN"
+	return "resourceBar_" .. tostring(class) .. "_" .. tostring(barType or "")
+end
+
 local function secondaryIndex(specInfo, pType)
 	if not specInfo then return nil end
 	for idx, val in ipairs(specSecondaries(specInfo)) do
@@ -1915,15 +1920,14 @@ local function SnapFractionToSpan(bar, span, frac)
 	return physicalOffset / s
 end
 
--- Legacy migration: pull saved Edit Mode layout coords into empty anchors so
--- old profiles keep their bar positions after a reload.
+-- Pull saved Edit Mode layout coords into empty anchors.
 local function backfillAnchorFromLayout(anchor, barType)
 	if not anchor or (anchor.x ~= nil and anchor.y ~= nil) then return end
 	if anchor.relativeFrame and anchor.relativeFrame ~= "" and anchor.relativeFrame ~= "UIParent" then return end
 	local editMode = addon and addon.EditMode
 	if not editMode or not editMode.GetLayoutData then return end
 	local layoutName = (editMode.GetActiveLayoutName and editMode:GetActiveLayoutName()) or editMode.activeLayout
-	local frameId = "resourceBar_" .. tostring(barType or "")
+	local frameId = ResourceBars.GetEditModeFrameId(barType)
 	local data = editMode:GetLayoutData(frameId, layoutName)
 	if not data or data.x == nil or data.y == nil then return end
 	local point = data.point or data.relativePoint

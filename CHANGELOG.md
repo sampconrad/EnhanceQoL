@@ -1,5 +1,16 @@
 # Changelog
 
+## [7.14.1] - 2026-02-13
+
+### 🐛 Fixed
+
+- Resource Bars: Fixed a visual issue where one Holy Power divider could look out of place at certain UI scales.
+- Resource Bars: New class/spec bars now keep the position and size from your saved global profile.
+- Resource Bars: Edit Mode layouts are now separated by class, so switching classes/profiles no longer mixes bar positions and sizes.
+- Resource Bars: Removed legacy layout fallback to prevent old shared layout data from overriding current class-specific settings.
+
+---
+
 ## [7.14.0] - 2026-02-13
 
 ### ✨ Added
