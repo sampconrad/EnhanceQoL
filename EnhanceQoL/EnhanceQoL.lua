@@ -2958,18 +2958,42 @@ local function initMisc()
 		AzeriteLevelUpToast:Hide()
 	end
 	addon.functions.updateRaidToolsHook()
-	ExpansionLandingPageMinimapButton:HookScript("OnShow", function(self)
-		local id = addon.variables.landingPageReverse[self.title]
-		if addon.db["enableSquareMinimap"] then
-			self:ClearAllPoints()
-			if id == 20 then
-				self:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -25, -25)
-			else
-				self:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -16, -16)
-			end
+	addon.variables = addon.variables or {}
+
+	local function applySquareLandingPageButtonAnchor(button)
+		if not button or not addon.db or not addon.db["enableSquareMinimap"] then return end
+		local reverse = addon.variables and addon.variables.landingPageReverse
+		local id = reverse and reverse[button.title]
+		button:ClearAllPoints()
+		if id == 20 then
+			button:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -25, -25)
+		else
+			button:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -16, -16)
 		end
-		if addon.db["hiddenLandingPages"][id] then self:Hide() end
-	end)
+	end
+
+	local function refreshLandingPageButtonFix()
+		local button = _G.ExpansionLandingPageMinimapButton
+		if not button then return end
+
+		applySquareLandingPageButtonAnchor(button)
+
+		local reverse = addon.variables and addon.variables.landingPageReverse
+		local id = reverse and reverse[button.title]
+		if addon.db and addon.db["hiddenLandingPages"] and id and addon.db["hiddenLandingPages"][id] then button:Hide() end
+	end
+
+	if ExpansionLandingPageMinimapButton and not addon.variables._eqolLandingPageButtonHooked then
+		ExpansionLandingPageMinimapButton:HookScript("OnShow", refreshLandingPageButtonFix)
+		ExpansionLandingPageMinimapButton:RegisterEvent("COVENANT_CHOSEN")
+		ExpansionLandingPageMinimapButton:HookScript("OnEvent", function(_, event)
+			if event ~= "COVENANT_CHOSEN" then return end
+			C_Timer.After(0, refreshLandingPageButtonFix)
+		end)
+		addon.variables._eqolLandingPageButtonHooked = true
+	end
+
+	C_Timer.After(0, refreshLandingPageButtonFix)
 
 	-- Right-click context menu for expansion/garrison minimap buttons
 	local MU = MenuUtil
