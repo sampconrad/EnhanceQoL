@@ -281,6 +281,13 @@ end
 local function resolveFrameByName(name)
 	if type(name) ~= "string" or name == "" then return nil end
 	local obj = _G[name]
+	if not obj then
+		if name == "PetActionBar" then
+			obj = _G.PetActionBarFrame
+		elseif name == "StanceBar" then
+			obj = _G.StanceBarFrame
+		end
+	end
 	if not obj or type(obj) ~= "table" then return nil end
 	if obj.IsForbidden and obj:IsForbidden() then return nil end
 	if obj.IsObjectType and not obj:IsObjectType("Frame") then return nil end

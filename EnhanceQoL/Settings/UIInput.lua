@@ -161,6 +161,7 @@ local verticalScale = 11 / 17
 local horizontalScale = 565 / 571
 
 local UI_SCALE_PRESETS = {
+	Scale4K = 0.355555555556,
 	Scale1440p = 0.533333333333,
 	Scale1080p = 0.711111111111,
 	Scale1440p125 = 0.666666666666,
@@ -440,13 +441,14 @@ local interfaceExpandable = addon.functions.SettingsCreateExpandableSection(cUII
 
 local uiScaleOptions = {
 	NoScaling = L["uiScalePresetNone"] or "No scaling",
+	Scale4K = "0.3556 (4K)",
 	Scale1080p = "0.7111 (1080p)",
 	Scale1440p = "0.5333 (1440p)",
 	Scale1440p125 = "0.6666 (1440p 125%)",
 	Scale1080p125 = "0.8888 (1080p 125%)",
 }
 
-local uiScaleOrder = { "NoScaling", "Scale1440p", "Scale1440p125", "Scale1080p", "Scale1080p125" }
+local uiScaleOrder = { "NoScaling", "Scale4K", "Scale1440p", "Scale1440p125", "Scale1080p", "Scale1080p125" }
 
 addon.functions.SettingsCreateDropdown(cUIInput, {
 	var = "uiScalePreset",

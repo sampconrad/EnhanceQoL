@@ -1,5 +1,59 @@
 # Changelog
 
+## [7.15.2] - 2026-02-13
+
+- Resource Bar: Separator backdrop was not working
+
+---
+
+## [7.15.1] - 2026-02-13
+
+### 🐛 Fixed
+
+- XML Error
+
+---
+
+## [7.15.0] - 2026-02-13
+
+### ✨ Added
+
+- Unit Frames (Auras): Added sliders to change aura border size and position.
+- Unit Frames (Auras): Expanded the slider ranges for more control.
+- UI: Added a `4K` login UI scaling preset (`0.3556`).
+
+### 🐛 Fixed
+
+- Resource Bars: Fixed a visual issue where one Holy Power divider could look out of place at certain UI scales.
+- Resource Bars: New class/spec bars now keep the position and size from your saved global profile.
+- Resource Bars: Edit Mode layouts are now separated by class, so switching classes/profiles no longer mixes bar positions and sizes.
+- Resource Bars: Removed legacy layout fallback to prevent old shared layout data from overriding current class-specific settings.
+- Action Bars: Added `Always hidden` to action bar visibility rules (including Stance Bar) and fixed Pet Action Bar/Stance Bar visibility resolution so both bars are reliably affected by visibility settings.
+
+---
+
+## [7.14.0] - 2026-02-13
+
+### ✨ Added
+
+- Resource Bars: Added a new text option `Hide percent (%)` for percentage display across health/power/resource bars.
+
+### 🐛 Fixed
+
+- CVar persistence: Removed forced persistence handling for `raidFramesDisplayClassColor` and `pvpFramesDisplayClassColor` to avoid UI update errors while Blizzard unit/nameplate frames refresh.
+
+---
+
+## [7.13.2] - 2026-02-13
+
+### 🐛 Fixed
+
+- Resource Bars: Soul Shards now show correct full values for Affliction and Demonology; decimal shard values remain only for Destruction.
+- Vendor: CraftShopper no longer forces to hide `Track recipe`
+- Forbidden table error fixes
+
+---
+
 ## [7.13.1] - 2026-02-12
 
 ### 🐛 Fixed

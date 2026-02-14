@@ -99,11 +99,29 @@ local DEFAULT_ACTION_BUTTON_COUNT = _G.NUM_ACTIONBAR_BUTTONS or 12
 local PET_ACTION_BUTTON_COUNT = _G.NUM_PET_ACTION_SLOTS or 10
 local STANCE_ACTION_BUTTON_COUNT = _G.NUM_STANCE_SLOTS or _G.NUM_SHAPESHIFT_SLOTS or 10
 
+local ACTION_BAR_FRAME_ALIASES = {
+	PetActionBar = { "PetActionBarFrame" },
+	StanceBar = { "StanceBarFrame" },
+}
+
+local function ResolveActionBarFrame(barName)
+	if type(barName) ~= "string" or barName == "" then return nil end
+	local frame = _G[barName]
+	if frame then return frame end
+	local aliases = ACTION_BAR_FRAME_ALIASES[barName]
+	if not aliases then return nil end
+	for _, alias in ipairs(aliases) do
+		frame = _G[alias]
+		if frame then return frame end
+	end
+	return nil
+end
+
 local function GetActionBarButtonPrefix(barName)
 	if not barName then return nil, 0 end
 	if barName == "MainMenuBar" or barName == "MainActionBar" then return "ActionButton", DEFAULT_ACTION_BUTTON_COUNT end
-	if barName == "PetActionBar" then return "PetActionButton", PET_ACTION_BUTTON_COUNT end
-	if barName == "StanceBar" then return "StanceButton", STANCE_ACTION_BUTTON_COUNT end
+	if barName == "PetActionBar" or barName == "PetActionBarFrame" then return "PetActionButton", PET_ACTION_BUTTON_COUNT end
+	if barName == "StanceBar" or barName == "StanceBarFrame" then return "StanceButton", STANCE_ACTION_BUTTON_COUNT end
 	return barName .. "Button", DEFAULT_ACTION_BUTTON_COUNT
 end
 
@@ -403,7 +421,7 @@ local visibilityRuleMetadata = {
 		key = "ALWAYS_HIDDEN",
 		label = L["visibilityRule_alwaysHidden"] or "Always hidden",
 		description = L["visibilityRule_alwaysHidden_desc"],
-		appliesTo = { frame = true },
+		appliesTo = { actionbar = true, frame = true },
 		advanced = true,
 		order = 100,
 	},
@@ -1735,7 +1753,18 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 
 	if not persistLegacy and incoming == nil then
 		if type(source) == "table" then
-			if source.MOUSEOVER == true or source.ALWAYS_IN_COMBAT == true or source.ALWAYS_OUT_OF_COMBAT == true or source.SKYRIDING_ACTIVE == true or source.SKYRIDING_INACTIVE == true then
+			if
+				source.MOUSEOVER == true
+				or source.ALWAYS_IN_COMBAT == true
+				or source.ALWAYS_OUT_OF_COMBAT == true
+				or source.SKYRIDING_ACTIVE == true
+				or source.SKYRIDING_INACTIVE == true
+				or source.PLAYER_CASTING == true
+				or source.PLAYER_MOUNTED == true
+				or source.PLAYER_NOT_MOUNTED == true
+				or source.PLAYER_IN_GROUP == true
+				or source.ALWAYS_HIDDEN == true
+			then
 				return source
 			end
 			return nil
@@ -1755,6 +1784,7 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			PLAYER_MOUNTED = source.PLAYER_MOUNTED == true,
 			PLAYER_NOT_MOUNTED = source.PLAYER_NOT_MOUNTED == true,
 			PLAYER_IN_GROUP = source.PLAYER_IN_GROUP == true,
+			ALWAYS_HIDDEN = source.ALWAYS_HIDDEN == true,
 		}
 	elseif source == true then
 		config = {
@@ -1767,6 +1797,11 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			PLAYER_MOUNTED = false,
 			PLAYER_NOT_MOUNTED = false,
 			PLAYER_IN_GROUP = false,
+			ALWAYS_HIDDEN = false,
+		}
+	elseif source == "hide" then
+		config = {
+			ALWAYS_HIDDEN = true,
 		}
 	else
 		config = nil
@@ -1784,6 +1819,7 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			or config.PLAYER_MOUNTED
 			or config.PLAYER_NOT_MOUNTED
 			or config.PLAYER_IN_GROUP
+			or config.ALWAYS_HIDDEN
 		)
 	then
 		config = nil
@@ -1803,6 +1839,7 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			if config.PLAYER_MOUNTED then stored.PLAYER_MOUNTED = true end
 			if config.PLAYER_NOT_MOUNTED then stored.PLAYER_NOT_MOUNTED = true end
 			if config.PLAYER_IN_GROUP then stored.PLAYER_IN_GROUP = true end
+			if config.ALWAYS_HIDDEN then stored.ALWAYS_HIDDEN = true end
 			addon.db[variable] = stored
 		end
 	end
@@ -1837,6 +1874,7 @@ end
 
 local function ActionBarShouldForceShowByConfig(config, context, combatOverride)
 	if not config then return false end
+	if config.ALWAYS_HIDDEN then return false end
 	local ctx = context or GetActionBarVisibilityContext(combatOverride)
 	if config.SKYRIDING_ACTIVE and ctx.isSkyriding then return true end
 	if config.ALWAYS_IN_COMBAT and ctx.inCombat then return true end
@@ -1920,8 +1958,12 @@ local function ApplyActionBarAlpha(bar, variable, config, combatOverride, skipFa
 		cfg = GetActionBarVisibilityConfig(variable)
 	end
 	if not cfg then return end
-	local ctx = context or GetActionBarVisibilityContext(combatOverride)
 	local useFade = ShouldFadeActionBar(skipFade)
+	if cfg.ALWAYS_HIDDEN then
+		ApplyAlphaToRegion(bar, 0, useFade)
+		return
+	end
+	local ctx = context or GetActionBarVisibilityContext(combatOverride)
 	local fadedAlpha = GetActionBarFadedAlpha()
 	local baseAlpha = GetActionBarBaseAlpha(cfg, fadedAlpha)
 	local hasShowRules = cfg.MOUSEOVER
@@ -1972,6 +2014,10 @@ local function EQOL_HideBarIfNotHovered(bar, variable)
 		local context = GetActionBarVisibilityContext()
 		local fadedAlpha = GetActionBarFadedAlpha()
 		local baseAlpha = GetActionBarBaseAlpha(current, fadedAlpha)
+		if current.ALWAYS_HIDDEN then
+			ApplyAlphaToRegion(bar, 0, useFade)
+			return
+		end
 		if ActionBarShouldForceShowByConfig(current, context) then
 			ApplyAlphaToRegion(bar, 1, useFade)
 			return
@@ -2021,7 +2067,7 @@ end
 -- Action Bars
 local EnsureActionBarVisibilityWatcher
 local function UpdateActionBarMouseover(barName, config, variable)
-	local bar = _G[barName]
+	local bar = ResolveActionBarFrame(barName)
 	if not bar then return end
 
 	local btnPrefix
@@ -2033,9 +2079,9 @@ local function UpdateActionBarMouseover(barName, config, variable)
 			leave:SetAlpha(1)
 		end
 		btnPrefix = "ActionButton"
-	elseif barName == "PetActionBar" then
+	elseif barName == "PetActionBar" or barName == "PetActionBarFrame" then
 		btnPrefix = "PetActionButton"
-	elseif barName == "StanceBar" then
+	elseif barName == "StanceBar" or barName == "StanceBarFrame" then
 		btnPrefix = "StanceButton"
 	else
 		btnPrefix = barName .. "Button"
@@ -2240,7 +2286,7 @@ local function ApplyActionBarVisibilityAlpha(skipFade, event)
 	end
 	local context = GetActionBarVisibilityContext(combatOverride)
 	for _, info in ipairs(addon.variables.actionBarNames or {}) do
-		local bar = _G[info.name]
+		local bar = ResolveActionBarFrame(info.name)
 		if bar then ApplyActionBarAlpha(bar, info.var, nil, combatOverride, skipFade, context) end
 	end
 end
@@ -4943,9 +4989,11 @@ local function CreateUI()
 		root:CreateButton(L["CooldownPanelEditor"] or "Cooldown Panel Editor", function()
 			if addon.Aura and addon.Aura.CooldownPanels and addon.Aura.CooldownPanels.OpenEditor then addon.Aura.CooldownPanels:OpenEditor() end
 		end)
+		--@debug@
 		root:CreateButton(L["VisibilityEditor"] or "Visibility Configurator", function()
 			if addon.Visibility and addon.Visibility.OpenEditor then addon.Visibility:OpenEditor() end
 		end)
+		--@end-debug@
 	end
 
 	-- Datenobjekt fr den Minimap-Button
@@ -4990,22 +5038,9 @@ local function updateClassResourceVisibility()
 	if not classTag then return end
 	if ensureClassResourceHideHook then ensureClassResourceHideHook() end
 
-	local function showFrame(frame)
-		if not frame then return end
-		if frame.Setup then
-			frame:Setup()
-		else
-			frame:Show()
-		end
-	end
-
 	local function apply(frame, hideKey)
 		if not frame then return end
-		if addon.db[hideKey] and not ufActive then
-			frame:Hide()
-		else
-			showFrame(frame)
-		end
+		if addon.db[hideKey] and not ufActive then frame:Hide() end
 	end
 
 	if classTag == "DEATHKNIGHT" then
@@ -5038,13 +5073,9 @@ local classResourceHideConfig = {
 	WARLOCK = { frameName = "WarlockPowerFrame", hideKey = "warlock_HideSoulShardBar" },
 }
 
-local function isPlayerUFActive()
-	return addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled
-end
+local function isPlayerUFActive() return addon.db and addon.db.ufFrames and addon.db.ufFrames.player and addon.db.ufFrames.player.enabled end
 
-local function shouldHideClassResource(hideKey)
-	return addon.db and addon.db[hideKey] and not isPlayerUFActive()
-end
+local function shouldHideClassResource(hideKey) return addon.db and addon.db[hideKey] and not isPlayerUFActive() end
 
 ensureClassResourceHideHook = function()
 	local _, classTag = UnitClass("player")

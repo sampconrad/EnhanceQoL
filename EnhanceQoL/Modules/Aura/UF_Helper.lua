@@ -470,6 +470,8 @@ function H.hideAuraBorderFrame(btn)
 end
 
 function H.calcAuraBorderSize(btn, ac)
+	local configured = ac and tonumber(ac.borderSize)
+	if configured and configured > 0 then return floor(configured + 0.5) end
 	local baseSize = (btn and btn.GetWidth and btn:GetWidth()) or (ac and ac.size) or 24
 	local size = floor((baseSize or 24) * 0.08 + 0.5)
 	if size < 1 then size = 1 end

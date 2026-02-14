@@ -904,14 +904,12 @@ addon.variables.cvarOptions = {
 		trueValue = "1",
 		falseValue = "0",
 		description = addon.L["raidFramesDisplayClassColor"],
-		persistent = true,
 		category = "cvarCategoryDisplay",
 	},
 	["pvpFramesDisplayClassColor"] = {
 		trueValue = "1",
 		falseValue = "0",
 		description = addon.L["pvpFramesDisplayClassColor"],
-		persistent = true,
 		category = "cvarCategoryDisplay",
 	},
 	["UnitNamePlayerGuild"] = {

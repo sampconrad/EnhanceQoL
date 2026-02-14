@@ -12,6 +12,14 @@ if not ResourceBars then return end
 
 function ResourceBars.ShouldHideInClientScene() return addon and addon.db and addon.db.resourceBarsHideClientScene == true end
 
+function ResourceBars.ShouldHideOutOfCombat() return addon and addon.db and addon.db.resourceBarsHideOutOfCombat == true end
+
+function ResourceBars.ShouldHideMounted() return addon and addon.db and addon.db.resourceBarsHideMounted == true end
+
+function ResourceBars.ShouldHideInVehicle() return addon and addon.db and addon.db.resourceBarsHideVehicle == true end
+
+function ResourceBars.ShouldHideInPetBattle() return addon and addon.db and addon.db.resourceBarsHidePetBattle == true end
+
 function ResourceBars.ApplyClientSceneAlphaToFrame(frame, forceHide)
 	if not (frame and frame.SetAlpha) then return end
 	if forceHide then
@@ -29,6 +37,19 @@ local function normalizeGradientColor(value)
 		return value[1] or 1, value[2] or 1, value[3] or 1, value[4] or 1
 	end
 	return 1, 1, 1, 1
+end
+
+local function resolveDiscreteSegmentBackground(cfg, fallbackTexture, fallbackR, fallbackG, fallbackB, fallbackA)
+	local bd = cfg and cfg.backdrop
+	if bd and bd.enabled == false then return nil, 0, 0, 0, 0, false end
+
+	if bd and bd.enabled ~= false then
+		local tex = bd.backgroundTexture or fallbackTexture or "Interface\\DialogFrame\\UI-DialogBox-Background"
+		local r, g, b, a = normalizeGradientColor(bd.backgroundColor or { 0, 0, 0, 0.8 })
+		return tex, r, g, b, a, true
+	end
+
+	return fallbackTexture, fallbackR, fallbackG, fallbackB, fallbackA, true
 end
 
 local function isGradientDebugEnabled()
@@ -296,6 +317,224 @@ function ResourceBars.UpdateEssenceSegments(bar, cfg, current, maxPower, fractio
 	end
 	for i = maxPower + 1, #bar.essences do
 		if bar.essences[i] then bar.essences[i]:Hide() end
+	end
+end
+
+local function hideDiscreteSegments(bar)
+	if not bar or not bar._rbDiscreteSegments then return end
+	for i = 1, #bar._rbDiscreteSegments do
+		local sb = bar._rbDiscreteSegments[i]
+		if sb then sb:Hide() end
+	end
+end
+
+function ResourceBars.HideDiscreteSegments(bar)
+	if not bar then return end
+	hideDiscreteSegments(bar)
+	if bar._rbDiscreteSeparatorBG then bar._rbDiscreteSeparatorBG:Hide() end
+end
+
+function ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separatorThickness, separatorColor)
+	if not bar then return end
+	count = tonumber(count) or 0
+	if count < 1 then
+		ResourceBars.HideDiscreteSegments(bar)
+		bar._rbDiscreteCount = 0
+		return
+	end
+
+	local inner = bar._rbInner or bar
+	local w = math.max(1, inner:GetWidth() or (bar:GetWidth() or 0))
+	local h = math.max(1, inner:GetHeight() or (bar:GetHeight() or 0))
+	local vertical = cfg and cfg.verticalFill == true
+	local reverse = cfg and cfg.reverseFill == true
+
+	local gap = tonumber(separatorThickness)
+	if gap == nil then gap = tonumber(cfg and cfg.separatorThickness) end
+	if gap == nil then gap = 1 end
+	gap = math.max(0, math.floor(gap + 0.5))
+	if count < 2 then gap = 0 end
+
+	local span = vertical and h or w
+	local maxGap = (count > 1) and math.max(0, math.floor((span - count) / (count - 1))) or 0
+	if gap > maxGap then gap = maxGap end
+
+	local available = span - (gap * (count - 1))
+	if available < count then available = count end
+	local segPrimary = math.max(1, math.floor((available / count) + 0.5))
+
+	local bg = bar._rbDiscreteSeparatorBG
+	if not bg then
+		bg = inner:CreateTexture(nil, "BACKGROUND", nil, 1)
+		bar._rbDiscreteSeparatorBG = bg
+	end
+	if bg:GetParent() ~= inner then bg:SetParent(inner) end
+	bg:ClearAllPoints()
+	bg:SetPoint("TOPLEFT", inner, "TOPLEFT")
+	bg:SetPoint("BOTTOMRIGHT", inner, "BOTTOMRIGHT")
+	local sr, sg, sb, sa = normalizeGradientColor(separatorColor or (cfg and cfg.separatorColor))
+	bg:SetColorTexture(sr, sg, sb, sa)
+	if gap > 0 then
+		if not bg:IsShown() then bg:Show() end
+	else
+		bg:Hide()
+	end
+
+	bar._rbDiscreteSegments = bar._rbDiscreteSegments or {}
+	local segments = bar._rbDiscreteSegments
+	local nameBase = bar:GetName() or "EQOLDiscrete"
+	local texPath = texturePath or "Interface\\Buttons\\WHITE8x8"
+
+	for i = 1, count do
+		local sb = segments[i]
+		if not sb then
+			sb = CreateFrame("StatusBar", nameBase .. "Seg" .. i, inner)
+			sb:SetMinMaxValues(0, 1)
+			segments[i] = sb
+		end
+		if sb:GetParent() ~= inner then sb:SetParent(inner) end
+		sb:SetFrameLevel((bar:GetFrameLevel() or 1) + 1)
+		if sb._rb_tex ~= texPath then
+			sb:SetStatusBarTexture(texPath)
+			sb._rb_tex = texPath
+		end
+		if sb.SetReverseFill then sb:SetReverseFill(reverse) end
+		if not sb._rbSegmentBg then
+			sb._rbSegmentBg = sb:CreateTexture(nil, "BACKGROUND")
+			sb._rbSegmentBg:SetAllPoints(sb)
+		end
+		if sb._rbSegmentBgPath ~= texPath then
+			sb._rbSegmentBg:SetTexture(texPath)
+			sb._rbSegmentBgPath = texPath
+		end
+		sb:ClearAllPoints()
+		if vertical then
+			sb:SetWidth(w)
+			sb:SetHeight(segPrimary)
+			sb:SetOrientation("VERTICAL")
+			if i == 1 then
+				sb:SetPoint("BOTTOM", inner, "BOTTOM", 0, 0)
+			else
+				sb:SetPoint("BOTTOM", segments[i - 1], "TOP", 0, gap)
+			end
+			if i == count then sb:SetPoint("TOP", inner, "TOP", 0, 0) end
+		else
+			sb:SetHeight(h)
+			sb:SetOrientation("HORIZONTAL")
+			if i == 1 then
+				sb:SetPoint("LEFT", inner, "LEFT", 0, 0)
+			else
+				sb:SetPoint("LEFT", segments[i - 1], "RIGHT", gap, 0)
+			end
+			if i == count then
+				sb:SetPoint("RIGHT", inner, "RIGHT", 0, 0)
+			else
+				sb:SetWidth(segPrimary)
+			end
+		end
+		if not sb:IsShown() then sb:Show() end
+	end
+
+	for i = count + 1, #segments do
+		if segments[i] then segments[i]:Hide() end
+	end
+
+	bar._rbDiscreteCount = count
+	bar._rbDiscreteVertical = vertical
+	bar._rbDiscreteGap = gap
+	bar._rbDiscreteReverse = reverse
+end
+
+function ResourceBars.UpdateDiscreteSegments(bar, cfg, count, value, color, texturePath, separatorThickness, separatorColor)
+	if not bar then return end
+	count = tonumber(count) or 0
+	if count < 1 then
+		ResourceBars.HideDiscreteSegments(bar)
+		return
+	end
+
+	local vertical = cfg and cfg.verticalFill == true
+	local reverse = cfg and cfg.reverseFill == true
+	local gap = tonumber(separatorThickness)
+	if gap == nil then gap = tonumber(cfg and cfg.separatorThickness) end
+	if gap == nil then gap = 1 end
+	gap = math.max(0, math.floor(gap + 0.5))
+
+	if not bar._rbDiscreteSegments or bar._rbDiscreteCount ~= count or bar._rbDiscreteVertical ~= vertical or bar._rbDiscreteGap ~= gap or bar._rbDiscreteReverse ~= reverse then
+		ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, gap, separatorColor)
+	end
+
+	local segments = bar._rbDiscreteSegments
+	if not segments then return end
+	local parentTex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+	if parentTex then parentTex:SetAlpha(0) end
+
+	local baseR, baseG, baseB, baseA = normalizeGradientColor(color)
+	local dimFactor = 0.35
+	local dimR, dimG, dimB, dimA = baseR * dimFactor, baseG * dimFactor, baseB * dimFactor, (baseA or 1) * 0.9
+	local fillColorKey = baseR .. ":" .. baseG .. ":" .. baseB .. ":" .. baseA
+	local texPath = texturePath or "Interface\\Buttons\\WHITE8x8"
+	local segmentBgPath, segmentBgR, segmentBgG, segmentBgB, segmentBgA, segmentBgVisible = resolveDiscreteSegmentBackground(cfg, texPath, dimR, dimG, dimB, dimA)
+	local bgColorKey = segmentBgR .. ":" .. segmentBgG .. ":" .. segmentBgB .. ":" .. segmentBgA
+	local clamped = tonumber(value) or 0
+	if clamped < 0 then
+		clamped = 0
+	elseif clamped > count then
+		clamped = count
+	end
+
+	for physicalIndex = 1, count do
+		local sb = segments[physicalIndex]
+		if sb then
+			local logicalIndex = reverse and (count - physicalIndex + 1) or physicalIndex
+			local segmentValue = clamped - (logicalIndex - 1)
+			if segmentValue < 0 then
+				segmentValue = 0
+			elseif segmentValue > 1 then
+				segmentValue = 1
+			end
+
+			if sb._rb_tex ~= texPath then
+				sb:SetStatusBarTexture(texPath)
+				sb._rb_tex = texPath
+			end
+			if sb.SetReverseFill then sb:SetReverseFill(reverse) end
+			if sb._rbSegmentBg then
+				if segmentBgVisible then
+					if sb._rbSegmentBgPath ~= segmentBgPath then
+						sb._rbSegmentBg:SetTexture(segmentBgPath)
+						sb._rbSegmentBgPath = segmentBgPath
+					end
+					if sb._rbSegmentBgColorKey ~= bgColorKey then
+						sb._rbSegmentBg:SetVertexColor(segmentBgR, segmentBgG, segmentBgB, segmentBgA)
+						sb._rbSegmentBgColorKey = bgColorKey
+					end
+					if not sb._rbSegmentBg:IsShown() then sb._rbSegmentBg:Show() end
+				else
+					if sb._rbSegmentBg:IsShown() then sb._rbSegmentBg:Hide() end
+					sb._rbSegmentBgPath = nil
+					sb._rbSegmentBgColorKey = nil
+				end
+			end
+			if sb._rbSegmentFillColorKey ~= fillColorKey then
+				if ResourceBars.SetStatusBarColorWithGradient then
+					ResourceBars.SetStatusBarColorWithGradient(sb, cfg, baseR, baseG, baseB, baseA)
+				else
+					sb:SetStatusBarColor(baseR, baseG, baseB, baseA or 1)
+				end
+				sb._rbSegmentFillColorKey = fillColorKey
+			elseif ResourceBars.RefreshStatusBarGradient then
+				ResourceBars.RefreshStatusBarGradient(sb, cfg, baseR, baseG, baseB, baseA)
+			end
+
+			sb:SetMinMaxValues(0, 1)
+			sb:SetValue(segmentValue)
+			if not sb:IsShown() then sb:Show() end
+		end
+	end
+
+	for i = count + 1, #segments do
+		if segments[i] then segments[i]:Hide() end
 	end
 end
 

@@ -543,6 +543,8 @@ local defaults = {
 			blizzardDispelBorderAlphaNot = 0,
 			borderTexture = "DEFAULT",
 			borderRenderMode = "EDGE",
+			borderSize = nil,
+			borderOffset = 0,
 			showTooltip = true,
 			hidePermanentAuras = false,
 			anchor = "BOTTOM",
@@ -1979,6 +1981,9 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 					local borderFrame = UFHelper and UFHelper.ensureAuraBorderFrame and UFHelper.ensureAuraBorderFrame(btn)
 					if borderFrame then
 						local edgeSize = (UFHelper and UFHelper.calcAuraBorderSize and UFHelper.calcAuraBorderSize(btn, ac)) or 1
+						local borderOffset = tonumber(ac and ac.borderOffset) or 0
+						local edgeInset = (edgeSize or 1) * 0.5
+						local anchorInset = edgeInset - borderOffset
 						local insetVal = edgeSize
 						if borderFrame._eqolAuraBorderTex ~= borderTex or borderFrame._eqolAuraBorderEdgeSize ~= edgeSize then
 							borderFrame:SetBackdrop({
@@ -1991,6 +1996,10 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 							borderFrame._eqolAuraBorderTex = borderTex
 							borderFrame._eqolAuraBorderEdgeSize = edgeSize
 						end
+						borderFrame:ClearAllPoints()
+						borderFrame:SetPoint("TOPLEFT", btn, "TOPLEFT", anchorInset, -anchorInset)
+						borderFrame:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -anchorInset, anchorInset)
+						borderFrame._eqolAuraBorderInset = anchorInset
 						borderFrame:SetBackdropBorderColor(r, g, b, 1)
 						borderFrame:Show()
 					end
@@ -2839,6 +2848,8 @@ do
 		blizzardDispelBorderAlphaNot = 0,
 		borderTexture = "DEFAULT",
 		borderRenderMode = "EDGE",
+		borderSize = nil,
+		borderOffset = 0,
 		anchor = "BOTTOM",
 		offset = { x = 0, y = -5 },
 		growth = nil,

@@ -4513,6 +4513,11 @@ local function buildUnitSettings(unit)
 		end
 		local function debuffOffsetYDefault() return defaultAuraOffsetY(debuffAnchorValue()) end
 		local function isAuraEnabled() return getValue(unit, { "auraIcons", "enabled" }, auraDef.enabled ~= false) ~= false end
+		local function isAuraEdgeBorderMode()
+			local texture = tostring(getValue(unit, { "auraIcons", "borderTexture" }, auraDef.borderTexture or "DEFAULT") or "DEFAULT"):upper()
+			local mode = tostring(getValue(unit, { "auraIcons", "borderRenderMode" }, auraDef.borderRenderMode or "EDGE") or "EDGE"):upper()
+			return isAuraEnabled() and mode ~= "OVERLAY" and texture ~= "DEFAULT"
+		end
 		local function refreshAuras()
 			if not (UF and UF.FullScanTargetAuras) then return end
 			if unit == "boss" then
@@ -4576,6 +4581,7 @@ local function buildUnitSettings(unit)
 			function(val)
 				setValue(unit, { "auraIcons", "borderTexture" }, val or "DEFAULT")
 				refresh()
+				refreshSettingsUI()
 				refreshAuras()
 			end,
 			auraDef.borderTexture or "DEFAULT",
@@ -4596,9 +4602,43 @@ local function buildUnitSettings(unit)
 			if mode ~= "OVERLAY" then mode = "EDGE" end
 			setValue(unit, { "auraIcons", "borderRenderMode" }, mode)
 			refresh()
+			refreshSettingsUI()
 			refreshAuras()
 		end, ((auraDef.borderRenderMode or "EDGE"):upper() == "OVERLAY") and "OVERLAY" or "EDGE", "auras")
 		list[#list].isEnabled = isAuraEnabled
+
+		list[#list + 1] = slider(L["Border size (Edge)"] or "Border size (Edge)", 1, 64, 1, function()
+			local iconSize = getValue(unit, { "auraIcons", "size" }, auraDef.size or 24)
+			local fallback = math.floor((iconSize * 0.08) + 0.5)
+			if fallback < 1 then fallback = 1 end
+			if fallback > 6 then fallback = 6 end
+			return getValue(unit, { "auraIcons", "borderSize" }, auraDef.borderSize or fallback)
+		end, function(val)
+			local size = tonumber(val) or 1
+			if size < 1 then size = 1 end
+			setValue(unit, { "auraIcons", "borderSize" }, math.floor(size + 0.5))
+			refresh()
+			refreshAuras()
+		end, auraDef.borderSize or 2, "auras", true)
+		list[#list].isEnabled = isAuraEdgeBorderMode
+
+		list[#list + 1] = slider(
+			L["Border offset (Edge)"] or "Border offset (Edge)",
+			-64,
+			64,
+			1,
+			function() return getValue(unit, { "auraIcons", "borderOffset" }, auraDef.borderOffset or 0) end,
+			function(val)
+				local offset = tonumber(val) or 0
+				setValue(unit, { "auraIcons", "borderOffset" }, math.floor(offset + 0.5))
+				refresh()
+				refreshAuras()
+			end,
+			auraDef.borderOffset or 0,
+			"auras",
+			true
+		)
+		list[#list].isEnabled = isAuraEdgeBorderMode
 		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "auras" }
 
 		local stackOutlineOptions = {
