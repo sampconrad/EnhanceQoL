@@ -139,6 +139,8 @@ globals = {
 	"AccountBankPanel",
 	"ChatThrottleLib",
 	"BankPanel",
+	"ChatFrameUtil",
+	"ChatEdit_InsertLink",
 	"ItemLocation",
 	"securecallfunction",
 	"ACCESSIBILITY_GENERAL_LABEL",
