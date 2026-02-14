@@ -2142,11 +2142,17 @@ local function UpdateActionBarMouseover(barName, config, variable)
 	end
 
 	local function handleButtonLeave(self)
-		if IsActionBarMouseoverGroupEnabled() then
-			UpdateActionBarGroupHoverState(self, false)
-		else
-			EQOL_HideBarIfNotHovered(bar, variable)
+		local current = GetActionBarVisibilityConfig(variable)
+		if not current then return end
+		if current.MOUSEOVER then
+			if IsActionBarMouseoverGroupEnabled() then
+				UpdateActionBarGroupHoverState(self, false)
+			else
+				EQOL_HideBarIfNotHovered(bar, variable)
+			end
+			return
 		end
+		ApplyActionBarAlpha(bar, variable, current)
 	end
 
 	for i = 1, 12 do

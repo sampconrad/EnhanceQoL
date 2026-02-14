@@ -1,5 +1,14 @@
 # Changelog
 
+## [7.15.3] - 2026-02-14
+
+### 🐛 Fixed
+
+- Action Bars: Visibility with `Hide while skyriding` is reliable again. Bars no longer remain incorrectly visible after mouseover.
+- Instant Messenger: Shift-click links (item/quest/spell) now insert correctly in the IM edit box, including links from bags and the Objective Tracker.
+
+---
+
 ## [7.15.2] - 2026-02-13
 
 - Resource Bar: Separator backdrop was not working
