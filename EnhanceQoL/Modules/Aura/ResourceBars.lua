@@ -853,6 +853,23 @@ local function applyGlobalProfile(barType, specIndex, cosmeticOnly, sourceKey)
 		end
 	end
 	if not globalCfg then return false, "NO_GLOBAL" end
+	local sourceBarType
+	do
+		local tagged = globalCfg._rbType
+		if type(tagged) == "string" and tagged ~= "" then
+			sourceBarType = tagged
+		elseif sourceKey == "MAIN" then
+			local mainType = store and store._MAIN_TYPE
+			if type(mainType) == "string" and mainType ~= "" then sourceBarType = mainType end
+		elseif type(sourceKey) == "string" and sourceKey ~= "" and sourceKey ~= "SECONDARY" then
+			sourceBarType = sourceKey
+		elseif store and globalCfg == store[barType] then
+			sourceBarType = barType
+		elseif store and globalCfg == store.MAIN then
+			local mainType = store._MAIN_TYPE
+			if type(mainType) == "string" and mainType ~= "" then sourceBarType = mainType end
+		end
+	end
 	-- Ensure size fields exist even for older saved globals
 	if not globalCfg.width or not globalCfg.height then
 		local frameName = (barType == "HEALTH") and "EQOLHealthBar" or ("EQOL" .. tostring(barType) .. "Bar")
@@ -869,7 +886,22 @@ local function applyGlobalProfile(barType, specIndex, cosmeticOnly, sourceKey)
 	if cosmeticOnly then
 		copyCosmeticBarSettings(globalCfg, specCfg[barType])
 	else
-		specCfg[barType] = CopyTable(globalCfg)
+		local copied = CopyTable(globalCfg or {})
+		copied._rbType = barType
+		local relType
+		do
+			local anchor = copied.anchor
+			local rf = anchor and anchor.relativeFrame
+			if rf == "EQOLHealthBar" then
+				relType = "HEALTH"
+			elseif type(rf) == "string" and rf ~= "" then
+				relType = rf:match("^EQOL(.+)Bar$")
+			end
+		end
+		local crossTypeTemplate = sourceBarType and sourceBarType ~= barType
+		local unsupportedRelative = relType and relType ~= "HEALTH" and specInfo and not (specInfo.MAIN == relType or specInfo[relType])
+		if crossTypeTemplate or unsupportedRelative then copied.anchor = nil end
+		specCfg[barType] = copied
 		-- Chain secondary anchors if we are applying to second or later secondary
 		if secondaryIdx and secondaryIdx > 1 then
 			local prevType = specSecondaries(getSpecInfo(specIndex))[secondaryIdx - 1]
@@ -882,6 +914,7 @@ local function applyGlobalProfile(barType, specIndex, cosmeticOnly, sourceKey)
 			specCfg[barType].separatorColor = specCfg[barType].separatorColor or globalCfg.separatorColor or RB.SEP_DEFAULT
 		end
 	end
+	if specCfg[barType] and specCfg[barType]._rbType ~= barType then specCfg[barType]._rbType = barType end
 	return true
 end
 
@@ -2136,22 +2169,6 @@ local function ensureRelativeFrameFallback(anchor, pType, specInfo)
 		if specInfo and (specInfo.MAIN == relType or specInfo[relType]) then return end
 	end
 	if _G[rf] then return end -- relative bar already exists (e.g., created earlier)
-
-	-- Fallback to spec MAIN bar if available; otherwise health
-	local fallback
-	if specInfo and specInfo.MAIN and pType ~= "HEALTH" then
-		fallback = "EQOL" .. specInfo.MAIN .. "Bar"
-		if fallback == ("EQOL" .. tostring(pType) .. "Bar") then fallback = nil end
-	end
-	if not fallback or fallback == rf then fallback = "EQOLHealthBar" end
-
-	anchor.relativeFrame = fallback
-	if not anchor.point then anchor.point = "TOP" end
-	if not anchor.relativePoint then anchor.relativePoint = "BOTTOM" end
-	if anchor.x == nil then anchor.x = 0 end
-	if anchor.y == nil then anchor.y = -2 end
-	anchor.autoSpacing = nil
-	if anchor.matchRelativeWidth == nil then anchor.matchRelativeWidth = true end
 end
 
 function updateHealthBar(evt)
@@ -2606,6 +2623,7 @@ function getBarSettings(pType)
 	if addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[class] and addon.db.personalResourceBarSettings[class][spec] then
 		local cfg = addon.db.personalResourceBarSettings[class][spec][pType]
 		if cfg then
+			if cfg._rbType ~= pType then cfg._rbType = pType end
 			if isAuraPowerType and isAuraPowerType(pType) then ensureAuraPowerDefaults(pType, cfg) end
 			ensureDruidShowFormsDefaults(cfg, pType, specInfo)
 			ensureRelativeFrameFallback(cfg.anchor, pType, specInfo)
@@ -2617,7 +2635,35 @@ function getBarSettings(pType)
 		if specCfg and not specCfg[pType] then
 			local globalCfg, secondaryIdx = resolveGlobalTemplate(pType, spec)
 			if globalCfg then
-				specCfg[pType] = CopyTable(globalCfg)
+				local store = addon.db and addon.db.globalResourceBarSettings
+				local sourceBarType
+				do
+					local tagged = globalCfg._rbType
+					if type(tagged) == "string" and tagged ~= "" then
+						sourceBarType = tagged
+					elseif store and globalCfg == store[pType] then
+						sourceBarType = pType
+					elseif store and globalCfg == store.MAIN then
+						local mainType = store._MAIN_TYPE
+						if type(mainType) == "string" and mainType ~= "" then sourceBarType = mainType end
+					end
+				end
+				local copied = CopyTable(globalCfg or {})
+				copied._rbType = pType
+				local relType
+				do
+					local anchor = copied.anchor
+					local rf = anchor and anchor.relativeFrame
+					if rf == "EQOLHealthBar" then
+						relType = "HEALTH"
+					elseif type(rf) == "string" and rf ~= "" then
+						relType = rf:match("^EQOL(.+)Bar$")
+					end
+				end
+				local crossTypeTemplate = sourceBarType and sourceBarType ~= pType
+				local unsupportedRelative = relType and relType ~= "HEALTH" and specInfo and not (specInfo.MAIN == relType or specInfo[relType])
+				if crossTypeTemplate or unsupportedRelative then copied.anchor = nil end
+				specCfg[pType] = copied
 				if isAuraPowerType and isAuraPowerType(pType) then ensureAuraPowerDefaults(pType, specCfg[pType]) end
 				ensureDruidShowFormsDefaults(specCfg[pType], pType, specInfo)
 				ensureRelativeFrameFallback(specCfg[pType].anchor, pType, specInfo)

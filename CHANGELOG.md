@@ -6,6 +6,7 @@
 
 - Action Bars: Visibility with `Hide while skyriding` is reliable again. Bars no longer remain incorrectly visible after mouseover.
 - Instant Messenger: Shift-click links (item/quest/spell) now insert correctly in the IM edit box, including links from bags and the Objective Tracker.
+- Resource Bars: Non existend anchor frame could destroy settings config
 
 ---
 
