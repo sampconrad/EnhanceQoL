@@ -1011,8 +1011,6 @@ local DEFAULTS = {
 		relativeTo = "UIParent",
 		x = 500,
 		y = -300,
-		groupBy = "ASSIGNEDROLE",
-		groupingOrder = GFH.ROLE_ORDER,
 		customSort = {
 			enabled = false,
 			separateMeleeRanged = false,
@@ -1856,6 +1854,11 @@ local function ensureDB()
 			end
 		end
 		sanitizeHealthColorMode(t)
+		if kind == "party" then
+			-- Legacy party defaults grouped by role; clear persisted values so INDEX uses party unit index order.
+			t.groupBy = nil
+			t.groupingOrder = nil
+		end
 	end
 	db._eqolInited = true
 	DB = db
@@ -6124,16 +6127,23 @@ end
 local function getCustomSortEditor()
 	if GF._customSortEditor then return GF._customSortEditor end
 	if not (GFH and GFH.CreateCustomSortEditor) then return nil end
+	local function getEditorKind()
+		local kind = GF._customSortEditorKind
+		if kind ~= "party" and kind ~= "raid" then kind = "raid" end
+		return kind
+	end
 	GF._customSortEditor = GFH.CreateCustomSortEditor({
 		roleTokens = GFH.ROLE_TOKENS,
 		classTokens = GFH.CLASS_TOKENS,
+		subtitle = "Drag entries to reorder. Applies to Party and Raid custom sorting.",
 		getOrders = function()
-			local cfg = getCfg("raid")
+			local cfg = getCfg(getEditorKind())
 			local custom = GFH.EnsureCustomSortConfig(cfg)
 			return custom and custom.roleOrder, custom and custom.classOrder
 		end,
 		onReorder = function(listKey, order)
-			local cfg = getCfg("raid")
+			local kind = getEditorKind()
+			local cfg = getCfg(kind)
 			local custom = GFH.EnsureCustomSortConfig(cfg)
 			if not custom then return end
 			if listKey == "role" then
@@ -6141,33 +6151,47 @@ local function getCustomSortEditor()
 			else
 				custom.classOrder = order
 			end
-			GF:ApplyHeaderAttributes("raid")
-			if GF._previewActive and GF._previewActive.raid then GF:UpdatePreviewLayout("raid") end
+			GF:ApplyHeaderAttributes(kind)
+			GF:RefreshCustomSortNameList(kind)
+			if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
 		end,
 	})
 	return GF._customSortEditor
 end
 
-function GF:ToggleCustomSortEditor()
+function GF:ToggleCustomSortEditor(kind)
 	if not isEditModeActive() and not (EditMode and EditMode.IsAvailable and EditMode:IsAvailable()) then return end
-	local cfg = getCfg("raid")
+	kind = tostring(kind or "raid"):lower()
+	if kind ~= "party" and kind ~= "raid" then kind = "raid" end
+	GF._customSortEditorKind = kind
+	local cfg = getCfg(kind)
 	if not cfg then return end
 	local custom = GFH.EnsureCustomSortConfig(cfg)
 	if custom and (custom.enabled ~= true or resolveSortMethod(cfg) ~= "NAMELIST") then
 		custom.enabled = true
 		cfg.sortMethod = "NAMELIST"
 		if EditMode and EditMode.SetValue then
-			EditMode:SetValue("EQOL_UF_GROUP_RAID", "sortMethod", "CUSTOM", nil, true)
-			EditMode:SetValue("EQOL_UF_GROUP_RAID", "customSortEnabled", true, nil, true)
+			local editModeId = EDITMODE_IDS and EDITMODE_IDS[kind] or nil
+			if editModeId then
+				EditMode:SetValue(editModeId, "sortMethod", "CUSTOM", nil, true)
+				EditMode:SetValue(editModeId, "customSortEnabled", true, nil, true)
+			end
 		end
-		GF:ApplyHeaderAttributes("raid")
-		if GF._previewActive and GF._previewActive.raid then GF:UpdatePreviewLayout("raid") end
+		GF:ApplyHeaderAttributes(kind)
+		GF:RefreshCustomSortNameList(kind)
+		if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
 		if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 	end
 
 	local editor = getCustomSortEditor()
 	if not editor then return end
-	if editor:IsShown() then
+	if editor.Title and editor.Title.SetText then
+		local label = (kind == "party" and (PARTY or "Party")) or (RAID or "Raid")
+		editor.Title:SetText("Custom Sort Order (" .. label .. ")")
+	end
+	local sameKind = editor._eqolKind == kind
+	editor._eqolKind = kind
+	if editor:IsShown() and sameKind then
 		editor:Hide()
 	else
 		editor:Refresh()
@@ -6797,12 +6821,14 @@ function GF:ApplyHeaderAttributes(kind)
 	local function setAttr(key, value) GF:SetHeaderAttributeIfChanged(header, key, value) end
 
 	if kind == "party" then
+		cfg.groupBy = nil
+		cfg.groupingOrder = nil
 		setAttr("showParty", true)
 		setAttr("showRaid", false)
 		setAttr("showPlayer", cfg.showPlayer and true or false)
 		setAttr("showSolo", cfg.showSolo and true or false)
-		setAttr("groupBy", "ASSIGNEDROLE")
-		setAttr("groupingOrder", GFH.ROLE_ORDER)
+		setAttr("groupBy", nil)
+		setAttr("groupingOrder", nil)
 		setAttr("groupFilter", nil)
 		setAttr("roleFilter", nil)
 		setAttr("strictFiltering", false)
@@ -17428,16 +17454,14 @@ function GF:EnsureEditMode()
 						click = function() GF:ToggleEditModeStatusText() end,
 					},
 				}
-				if kind == "raid" then
-					table.insert(buttons, 1, {
-						text = "Edit custom sort order",
-						click = function() GF:ToggleCustomSortEditor() end,
-					})
-					table.insert(buttons, 2, {
-						text = "Cycle sample size (10/20/30/40)",
-						click = function() GF:CycleEditModeSampleSize(kind) end,
-					})
-				end
+				if kind == "raid" or kind == "party" then table.insert(buttons, 1, {
+					text = "Edit custom sort order",
+					click = function() GF:ToggleCustomSortEditor(kind) end,
+				}) end
+				if kind == "raid" then table.insert(buttons, 2, {
+					text = "Cycle sample size (10/20/30/40)",
+					click = function() GF:CycleEditModeSampleSize(kind) end,
+				}) end
 				EditMode:RegisterButtons(EDITMODE_IDS[kind], buttons)
 			end
 

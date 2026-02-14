@@ -1,5 +1,14 @@
 # Changelog
 
+## [7.15.5] - 2026-02-14
+
+### 🐛 Fixed
+
+- Group Frames (Party): `Index` sorting now follows the expected party order again (`Player -> party1 -> party2 -> party3 -> party4`).
+- Group Frames (Party): `Edit custom sort order` is now available again in Party Edit Mode.
+
+---
+
 ## [7.15.4] - 2026-02-14
 
 ### 🐛 Fixed
