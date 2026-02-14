@@ -285,23 +285,24 @@ local function applyBarBackdrop(bar, cfg)
 		bar._eqolBackdropEnabled = false
 		bar._eqolBackdropR, bar._eqolBackdropG, bar._eqolBackdropB, bar._eqolBackdropA = nil, nil, nil, nil
 		bar._eqolBackdropConfigured = nil
+		bar._eqolBackdropBgFile = nil
 		return
 	end
 	local texKey = (bd.texture == nil or bd.texture == "") and "SOLID" or bd.texture
 	local bgFile = (UFHelper and UFHelper.resolveTexture and UFHelper.resolveTexture(texKey)) or "Interface\\Buttons\\WHITE8x8"
-	if bar._eqolBackdropEnabled == true and bar._eqolBackdropConfigured == true and bar._eqolBackdropR == r and bar._eqolBackdropG == g and bar._eqolBackdropB == b and bar._eqolBackdropA == a then
+	local sameStyle = bar._eqolBackdropEnabled == true and bar._eqolBackdropConfigured == true and bar._eqolBackdropBgFile == bgFile and bar._eqolBackdropR == r and bar._eqolBackdropG == g and bar._eqolBackdropB == b and bar._eqolBackdropA == a
+	if sameStyle then
 		return
 	end
 
-	if bar._eqolBackdropConfigured ~= true then
-		bar:SetBackdrop({
-			bgFile = bgFile,
-			edgeFile = nil,
-			tile = false,
-		})
-		bar._eqolBackdropConfigured = true
-	end
+	bar:SetBackdrop({
+		bgFile = bgFile,
+		edgeFile = nil,
+		tile = false,
+	})
 	bar:SetBackdropColor(r, g, b, a)
+	bar._eqolBackdropConfigured = true
+	bar._eqolBackdropBgFile = bgFile
 	bar._eqolBackdropEnabled = true
 	bar._eqolBackdropR, bar._eqolBackdropG, bar._eqolBackdropB, bar._eqolBackdropA = r, g, b, a
 end
@@ -1086,7 +1087,7 @@ local DEFAULTS = {
 			offsetLeft = { x = 6, y = 0 },
 			offsetCenter = { x = 0, y = 0 },
 			offsetRight = { x = -6, y = 0 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "SOLID" },
 		},
 		power = {
 			texture = "DEFAULT",
@@ -1105,7 +1106,7 @@ local DEFAULTS = {
 			offsetLeft = { x = 6, y = 0 },
 			offsetCenter = { x = 0, y = 0 },
 			offsetRight = { x = -6, y = 0 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "SOLID" },
 			showRoles = { TANK = true, HEALER = true, DAMAGER = false },
 			showSpecs = {},
 		},
@@ -1481,7 +1482,7 @@ local DEFAULTS = {
 			offsetLeft = { x = 5, y = 0 },
 			offsetCenter = { x = 0, y = 20 },
 			offsetRight = { x = 0, y = 0 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "SOLID" },
 		},
 		power = {
 			texture = "DEFAULT",
@@ -1499,7 +1500,7 @@ local DEFAULTS = {
 			offsetLeft = { x = 5, y = 0 },
 			offsetCenter = { x = 0, y = 0 },
 			offsetRight = { x = -5, y = 0 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "SOLID" },
 			showRoles = { TANK = true, HEALER = true, DAMAGER = false },
 			showSpecs = {},
 		},

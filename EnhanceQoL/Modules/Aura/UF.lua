@@ -303,7 +303,7 @@ local defaults = {
 			showSampleHealAbsorb = false,
 			healAbsorbTexture = "SOLID",
 			healAbsorbReverseFill = true,
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "SOLID" },
 			textLeft = "PERCENT",
 			textCenter = "NONE",
 			textRight = "CURMAX",
@@ -327,7 +327,7 @@ local defaults = {
 			detachedStrata = nil,
 			emptyMaxFallback = false,
 			color = { 0.1, 0.45, 1, 1 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "SOLID" },
 			useCustomColor = false,
 			textLeft = "PERCENT",
 			textCenter = "NONE",
@@ -420,7 +420,7 @@ local defaults = {
 			frameLevelOffset = nil,
 			anchor = "BOTTOM", -- or "TOP"
 			offset = { x = 0, y = -4 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "SOLID" },
 			border = {
 				enabled = false,
 				color = { 0, 0, 0, 0.8 },
@@ -594,7 +594,7 @@ local defaults = {
 			frameLevelOffset = nil,
 			anchor = "BOTTOM", -- or "TOP"
 			offset = { x = 11, y = -4 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, texture = "SOLID" },
 			border = {
 				enabled = false,
 				color = { 0, 0, 0, 0.8 },
@@ -3053,7 +3053,7 @@ local function applyBarBackdrop(bar, cfg)
 	local texKey = (bd.texture == nil or bd.texture == "") and "SOLID" or bd.texture
 	local bgFile = (UFHelper and UFHelper.resolveTexture and UFHelper.resolveTexture(texKey)) or "Interface\\Buttons\\WHITE8x8"
 	local colorR, colorG, colorB, colorA = unpackColor(bd.color, 0, 0, 0, 0.6)
-	local styleChanged = not cache or cache.enabled ~= true or cache.colorR ~= colorR or cache.colorG ~= colorG or cache.colorB ~= colorB or cache.colorA ~= colorA
+	local styleChanged = not cache or cache.enabled ~= true or cache.bgFile ~= bgFile or cache.colorR ~= colorR or cache.colorG ~= colorG or cache.colorB ~= colorB or cache.colorA ~= colorA
 	if not styleChanged then return end
 	bar:SetBackdrop({
 		bgFile = bgFile,
@@ -3063,6 +3063,7 @@ local function applyBarBackdrop(bar, cfg)
 	bar:SetBackdropColor(colorR, colorG, colorB, colorA)
 	cache = cache or {}
 	cache.enabled = true
+	cache.bgFile = bgFile
 	cache.colorR = colorR
 	cache.colorG = colorG
 	cache.colorB = colorB
