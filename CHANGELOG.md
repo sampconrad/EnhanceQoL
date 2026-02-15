@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.16.0] - 2026-02-15
+
+### 🔄 Changed
+
+- Button Sink: Increased max columns to 99
+
+---
+
 ## [7.15.5] - 2026-02-14
 
 ### 🐛 Fixed

@@ -4532,8 +4532,8 @@ local function initUI()
 			columns = math.floor(columns + 0.5)
 			if columns < 1 then
 				columns = 1
-			elseif columns > 10 then
-				columns = 10
+			elseif columns > 99 then
+				columns = 99
 			end
 			if addon.variables.buttonSink then
 				local index = 0
