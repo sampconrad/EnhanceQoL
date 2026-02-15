@@ -5,6 +5,13 @@
 ### 🔄 Changed
 
 - Button Sink: Increased max columns to 99
+- Cooldown Panels: CPE bars can now be anchored directly to Essential and Utility cooldown viewers.
+
+### 🐛 Fixed
+
+- Missing locale
+- Resource Bars: Fixed a spec crossover on `/reload` where Edit Mode layout writes could copy spec specific settings to other specs.
+- Resource Bars: Edit Mode layout IDs and apply handling are now spec-specific, preventing cross-spec overwrite of bar anchors/sizes.
 
 ---
 

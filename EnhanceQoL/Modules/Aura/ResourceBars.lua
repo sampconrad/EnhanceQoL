@@ -717,9 +717,16 @@ local function specSecondaries(specInfo)
 	return list
 end
 
-function ResourceBars.GetEditModeFrameId(barType, classTag)
+function ResourceBars.GetEditModeLegacyFrameId(barType, classTag)
 	local class = classTag or addon.variables.unitClass or "UNKNOWN"
 	return "resourceBar_" .. tostring(class) .. "_" .. tostring(barType or "")
+end
+
+function ResourceBars.GetEditModeFrameId(barType, classTag, specIndex)
+	local class = classTag or addon.variables.unitClass or "UNKNOWN"
+	local spec = tonumber(specIndex or addon.variables.unitSpec)
+	if spec and spec > 0 then return "resourceBar_" .. tostring(class) .. "_" .. tostring(spec) .. "_" .. tostring(barType or "") end
+	return ResourceBars.GetEditModeLegacyFrameId(barType, class)
 end
 
 local function secondaryIndex(specInfo, pType)
@@ -1989,8 +1996,29 @@ local function backfillAnchorFromLayout(anchor, barType)
 	local editMode = addon and addon.EditMode
 	if not editMode or not editMode.GetLayoutData then return end
 	local layoutName = (editMode.GetActiveLayoutName and editMode:GetActiveLayoutName()) or editMode.activeLayout
-	local frameId = ResourceBars.GetEditModeFrameId(barType)
+	local frameId = ResourceBars.GetEditModeFrameId(barType, nil, addon.variables and addon.variables.unitSpec)
 	local data = editMode:GetLayoutData(frameId, layoutName)
+	if (not data or data.x == nil or data.y == nil) and ResourceBars.GetEditModeLegacyFrameId then
+		local legacyId = ResourceBars.GetEditModeLegacyFrameId(barType)
+		if legacyId and legacyId ~= frameId then
+			local legacy = editMode:GetLayoutData(legacyId, layoutName)
+			if legacy and legacy.x ~= nil and legacy.y ~= nil then
+				data = legacy
+				-- Seed spec-specific layout from legacy class-wide data once.
+				if editMode.EnsureLayoutData then
+					local target = editMode:EnsureLayoutData(frameId, layoutName)
+					if target then
+						target.point = target.point or legacy.point
+						target.relativePoint = target.relativePoint or legacy.relativePoint or legacy.point
+						target.x = legacy.x
+						target.y = legacy.y
+						if legacy.width ~= nil and target.width == nil then target.width = legacy.width end
+						if legacy.height ~= nil and target.height == nil then target.height = legacy.height end
+					end
+				end
+			end
+		end
+	end
 	if not data or data.x == nil or data.y == nil then return end
 	local point = data.point or data.relativePoint
 	if not point then return end
