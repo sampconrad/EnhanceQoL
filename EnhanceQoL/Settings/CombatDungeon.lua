@@ -578,7 +578,7 @@ function addon.functions.initDungeonFrame()
 		parentSection = expandable,
 	})
 
-	addon.functions.SettingsCreateHeadline(addon.SettingsLayout.characterInspectCategory, select(1, UnitClass("player")), { parentSection = expandable })
+	addon.functions.SettingsCreateHeadline(addon.SettingsLayout.characterInspectCategory, C_CreatureInfo.GetClassInfo(11).className, { parentSection = expandable })
 
 	local data = {
 		{

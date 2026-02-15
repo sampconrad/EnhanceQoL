@@ -983,13 +983,27 @@ function ClassResourceUtil.onClassResourceShow()
 	if applyClassResourceLayout then applyClassResourceLayout(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER)) end
 end
 
+function ClassResourceUtil.SetFrameLevelHookOffset(offset)
+	offset = tonumber(offset) or 0
+	if offset < 0 then offset = 0 end
+	ClassResourceUtil._frameLevelMinimum = 7 + offset
+end
+
 function ClassResourceUtil.hookClassResourceFrame(frame)
 	if not frame or classResourceHooks[frame] then return end
 	classResourceHooks[frame] = true
 	frame:HookScript("OnShow", ClassResourceUtil.onClassResourceShow)
-	if hooksecurefunc and frame.SetFrameLevel then hooksecurefunc(frame, "SetFrameLevel", function(self)
-		if frame:GetFrameLevel() < 7 then frame:SetFrameLevel(7) end
-	end) end
+	if hooksecurefunc and frame.SetFrameLevel then
+		hooksecurefunc(frame, "SetFrameLevel", function(self)
+			if not classResourceManagedFrames[self] then return end
+			if self._eqolClassResourceLevelHook then return end
+			local minLevel = ClassResourceUtil._frameLevelMinimum or 7
+			if self:GetFrameLevel() >= minLevel then return end
+			self._eqolClassResourceLevelHook = true
+			self:SetFrameLevel(minLevel)
+			self._eqolClassResourceLevelHook = nil
+		end)
+	end
 end
 
 applyClassResourceLayout = function(cfg)
@@ -1018,6 +1032,18 @@ applyClassResourceLayout = function(cfg)
 	local offsetY = (rcfg.offset and rcfg.offset.y)
 	if offsetY == nil then offsetY = anchor == "TOP" and -5 or 5 end
 	local scale = rcfg.scale or (def.classResource and def.classResource.scale) or 1
+	local resourceStrata = rcfg.strata
+	if resourceStrata == nil then resourceStrata = def.classResource and def.classResource.strata end
+	if type(resourceStrata) == "string" and resourceStrata ~= "" then
+		resourceStrata = string.upper(resourceStrata)
+	else
+		resourceStrata = nil
+	end
+	local frameLevelOffset = tonumber(rcfg.frameLevelOffset)
+	if frameLevelOffset == nil then frameLevelOffset = tonumber(def.classResource and def.classResource.frameLevelOffset) end
+	if frameLevelOffset == nil then frameLevelOffset = 5 end
+	if frameLevelOffset < 0 then frameLevelOffset = 0 end
+	if ClassResourceUtil.SetFrameLevelHookOffset then ClassResourceUtil.SetFrameLevelHookOffset(frameLevelOffset) end
 
 	for _, frame in ipairs(frames) do
 		ClassResourceUtil.storeClassResourceDefaults(frame)
@@ -1028,8 +1054,8 @@ applyClassResourceLayout = function(cfg)
 		frame:SetPoint(anchor, st.frame, anchor, offsetX, offsetY)
 		frame:SetParent(st.frame)
 		if frame.SetScale then frame:SetScale(scale) end
-		if frame.SetFrameStrata and st.frame.GetFrameStrata then frame:SetFrameStrata(st.frame:GetFrameStrata()) end
-		if frame.SetFrameLevel and st.frame.GetFrameLevel then frame:SetFrameLevel((st.frame:GetFrameLevel() or 0) + 5) end
+		if frame.SetFrameStrata and st.frame.GetFrameStrata then frame:SetFrameStrata(resourceStrata or st.frame:GetFrameStrata()) end
+		if frame.SetFrameLevel and st.frame.GetFrameLevel then frame:SetFrameLevel(max(0, (st.frame:GetFrameLevel() or 0) + frameLevelOffset)) end
 	end
 end
 
@@ -4625,39 +4651,19 @@ local function layoutFrame(cfg, unit)
 		local pf = _G.PlayerFrame
 		if pf and pf.GetFrameLevel then st.frame:SetFrameLevel(pf:GetFrameLevel()) end
 	end
+	local frameLevel = (st.frame and st.frame.GetFrameLevel and st.frame:GetFrameLevel()) or 0
+	if st.status.SetFrameStrata and st.status:GetFrameStrata() ~= frameStrata then st.status:SetFrameStrata(frameStrata) end
+	if st.barGroup and st.barGroup.SetFrameStrata and st.barGroup:GetFrameStrata() ~= frameStrata then st.barGroup:SetFrameStrata(frameStrata) end
+	if st.health.SetFrameStrata and st.health:GetFrameStrata() ~= frameStrata then st.health:SetFrameStrata(frameStrata) end
+	if st.status.SetFrameLevel then st.status:SetFrameLevel(frameLevel + 1) end
+	if st.barGroup and st.barGroup.SetFrameLevel then st.barGroup:SetFrameLevel(frameLevel + 1) end
+	if st.health.SetFrameLevel then st.health:SetFrameLevel(frameLevel + 2) end
 	st.status:SetHeight(statusHeight)
 	st.health:SetSize(width, healthHeight)
 	local powerWidth = width
 	if powerDetached and pcfg.width and pcfg.width > 0 then powerWidth = pcfg.width end
 	st.power:SetSize(powerWidth, powerHeight)
 	st.power:SetShown(powerEnabled)
-	if st.power.GetFrameLevel and st._powerBaseFrameLevel == nil then st._powerBaseFrameLevel = st.power:GetFrameLevel() end
-	if st.power.SetFrameStrata then
-		local baseStrata = (st.frame and st.frame.GetFrameStrata and st.frame:GetFrameStrata()) or "MEDIUM"
-		if powerDetached then
-			local powerStrata = pcfg.detachedStrata
-			if powerStrata == nil then powerStrata = powerDef.detachedStrata end
-			if powerStrata == "" then powerStrata = nil end
-			if powerStrata then baseStrata = powerStrata end
-		end
-		st.power:SetFrameStrata(baseStrata)
-	end
-	if st.power.SetFrameLevel then
-		if powerDetached then
-			local baseLevel = (st.frame and st.frame.GetFrameLevel and st.frame:GetFrameLevel()) or 0
-			local levelOffset = pcfg.detachedFrameLevelOffset
-			if levelOffset == nil then levelOffset = powerDef.detachedFrameLevelOffset end
-			levelOffset = levelOffset or 0
-			st.power:SetFrameLevel(max(0, baseLevel + levelOffset))
-		elseif st._powerBaseFrameLevel then
-			st.power:SetFrameLevel(st._powerBaseFrameLevel)
-		end
-	end
-	if st.powerGroup and st.powerGroup.SetFrameStrata then
-		local pStrata = st.power.GetFrameStrata and st.power:GetFrameStrata() or st.frame:GetFrameStrata()
-		st.powerGroup:SetFrameStrata(pStrata or "MEDIUM")
-	end
-	if st.powerGroup and st.powerGroup.SetFrameLevel then st.powerGroup:SetFrameLevel((st.power and st.power.GetFrameLevel and st.power:GetFrameLevel()) or 0) end
 
 	st.status:ClearAllPoints()
 	if st.barGroup then st.barGroup:ClearAllPoints() end
@@ -4718,6 +4724,30 @@ local function layoutFrame(cfg, unit)
 		if st.power.GetParent and st.power:GetParent() ~= st.barGroup then st.power:SetParent(st.barGroup) end
 		st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", 0, 0)
 		st.power:SetPoint("TOPRIGHT", st.health, "BOTTOMRIGHT", 0, 0)
+	end
+	local powerStrata = frameStrata
+	if powerDetached then
+		local detachedStrata = pcfg.detachedStrata
+		if detachedStrata == nil then detachedStrata = powerDef.detachedStrata end
+		detachedStrata = normalizeStrataToken(detachedStrata)
+		if detachedStrata then powerStrata = detachedStrata end
+	end
+	if st.power.SetFrameStrata and st.power:GetFrameStrata() ~= powerStrata then st.power:SetFrameStrata(powerStrata) end
+	if st.powerGroup and st.powerGroup.SetFrameStrata and st.powerGroup:GetFrameStrata() ~= powerStrata then st.powerGroup:SetFrameStrata(powerStrata) end
+	local healthLevel = (st.health and st.health.GetFrameLevel and st.health:GetFrameLevel()) or (frameLevel + 2)
+	local powerLevel = healthLevel
+	if powerDetached then
+		local levelOffset = pcfg.detachedFrameLevelOffset
+		if levelOffset == nil then levelOffset = powerDef.detachedFrameLevelOffset end
+		levelOffset = levelOffset or 0
+		powerLevel = max(0, frameLevel + levelOffset)
+		if powerLevel <= healthLevel then powerLevel = healthLevel + 1 end
+	end
+	if st.power.SetFrameLevel then st.power:SetFrameLevel(powerLevel) end
+	if st.powerGroup and st.powerGroup.SetFrameLevel then
+		local groupLevel = powerLevel
+		if powerDetached then groupLevel = max(0, powerLevel - 1) end
+		st.powerGroup:SetFrameLevel(groupLevel)
 	end
 
 	st._portraitSide = portraitSide
@@ -7005,6 +7035,15 @@ function UF.Initialize()
 	addon.Aura.UFInitialized = true
 	if UF.RegisterSettings then UF.RegisterSettings() end
 	local cfg = ensureDB("player")
+	do
+		local def = defaultsFor(UNIT.PLAYER)
+		local rcfg = (cfg and cfg.classResource) or (def and def.classResource) or {}
+		local frameLevelOffset = tonumber(rcfg.frameLevelOffset)
+		if frameLevelOffset == nil then frameLevelOffset = tonumber(def and def.classResource and def.classResource.frameLevelOffset) end
+		if frameLevelOffset == nil then frameLevelOffset = 5 end
+		if frameLevelOffset < 0 then frameLevelOffset = 0 end
+		if ClassResourceUtil.SetFrameLevelHookOffset then ClassResourceUtil.SetFrameLevelHookOffset(frameLevelOffset) end
+	end
 	if cfg.enabled then After(0.1, function() UF.Enable() end) end
 	cfg = ensureDB("target")
 	if cfg.enabled then

@@ -2237,7 +2237,7 @@ local ensureImportCDMPopup
 
 local function getCooldownManagerSourceLabel(sourceKind)
 	if sourceKind == "UTILITY" then return L["CooldownPanelImportCDMUtility"] or "Utility Cooldowns" end
-	return L["CooldownPanelImportCDMEssential"] or "Essential Cooldowns"
+	return L["CooldownPanelImportCDMEssential"] or COOLDOWN_VIEWER_SETTINGS_CATEGORY_ESSENTIAL
 end
 
 local function getCooldownManagerLayoutChildren(sourceKind)
@@ -4944,11 +4944,28 @@ function CooldownPanels:RefreshAllPanels()
 		end
 	end
 	syncRootOrderIfDirty(root)
+	local panelIds = {}
+	local seen = {}
 	for _, panelId in ipairs(root.order) do
-		self:RefreshPanel(panelId)
+		if root.panels[panelId] and not seen[panelId] then
+			seen[panelId] = true
+			panelIds[#panelIds + 1] = panelId
+		end
 	end
 	for panelId in pairs(root.panels) do
-		if not containsId(root.order, panelId) then self:RefreshPanel(panelId) end
+		if not seen[panelId] then
+			seen[panelId] = true
+			panelIds[#panelIds + 1] = panelId
+		end
+	end
+	for _, panelId in ipairs(panelIds) do
+		self:EnsurePanelFrame(panelId)
+	end
+	for _, panelId in ipairs(panelIds) do
+		self:ApplyPanelPosition(panelId)
+	end
+	for _, panelId in ipairs(panelIds) do
+		self:RefreshPanel(panelId)
 	end
 	self:UpdateCursorAnchorState()
 end
@@ -5404,6 +5421,8 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				local info = Helper.GENERIC_ANCHORS[key]
 				if info then add(key, info.label) end
 			end
+			if _G and _G.EssentialCooldownViewer then add("EssentialCooldownViewer", COOLDOWN_VIEWER_SETTINGS_CATEGORY_ESSENTIAL) end
+			if _G and _G.UtilityCooldownViewer then add("UtilityCooldownViewer", COOLDOWN_VIEWER_SETTINGS_CATEGORY_UTILITY) end
 
 			local anchorHelper = CooldownPanels.AnchorHelper
 			if anchorHelper and anchorHelper.CollectAnchorEntries then anchorHelper:CollectAnchorEntries(entries, seen) end

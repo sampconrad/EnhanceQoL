@@ -1,5 +1,62 @@
 # Changelog
 
+## [7.16.1] - 2026-02-15
+
+### 🐛 Fixed
+
+- Unit Frames: Edit Mode settings max height is now dynamic via screen height.
+
+---
+
+## [7.16.0] - 2026-02-15
+
+### 🔄 Changed
+
+- Button Sink: Increased max columns to 99
+- Cooldown Panels: CPE bars can now be anchored directly to Essential and Utility cooldown viewers.
+
+### 🐛 Fixed
+
+- Missing locale
+- Resource Bars: Fixed a spec crossover on `/reload` where Edit Mode layout writes could copy spec specific settings to other specs.
+- Resource Bars: Edit Mode layout IDs and apply handling are now spec-specific, preventing cross-spec overwrite of bar anchors/sizes.
+- Resource Bars: `Use max color` now also works for Runes when all 6 runes are ready.
+- Resource Bars: Auto-enable now seeds default bar configs when no global template exists, so new chars/profiles still get bars.
+
+---
+
+## [7.15.5] - 2026-02-14
+
+### 🐛 Fixed
+
+- Group Frames (Party): `Index` sorting now follows the expected party order again (`Player -> party1 -> party2 -> party3 -> party4`).
+- Group Frames (Party): `Edit custom sort order` is now available again in Party Edit Mode.
+
+---
+
+## [7.15.4] - 2026-02-14
+
+### 🐛 Fixed
+
+- Cooldown Panels: Anchors to other Cooldown Panels now resolve reliably after reload/login.
+- Unit Frames: Fixed overlap issues between detached power bars and class resources by allowing class resource strata/frame level offset adjustments.
+- Minimap: After switching Covenants in Shadowlands, the minimap icon now stays in the correct position.
+- Auto accept Res: Now checking the ressing unit for combat state
+- Resource Bars: Segment color wasn't working
+- Resource Bars: Backdrop alpha wasn't working
+
+---
+
+## [7.15.3] - 2026-02-14
+
+### 🐛 Fixed
+
+- Action Bars: Visibility with `Hide while skyriding` is reliable again. Bars no longer remain incorrectly visible after mouseover.
+- Instant Messenger: Shift-click links (item/quest/spell) now insert correctly in the IM edit box, including links from bags and the Objective Tracker.
+- Resource Bars: Non existend anchor frame could destroy settings config
+
+---
+
 ## [7.15.2] - 2026-02-13
 
 - Resource Bar: Separator backdrop was not working

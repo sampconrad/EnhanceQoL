@@ -717,9 +717,16 @@ local function specSecondaries(specInfo)
 	return list
 end
 
-function ResourceBars.GetEditModeFrameId(barType, classTag)
+function ResourceBars.GetEditModeLegacyFrameId(barType, classTag)
 	local class = classTag or addon.variables.unitClass or "UNKNOWN"
 	return "resourceBar_" .. tostring(class) .. "_" .. tostring(barType or "")
+end
+
+function ResourceBars.GetEditModeFrameId(barType, classTag, specIndex)
+	local class = classTag or addon.variables.unitClass or "UNKNOWN"
+	local spec = tonumber(specIndex or addon.variables.unitSpec)
+	if spec and spec > 0 then return "resourceBar_" .. tostring(class) .. "_" .. tostring(spec) .. "_" .. tostring(barType or "") end
+	return ResourceBars.GetEditModeLegacyFrameId(barType, class)
 end
 
 local function secondaryIndex(specInfo, pType)
@@ -853,6 +860,23 @@ local function applyGlobalProfile(barType, specIndex, cosmeticOnly, sourceKey)
 		end
 	end
 	if not globalCfg then return false, "NO_GLOBAL" end
+	local sourceBarType
+	do
+		local tagged = globalCfg._rbType
+		if type(tagged) == "string" and tagged ~= "" then
+			sourceBarType = tagged
+		elseif sourceKey == "MAIN" then
+			local mainType = store and store._MAIN_TYPE
+			if type(mainType) == "string" and mainType ~= "" then sourceBarType = mainType end
+		elseif type(sourceKey) == "string" and sourceKey ~= "" and sourceKey ~= "SECONDARY" then
+			sourceBarType = sourceKey
+		elseif store and globalCfg == store[barType] then
+			sourceBarType = barType
+		elseif store and globalCfg == store.MAIN then
+			local mainType = store._MAIN_TYPE
+			if type(mainType) == "string" and mainType ~= "" then sourceBarType = mainType end
+		end
+	end
 	-- Ensure size fields exist even for older saved globals
 	if not globalCfg.width or not globalCfg.height then
 		local frameName = (barType == "HEALTH") and "EQOLHealthBar" or ("EQOL" .. tostring(barType) .. "Bar")
@@ -869,7 +893,22 @@ local function applyGlobalProfile(barType, specIndex, cosmeticOnly, sourceKey)
 	if cosmeticOnly then
 		copyCosmeticBarSettings(globalCfg, specCfg[barType])
 	else
-		specCfg[barType] = CopyTable(globalCfg)
+		local copied = CopyTable(globalCfg or {})
+		copied._rbType = barType
+		local relType
+		do
+			local anchor = copied.anchor
+			local rf = anchor and anchor.relativeFrame
+			if rf == "EQOLHealthBar" then
+				relType = "HEALTH"
+			elseif type(rf) == "string" and rf ~= "" then
+				relType = rf:match("^EQOL(.+)Bar$")
+			end
+		end
+		local crossTypeTemplate = sourceBarType and sourceBarType ~= barType
+		local unsupportedRelative = relType and relType ~= "HEALTH" and specInfo and not (specInfo.MAIN == relType or specInfo[relType])
+		if crossTypeTemplate or unsupportedRelative then copied.anchor = nil end
+		specCfg[barType] = copied
 		-- Chain secondary anchors if we are applying to second or later secondary
 		if secondaryIdx and secondaryIdx > 1 then
 			local prevType = specSecondaries(getSpecInfo(specIndex))[secondaryIdx - 1]
@@ -882,6 +921,7 @@ local function applyGlobalProfile(barType, specIndex, cosmeticOnly, sourceKey)
 			specCfg[barType].separatorColor = specCfg[barType].separatorColor or globalCfg.separatorColor or RB.SEP_DEFAULT
 		end
 	end
+	if specCfg[barType] and specCfg[barType]._rbType ~= barType then specCfg[barType]._rbType = barType end
 	return true
 end
 
@@ -965,6 +1005,11 @@ ensureSpecCfg = function(specIndex)
 				specCfg[pType] = specCfg[pType] or {}
 				local ok = false
 				if ResourceBars.ApplyGlobalProfile then ok = ResourceBars.ApplyGlobalProfile(pType, specIndex or spec, false) end
+				-- Fallback for fresh profiles/new chars without any saved global template yet.
+				if not ok then
+					specCfg[pType]._rbType = pType
+					ok = true
+				end
 				if ok then
 					applied = applied + 1
 					specCfg[pType].enabled = true
@@ -1956,8 +2001,29 @@ local function backfillAnchorFromLayout(anchor, barType)
 	local editMode = addon and addon.EditMode
 	if not editMode or not editMode.GetLayoutData then return end
 	local layoutName = (editMode.GetActiveLayoutName and editMode:GetActiveLayoutName()) or editMode.activeLayout
-	local frameId = ResourceBars.GetEditModeFrameId(barType)
+	local frameId = ResourceBars.GetEditModeFrameId(barType, nil, addon.variables and addon.variables.unitSpec)
 	local data = editMode:GetLayoutData(frameId, layoutName)
+	if (not data or data.x == nil or data.y == nil) and ResourceBars.GetEditModeLegacyFrameId then
+		local legacyId = ResourceBars.GetEditModeLegacyFrameId(barType)
+		if legacyId and legacyId ~= frameId then
+			local legacy = editMode:GetLayoutData(legacyId, layoutName)
+			if legacy and legacy.x ~= nil and legacy.y ~= nil then
+				data = legacy
+				-- Seed spec-specific layout from legacy class-wide data once.
+				if editMode.EnsureLayoutData then
+					local target = editMode:EnsureLayoutData(frameId, layoutName)
+					if target then
+						target.point = target.point or legacy.point
+						target.relativePoint = target.relativePoint or legacy.relativePoint or legacy.point
+						target.x = legacy.x
+						target.y = legacy.y
+						if legacy.width ~= nil and target.width == nil then target.width = legacy.width end
+						if legacy.height ~= nil and target.height == nil then target.height = legacy.height end
+					end
+				end
+			end
+		end
+	end
 	if not data or data.x == nil or data.y == nil then return end
 	local point = data.point or data.relativePoint
 	if not point then return end
@@ -2136,22 +2202,6 @@ local function ensureRelativeFrameFallback(anchor, pType, specInfo)
 		if specInfo and (specInfo.MAIN == relType or specInfo[relType]) then return end
 	end
 	if _G[rf] then return end -- relative bar already exists (e.g., created earlier)
-
-	-- Fallback to spec MAIN bar if available; otherwise health
-	local fallback
-	if specInfo and specInfo.MAIN and pType ~= "HEALTH" then
-		fallback = "EQOL" .. specInfo.MAIN .. "Bar"
-		if fallback == ("EQOL" .. tostring(pType) .. "Bar") then fallback = nil end
-	end
-	if not fallback or fallback == rf then fallback = "EQOLHealthBar" end
-
-	anchor.relativeFrame = fallback
-	if not anchor.point then anchor.point = "TOP" end
-	if not anchor.relativePoint then anchor.relativePoint = "BOTTOM" end
-	if anchor.x == nil then anchor.x = 0 end
-	if anchor.y == nil then anchor.y = -2 end
-	anchor.autoSpacing = nil
-	if anchor.matchRelativeWidth == nil then anchor.matchRelativeWidth = true end
 end
 
 function updateHealthBar(evt)
@@ -2606,6 +2656,7 @@ function getBarSettings(pType)
 	if addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[class] and addon.db.personalResourceBarSettings[class][spec] then
 		local cfg = addon.db.personalResourceBarSettings[class][spec][pType]
 		if cfg then
+			if cfg._rbType ~= pType then cfg._rbType = pType end
 			if isAuraPowerType and isAuraPowerType(pType) then ensureAuraPowerDefaults(pType, cfg) end
 			ensureDruidShowFormsDefaults(cfg, pType, specInfo)
 			ensureRelativeFrameFallback(cfg.anchor, pType, specInfo)
@@ -2617,7 +2668,35 @@ function getBarSettings(pType)
 		if specCfg and not specCfg[pType] then
 			local globalCfg, secondaryIdx = resolveGlobalTemplate(pType, spec)
 			if globalCfg then
-				specCfg[pType] = CopyTable(globalCfg)
+				local store = addon.db and addon.db.globalResourceBarSettings
+				local sourceBarType
+				do
+					local tagged = globalCfg._rbType
+					if type(tagged) == "string" and tagged ~= "" then
+						sourceBarType = tagged
+					elseif store and globalCfg == store[pType] then
+						sourceBarType = pType
+					elseif store and globalCfg == store.MAIN then
+						local mainType = store._MAIN_TYPE
+						if type(mainType) == "string" and mainType ~= "" then sourceBarType = mainType end
+					end
+				end
+				local copied = CopyTable(globalCfg or {})
+				copied._rbType = pType
+				local relType
+				do
+					local anchor = copied.anchor
+					local rf = anchor and anchor.relativeFrame
+					if rf == "EQOLHealthBar" then
+						relType = "HEALTH"
+					elseif type(rf) == "string" and rf ~= "" then
+						relType = rf:match("^EQOL(.+)Bar$")
+					end
+				end
+				local crossTypeTemplate = sourceBarType and sourceBarType ~= pType
+				local unsupportedRelative = relType and relType ~= "HEALTH" and specInfo and not (specInfo.MAIN == relType or specInfo[relType])
+				if crossTypeTemplate or unsupportedRelative then copied.anchor = nil end
+				specCfg[pType] = copied
 				if isAuraPowerType and isAuraPowerType(pType) then ensureAuraPowerDefaults(pType, specCfg[pType]) end
 				ensureDruidShowFormsDefaults(specCfg[pType], pType, specInfo)
 				ensureRelativeFrameFallback(specCfg[pType].anchor, pType, specInfo)
@@ -2748,10 +2827,6 @@ function updatePowerBar(type, runeSlot)
 		else
 			cooldownR, cooldownG, cooldownB, cooldownA = 0.35, 0.35, 0.35, 1
 		end
-		local readyChanged = (bar._runeReadyR ~= readyR) or (bar._runeReadyG ~= readyG) or (bar._runeReadyB ~= readyB) or (bar._runeReadyA ~= readyA)
-		local cooldownChanged = (bar._runeCooldownR ~= cooldownR) or (bar._runeCooldownG ~= cooldownG) or (bar._runeCooldownB ~= cooldownB) or (bar._runeCooldownA ~= cooldownA)
-		bar._runeReadyR, bar._runeReadyG, bar._runeReadyB, bar._runeReadyA = readyR, readyG, readyB, readyA
-		bar._runeCooldownR, bar._runeCooldownG, bar._runeCooldownB, bar._runeCooldownA = cooldownR, cooldownG, cooldownB, cooldownA
 		bar._rune = bar._rune or {}
 		bar._runeOrder = bar._runeOrder or {}
 		bar._charging = bar._charging or {}
@@ -2772,6 +2847,20 @@ function updatePowerBar(type, runeSlot)
 		for i = count + 1, #charging do
 			charging[i] = nil
 		end
+		-- Runes use max color only when all six runes are ready (resource at maximum).
+		local allRunesReady = count == 0
+		if cfg.useMaxColor == true and allRunesReady then
+			local maxCol = cfg.maxColor or RB.WHITE
+			readyR = maxCol[1] or readyR
+			readyG = maxCol[2] or readyG
+			readyB = maxCol[3] or readyB
+			readyA = maxCol[4] or readyA
+		end
+		local readyChanged = (bar._runeReadyR ~= readyR) or (bar._runeReadyG ~= readyG) or (bar._runeReadyB ~= readyB) or (bar._runeReadyA ~= readyA)
+		local cooldownChanged = (bar._runeCooldownR ~= cooldownR) or (bar._runeCooldownG ~= cooldownG) or (bar._runeCooldownB ~= cooldownB) or (bar._runeCooldownA ~= cooldownA)
+		bar._runeReadyR, bar._runeReadyG, bar._runeReadyB, bar._runeReadyA = readyR, readyG, readyB, readyA
+		bar._runeCooldownR, bar._runeCooldownG, bar._runeCooldownB, bar._runeCooldownA = cooldownR, cooldownG, cooldownB, cooldownA
+		bar._usingMaxColor = cfg.useMaxColor == true and allRunesReady
 		if count > 1 then
 			local snapshot = bar._chargingSnapshot
 			if not snapshot then
@@ -3534,6 +3623,16 @@ updateBarSeparators = function(pType)
 	if pType ~= "RUNES" and (not eligible or not eligible[pType]) then return end
 	local bar = powerbar[pType]
 	if not bar then return end
+	if pType == "RUNES" then
+		-- RUNES separators are handled as real gaps in layoutRunes.
+		if bar.separatorMarks then
+			for _, tx in ipairs(bar.separatorMarks) do
+				tx:Hide()
+			end
+		end
+		if bar:IsShown() then layoutRunes(bar) end
+		return
+	end
 	local cfg = getBarSettings(pType)
 	if not (cfg and cfg.showSeparator) then
 		if pType ~= "RUNES" and pType ~= "ESSENCE" then
@@ -3844,12 +3943,19 @@ function layoutRunes(bar)
 	if not bar then return end
 	bar.runes = bar.runes or {}
 	local count = 6
-	local gap = 0
 	local inner = bar._rbInner or bar
 	local overlay = ensureTextOverlayFrame(bar) or bar
 	local w = max(1, inner:GetWidth() or (bar:GetWidth() or 0))
 	local h = max(1, inner:GetHeight() or (bar:GetHeight() or 0))
 	local cfg = getBarSettings("RUNES") or {}
+	local showSeparator = cfg.showSeparator == true
+	local gap = 0
+	if showSeparator then
+		local configured = tonumber(cfg.separatorThickness)
+		if configured == nil then configured = RB.SEPARATOR_THICKNESS end
+		if configured == nil then configured = 1 end
+		gap = max(0, floor(configured + 0.5))
+	end
 	if nil == cfg.showCooldownText then cfg.showCooldownText = true end
 	local show = cfg.showCooldownText ~= false -- default on
 	local size = cfg.cooldownTextFontSize or cfg.fontSize or 16
@@ -3858,11 +3964,16 @@ function layoutRunes(bar)
 	local fr, fg, fb, fa = resolveFontColor(cfg)
 	local vertical = cfg.verticalFill == true
 	local readyR, readyG, readyB, readyA = resolveRuneReadyColor(cfg)
+	local span = vertical and h or w
+	local maxGap = (count > 1) and max(0, floor((span - count) / (count - 1))) or 0
+	if gap > maxGap then gap = maxGap end
 	local segPrimary
+	local available = span - (gap * (count - 1))
+	if available < count then available = count end
 	if vertical then
-		segPrimary = max(1, floor((h - gap * (count - 1)) / count + 0.5))
+		segPrimary = max(1, floor((available / count) + 0.5))
 	else
-		segPrimary = max(1, floor((w - gap * (count - 1)) / count + 0.5))
+		segPrimary = max(1, floor((available / count) + 0.5))
 	end
 	for i = 1, count do
 		local sb = bar.runes[i]
@@ -3935,6 +4046,47 @@ function layoutRunes(bar)
 			sb._rbColorInitialized = true
 		elseif ResourceBars.RefreshStatusBarGradient then
 			ResourceBars.RefreshStatusBarGradient(sb, cfg)
+		end
+	end
+
+	local gapColor = cfg.separatorColor or RB.SEP_DEFAULT
+	local gapR = gapColor[1] or 1
+	local gapG = gapColor[2] or 1
+	local gapB = gapColor[3] or 1
+	local gapA = gapColor[4] or 0.5
+	bar.runeGapMarks = bar.runeGapMarks or {}
+	local gapMarks = bar.runeGapMarks
+	local neededGaps = count - 1
+	if showSeparator and gap > 0 and neededGaps > 0 then
+		for i = 1, neededGaps do
+			local mark = gapMarks[i]
+			if not mark then
+				mark = inner:CreateTexture(nil, "BACKGROUND", nil, 1)
+				gapMarks[i] = mark
+			elseif mark:GetParent() ~= inner then
+				mark:SetParent(inner)
+			end
+			mark:ClearAllPoints()
+			mark:SetColorTexture(gapR, gapG, gapB, gapA)
+			if vertical then
+				mark:SetPoint("BOTTOM", bar.runes[i], "TOP", 0, 0)
+				mark:SetPoint("LEFT", inner, "LEFT", 0, 0)
+				mark:SetPoint("RIGHT", inner, "RIGHT", 0, 0)
+				mark:SetHeight(gap)
+			else
+				mark:SetPoint("LEFT", bar.runes[i], "RIGHT", 0, 0)
+				mark:SetPoint("TOP", inner, "TOP", 0, 0)
+				mark:SetPoint("BOTTOM", inner, "BOTTOM", 0, 0)
+				mark:SetWidth(gap)
+			end
+			if not mark:IsShown() then mark:Show() end
+		end
+		for i = neededGaps + 1, #gapMarks do
+			if gapMarks[i] then gapMarks[i]:Hide() end
+		end
+	else
+		for i = 1, #gapMarks do
+			if gapMarks[i] then gapMarks[i]:Hide() end
 		end
 	end
 end

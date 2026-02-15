@@ -826,8 +826,8 @@ data = {
 					val = math.floor(val + 0.5)
 					if val < 1 then
 						val = 1
-					elseif val > 10 then
-						val = 10
+					elseif val > 99 then
+						val = 99
 					end
 					addon.db["minimapButtonBinColumns"] = val
 					addon.functions.LayoutButtons()
@@ -840,7 +840,7 @@ data = {
 				end,
 				parent = true,
 				min = 1,
-				max = 10,
+				max = 99,
 				step = 1,
 				default = 4,
 				parentSection = buttonSinkSection,

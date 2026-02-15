@@ -332,6 +332,12 @@ function ResourceBars.HideDiscreteSegments(bar)
 	if not bar then return end
 	hideDiscreteSegments(bar)
 	if bar._rbDiscreteSeparatorBG then bar._rbDiscreteSeparatorBG:Hide() end
+	if bar._rbDiscreteGapMarks then
+		for i = 1, #bar._rbDiscreteGapMarks do
+			local mark = bar._rbDiscreteGapMarks[i]
+			if mark then mark:Hide() end
+		end
+	end
 end
 
 function ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separatorThickness, separatorColor)
@@ -363,22 +369,9 @@ function ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separ
 	if available < count then available = count end
 	local segPrimary = math.max(1, math.floor((available / count) + 0.5))
 
-	local bg = bar._rbDiscreteSeparatorBG
-	if not bg then
-		bg = inner:CreateTexture(nil, "BACKGROUND", nil, 1)
-		bar._rbDiscreteSeparatorBG = bg
-	end
-	if bg:GetParent() ~= inner then bg:SetParent(inner) end
-	bg:ClearAllPoints()
-	bg:SetPoint("TOPLEFT", inner, "TOPLEFT")
-	bg:SetPoint("BOTTOMRIGHT", inner, "BOTTOMRIGHT")
 	local sr, sg, sb, sa = normalizeGradientColor(separatorColor or (cfg and cfg.separatorColor))
-	bg:SetColorTexture(sr, sg, sb, sa)
-	if gap > 0 then
-		if not bg:IsShown() then bg:Show() end
-	else
-		bg:Hide()
-	end
+	bar._rbDiscreteGapMarks = bar._rbDiscreteGapMarks or {}
+	local gapMarks = bar._rbDiscreteGapMarks
 
 	bar._rbDiscreteSegments = bar._rbDiscreteSegments or {}
 	local segments = bar._rbDiscreteSegments
@@ -437,6 +430,40 @@ function ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separ
 
 	for i = count + 1, #segments do
 		if segments[i] then segments[i]:Hide() end
+	end
+
+	local neededGaps = count - 1
+	if gap > 0 and neededGaps > 0 then
+		for i = 1, neededGaps do
+			local mark = gapMarks[i]
+			if not mark then
+				mark = inner:CreateTexture(nil, "BACKGROUND", nil, 1)
+				gapMarks[i] = mark
+			elseif mark:GetParent() ~= inner then
+				mark:SetParent(inner)
+			end
+			mark:ClearAllPoints()
+			mark:SetColorTexture(sr, sg, sb, sa)
+			if vertical then
+				mark:SetPoint("BOTTOM", segments[i], "TOP", 0, 0)
+				mark:SetPoint("LEFT", inner, "LEFT", 0, 0)
+				mark:SetPoint("RIGHT", inner, "RIGHT", 0, 0)
+				mark:SetHeight(gap)
+			else
+				mark:SetPoint("LEFT", segments[i], "RIGHT", 0, 0)
+				mark:SetPoint("TOP", inner, "TOP", 0, 0)
+				mark:SetPoint("BOTTOM", inner, "BOTTOM", 0, 0)
+				mark:SetWidth(gap)
+			end
+			if not mark:IsShown() then mark:Show() end
+		end
+		for i = neededGaps + 1, #gapMarks do
+			if gapMarks[i] then gapMarks[i]:Hide() end
+		end
+	else
+		for i = 1, #gapMarks do
+			if gapMarks[i] then gapMarks[i]:Hide() end
+		end
 	end
 
 	bar._rbDiscreteCount = count

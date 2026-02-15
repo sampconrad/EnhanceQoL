@@ -94,6 +94,11 @@ local function maybeAutoEnableBars(specIndex, specCfg)
 			specCfg[pType] = specCfg[pType] or {}
 			local ok = false
 			if ResourceBars.ApplyGlobalProfile then ok = ResourceBars.ApplyGlobalProfile(pType, specIndex, false) end
+			-- Fallback for fresh profiles/new chars without any saved global template yet.
+			if not ok then
+				specCfg[pType]._rbType = pType
+				ok = true
+			end
 			if ok then
 				applied = applied + 1
 				specCfg[pType].enabled = true
@@ -261,8 +266,9 @@ local function setBarEnabled(specIndex, barType, enabled)
 	if ResourceBars.QueueRefresh then ResourceBars.QueueRefresh(specIndex) end
 	if ResourceBars.MaybeRefreshActive then ResourceBars.MaybeRefreshActive(specIndex) end
 	if EditMode and EditMode.RefreshFrame then
-		local id = (ResourceBars.GetEditModeFrameId and ResourceBars.GetEditModeFrameId(barType, addon.variables.unitClass))
-			or ("resourceBar_" .. tostring(addon.variables.unitClass or "UNKNOWN") .. "_" .. tostring(barType))
+		local curSpec = tonumber(specIndex or addon.variables.unitSpec) or 0
+		local id = (ResourceBars.GetEditModeFrameId and ResourceBars.GetEditModeFrameId(barType, addon.variables.unitClass, curSpec))
+			or ("resourceBar_" .. tostring(addon.variables.unitClass or "UNKNOWN") .. "_" .. tostring(curSpec) .. "_" .. tostring(barType))
 		local layout = EditMode.GetActiveLayoutName and EditMode:GetActiveLayoutName()
 		EditMode:RefreshFrame(id, layout)
 	end
@@ -276,15 +282,25 @@ local function registerEditModeBars()
 	if not EditMode or not EditMode.RegisterFrame then return end
 	local registered = 0
 	local registeredFrames = ResourceBars._editModeRegisteredFrames or {}
+	local registeredByBar = ResourceBars._editModeRegisteredFrameByBar or {}
 	ResourceBars._editModeRegisteredFrames = registeredFrames
+	ResourceBars._editModeRegisteredFrameByBar = registeredByBar
 
 	local function registerBar(idSuffix, frameName, barType, widthDefault, heightDefault)
 		local frame = _G[frameName]
 		if not frame then return end
-		local frameId = (ResourceBars.GetEditModeFrameId and ResourceBars.GetEditModeFrameId(idSuffix, addon.variables.unitClass))
-			or ("resourceBar_" .. tostring(addon.variables.unitClass or "UNKNOWN") .. "_" .. tostring(idSuffix))
+		local curSpec = tonumber(addon.variables.unitSpec) or 0
+		local registeredSpec = curSpec
+		local frameId = (ResourceBars.GetEditModeFrameId and ResourceBars.GetEditModeFrameId(idSuffix, addon.variables.unitClass, registeredSpec))
+			or ("resourceBar_" .. tostring(addon.variables.unitClass or "UNKNOWN") .. "_" .. tostring(curSpec) .. "_" .. tostring(idSuffix))
+		local prevId = registeredByBar[idSuffix]
+		if prevId and prevId ~= frameId and EditMode and EditMode.UnregisterFrame then
+			EditMode:UnregisterFrame(prevId)
+			registeredFrames[prevId] = nil
+		end
 		if registeredFrames[frameId] then return end
 		registeredFrames[frameId] = true
+		registeredByBar[idSuffix] = frameId
 		local cfg = ResourceBars and ResourceBars.getBarSettings and ResourceBars.getBarSettings(barType) or ResourceBars and ResourceBars.GetBarSettings and ResourceBars.GetBarSettings(barType)
 		local anchor = ResourceBars and ResourceBars.getAnchor and ResourceBars.getAnchor(barType, addon.variables.unitSpec)
 		local titleLabel = (barType == "HEALTH") and (HEALTH or "Health") or (ResourceBars.PowerLabels and ResourceBars.PowerLabels[barType]) or _G["POWER_TYPE_" .. barType] or _G[barType] or barType
@@ -2723,7 +2739,7 @@ local function registerEditModeBars()
 				height = cfg and cfg.height or heightDefault or frame:GetHeight() or 20,
 			},
 			onApply = function(_, _, data)
-				local spec = addon.variables.unitSpec
+				local spec = registeredSpec or addon.variables.unitSpec
 				local specCfg = ensureSpecCfg(spec)
 				if not specCfg then return end
 				specCfg[barType] = specCfg[barType] or {}
@@ -2742,14 +2758,16 @@ local function registerEditModeBars()
 				end
 				bcfg.width = data.width or bcfg.width
 				bcfg.height = data.height or bcfg.height
-				if barType == "HEALTH" then
-					ResourceBars.SetHealthBarSize(bcfg.width, bcfg.height)
-				else
-					ResourceBars.SetPowerBarSize(bcfg.width, bcfg.height, barType)
+				if spec == addon.variables.unitSpec then
+					if barType == "HEALTH" then
+						ResourceBars.SetHealthBarSize(bcfg.width, bcfg.height)
+					else
+						ResourceBars.SetPowerBarSize(bcfg.width, bcfg.height, barType)
+					end
+					if ResourceBars.ReanchorAll then ResourceBars.ReanchorAll() end
+					if ResourceBars.Refresh then ResourceBars.Refresh() end
+					if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
 				end
-				if ResourceBars.ReanchorAll then ResourceBars.ReanchorAll() end
-				if ResourceBars.Refresh then ResourceBars.Refresh() end
-				if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
 			end,
 			isEnabled = function()
 				local c = curSpecCfg()

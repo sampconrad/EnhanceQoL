@@ -358,6 +358,14 @@ local frames = {
 		defaultEnabled = true,
 	},
 	{
+		id = "ItemSocketingFrame",
+		label = ITEM_SOCKETING,
+		group = "vendors",
+		names = { "ItemSocketingFrame" },
+		addon = "Blizzard_ItemSocketingUI",
+		defaultEnabled = true,
+	},
+	{
 		id = "ExpansionLandingPage",
 		label = L["Expansion Landing Page"] or "Expansion Landing Page",
 		group = "activities",
@@ -670,7 +678,7 @@ local frames = {
 		addon = "Blizzard_CovenantSanctum",
 		defaultEnabled = true,
 	},
-  {
+	{
 		id = "CovenantMissionFrame",
 		label = L["Covenant Mission Frame"] or "Covenant Mission Frame",
 		group = "activities",
@@ -686,7 +694,7 @@ local frames = {
 		addon = "Blizzard_CovenantRenown",
 		defaultEnabled = true,
 	},
-  {
+	{
 		id = "CovenantPreviewFrame",
 		label = L["Covenant Preview Frame"] or "Covenant Preview Frame",
 		group = "activities",

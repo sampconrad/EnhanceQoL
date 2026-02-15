@@ -2142,11 +2142,17 @@ local function UpdateActionBarMouseover(barName, config, variable)
 	end
 
 	local function handleButtonLeave(self)
-		if IsActionBarMouseoverGroupEnabled() then
-			UpdateActionBarGroupHoverState(self, false)
-		else
-			EQOL_HideBarIfNotHovered(bar, variable)
+		local current = GetActionBarVisibilityConfig(variable)
+		if not current then return end
+		if current.MOUSEOVER then
+			if IsActionBarMouseoverGroupEnabled() then
+				UpdateActionBarGroupHoverState(self, false)
+			else
+				EQOL_HideBarIfNotHovered(bar, variable)
+			end
+			return
 		end
+		ApplyActionBarAlpha(bar, variable, current)
 	end
 
 	for i = 1, 12 do
@@ -2803,9 +2809,11 @@ end
 
 local function shouldAutoAcceptResurrection(offerer)
 	if not addon.db or not addon.db["autoAcceptResurrection"] then return false end
-	if addon.db["autoAcceptResurrectionExcludeCombat"] and UnitAffectingCombat("player") then return false end
+	local unit = resolveResurrectOffererUnit(offerer)
+	if addon.db["autoAcceptResurrectionExcludeCombat"] then
+		if unit and UnitAffectingCombat(unit) then return false end
+	end
 	if addon.db["autoAcceptResurrectionExcludeAfterlife"] then
-		local unit = resolveResurrectOffererUnit(offerer)
 		if unit and UnitIsDeadOrGhost(unit) then return false end
 	end
 	return true
@@ -2952,18 +2960,42 @@ local function initMisc()
 		AzeriteLevelUpToast:Hide()
 	end
 	addon.functions.updateRaidToolsHook()
-	ExpansionLandingPageMinimapButton:HookScript("OnShow", function(self)
-		local id = addon.variables.landingPageReverse[self.title]
-		if addon.db["enableSquareMinimap"] then
-			self:ClearAllPoints()
-			if id == 20 then
-				self:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -25, -25)
-			else
-				self:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -16, -16)
-			end
+	addon.variables = addon.variables or {}
+
+	local function applySquareLandingPageButtonAnchor(button)
+		if not button or not addon.db or not addon.db["enableSquareMinimap"] then return end
+		local reverse = addon.variables and addon.variables.landingPageReverse
+		local id = reverse and reverse[button.title]
+		button:ClearAllPoints()
+		if id == 20 then
+			button:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -25, -25)
+		else
+			button:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -16, -16)
 		end
-		if addon.db["hiddenLandingPages"][id] then self:Hide() end
-	end)
+	end
+
+	local function refreshLandingPageButtonFix()
+		local button = _G.ExpansionLandingPageMinimapButton
+		if not button then return end
+
+		applySquareLandingPageButtonAnchor(button)
+
+		local reverse = addon.variables and addon.variables.landingPageReverse
+		local id = reverse and reverse[button.title]
+		if addon.db and addon.db["hiddenLandingPages"] and id and addon.db["hiddenLandingPages"][id] then button:Hide() end
+	end
+
+	if ExpansionLandingPageMinimapButton and not addon.variables._eqolLandingPageButtonHooked then
+		ExpansionLandingPageMinimapButton:HookScript("OnShow", refreshLandingPageButtonFix)
+		ExpansionLandingPageMinimapButton:RegisterEvent("COVENANT_CHOSEN")
+		ExpansionLandingPageMinimapButton:HookScript("OnEvent", function(_, event)
+			if event ~= "COVENANT_CHOSEN" then return end
+			C_Timer.After(0, refreshLandingPageButtonFix)
+		end)
+		addon.variables._eqolLandingPageButtonHooked = true
+	end
+
+	C_Timer.After(0, refreshLandingPageButtonFix)
 
 	-- Right-click context menu for expansion/garrison minimap buttons
 	local MU = MenuUtil
@@ -4500,8 +4532,8 @@ local function initUI()
 			columns = math.floor(columns + 0.5)
 			if columns < 1 then
 				columns = 1
-			elseif columns > 10 then
-				columns = 10
+			elseif columns > 99 then
+				columns = 99
 			end
 			if addon.variables.buttonSink then
 				local index = 0
@@ -5675,6 +5707,8 @@ local eventHandlers = {
 	end,
 	["PLAYER_LOGIN"] = function()
 		addon.functions.applyUIScalePreset()
+
+		addon.variables.screenHeight = GetScreenHeight()
 
 		if addon.db["enableMinimapButtonBin"] then addon.functions.toggleButtonSink() end
 		if addon.db["actionBarAnchorEnabled"] then RefreshAllActionBarAnchors() end

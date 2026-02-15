@@ -167,13 +167,26 @@ end
 
 function ChatIM:HookInsertLink()
 	if self.insertLinkHooked then return end
-	hooksecurefunc("ChatEdit_InsertLink", function(link)
+
+	local function tryInsertLink(link)
+		if not link or not ChatIM.enabled then return end
 		local tab = ChatIM.activeTab and ChatIM.tabs[ChatIM.activeTab]
-		if link and tab and tab.edit and tab.edit:HasFocus() then
-			tab.edit:Insert(link)
-			return true
-		end
-	end)
+		if not (tab and tab.edit) then return end
+		if not (ChatIM.widget and ChatIM.widget.frame and ChatIM.widget.frame:IsShown()) then return end
+
+		local hasBlizzardChatFocus = ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow()
+		if not tab.edit:HasFocus() and hasBlizzardChatFocus then return end
+
+		tab.edit:Insert(link)
+		tab.edit:SetFocus()
+		return true
+	end
+
+	if ChatFrameUtil and type(ChatFrameUtil.InsertLink) == "function" then
+		hooksecurefunc(ChatFrameUtil, "InsertLink", tryInsertLink)
+	elseif type(ChatEdit_InsertLink) == "function" then
+		hooksecurefunc("ChatEdit_InsertLink", tryInsertLink)
+	end
 	self.insertLinkHooked = true
 end
 
