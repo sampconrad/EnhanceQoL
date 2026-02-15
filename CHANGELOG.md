@@ -12,6 +12,8 @@
 - Missing locale
 - Resource Bars: Fixed a spec crossover on `/reload` where Edit Mode layout writes could copy spec specific settings to other specs.
 - Resource Bars: Edit Mode layout IDs and apply handling are now spec-specific, preventing cross-spec overwrite of bar anchors/sizes.
+- Resource Bars: `Use max color` now also works for Runes when all 6 runes are ready.
+- Resource Bars: Auto-enable now seeds default bar configs when no global template exists, so new chars/profiles still get bars.
 
 ---
 

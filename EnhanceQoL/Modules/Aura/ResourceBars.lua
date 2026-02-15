@@ -1005,6 +1005,11 @@ ensureSpecCfg = function(specIndex)
 				specCfg[pType] = specCfg[pType] or {}
 				local ok = false
 				if ResourceBars.ApplyGlobalProfile then ok = ResourceBars.ApplyGlobalProfile(pType, specIndex or spec, false) end
+				-- Fallback for fresh profiles/new chars without any saved global template yet.
+				if not ok then
+					specCfg[pType]._rbType = pType
+					ok = true
+				end
 				if ok then
 					applied = applied + 1
 					specCfg[pType].enabled = true
@@ -2822,10 +2827,6 @@ function updatePowerBar(type, runeSlot)
 		else
 			cooldownR, cooldownG, cooldownB, cooldownA = 0.35, 0.35, 0.35, 1
 		end
-		local readyChanged = (bar._runeReadyR ~= readyR) or (bar._runeReadyG ~= readyG) or (bar._runeReadyB ~= readyB) or (bar._runeReadyA ~= readyA)
-		local cooldownChanged = (bar._runeCooldownR ~= cooldownR) or (bar._runeCooldownG ~= cooldownG) or (bar._runeCooldownB ~= cooldownB) or (bar._runeCooldownA ~= cooldownA)
-		bar._runeReadyR, bar._runeReadyG, bar._runeReadyB, bar._runeReadyA = readyR, readyG, readyB, readyA
-		bar._runeCooldownR, bar._runeCooldownG, bar._runeCooldownB, bar._runeCooldownA = cooldownR, cooldownG, cooldownB, cooldownA
 		bar._rune = bar._rune or {}
 		bar._runeOrder = bar._runeOrder or {}
 		bar._charging = bar._charging or {}
@@ -2846,6 +2847,20 @@ function updatePowerBar(type, runeSlot)
 		for i = count + 1, #charging do
 			charging[i] = nil
 		end
+		-- Runes use max color only when all six runes are ready (resource at maximum).
+		local allRunesReady = count == 0
+		if cfg.useMaxColor == true and allRunesReady then
+			local maxCol = cfg.maxColor or RB.WHITE
+			readyR = maxCol[1] or readyR
+			readyG = maxCol[2] or readyG
+			readyB = maxCol[3] or readyB
+			readyA = maxCol[4] or readyA
+		end
+		local readyChanged = (bar._runeReadyR ~= readyR) or (bar._runeReadyG ~= readyG) or (bar._runeReadyB ~= readyB) or (bar._runeReadyA ~= readyA)
+		local cooldownChanged = (bar._runeCooldownR ~= cooldownR) or (bar._runeCooldownG ~= cooldownG) or (bar._runeCooldownB ~= cooldownB) or (bar._runeCooldownA ~= cooldownA)
+		bar._runeReadyR, bar._runeReadyG, bar._runeReadyB, bar._runeReadyA = readyR, readyG, readyB, readyA
+		bar._runeCooldownR, bar._runeCooldownG, bar._runeCooldownB, bar._runeCooldownA = cooldownR, cooldownG, cooldownB, cooldownA
+		bar._usingMaxColor = cfg.useMaxColor == true and allRunesReady
 		if count > 1 then
 			local snapshot = bar._chargingSnapshot
 			if not snapshot then

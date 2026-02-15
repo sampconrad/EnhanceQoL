@@ -141,6 +141,8 @@ globals = {
 	"BankPanel",
 	"ChatFrameUtil",
 	"ChatEdit_InsertLink",
+	"COOLDOWN_VIEWER_SETTINGS_CATEGORY_UTILITY",
+	"COOLDOWN_VIEWER_SETTINGS_CATEGORY_ESSENTIAL",
 	"ItemLocation",
 	"securecallfunction",
 	"ACCESSIBILITY_GENERAL_LABEL",

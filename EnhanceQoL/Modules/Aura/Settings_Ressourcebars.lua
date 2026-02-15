@@ -94,6 +94,11 @@ local function maybeAutoEnableBars(specIndex, specCfg)
 			specCfg[pType] = specCfg[pType] or {}
 			local ok = false
 			if ResourceBars.ApplyGlobalProfile then ok = ResourceBars.ApplyGlobalProfile(pType, specIndex, false) end
+			-- Fallback for fresh profiles/new chars without any saved global template yet.
+			if not ok then
+				specCfg[pType]._rbType = pType
+				ok = true
+			end
 			if ok then
 				applied = applied + 1
 				specCfg[pType].enabled = true
