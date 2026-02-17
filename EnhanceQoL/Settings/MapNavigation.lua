@@ -738,6 +738,28 @@ data = {
 				parentSection = buttonSinkSection,
 			},
 			{
+				var = "minimapButtonBinIconClickToggle",
+				text = L["minimapButtonBinIconClickToggle"],
+				desc = L["minimapButtonBinIconClickToggleDesc"],
+				func = function(key)
+					addon.db["minimapButtonBinIconClickToggle"] = key
+					addon.functions.toggleButtonSink()
+				end,
+				default = false,
+				sType = "checkbox",
+				parentCheck = function()
+					return addon.SettingsLayout.elements["enableMinimapButtonBin"]
+						and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting
+						and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["useMinimapButtonBinIcon"]
+						and addon.SettingsLayout.elements["useMinimapButtonBinIcon"].setting
+						and addon.SettingsLayout.elements["useMinimapButtonBinIcon"].setting:GetValue() == true
+				end,
+				parent = true,
+				notify = "enableMinimapButtonBin",
+				parentSection = buttonSinkSection,
+			},
+			{
 				var = "useMinimapButtonBinMouseover",
 				text = L["useMinimapButtonBinMouseover"],
 				desc = L["useMinimapButtonBinMouseoverDesc"],

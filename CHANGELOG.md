@@ -1,6 +1,10 @@
 # Changelog
 
-## [7.18.1] - 2026-02-17
+## [7.19.0] - 2026-02-17
+
+### ✨ Added
+
+- Button Sink (Minimap toggle): Added an optional click-toggle mode so the flyout opens/closes with left-click instead of hover.
 
 ### 🐛 Fixed
 

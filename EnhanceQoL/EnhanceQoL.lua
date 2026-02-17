@@ -3715,6 +3715,7 @@ local function initUI()
 	addon.functions.InitDBValue("frameVisibilityFadeStrength", 1)
 	addon.functions.InitDBValue("buttonsink", {})
 	addon.functions.InitDBValue("buttonSinkAnchorPreference", "AUTO")
+	addon.functions.InitDBValue("minimapButtonBinIconClickToggle", false)
 	addon.functions.InitDBValue("minimapButtonBinColumns", DEFAULT_BUTTON_SINK_COLUMNS)
 	addon.functions.InitDBValue("minimapButtonBinHideBackground", false)
 	addon.functions.InitDBValue("minimapButtonBinHideBorder", false)
@@ -4328,7 +4329,9 @@ local function initUI()
 
 			if addon.db["useMinimapButtonBinIcon"] then
 				buttonBag:SetScript("OnLeave", function(self)
-					if addon.db["useMinimapButtonBinIcon"] then C_Timer.After(1, function() hoverOutFrame() end) end
+					if addon.db["useMinimapButtonBinIcon"] and addon.db["minimapButtonBinIconClickToggle"] ~= true then
+						C_Timer.After(1, function() hoverOutFrame() end)
+					end
 				end)
 			else
 				if not addon.db["lockMinimapButtonBin"] then
@@ -4370,11 +4373,28 @@ local function initUI()
 					icon = "Interface\\AddOns\\" .. addonName .. "\\Icons\\SinkHole.tga" or "Interface\\ICONS\\INV_Misc_QuestionMark", -- irgendein Icon
 					label = addonName .. "_ButtonSinkMap",
 					OnEnter = function(self)
-						positionBagFrame(addon.variables.buttonSink, LDBIcon.objects[addonName .. "_ButtonSinkMap"])
+						if addon.db["minimapButtonBinIconClickToggle"] then return end
+						local anchorButton = LDBIcon.objects[addonName .. "_ButtonSinkMap"] or self
+						if not anchorButton then return end
+						positionBagFrame(addon.variables.buttonSink, anchorButton)
 						addon.variables.buttonSink:Show()
 					end,
+					OnClick = function(self, button)
+						if addon.db["minimapButtonBinIconClickToggle"] ~= true then return end
+						if button and button ~= "LeftButton" then return end
+						if not addon.variables.buttonSink then return end
+						if addon.variables.buttonSink:IsShown() then
+							addon.variables.buttonSink:Hide()
+						else
+							local anchorButton = LDBIcon.objects[addonName .. "_ButtonSinkMap"] or self
+							if anchorButton then positionBagFrame(addon.variables.buttonSink, anchorButton) end
+							addon.variables.buttonSink:Show()
+						end
+					end,
 					OnLeave = function(self)
-						if addon.db["useMinimapButtonBinIcon"] then C_Timer.After(1, function() hoverOutFrame() end) end
+						if addon.db["useMinimapButtonBinIcon"] and addon.db["minimapButtonBinIconClickToggle"] ~= true then
+							C_Timer.After(1, function() hoverOutFrame() end)
+						end
 					end,
 				}
 				-- Registriere das Icon bei LibDBIcon
