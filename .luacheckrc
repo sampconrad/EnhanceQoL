@@ -137,6 +137,7 @@ globals = {
 	"BUYBACK_ITEMS_PER_PAGE",
 	"EquipmentManager_UnpackLocation",
 	"AccountBankPanel",
+	"StaticPopup_Resize",
 	"ChatThrottleLib",
 	"BankPanel",
 	"ChatFrameUtil",
