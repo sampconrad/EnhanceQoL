@@ -3719,6 +3719,22 @@ local function buildUnitSettings(unit)
 	nameColorSetting.isEnabled = isNameEnabled
 	list[#list + 1] = nameColorSetting
 
+	local showNameReactionSetting = unit == "target" or unit == "targettarget" or unit == "focus" or isBossUnit(unit)
+	if showNameReactionSetting then
+		local nameReactionSetting = checkbox(
+			L["UFNameUseReactionColor"] or "Use reaction color for NPC names",
+			function() return getValue(unit, { "status", "nameUseReactionColor" }, statusDef.nameUseReactionColor == true) == true end,
+			function(val)
+				setValue(unit, { "status", "nameUseReactionColor" }, val and true or false)
+				refresh()
+			end,
+			statusDef.nameUseReactionColor == true,
+			"status"
+		)
+		nameReactionSetting.isEnabled = function() return isNameEnabled() and getValue(unit, { "status", "nameColorMode" }, statusDef.nameColorMode or "CLASS") ~= "CUSTOM" end
+		list[#list + 1] = nameReactionSetting
+	end
+
 	local nameAnchorSetting = radioDropdown(
 		L["UFNameAnchor"] or "Name anchor",
 		anchorOptions,

@@ -7462,6 +7462,1058 @@ local EDITMODE_IDS = {
 	ma = "EQOL_UF_GROUP_MA",
 }
 
+GF._groupCopySourceGroup = "group"
+GF._groupCopySourceUnit = "unit"
+GF._groupCopyDialogKey = "EQOL_UF_GROUP_COPY_SETTINGS"
+
+GF._groupCopySourceLabels = {
+	party = PARTY or "Party",
+	raid = RAID or "Raid",
+	mt = MAINTANK or "Main Tank",
+	ma = MAINASSIST or "Main Assist",
+}
+
+GF._groupCopyUnitSourceLabels = {
+	player = PLAYER or "Player",
+	target = TARGET or "Target",
+	targettarget = L["UFToTFrame"] or "Target of Target",
+	pet = PET or "Pet",
+	focus = FOCUS or "Focus",
+	boss = BOSS or "Boss",
+}
+
+GF._groupCopySectionOrder = {
+	"frame",
+	"layout",
+	"border",
+	"hoverHighlight",
+	"targetHighlight",
+	"text",
+	"health",
+	"absorb",
+	"healabsorb",
+	"level",
+	"statustext",
+	"dispeltint",
+	"groupicons",
+	"raidmarker",
+	"statusicons",
+	"roleicons",
+	"power",
+	"buffs",
+	"debuffs",
+	"externals",
+	"privateAuras",
+	"party",
+	"raid",
+}
+
+GF._groupCopySectionLabels = {
+	frame = "Frame",
+	layout = "Layout",
+	border = "Border",
+	hoverHighlight = "Hover highlight",
+	targetHighlight = "Target highlight",
+	text = "Name",
+	health = "Health",
+	absorb = "Absorb",
+	healabsorb = "Heal absorb",
+	level = "Level",
+	statustext = "Status line",
+	dispeltint = "Dispel tint",
+	groupicons = "Group icons",
+	raidmarker = "Raid marker",
+	statusicons = "Status icons",
+	roleicons = "Role icons",
+	power = "Power",
+	buffs = "Buffs",
+	debuffs = "Debuffs",
+	externals = "Externals",
+	privateAuras = L["UFPrivateAuras"] or "Private Auras",
+	party = PARTY or "Party",
+	raid = RAID or "Raid",
+}
+
+GF._groupCopySectionRules = {
+	frame = {
+		{ "width" },
+		{ "height" },
+		{ "powerHeight" },
+		{ "hideInClientScene" },
+		{ "tooltip" },
+		{ "point" },
+		{ "relativePoint" },
+		{ "relativeTo" },
+		{ "x" },
+		{ "y" },
+	},
+	layout = {
+		{ "spacing" },
+		{ "growth" },
+		{ "groupGrowth" },
+		{ "barTexture" },
+		{ "unitsPerColumn" },
+		{ "maxColumns" },
+		{ "columnSpacing" },
+	},
+	border = {
+		{ "border" },
+	},
+	hoverHighlight = {
+		{ "highlightHover" },
+	},
+	targetHighlight = {
+		{ "highlightTarget" },
+	},
+	text = {
+		{ "text" },
+		{ "status", "nameColorMode" },
+		{ "status", "nameColor" },
+	},
+	health = {
+		{ "health" },
+	},
+	absorb = {
+		{ "health", "absorbEnabled" },
+		{ "health", "showSampleAbsorb" },
+		{ "health", "absorbTexture" },
+		{ "health", "absorbReverseFill" },
+		{ "health", "absorbUseCustomColor" },
+		{ "health", "absorbColor" },
+	},
+	healabsorb = {
+		{ "health", "healAbsorbEnabled" },
+		{ "health", "showSampleHealAbsorb" },
+		{ "health", "healAbsorbTexture" },
+		{ "health", "healAbsorbReverseFill" },
+		{ "health", "healAbsorbUseCustomColor" },
+		{ "health", "healAbsorbColor" },
+	},
+	level = {
+		{ "status", "levelEnabled" },
+		{ "status", "hideLevelAtMax" },
+		{ "status", "levelColorMode" },
+		{ "status", "levelColor" },
+		{ "status", "levelFontSize" },
+		{ "status", "levelFont" },
+		{ "status", "levelFontOutline" },
+		{ "status", "levelAnchor" },
+		{ "status", "levelOffset" },
+	},
+	statustext = {
+		{ "status", "unitStatus" },
+		{ "status", "groupNumber" },
+	},
+	dispeltint = {
+		{ "status", "dispelTint" },
+	},
+	groupicons = {
+		{ "status", "leaderIcon" },
+		{ "status", "assistIcon" },
+	},
+	raidmarker = {
+		{ "status", "raidIcon" },
+	},
+	statusicons = {
+		{ "status", "readyCheckIcon" },
+		{ "status", "summonIcon" },
+		{ "status", "resurrectIcon" },
+		{ "status", "phaseIcon" },
+	},
+	roleicons = {
+		{ "roleIcon" },
+	},
+	power = {
+		{ "powerHeight" },
+		{ "power" },
+	},
+	buffs = {
+		{ "auras", "buff" },
+	},
+	debuffs = {
+		{ "auras", "debuff" },
+	},
+	externals = {
+		{ "auras", "externals" },
+	},
+	privateAuras = {
+		{ "privateAuras" },
+	},
+	party = {
+		{ "showPlayer" },
+		{ "showSolo" },
+		{ "sortMethod" },
+		{ "sortDir" },
+		{ "customSort" },
+	},
+	raid = {
+		{ "hideSelf" },
+		{ "unitsPerColumn" },
+		{ "maxColumns" },
+		{ "columnSpacing" },
+		{ "groupBy" },
+		{ "groupingOrder" },
+		{ "groupFilter" },
+		{ "sortMethod" },
+		{ "sortDir" },
+		{ "customSort" },
+		{ "groupIndicator" },
+	},
+}
+
+GF._groupCopyUnitSections = {
+	frame = true,
+	border = true,
+	text = true,
+	health = true,
+	absorb = true,
+	healabsorb = true,
+	level = true,
+	statustext = true,
+	raidmarker = true,
+	power = true,
+	buffs = true,
+	debuffs = true,
+	privateAuras = true,
+}
+
+function GF._groupCopyCloneValue(value)
+	if type(value) ~= "table" then return value end
+	if addon.functions and addon.functions.copyTable then return addon.functions.copyTable(value) end
+	if CopyTable then return CopyTable(value) end
+	local out = {}
+	for key, child in pairs(value) do
+		out[key] = GF._groupCopyCloneValue(child)
+	end
+	return out
+end
+
+function GF._groupCopyGetPathValue(root, path)
+	if type(root) ~= "table" or type(path) ~= "table" then return nil, false end
+	local cur = root
+	for i = 1, #path do
+		if type(cur) ~= "table" then return nil, false end
+		cur = cur[path[i]]
+		if cur == nil then return nil, false end
+	end
+	return cur, true
+end
+
+function GF._groupCopyClearPathValue(root, path)
+	if type(root) ~= "table" or type(path) ~= "table" or #path == 0 then return end
+	if #path == 1 then
+		root[path[1]] = nil
+		return
+	end
+	local cur = root
+	local trail = {}
+	for i = 1, #path - 1 do
+		local key = path[i]
+		local nxt = cur[key]
+		if type(nxt) ~= "table" then return end
+		trail[#trail + 1] = { parent = cur, key = key }
+		cur = nxt
+	end
+	cur[path[#path]] = nil
+	for i = #trail, 1, -1 do
+		local node = trail[i]
+		local child = node.parent[node.key]
+		if type(child) == "table" and not next(child) then
+			node.parent[node.key] = nil
+		else
+			break
+		end
+	end
+end
+
+function GF._groupCopySetPathValue(root, path, value)
+	if type(root) ~= "table" or type(path) ~= "table" or #path == 0 then return end
+	if value == nil then
+		GF._groupCopyClearPathValue(root, path)
+		return
+	end
+	local cur = root
+	for i = 1, #path - 1 do
+		local key = path[i]
+		if type(cur[key]) ~= "table" then cur[key] = {} end
+		cur = cur[key]
+	end
+	cur[path[#path]] = value
+end
+
+function GF._groupCopyPath(src, dest, path)
+	local value, exists = GF._groupCopyGetPathValue(src, path)
+	if exists then
+		GF._groupCopySetPathValue(dest, path, GF._groupCopyCloneValue(value))
+	else
+		GF._groupCopyClearPathValue(dest, path)
+	end
+end
+
+function GF._groupCopyPathWithDefaults(sourceKind, src, dest, path)
+	local value, exists = GF._groupCopyGetPathValue(src, path)
+	if not exists then
+		local def = DEFAULTS[sourceKind]
+		if type(def) == "table" then
+			value, exists = GF._groupCopyGetPathValue(def, path)
+		end
+	end
+	if exists then GF._groupCopySetPathValue(dest, path, GF._groupCopyCloneValue(value)) end
+end
+
+function GF._groupCopyWipeTarget(t)
+	if type(t) ~= "table" then return end
+	if wipe then
+		wipe(t)
+		return
+	end
+	for key in pairs(t) do
+		t[key] = nil
+	end
+end
+
+function GF._isGroupCopyKind(kind) return kind == "party" or kind == "raid" or kind == "mt" or kind == "ma" end
+
+function GF._buildGroupCopySectionSetForGroupKind(kind)
+	local set = {
+		frame = true,
+		layout = true,
+		border = true,
+		hoverHighlight = true,
+		targetHighlight = true,
+		text = true,
+		health = true,
+		absorb = true,
+		healabsorb = true,
+		level = true,
+		statustext = true,
+		dispeltint = true,
+		groupicons = true,
+		raidmarker = true,
+		statusicons = true,
+		roleicons = true,
+		power = true,
+		buffs = true,
+		debuffs = true,
+		externals = true,
+		privateAuras = true,
+	}
+	if kind == "party" then
+		set.party = true
+	elseif kind == "raid" or kind == "mt" or kind == "ma" then
+		set.raid = true
+	end
+	return set
+end
+
+function GF._buildGroupCopySectionSetForUnitSource()
+	local set = {}
+	for sectionId in pairs(GF._groupCopyUnitSections) do
+		set[sectionId] = true
+	end
+	return set
+end
+
+function GF._buildGroupCopySourceOptions(targetKind)
+	local options = {}
+	for _, sourceKind in ipairs({ "party", "raid", "mt", "ma" }) do
+		if sourceKind ~= targetKind then
+			options[#options + 1] = {
+				sourceType = GF._groupCopySourceGroup,
+				sourceKey = sourceKind,
+				label = GF._groupCopySourceLabels[sourceKind] or sourceKind,
+			}
+		end
+	end
+	for _, sourceUnit in ipairs({ "player", "target", "targettarget", "focus", "pet", "boss" }) do
+		options[#options + 1] = {
+			sourceType = GF._groupCopySourceUnit,
+			sourceKey = sourceUnit,
+			label = GF._groupCopyUnitSourceLabels[sourceUnit] or sourceUnit,
+		}
+	end
+	return options
+end
+
+function GF._buildGroupCopySectionOptions(source, targetKind)
+	local options = {}
+	if type(source) ~= "table" or not GF._isGroupCopyKind(targetKind) then return options end
+	local sourceSet
+	if source.sourceType == GF._groupCopySourceGroup and GF._isGroupCopyKind(source.sourceKey) then
+		sourceSet = GF._buildGroupCopySectionSetForGroupKind(source.sourceKey)
+	elseif source.sourceType == GF._groupCopySourceUnit then
+		sourceSet = GF._buildGroupCopySectionSetForUnitSource()
+	else
+		return options
+	end
+	local targetSet = GF._buildGroupCopySectionSetForGroupKind(targetKind)
+	for _, sectionId in ipairs(GF._groupCopySectionOrder) do
+		if sourceSet[sectionId] and targetSet[sectionId] then options[#options + 1] = { value = sectionId, label = GF._groupCopySectionLabels[sectionId] or sectionId } end
+	end
+	return options
+end
+
+function GF._getGroupCopyTargetLabel(kind) return GF._groupCopySourceLabels[kind] or kind end
+
+function GF._getGroupCopySourceLabel(source)
+	if type(source) ~= "table" then return "" end
+	if source.label and source.label ~= "" then return source.label end
+	if source.sourceType == GF._groupCopySourceGroup then return GF._groupCopySourceLabels[source.sourceKey] or source.sourceKey end
+	if source.sourceType == GF._groupCopySourceUnit then return GF._groupCopyUnitSourceLabels[source.sourceKey] or source.sourceKey end
+	return tostring(source.sourceKey or "")
+end
+
+function GF._ensureGroupCopySectionSelection(payload)
+	if type(payload) ~= "table" then return end
+	payload.sectionOptions = type(payload.sectionOptions) == "table" and payload.sectionOptions or {}
+	payload.sectionSelection = type(payload.sectionSelection) == "table" and payload.sectionSelection or {}
+	for _, option in ipairs(payload.sectionOptions) do
+		if payload.sectionSelection[option.value] == nil then payload.sectionSelection[option.value] = true end
+	end
+end
+
+function GF._getSelectedGroupCopySections(payload)
+	local selected = {}
+	if type(payload) ~= "table" then return selected end
+	for _, option in ipairs(payload.sectionOptions or {}) do
+		if payload.sectionSelection and payload.sectionSelection[option.value] == true then selected[#selected + 1] = option.value end
+	end
+	return selected
+end
+
+function GF._resolveGroupCopySectionSelection(sectionOptions, selectedSections)
+	local resolved = {}
+	local selectedMap = nil
+	if type(selectedSections) == "table" then
+		selectedMap = {}
+		for _, sectionId in ipairs(selectedSections) do
+			if type(sectionId) == "string" and sectionId ~= "" then selectedMap[sectionId] = true end
+		end
+	end
+	for _, option in ipairs(sectionOptions or EMPTY) do
+		if selectedMap == nil or selectedMap[option.value] then resolved[#resolved + 1] = option.value end
+	end
+	return resolved
+end
+
+function GF._preserveGroupCopyAnchorState(cfg)
+	if type(cfg) ~= "table" then return nil end
+	return {
+		point = cfg.point,
+		relativePoint = cfg.relativePoint,
+		relativeTo = cfg.relativeTo,
+		x = cfg.x,
+		y = cfg.y,
+	}
+end
+
+function GF._restoreGroupCopyAnchorState(cfg, anchorState)
+	if type(cfg) ~= "table" or type(anchorState) ~= "table" then return end
+	cfg.point = anchorState.point
+	cfg.relativePoint = anchorState.relativePoint
+	cfg.relativeTo = anchorState.relativeTo
+	cfg.x = anchorState.x
+	cfg.y = anchorState.y
+end
+
+function GF._copyGroupSourceToGroup(sourceKind, targetKind, sectionIds, keepAnchor, keepEnabled)
+	local src = getCfg(sourceKind)
+	local dest = getCfg(targetKind)
+	if not (type(src) == "table" and type(dest) == "table") then return false end
+	local anchorState = keepAnchor and GF._preserveGroupCopyAnchorState(dest) or nil
+	local enabledValue = keepEnabled and dest.enabled
+	local copied = false
+
+	if type(sectionIds) == "table" and #sectionIds > 0 then
+		for _, sectionId in ipairs(sectionIds) do
+			local rules = GF._groupCopySectionRules[sectionId]
+			if type(rules) == "table" then
+				for _, path in ipairs(rules) do
+					GF._groupCopyPathWithDefaults(sourceKind, src, dest, path)
+				end
+				copied = true
+			end
+		end
+	else
+		GF._groupCopyWipeTarget(dest)
+		for key, value in pairs(src) do
+			dest[key] = GF._groupCopyCloneValue(value)
+		end
+		copied = true
+	end
+
+	if not copied then return false end
+	if keepAnchor then GF._restoreGroupCopyAnchorState(dest, anchorState) end
+	if keepEnabled then dest.enabled = enabledValue end
+	sanitizeHealthColorMode(dest)
+	if GFH and GFH.SyncAurasEnabled then GFH.SyncAurasEnabled(dest) end
+	return true
+end
+
+function GF._getUnitCopySourceConfig(unitKey)
+	if type(unitKey) ~= "string" or unitKey == "" then return nil end
+	if UF and UF.GetConfig then
+		local cfg = UF.GetConfig(unitKey)
+		if type(cfg) == "table" then return cfg end
+		if unitKey == "boss" then
+			cfg = UF.GetConfig("boss1")
+			if type(cfg) == "table" then return cfg end
+		end
+	end
+	local db = addon and addon.db and addon.db.ufFrames
+	if type(db) ~= "table" then return nil end
+	if unitKey == "boss" then return db.boss or db.boss1 end
+	return db[unitKey]
+end
+
+function GF._copyUnitAuraIconsToGroup(sectionId, srcAuras, dest)
+	if type(srcAuras) ~= "table" or type(dest) ~= "table" then return false end
+	local ac = ensureAuraConfig(dest)
+	local copied = false
+
+	if sectionId == "buffs" then
+		local buff = ac.buff or {}
+		ac.buff = buff
+		local enabled = srcAuras.showBuffs
+		if enabled == nil then enabled = srcAuras.enabled end
+		if enabled ~= nil then
+			buff.enabled = enabled and true or false
+			copied = true
+		end
+		if srcAuras.size ~= nil then
+			buff.size = srcAuras.size
+			copied = true
+		end
+		local perRow = tonumber(srcAuras.perRow)
+		if perRow and perRow > 0 then
+			buff.perRow = perRow
+			copied = true
+		end
+		if srcAuras.max ~= nil then
+			buff.max = srcAuras.max
+			copied = true
+		end
+		if srcAuras.padding ~= nil then
+			buff.spacing = srcAuras.padding
+			copied = true
+		end
+		if srcAuras.anchor ~= nil then
+			buff.anchorPoint = srcAuras.anchor
+			copied = true
+		end
+		local offset = srcAuras.offset
+		if type(offset) == "table" then
+			buff.x = offset.x or 0
+			buff.y = offset.y or 0
+			copied = true
+		end
+		if srcAuras.showTooltip ~= nil then
+			buff.showTooltip = srcAuras.showTooltip == true
+			copied = true
+		end
+		local showCooldown = srcAuras.showCooldownBuffs
+		if showCooldown == nil then showCooldown = srcAuras.showCooldown end
+		if showCooldown ~= nil then
+			buff.showCooldown = showCooldown and true or false
+			copied = true
+		end
+		if srcAuras.countAnchor ~= nil then
+			buff.countAnchor = srcAuras.countAnchor
+			copied = true
+		end
+		if type(srcAuras.countOffset) == "table" then
+			buff.countOffset = GF._groupCopyCloneValue(srcAuras.countOffset)
+			copied = true
+		end
+		local countSize = srcAuras.countFontSizeBuff
+		if countSize == nil then countSize = srcAuras.countFontSize end
+		if countSize ~= nil then
+			buff.countFontSize = countSize
+			copied = true
+		end
+		if srcAuras.countFontOutline ~= nil then
+			buff.countFontOutline = srcAuras.countFontOutline
+			copied = true
+		end
+		local cooldownSize = srcAuras.cooldownFontSizeBuff
+		if cooldownSize == nil then cooldownSize = srcAuras.cooldownFontSize end
+		if cooldownSize ~= nil then
+			buff.cooldownFontSize = cooldownSize
+			copied = true
+		end
+	elseif sectionId == "debuffs" then
+		local debuff = ac.debuff or {}
+		ac.debuff = debuff
+		local enabled = srcAuras.showDebuffs
+		if enabled == nil then enabled = srcAuras.enabled end
+		if enabled ~= nil then
+			debuff.enabled = enabled and true or false
+			copied = true
+		end
+		local debuffSize = srcAuras.debuffSize
+		if debuffSize == nil then debuffSize = srcAuras.size end
+		if debuffSize ~= nil then
+			debuff.size = debuffSize
+			copied = true
+		end
+		local perRow = tonumber(srcAuras.perRow)
+		if perRow and perRow > 0 then
+			debuff.perRow = perRow
+			copied = true
+		end
+		if srcAuras.max ~= nil then
+			debuff.max = srcAuras.max
+			copied = true
+		end
+		if srcAuras.padding ~= nil then
+			debuff.spacing = srcAuras.padding
+			copied = true
+		end
+		local anchor = srcAuras.anchor
+		local offset = srcAuras.offset
+		if srcAuras.separateDebuffAnchor == true then
+			if srcAuras.debuffAnchor ~= nil then anchor = srcAuras.debuffAnchor end
+			if type(srcAuras.debuffOffset) == "table" then offset = srcAuras.debuffOffset end
+		end
+		if anchor ~= nil then
+			debuff.anchorPoint = anchor
+			copied = true
+		end
+		if type(offset) == "table" then
+			debuff.x = offset.x or 0
+			debuff.y = offset.y or 0
+			copied = true
+		end
+		if srcAuras.showTooltip ~= nil then
+			debuff.showTooltip = srcAuras.showTooltip == true
+			copied = true
+		end
+		local showCooldown = srcAuras.showCooldownDebuffs
+		if showCooldown == nil then showCooldown = srcAuras.showCooldown end
+		if showCooldown ~= nil then
+			debuff.showCooldown = showCooldown and true or false
+			copied = true
+		end
+		if srcAuras.blizzardDispelBorder ~= nil then
+			debuff.showDispelIcon = srcAuras.blizzardDispelBorder == true
+			copied = true
+		end
+		if srcAuras.countAnchor ~= nil then
+			debuff.countAnchor = srcAuras.countAnchor
+			copied = true
+		end
+		if type(srcAuras.countOffset) == "table" then
+			debuff.countOffset = GF._groupCopyCloneValue(srcAuras.countOffset)
+			copied = true
+		end
+		local countSize = srcAuras.countFontSizeDebuff
+		if countSize == nil then countSize = srcAuras.countFontSize end
+		if countSize ~= nil then
+			debuff.countFontSize = countSize
+			copied = true
+		end
+		if srcAuras.countFontOutline ~= nil then
+			debuff.countFontOutline = srcAuras.countFontOutline
+			copied = true
+		end
+		local cooldownSize = srcAuras.cooldownFontSizeDebuff
+		if cooldownSize == nil then cooldownSize = srcAuras.cooldownFontSize end
+		if cooldownSize ~= nil then
+			debuff.cooldownFontSize = cooldownSize
+			copied = true
+		end
+	end
+
+	if copied and GFH and GFH.SyncAurasEnabled then GFH.SyncAurasEnabled(dest) end
+	return copied
+end
+
+function GF._copyUnitSourceSectionToGroup(sectionId, src, dest)
+	if type(src) ~= "table" or type(dest) ~= "table" then return false end
+	if sectionId == "frame" then
+		local copied = false
+		if src.width ~= nil then
+			dest.width = src.width
+			copied = true
+		end
+		if src.height ~= nil then
+			dest.height = src.height
+			copied = true
+		end
+		if src.powerHeight ~= nil then
+			dest.powerHeight = src.powerHeight
+			copied = true
+		end
+		if src.hideInClientScene ~= nil then
+			dest.hideInClientScene = src.hideInClientScene and true or false
+			copied = true
+		end
+		if src.showTooltip ~= nil or src.tooltipUseEditMode ~= nil then
+			dest.tooltip = dest.tooltip or {}
+			if src.showTooltip ~= nil then dest.tooltip.mode = src.showTooltip and "ALWAYS" or "OFF" end
+			if src.tooltipUseEditMode ~= nil then dest.tooltip.useEditMode = src.tooltipUseEditMode and true or false end
+			copied = true
+		end
+		return copied
+	elseif sectionId == "border" then
+		if src.border == nil then return false end
+		dest.border = GF._groupCopyCloneValue(src.border)
+		return true
+	elseif sectionId == "text" then
+		local sc = src.status
+		if type(sc) ~= "table" then return false end
+		local copied = false
+		dest.text = dest.text or {}
+		dest.status = dest.status or {}
+		if sc.nameColorMode ~= nil then
+			dest.status.nameColorMode = sc.nameColorMode
+			dest.text.useClassColor = tostring(sc.nameColorMode or ""):upper() == "CLASS"
+			copied = true
+		end
+		if sc.nameColor ~= nil then
+			dest.status.nameColor = GF._groupCopyCloneValue(sc.nameColor)
+			copied = true
+		end
+		if sc.nameOffset ~= nil then
+			dest.text.nameOffset = GF._groupCopyCloneValue(sc.nameOffset)
+			copied = true
+		end
+		if sc.nameMaxChars ~= nil then
+			dest.text.nameMaxChars = sc.nameMaxChars
+			copied = true
+		end
+		if sc.fontSize ~= nil then
+			dest.text.fontSize = sc.fontSize
+			copied = true
+		end
+		if sc.font ~= nil then
+			dest.text.font = sc.font
+			copied = true
+		end
+		if sc.fontOutline ~= nil then
+			dest.text.fontOutline = sc.fontOutline
+			copied = true
+		end
+		return copied
+	elseif sectionId == "health" then
+		if type(src.health) ~= "table" then return false end
+		dest.health = GF._groupCopyCloneValue(src.health)
+		return true
+	elseif sectionId == "absorb" then
+		local hc = src.health
+		if type(hc) ~= "table" then return false end
+		dest.health = dest.health or {}
+		local copied = false
+		for _, field in ipairs({ "absorbEnabled", "showSampleAbsorb", "absorbTexture", "absorbReverseFill", "absorbUseCustomColor", "absorbColor" }) do
+			if hc[field] ~= nil then
+				dest.health[field] = GF._groupCopyCloneValue(hc[field])
+				copied = true
+			end
+		end
+		return copied
+	elseif sectionId == "healabsorb" then
+		local hc = src.health
+		if type(hc) ~= "table" then return false end
+		dest.health = dest.health or {}
+		local copied = false
+		for _, field in ipairs({ "healAbsorbEnabled", "showSampleHealAbsorb", "healAbsorbTexture", "healAbsorbReverseFill", "healAbsorbUseCustomColor", "healAbsorbColor" }) do
+			if hc[field] ~= nil then
+				dest.health[field] = GF._groupCopyCloneValue(hc[field])
+				copied = true
+			end
+		end
+		return copied
+	elseif sectionId == "level" then
+		local sc = src.status
+		if type(sc) ~= "table" then return false end
+		dest.status = dest.status or {}
+		local copied = false
+		for _, field in ipairs({ "levelEnabled", "hideLevelAtMax", "levelColorMode", "levelColor", "levelFontSize", "levelFont", "levelFontOutline", "levelAnchor" }) do
+			if sc[field] ~= nil then
+				dest.status[field] = GF._groupCopyCloneValue(sc[field])
+				copied = true
+			end
+		end
+		if sc.levelOffset ~= nil then
+			dest.status.levelOffset = GF._groupCopyCloneValue(sc.levelOffset)
+			copied = true
+		end
+		return copied
+	elseif sectionId == "statustext" then
+		local sc = src.status
+		if type(sc) ~= "table" then return false end
+		local copied = false
+		dest.status = dest.status or {}
+		if type(sc.unitStatus) == "table" then
+			dest.status.unitStatus = GF._groupCopyCloneValue(sc.unitStatus)
+			copied = true
+			local usc = sc.unitStatus
+			if usc.showGroup ~= nil or usc.groupFormat ~= nil or usc.groupFontSize ~= nil or usc.groupOffset ~= nil then
+				dest.status.groupNumber = dest.status.groupNumber or {}
+				if usc.showGroup ~= nil then dest.status.groupNumber.enabled = usc.showGroup and true or false end
+				if usc.groupFormat ~= nil then dest.status.groupNumber.format = normalizeGroupNumberFormat(usc.groupFormat) or usc.groupFormat end
+				if usc.groupFontSize ~= nil then dest.status.groupNumber.fontSize = usc.groupFontSize end
+				if usc.groupOffset ~= nil then dest.status.groupNumber.offset = GF._groupCopyCloneValue(usc.groupOffset) end
+			end
+		end
+		return copied
+	elseif sectionId == "raidmarker" then
+		local rc = src.raidIcon
+		if type(rc) ~= "table" then return false end
+		dest.status = dest.status or {}
+		dest.status.raidIcon = dest.status.raidIcon or {}
+		local dst = dest.status.raidIcon
+		local copied = false
+		if rc.enabled ~= nil then
+			dst.enabled = rc.enabled and true or false
+			copied = true
+		end
+		if rc.size ~= nil then
+			dst.size = rc.size
+			copied = true
+		end
+		if rc.point ~= nil then
+			dst.point = rc.point
+			dst.relativePoint = rc.point
+			copied = true
+		end
+		if type(rc.offset) == "table" then
+			dst.x = rc.offset.x or 0
+			dst.y = rc.offset.y or 0
+			copied = true
+		end
+		return copied
+	elseif sectionId == "power" then
+		local copied = false
+		if type(src.power) == "table" then
+			dest.power = GF._groupCopyCloneValue(src.power)
+			copied = true
+		end
+		if src.powerHeight ~= nil then
+			dest.powerHeight = src.powerHeight
+			copied = true
+		end
+		return copied
+	elseif sectionId == "buffs" or sectionId == "debuffs" then
+		return GF._copyUnitAuraIconsToGroup(sectionId, src.auraIcons, dest)
+	elseif sectionId == "privateAuras" then
+		if type(src.privateAuras) ~= "table" then return false end
+		dest.privateAuras = GF._groupCopyCloneValue(src.privateAuras)
+		return true
+	end
+	return false
+end
+
+function GF._copyUnitSourceToGroup(sourceUnit, targetKind, sectionIds, keepAnchor, keepEnabled)
+	local src = GF._getUnitCopySourceConfig(sourceUnit)
+	local dest = getCfg(targetKind)
+	if not (type(src) == "table" and type(dest) == "table") then return false end
+	local anchorState = keepAnchor and GF._preserveGroupCopyAnchorState(dest) or nil
+	local enabledValue = keepEnabled and dest.enabled
+	local copied = false
+	for _, sectionId in ipairs(sectionIds or EMPTY) do
+		if GF._groupCopyUnitSections[sectionId] and GF._copyUnitSourceSectionToGroup(sectionId, src, dest) then copied = true end
+	end
+	if not copied then return false end
+	if keepAnchor then GF._restoreGroupCopyAnchorState(dest, anchorState) end
+	if keepEnabled then dest.enabled = enabledValue end
+	sanitizeHealthColorMode(dest)
+	if GFH and GFH.SyncAurasEnabled then GFH.SyncAurasEnabled(dest) end
+	return true
+end
+
+function GF._applyGroupCopyRefresh(targetKind, editModeId)
+	GF:ApplyHeaderAttributes(targetKind)
+	GF:RefreshNames()
+	GF:RefreshPowerVisibility()
+	GF:RefreshRoleIcons()
+	GF:RefreshGroupIcons()
+	GF:RefreshStatusText()
+	GF:RefreshRaidIcons()
+	GF:RefreshStatusIcons()
+	GF:RefreshDispelTint()
+	GF:RefreshTargetHighlights()
+	GF:RefreshTextStyles()
+	GF:RefreshClientSceneVisibility()
+	if targetKind == "raid" then GF:RefreshGroupIndicators() end
+	refreshAllAuras()
+	if GF._previewActive and GF._previewActive[targetKind] then GF:UpdatePreviewLayout(targetKind) end
+	-- Do not call EditMode:RefreshFrame here: it reapplies stale layout data via onApply
+	-- and can overwrite freshly copied cfg values (e.g. width/height) back to old values.
+	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
+end
+
+function GF._copyGroupSettingsFromSource(source, targetKind, opts)
+	if type(source) ~= "table" or not GF._isGroupCopyKind(targetKind) then return false end
+	opts = opts or {}
+	local sectionOptions = GF._buildGroupCopySectionOptions(source, targetKind)
+	if #sectionOptions == 0 then return false end
+	local keepAnchor = opts.keepAnchor ~= false
+	local keepEnabled = opts.keepEnabled ~= false
+	if source.sourceType == GF._groupCopySourceGroup then
+		if not GF._isGroupCopyKind(source.sourceKey) then return false end
+		local sectionIds = GF._resolveGroupCopySectionSelection(sectionOptions, opts.sections)
+		if #sectionIds == 0 then return false end
+		return GF._copyGroupSourceToGroup(source.sourceKey, targetKind, sectionIds, keepAnchor, keepEnabled)
+	elseif source.sourceType == GF._groupCopySourceUnit then
+		local sectionIds = GF._resolveGroupCopySectionSelection(sectionOptions, opts.sections)
+		if #sectionIds == 0 then return false end
+		return GF._copyUnitSourceToGroup(source.sourceKey, targetKind, sectionIds, keepAnchor, keepEnabled)
+	end
+	return false
+end
+
+function GF._ensureGroupCopySectionCheckbox(dialog, index)
+	dialog.eqolGroupCopySectionRows = dialog.eqolGroupCopySectionRows or {}
+	local row = dialog.eqolGroupCopySectionRows[index]
+	if row then return row end
+	row = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
+	row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	row.Label:SetPoint("LEFT", row, "RIGHT", 1, 1)
+	row.Label:SetJustifyH("LEFT")
+	row.Label:SetWidth(255)
+	row:SetHitRectInsets(0, -255, 0, 0)
+	dialog.eqolGroupCopySectionRows[index] = row
+	return row
+end
+
+function GF._ensureGroupCopyAllCheckbox(dialog)
+	if dialog.eqolGroupCopyAllRow then return dialog.eqolGroupCopyAllRow end
+	local row = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
+	row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	row.Label:SetPoint("LEFT", row, "RIGHT", 1, 1)
+	row.Label:SetJustifyH("LEFT")
+	row.Label:SetWidth(255)
+	row:SetHitRectInsets(0, -255, 0, 0)
+	row.Label:SetText(L["UFAllSettings"] or "All settings")
+	row:SetScript("OnClick", function(self)
+		local popup = self:GetParent()
+		local payload = popup and popup.data
+		if not payload then return end
+		GF._ensureGroupCopySectionSelection(payload)
+		local checked = self:GetChecked() == true
+		for _, option in ipairs(payload.sectionOptions) do
+			payload.sectionSelection[option.value] = checked
+		end
+		if popup.eqolRefreshGroupCopySelection then popup:eqolRefreshGroupCopySelection() end
+	end)
+	dialog.eqolGroupCopyAllRow = row
+	return row
+end
+
+function GF._refreshGroupCopySelectionDialog(dialog)
+	local payload = dialog and dialog.data
+	if not payload then return end
+	GF._ensureGroupCopySectionSelection(payload)
+	local options = payload.sectionOptions or {}
+	local popupHeight = 150 + ((#options + 1) * 22)
+	if popupHeight < 190 then popupHeight = 190 end
+	local maxPopupHeight = 540
+	if UIParent and UIParent.GetHeight then
+		local uiHeight = tonumber(UIParent:GetHeight())
+		if uiHeight and uiHeight > 0 then maxPopupHeight = math.max(320, math.floor(uiHeight - 120)) end
+	end
+	if popupHeight > maxPopupHeight then popupHeight = maxPopupHeight end
+	if StaticPopup_Resize then StaticPopup_Resize(dialog, 380, popupHeight) end
+
+	local allRow = GF._ensureGroupCopyAllCheckbox(dialog)
+	allRow:ClearAllPoints()
+	if dialog.button1 then
+		allRow:SetPoint("TOPLEFT", dialog.button1, "BOTTOMLEFT", -40, -16)
+	else
+		allRow:SetPoint("TOPLEFT", dialog, "TOPLEFT", 24, -72)
+	end
+	allRow:Show()
+
+	local selectedCount = 0
+	local lastAnchor = allRow
+	for index, option in ipairs(options) do
+		local row = GF._ensureGroupCopySectionCheckbox(dialog, index)
+		row.sectionId = option.value
+		row:ClearAllPoints()
+		row:SetPoint("TOPLEFT", lastAnchor, "BOTTOMLEFT", 0, -2)
+		row.Label:SetText(option.label or option.value)
+		local checked = payload.sectionSelection[option.value] == true
+		row:SetChecked(checked)
+		if checked then selectedCount = selectedCount + 1 end
+		row:SetScript("OnClick", function(self)
+			local popup = self:GetParent()
+			local popupPayload = popup and popup.data
+			if not popupPayload then return end
+			GF._ensureGroupCopySectionSelection(popupPayload)
+			popupPayload.sectionSelection[self.sectionId] = self:GetChecked() == true
+			if popup.eqolRefreshGroupCopySelection then popup:eqolRefreshGroupCopySelection() end
+		end)
+		row:Show()
+		lastAnchor = row
+	end
+
+	local rows = dialog.eqolGroupCopySectionRows or {}
+	for index = #options + 1, #rows do
+		local row = rows[index]
+		if row then row:Hide() end
+	end
+	local allSelected = #options > 0 and selectedCount == #options
+	allRow:SetChecked(allSelected)
+	if dialog.button1 and dialog.button1.SetEnabled then dialog.button1:SetEnabled(selectedCount > 0) end
+end
+
+function GF._showGroupCopySettingsPopup(source, targetKind, editModeId)
+	if type(source) ~= "table" or not GF._isGroupCopyKind(targetKind) then return end
+	local sectionOptions = GF._buildGroupCopySectionOptions(source, targetKind)
+	if #sectionOptions == 0 then
+		if GF._copyGroupSettingsFromSource(source, targetKind, { keepAnchor = true, keepEnabled = true }) then GF._applyGroupCopyRefresh(targetKind, editModeId) end
+		return
+	end
+
+	StaticPopupDialogs[GF._groupCopyDialogKey] = StaticPopupDialogs[GF._groupCopyDialogKey]
+		or {
+			text = "%s",
+			button1 = L["Copy"] or ACCEPT,
+			button2 = CANCEL,
+			hideOnEscape = true,
+			timeout = 0,
+			whileDead = 1,
+			preferredIndex = 3,
+			OnAccept = function(self, data)
+				local payload = data or self.data
+				if payload and payload.source and payload.targetKind then
+					local selected = GF._getSelectedGroupCopySections(payload)
+					if #selected == 0 then return end
+					local copyOptions = { keepAnchor = true, keepEnabled = true, sections = selected }
+					if GF._copyGroupSettingsFromSource(payload.source, payload.targetKind, copyOptions) then GF._applyGroupCopyRefresh(payload.targetKind, payload.editModeId) end
+				end
+			end,
+			OnShow = function(self, data)
+				self.data = data or self.data
+				GF._ensureGroupCopySectionSelection(self.data or {})
+				if not self.eqolRefreshGroupCopySelection then self.eqolRefreshGroupCopySelection = GF._refreshGroupCopySelectionDialog end
+				self:eqolRefreshGroupCopySelection()
+			end,
+			OnHide = function(self)
+				if self.eqolGroupCopyAllRow then self.eqolGroupCopyAllRow:Hide() end
+				if self.eqolGroupCopySectionRows then
+					for _, row in ipairs(self.eqolGroupCopySectionRows) do
+						if row then row:Hide() end
+					end
+				end
+			end,
+		}
+
+	local sourceLabel = GF._getGroupCopySourceLabel(source)
+	local targetLabel = GF._getGroupCopyTargetLabel(targetKind)
+	local dialog = StaticPopupDialogs[GF._groupCopyDialogKey]
+	if not dialog then return end
+	dialog.text = string.format("%s\n%s -> %s", L["Copy settings"] or "Copy settings", sourceLabel, targetLabel)
+	StaticPopup_Show(GF._groupCopyDialogKey, nil, nil, {
+		source = source,
+		targetKind = targetKind,
+		editModeId = editModeId,
+		sectionOptions = sectionOptions,
+		sectionSelection = {},
+	})
+end
+
 local function anchorUsesUIParent(kind)
 	local cfg = getCfg(kind)
 	local rel = cfg and cfg.relativeTo
@@ -7905,6 +8957,30 @@ local function buildEditModeSettings(kind, editModeId)
 		return ac.externals and ac.externals.showDR == true
 	end
 	local settings = {
+		{
+			name = SETTINGS or "Settings",
+			kind = SettingType.Collapsible,
+			id = "utility",
+			defaultCollapsed = true,
+		},
+		{
+			name = L["Copy settings"] or "Copy settings",
+			kind = SettingType.Dropdown,
+			field = "copyFrom",
+			parentId = "utility",
+			customDefaultText = L["UFSelectSource"] or "Select source",
+			get = function() return nil end,
+			set = function() end,
+			generator = function(_, root, data)
+				for _, option in ipairs(GF._buildGroupCopySourceOptions(kind)) do
+					root:CreateRadio(option.label, function() return false end, function()
+						GF._showGroupCopySettingsPopup(option, kind, editModeId)
+						if data then data.customDefaultText = option.label end
+						if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
+					end)
+				end
+			end,
+		},
 		{
 			name = "Frame",
 			kind = SettingType.Collapsible,

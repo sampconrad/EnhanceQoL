@@ -353,6 +353,7 @@ local defaults = {
 			fontOutline = "OUTLINE",
 			nameColorMode = "CLASS", -- CLASS or CUSTOM
 			nameColor = { 0.8, 0.8, 1, 1 },
+			nameUseReactionColor = false,
 			levelColor = { 1, 0.85, 0, 1 },
 			levelStrata = nil,
 			levelFrameLevelOffset = 5,
@@ -989,6 +990,7 @@ local function copySettings(fromUnit, toUnit, opts)
 			{ "status", "fontOutline" },
 			{ "status", "nameColorMode" },
 			{ "status", "nameColor" },
+			{ "status", "nameUseReactionColor" },
 			{ "status", "nameAnchor" },
 			{ "status", "nameOffset" },
 			{ "status", "nameMaxChars" },
@@ -5466,6 +5468,7 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 	if cfg and cfg.enabled == false then return end
 	if st.nameText then
 		local scfg = cfg.status or {}
+		local defStatus = (defaultsFor(unit) and defaultsFor(unit).status) or {}
 		local nc
 		local nr, ng, nb, na
 		local isPlayerUnit = UnitIsPlayer and UnitIsPlayer(unit)
@@ -5479,12 +5482,19 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 				if cr then
 					nr, ng, nb, na = cr, cg, cb, ca
 				end
-			elseif UFHelper and UFHelper.getNPCSelectionKey and UFHelper.getNPCSelectionKey(unit) then
-				local fallback = NORMAL_FONT_COLOR
-				nr = (fallback and (fallback.r or fallback[1])) or 1
-				ng = (fallback and (fallback.g or fallback[2])) or 0.82
-				nb = (fallback and (fallback.b or fallback[3])) or 0
-				na = (fallback and (fallback.a or fallback[4])) or 1
+			else
+				local useReactionColor = scfg.nameUseReactionColor
+				if useReactionColor == nil then useReactionColor = defStatus.nameUseReactionColor == true end
+				if useReactionColor == true and UFHelper and UFHelper.getNPCHealthColor then
+					nr, ng, nb, na = UFHelper.getNPCHealthColor(unit)
+				end
+				if not nr and UFHelper and UFHelper.getNPCSelectionKey and UFHelper.getNPCSelectionKey(unit) then
+					local fallback = NORMAL_FONT_COLOR
+					nr = (fallback and (fallback.r or fallback[1])) or 1
+					ng = (fallback and (fallback.g or fallback[2])) or 0.82
+					nb = (fallback and (fallback.b or fallback[3])) or 0
+					na = (fallback and (fallback.a or fallback[4])) or 1
+				end
 			end
 		end
 		if not nr then

@@ -8,8 +8,11 @@
 - Combat Text: Added separate Edit Mode color settings for entering combat and leaving combat text.
 - Unit Frames: Added detached power bar options `Match health width` and `Grow from center`.
 - Unit Frames: Added `Use class color for health backdrop (players)` option for health bar backdrops.
+- Unit Frames: Added `Use reaction color for NPC names` option (Target/ToT/Focus/Boss) when custom name color is disabled.
 - Cooldown Panels: Added an option to configure the border
 - Unit Frames: Added a `Copy settings` dialog for Player/Target/ToT/Pet/Focus/Boss with selectable sections.
+- Group Frames: Added `Copy settings` with selectable sections, including copy from Unit Frames (Player/Target/ToT/Pet/Focus/Boss) and cross-copy between Party/Raid/MT/MA.
+- Group Frames: Added a dedicated `Settings` section at the top of Edit Mode settings for `Copy settings`.
 
 ### 🐛 Fixed
 
