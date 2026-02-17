@@ -22,6 +22,7 @@
 - Unit Frames (Player): `Always hide in party/raid` now only hides the Player Frame while actually grouped; solo visibility is no longer affected.
 - Unit Frames: Absorb/heal-absorb layering now stays below the health border, fixing cases where absorb textures could appear above the border.
 - Group Frames (Party/Raid): Added `Use Edit Mode tooltip position` so unit tooltips can follow the configured Edit Mode anchor instead of showing at the cursor.
+- Group Frames (Party): Role icons are now anchored to the frame container instead of the health bar, so icons stay in the correct corner when power bars are hidden for selected roles.
 - Chat Frame: Move editbox to top had a secret caching error
 
 ---

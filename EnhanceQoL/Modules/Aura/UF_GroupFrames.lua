@@ -2557,8 +2557,9 @@ function GF:LayoutButton(self)
 		local relPoint = rc.relativePoint or "LEFT"
 		local ox = roundToPixel(rc.x or 2, scale)
 		local oy = roundToPixel(rc.y or 0, scale)
+		local roleAnchor = st.barGroup or self or st.health
 		st.roleIcon:ClearAllPoints()
-		st.roleIcon:SetPoint(point, st.health, relPoint, ox, oy)
+		st.roleIcon:SetPoint(point, roleAnchor, relPoint, ox, oy)
 		st.roleIcon:SetSize(size, size)
 		rolePad = size + (rc.spacing or 2)
 	else
