@@ -631,7 +631,7 @@ local function ensureCopyAllCheckbox(dialog)
 	row.Label:SetJustifyH("LEFT")
 	row.Label:SetWidth(250)
 	row:SetHitRectInsets(0, -250, 0, 0)
-	row.Label:SetText(L["UFProfileScopeAll"] or "All settings")
+	row.Label:SetText(L["UFAllSettings"] or "All settings")
 	row:SetScript("OnClick", function(self)
 		local popup = self:GetParent()
 		local payload = popup and popup.data
@@ -654,12 +654,17 @@ local function refreshCopySelectionDialog(dialog)
 	local options = payload.sectionOptions or {}
 	local popupHeight = 150 + ((#options + 1) * 22)
 	if popupHeight < 190 then popupHeight = 190 end
-	if popupHeight > 540 then popupHeight = 540 end
+	local maxPopupHeight = 540
+	if UIParent and UIParent.GetHeight then
+		local uiHeight = tonumber(UIParent:GetHeight())
+		if uiHeight and uiHeight > 0 then maxPopupHeight = math.max(320, math.floor(uiHeight - 120)) end
+	end
+	if popupHeight > maxPopupHeight then popupHeight = maxPopupHeight end
 	if StaticPopup_Resize then StaticPopup_Resize(dialog, 370, popupHeight) end
 	local allRow = ensureCopyAllCheckbox(dialog)
 	allRow:ClearAllPoints()
 	if dialog.button1 then
-		allRow:SetPoint("TOPLEFT", dialog.button1, "BOTTOMLEFT", -40, -12)
+		allRow:SetPoint("TOPLEFT", dialog.button1, "BOTTOMLEFT", -40, -16)
 	else
 		allRow:SetPoint("TOPLEFT", dialog, "TOPLEFT", 24, -72)
 	end
@@ -1154,6 +1159,12 @@ end
 local function buildUnitSettings(unit)
 	local def = defaultsFor(unit)
 	local list = {}
+	local function addDivider(parentId, isShown, isEnabled)
+		local divider = { name = "", kind = settingType.Divider, parentId = parentId }
+		if type(isShown) == "function" then divider.isShown = isShown end
+		if type(isEnabled) == "function" then divider.isEnabled = isEnabled end
+		list[#list + 1] = divider
+	end
 	local isBoss = isBossUnit(unit)
 	local refreshFunc = refresh
 	local function refreshSelf()
@@ -1315,6 +1326,7 @@ local function buildUnitSettings(unit)
 			function(val) return tostring(val) .. "%" end
 		)
 	end
+	addDivider("frame")
 
 	list[#list + 1] = slider(L["UFWidth"] or "Frame width", MIN_WIDTH, 800, 1, function() return getValue(unit, { "width" }, def.width or MIN_WIDTH) end, function(val)
 		setValue(unit, { "width" }, math.max(MIN_WIDTH, val or MIN_WIDTH))
@@ -1374,6 +1386,7 @@ local function buildUnitSettings(unit)
 			refreshSelf()
 		end, (def.growth or "DOWN"):upper(), "frame")
 	end
+	addDivider("frame")
 
 	list[#list + 1] = radioDropdown(L["UFStrata"] or "Frame strata", strataOptions, function() return getValue(unit, { "strata" }, def.strata or defaultStrata or "") end, function(val)
 		setValue(unit, { "strata" }, val ~= "" and val or nil)
@@ -1391,6 +1404,7 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "smoothFill" }, val and true or false)
 		refreshSelf()
 	end, def.smoothFill == true, "frame")
+	addDivider("frame")
 
 	list[#list + 1] = checkboxColor({
 		name = L["UFShowBorder"] or "Show border",
@@ -1468,98 +1482,7 @@ local function buildUnitSettings(unit)
 	end, (def.border and def.border.offset) or (def.border and def.border.edgeSize) or 1, "frame", true)
 	borderOffsetSetting.isEnabled = isBorderEnabled
 	list[#list + 1] = borderOffsetSetting
-
-	list[#list + 1] = checkbox(
-		L["UFDetachedPowerBorder"] or "Show border for detached power bar",
-		function() return getValue(unit, { "border", "detachedPower" }, def.border and def.border.detachedPower == true) == true end,
-		function(val)
-			local border = getValue(unit, { "border" }, def.border or {})
-			border.detachedPower = val and true or false
-			setValue(unit, { "border" }, border)
-			refresh()
-		end,
-		def.border and def.border.detachedPower == true,
-		"frame"
-	)
-
-	local detachedBorderTexture = checkboxDropdown(L["UFDetachedPowerBorderTexture"] or "Detached power border texture", borderOptions, function()
-		local border = getValue(unit, { "border" }, def.border or {})
-		return border.detachedPowerTexture or border.texture or (def.border and def.border.texture) or "DEFAULT"
-	end, function(val)
-		local border = getValue(unit, { "border" }, def.border or {})
-		border.detachedPowerTexture = val or "DEFAULT"
-		setValue(unit, { "border" }, border)
-		refresh()
-	end, (def.border and def.border.detachedPowerTexture) or (def.border and def.border.texture) or "DEFAULT", "frame")
-	list[#list + 1] = detachedBorderTexture
-
-	local detachedBorderSize = slider(L["UFDetachedPowerBorderSize"] or "Detached power border size", 1, 64, 1, function()
-		local border = getValue(unit, { "border" }, def.border or {})
-		return border.detachedPowerSize or border.edgeSize or 1
-	end, function(val)
-		debounced(unit .. "_detachedPowerBorderSize", function()
-			local border = getValue(unit, { "border" }, def.border or {})
-			border.detachedPowerSize = val or 1
-			setValue(unit, { "border" }, border)
-			refresh()
-		end)
-	end, (def.border and def.border.detachedPowerSize) or (def.border and def.border.edgeSize) or 1, "frame", true)
-	list[#list + 1] = detachedBorderSize
-
-	local detachedBorderOffset = slider(L["UFDetachedPowerBorderOffset"] or "Detached power border offset", 0, 64, 1, function()
-		local border = getValue(unit, { "border" }, def.border or {})
-		if border.detachedPowerOffset == nil then
-			if border.offset ~= nil then return border.offset end
-			return border.edgeSize or 1
-		end
-		return border.detachedPowerOffset
-	end, function(val)
-		debounced(unit .. "_detachedPowerBorderOffset", function()
-			local border = getValue(unit, { "border" }, def.border or {})
-			border.detachedPowerOffset = val or 0
-			setValue(unit, { "border" }, border)
-			refresh()
-		end)
-	end, (def.border and def.border.detachedPowerOffset) or (def.border and def.border.offset) or (def.border and def.border.edgeSize) or 1, "frame", true)
-	list[#list + 1] = detachedBorderOffset
-
-	local powerDefaults = def.power or {}
-	local detachedStrataOptions = { { value = "", label = DEFAULT } }
-	for i = 1, #strataOptions do
-		detachedStrataOptions[#detachedStrataOptions + 1] = strataOptions[i]
-	end
-	local detachedPowerStrata = radioDropdown(
-		L["UFDetachedPowerStrata"] or "Detached power bar strata",
-		detachedStrataOptions,
-		function() return getValue(unit, { "power", "detachedStrata" }, powerDefaults.detachedStrata or "") end,
-		function(val)
-			if val == "" then val = nil end
-			setValue(unit, { "power", "detachedStrata" }, val)
-			refresh()
-		end,
-		powerDefaults.detachedStrata or "",
-		"frame",
-		true
-	)
-	list[#list + 1] = detachedPowerStrata
-
-	local detachedPowerLevelOffset = slider(
-		L["UFDetachedPowerLevelOffset"] or "Detached power bar level offset",
-		0,
-		50,
-		1,
-		function() return getValue(unit, { "power", "detachedFrameLevelOffset" }, powerDefaults.detachedFrameLevelOffset or 5) end,
-		function(val)
-			debounced(unit .. "_detachedPowerLevelOffset", function()
-				setValue(unit, { "power", "detachedFrameLevelOffset" }, val or powerDefaults.detachedFrameLevelOffset or 5)
-				refresh()
-			end)
-		end,
-		powerDefaults.detachedFrameLevelOffset or 5,
-		"frame",
-		true
-	)
-	list[#list + 1] = detachedPowerLevelOffset
+	addDivider("frame")
 
 	local highlightDef = def.highlight or {}
 	list[#list + 1] = checkboxColor({
@@ -1637,6 +1560,7 @@ local function buildUnitSettings(unit)
 	end, highlightDef.size or 2, "frame", true)
 	highlightSizeSetting.isEnabled = isHighlightEnabled
 	list[#list + 1] = highlightSizeSetting
+	addDivider("frame")
 
 	local portraitDef = def.portrait or {}
 	list[#list + 1] = { name = L["UFPortrait"] or "Portrait", kind = settingType.Collapsible, id = "portrait", defaultCollapsed = true }
@@ -1870,6 +1794,7 @@ local function buildUnitSettings(unit)
 			colorDefault = { r = tapDef[1] or 0.5, g = tapDef[2] or 0.5, b = tapDef[3] or 0.5, a = tapDef[4] or 1 },
 		})
 	end
+	addDivider("health")
 
 	list[#list + 1] = radioDropdown(
 		L["TextLeft"] or "Left text",
@@ -1972,6 +1897,7 @@ local function buildUnitSettings(unit)
 		healthDef.roundPercent == true,
 		"health"
 	)
+	addDivider("health")
 
 	list[#list + 1] = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "health", "fontSize" }, healthDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_healthFontSize", function()
@@ -2117,6 +2043,7 @@ local function buildUnitSettings(unit)
 	)
 	healthRightY.isShown = function() return showHealthTextOffsets("textRight", healthDef.textRight or "CURMAX") end
 	list[#list + 1] = healthRightY
+	addDivider("health")
 
 	list[#list + 1] = checkbox(L["Use short numbers"] or "Use short numbers", function() return getValue(unit, { "health", "useShortNumbers" }, healthDef.useShortNumbers ~= false) end, function(val)
 		setValue(unit, { "health", "useShortNumbers" }, val and true or false)
@@ -2133,6 +2060,7 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "health", "reverseFill" }, val and true or false)
 		refresh()
 	end, healthDef.reverseFill == true, "health")
+	addDivider("health")
 
 	list[#list + 1] = checkboxColor({
 		name = L["UFBarBackdrop"] or "Show bar backdrop",
@@ -2318,6 +2246,17 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = { name = L["PowerBar"] or "Power Bar", kind = settingType.Collapsible, id = "power", defaultCollapsed = true }
 	local powerDef = def.power or {}
 	local function isPowerEnabled() return getValue(unit, { "power", "enabled" }, powerDef.enabled ~= false) ~= false end
+	local function isPowerDetached() return getValue(unit, { "power", "detached" }, powerDef.detached == true) == true end
+	local function isPowerDetachedEnabled() return isPowerEnabled() and isPowerDetached() end
+	local function isDetachedPowerWidthMatched() return getValue(unit, { "power", "detachedMatchHealthWidth" }, powerDef.detachedMatchHealthWidth == true) == true end
+	local detachedStrataOptions = { { value = "", label = DEFAULT } }
+	for i = 1, #strataOptions do
+		detachedStrataOptions[#detachedStrataOptions + 1] = strataOptions[i]
+	end
+	local function isDetachedPowerBorderEnabled()
+		local border = getValue(unit, { "border" }, def.border or {})
+		return isPowerDetachedEnabled() and border.detachedPower == true
+	end
 
 	list[#list + 1] = checkbox(L["Show power bar"] or "Show power bar", isPowerEnabled, function(val)
 		setValue(unit, { "power", "enabled" }, val and true or false)
@@ -2325,31 +2264,13 @@ local function buildUnitSettings(unit)
 		refreshSettingsUI()
 	end, powerDef.enabled ~= false, "power")
 
-	list[#list + 1] = checkbox(L["Reverse fill"] or "Reverse fill", function() return getValue(unit, { "power", "reverseFill" }, powerDef.reverseFill == true) == true end, function(val)
-		setValue(unit, { "power", "reverseFill" }, val and true or false)
-		refresh()
-	end, powerDef.reverseFill == true, "power", isPowerEnabled)
-
-	local powerHeightSetting = slider(L["UFPowerHeight"] or "Power height", 6, 60, 1, function() return getValue(unit, { "powerHeight" }, def.powerHeight or 16) end, function(val)
-		debounced(unit .. "_powerHeight", function()
-			setValue(unit, { "powerHeight" }, val or def.powerHeight or 16)
-			refresh()
-		end)
-	end, def.powerHeight or 16, "power", true)
-	powerHeightSetting.isEnabled = isPowerEnabled
-	list[#list + 1] = powerHeightSetting
-
-	local function isPowerDetached() return getValue(unit, { "power", "detached" }, powerDef.detached == true) == true end
-
 	local powerDetachedSetting = checkbox(L["UFPowerDetached"] or "Detach power bar", isPowerDetached, function(val)
 		setValue(unit, { "power", "detached" }, val and true or false)
 		refresh()
 		refreshSettingsUI()
 	end, powerDef.detached == true, "power", isPowerEnabled)
 	list[#list + 1] = powerDetachedSetting
-
-	local function isPowerDetachedEnabled() return isPowerEnabled() and isPowerDetached() end
-	local function isDetachedPowerWidthMatched() return getValue(unit, { "power", "detachedMatchHealthWidth" }, powerDef.detachedMatchHealthWidth == true) == true end
+	addDivider("power", isPowerDetachedEnabled)
 
 	local powerEmptyFallbackSetting = checkbox(
 		L["UFPowerEmptyFallback"] or "Handle empty power bars (max 0)",
@@ -2422,6 +2343,125 @@ local function buildUnitSettings(unit)
 	powerOffsetY.isEnabled = isPowerDetachedEnabled
 	powerOffsetY.isShown = isPowerDetachedEnabled
 	list[#list + 1] = powerOffsetY
+	addDivider("power", isPowerDetachedEnabled)
+
+	local detachedPowerStrata = radioDropdown(
+		L["UFDetachedPowerStrata"] or "Detached power bar strata",
+		detachedStrataOptions,
+		function() return getValue(unit, { "power", "detachedStrata" }, powerDef.detachedStrata or "") end,
+		function(val)
+			if val == "" then val = nil end
+			setValue(unit, { "power", "detachedStrata" }, val)
+			refresh()
+		end,
+		powerDef.detachedStrata or "",
+		"power",
+		true
+	)
+	detachedPowerStrata.isEnabled = isPowerDetachedEnabled
+	detachedPowerStrata.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedPowerStrata
+
+	local detachedPowerLevelOffset = slider(
+		L["UFDetachedPowerLevelOffset"] or "Detached power bar level offset",
+		0,
+		50,
+		1,
+		function() return getValue(unit, { "power", "detachedFrameLevelOffset" }, powerDef.detachedFrameLevelOffset or 5) end,
+		function(val)
+			debounced(unit .. "_detachedPowerLevelOffset", function()
+				setValue(unit, { "power", "detachedFrameLevelOffset" }, val or powerDef.detachedFrameLevelOffset or 5)
+				refresh()
+			end)
+		end,
+		powerDef.detachedFrameLevelOffset or 5,
+		"power",
+		true
+	)
+	detachedPowerLevelOffset.isEnabled = isPowerDetachedEnabled
+	detachedPowerLevelOffset.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedPowerLevelOffset
+	addDivider("power", isPowerDetachedEnabled)
+
+	local detachedBorderToggle = checkbox(
+		L["UFDetachedPowerBorder"] or "Show border for detached power bar",
+		function() return getValue(unit, { "border", "detachedPower" }, def.border and def.border.detachedPower == true) == true end,
+		function(val)
+			local border = getValue(unit, { "border" }, def.border or {})
+			border.detachedPower = val and true or false
+			setValue(unit, { "border" }, border)
+			refresh()
+			refreshSettingsUI()
+		end,
+		def.border and def.border.detachedPower == true,
+		"power"
+	)
+	detachedBorderToggle.isEnabled = isPowerDetachedEnabled
+	detachedBorderToggle.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedBorderToggle
+
+	local detachedBorderTexture = checkboxDropdown(L["UFDetachedPowerBorderTexture"] or "Detached power border texture", borderOptions, function()
+		local border = getValue(unit, { "border" }, def.border or {})
+		return border.detachedPowerTexture or border.texture or (def.border and def.border.texture) or "DEFAULT"
+	end, function(val)
+		local border = getValue(unit, { "border" }, def.border or {})
+		border.detachedPowerTexture = val or "DEFAULT"
+		setValue(unit, { "border" }, border)
+		refresh()
+	end, (def.border and def.border.detachedPowerTexture) or (def.border and def.border.texture) or "DEFAULT", "power")
+	detachedBorderTexture.isEnabled = isDetachedPowerBorderEnabled
+	detachedBorderTexture.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedBorderTexture
+
+	local detachedBorderSize = slider(L["UFDetachedPowerBorderSize"] or "Detached power border size", 1, 64, 1, function()
+		local border = getValue(unit, { "border" }, def.border or {})
+		return border.detachedPowerSize or border.edgeSize or 1
+	end, function(val)
+		debounced(unit .. "_detachedPowerBorderSize", function()
+			local border = getValue(unit, { "border" }, def.border or {})
+			border.detachedPowerSize = val or 1
+			setValue(unit, { "border" }, border)
+			refresh()
+		end)
+	end, (def.border and def.border.detachedPowerSize) or (def.border and def.border.edgeSize) or 1, "power", true)
+	detachedBorderSize.isEnabled = isDetachedPowerBorderEnabled
+	detachedBorderSize.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedBorderSize
+
+	local detachedBorderOffset = slider(L["UFDetachedPowerBorderOffset"] or "Detached power border offset", 0, 64, 1, function()
+		local border = getValue(unit, { "border" }, def.border or {})
+		if border.detachedPowerOffset == nil then
+			if border.offset ~= nil then return border.offset end
+			return border.edgeSize or 1
+		end
+		return border.detachedPowerOffset
+	end, function(val)
+		debounced(unit .. "_detachedPowerBorderOffset", function()
+			local border = getValue(unit, { "border" }, def.border or {})
+			border.detachedPowerOffset = val or 0
+			setValue(unit, { "border" }, border)
+			refresh()
+		end)
+	end, (def.border and def.border.detachedPowerOffset) or (def.border and def.border.offset) or (def.border and def.border.edgeSize) or 1, "power", true)
+	detachedBorderOffset.isEnabled = isDetachedPowerBorderEnabled
+	detachedBorderOffset.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedBorderOffset
+	addDivider("power", isPowerDetachedEnabled)
+
+	list[#list + 1] = checkbox(L["Reverse fill"] or "Reverse fill", function() return getValue(unit, { "power", "reverseFill" }, powerDef.reverseFill == true) == true end, function(val)
+		setValue(unit, { "power", "reverseFill" }, val and true or false)
+		refresh()
+	end, powerDef.reverseFill == true, "power", isPowerEnabled)
+
+	local powerHeightSetting = slider(L["UFPowerHeight"] or "Power height", 6, 60, 1, function() return getValue(unit, { "powerHeight" }, def.powerHeight or 16) end, function(val)
+		debounced(unit .. "_powerHeight", function()
+			setValue(unit, { "powerHeight" }, val or def.powerHeight or 16)
+			refresh()
+		end)
+	end, def.powerHeight or 16, "power", true)
+	powerHeightSetting.isEnabled = isPowerEnabled
+	list[#list + 1] = powerHeightSetting
+	addDivider("power")
 
 	local powerTextLeft = radioDropdown(
 		L["TextLeft"] or "Left text",
@@ -2690,6 +2730,7 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "power", "useShortNumbers" }, val and true or false)
 		refresh()
 	end, powerDef.useShortNumbers ~= false, "power", isPowerEnabled)
+	addDivider("power")
 
 	local powerTexture = checkboxDropdown(L["Bar Texture"] or "Bar Texture", textureOpts, function() return getValue(unit, { "power", "texture" }, powerDef.texture or "DEFAULT") end, function(val)
 		setValue(unit, { "power", "texture" }, val)
@@ -4026,6 +4067,7 @@ local function buildUnitSettings(unit)
 		)
 		pvpOffsetY.isEnabled = isPvPIndicatorEnabled
 		list[#list + 1] = pvpOffsetY
+		addDivider("unitStatus")
 
 		local roleDef = def.roleIndicator or { enabled = false, size = 18, offset = { x = 24, y = -2 } }
 		local function isRoleIndicatorEnabled() return getValue(unit, { "roleIndicator", "enabled" }, roleDef.enabled == true) == true end
@@ -4078,6 +4120,7 @@ local function buildUnitSettings(unit)
 		)
 		roleOffsetY.isEnabled = isRoleIndicatorEnabled
 		list[#list + 1] = roleOffsetY
+		addDivider("unitStatus")
 
 		local leaderDef = def.leaderIcon or { enabled = false, size = 12, offset = { x = 0, y = 0 } }
 		local function isLeaderIndicatorEnabled() return getValue(unit, { "leaderIcon", "enabled" }, leaderDef.enabled == true) == true end
@@ -4130,7 +4173,7 @@ local function buildUnitSettings(unit)
 		)
 		leaderOffsetY.isEnabled = isLeaderIndicatorEnabled
 		list[#list + 1] = leaderOffsetY
-		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "unitStatus" }
+		addDivider("unitStatus")
 	end
 
 	list[#list + 1] = checkbox(L["UFUnitStatusEnable"] or "Show unit status", function() return getValue(unit, { "status", "unitStatus", "enabled" }, usDef.enabled == true) == true end, function(val)
@@ -5457,7 +5500,81 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateDurationEnabled
 	end
 
-	return list
+	-- Keep section order stable across units while preserving each section's internal order.
+	local sectionOrder = {
+		"utility",
+		"frame",
+		"portrait",
+		"rangeFade",
+		"health",
+		"absorb",
+		"healAbsorb",
+		"power",
+		"mainPowerColors",
+		"npcColors",
+		"classResource",
+		"totemFrame",
+		"cast",
+		"raidicon",
+		"status",
+		"unitStatus",
+		"combatFeedback",
+		"auras",
+		"privateAuras",
+	}
+
+	local sectionHeaderIndexById = {}
+	local encounteredSectionIds = {}
+	for i = 1, #list do
+		local entry = list[i]
+		if type(entry) == "table" and entry.kind == settingType.Collapsible and type(entry.id) == "string" and sectionHeaderIndexById[entry.id] == nil then
+			sectionHeaderIndexById[entry.id] = i
+			encounteredSectionIds[#encounteredSectionIds + 1] = entry.id
+		end
+	end
+
+	local orderedSectionIds = {}
+	local seenSectionIds = {}
+	for i = 1, #sectionOrder do
+		local id = sectionOrder[i]
+		if sectionHeaderIndexById[id] then
+			orderedSectionIds[#orderedSectionIds + 1] = id
+			seenSectionIds[id] = true
+		end
+	end
+	for i = 1, #encounteredSectionIds do
+		local id = encounteredSectionIds[i]
+		if not seenSectionIds[id] then
+			orderedSectionIds[#orderedSectionIds + 1] = id
+			seenSectionIds[id] = true
+		end
+	end
+
+	local orderedList = {}
+	local appended = {}
+	for i = 1, #orderedSectionIds do
+		local id = orderedSectionIds[i]
+		local headerIndex = sectionHeaderIndexById[id]
+		if headerIndex and not appended[headerIndex] then
+			orderedList[#orderedList + 1] = list[headerIndex]
+			appended[headerIndex] = true
+		end
+		for j = 1, #list do
+			if not appended[j] then
+				local entry = list[j]
+				if type(entry) == "table" and entry.parentId == id then
+					orderedList[#orderedList + 1] = entry
+					appended[j] = true
+				end
+			end
+		end
+	end
+
+	for i = 1, #list do
+		if not appended[i] then orderedList[#orderedList + 1] = list[i] end
+	end
+
+	return orderedList
 end
 
 local function buildStandaloneCastbarSettings()

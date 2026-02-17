@@ -179,6 +179,8 @@ L["ImportProfileSuccess"] = "Resource Bars updated for: %s"
 L["ImportProfileSuccessGeneric"] = "Resource Bars profile imported."
 -- Unit Frames profiles
 L["UFProfileScopeAll"] = "All frames"
+L["UFAllSettings"] = "All settings"
+L["UFSelectSource"] = "Select source"
 L["UFExportProfileTitle"] = "Export Unit Frames"
 L["UFExportProfileEmpty"] = "No unit frame settings to export."
 L["UFExportProfileScopeEmpty"] = "That frame does not have any saved settings yet."
