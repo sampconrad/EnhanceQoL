@@ -11,6 +11,7 @@
 - Castbars (Blizzard style): Fixed Empower visuals so the first segment no longer looks incorrect.
 - Standalone Castbar: Fixed duration text visibility during Empower casts.
 - Castbars: Releasing Evoker Empower casts now no longer shows an incorrect `Interrupted` message.
+- Castbars: `Interrupted` now uses Blizzard interrupt art only for Blizzard default castbar textures; custom textures keep their own look.
 
 ---
 

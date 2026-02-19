@@ -1022,9 +1022,9 @@ local function showCastInterrupt(event)
 
 	local texKey = castCfg.texture or castDefaults.texture or "DEFAULT"
 	local useDefault = not texKey or texKey == "" or texKey == "DEFAULT"
-	local interruptTex = nil
-	if useDefault and CASTING_BAR_TYPES and CASTING_BAR_TYPES.interrupted and CASTING_BAR_TYPES.interrupted.full then
-		interruptTex = CASTING_BAR_TYPES.interrupted.full
+	local interruptTex
+	if useDefault then
+		interruptTex = (UFHelper.resolveCastInterruptTexture and UFHelper.resolveCastInterruptTexture()) or UFHelper.resolveCastTexture(texKey)
 	else
 		interruptTex = UFHelper.resolveCastTexture(texKey)
 	end

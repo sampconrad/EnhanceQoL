@@ -15,9 +15,10 @@ local H = addon.Aura.UFHelper
 addon.variables = addon.variables or {}
 
 local LSM = LibStub("LibSharedMedia-3.0")
-local CASTING_BAR_TYPES = _G.CASTING_BAR_TYPES
 local EnumPowerType = Enum and Enum.PowerType
 local BLIZZARD_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
+local BLIZZARD_CAST_STANDARD_TEX = "ui-castingbar-full-standard"
+local BLIZZARD_CAST_INTERRUPTED_TEX = "ui-castingbar-interrupted"
 local DEFAULT_AURA_BORDER_TEX = "Interface\\Buttons\\UI-Debuff-Overlays"
 local DEFAULT_AURA_BORDER_COORDS = { 0.296875, 0.5703125, 0, 0.515625 }
 local CombatFeedback_Initialize = _G.CombatFeedback_Initialize
@@ -1073,16 +1074,15 @@ end
 
 function H.resolveCastTexture(key)
 	if key == "SOLID" then return "Interface\\Buttons\\WHITE8x8" end
-	if not key or key == "DEFAULT" then
-		if CASTING_BAR_TYPES and CASTING_BAR_TYPES.standard and CASTING_BAR_TYPES.standard.full then return CASTING_BAR_TYPES.standard.full end
-		return BLIZZARD_TEX
-	end
+	if not key or key == "DEFAULT" then return BLIZZARD_CAST_STANDARD_TEX or BLIZZARD_TEX end
 	if LSM then
 		local tex = LSM:Fetch("statusbar", key)
 		if tex then return tex end
 	end
 	return key
 end
+
+function H.resolveCastInterruptTexture() return BLIZZARD_CAST_INTERRUPTED_TEX end
 
 local function normalizePowerToken(powerToken)
 	if type(powerToken) ~= "string" then return powerToken end
