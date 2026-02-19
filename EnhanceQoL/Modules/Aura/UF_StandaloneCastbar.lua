@@ -680,6 +680,20 @@ local function applyCastLayout(castCfg, castDefaults)
 	local castFrameLevel = math.max(0, baseFrameLevel + castLevelOffset)
 	if state.castBar.GetFrameStrata and state.castBar.SetFrameStrata and state.castBar:GetFrameStrata() ~= castStrata then state.castBar:SetFrameStrata(castStrata) end
 	if state.castBar.GetFrameLevel and state.castBar.SetFrameLevel and state.castBar:GetFrameLevel() ~= castFrameLevel then state.castBar:SetFrameLevel(castFrameLevel) end
+	if state.castTextLayer then
+		if state.castTextLayer.GetFrameStrata and state.castTextLayer.SetFrameStrata and state.castTextLayer:GetFrameStrata() ~= castStrata then state.castTextLayer:SetFrameStrata(castStrata) end
+		if state.castTextLayer.GetFrameLevel and state.castTextLayer.SetFrameLevel then
+			local castTextLevel = castFrameLevel + 5
+			if state.castTextLayer:GetFrameLevel() ~= castTextLevel then state.castTextLayer:SetFrameLevel(castTextLevel) end
+		end
+	end
+	if state.castIconLayer then
+		if state.castIconLayer.GetFrameStrata and state.castIconLayer.SetFrameStrata and state.castIconLayer:GetFrameStrata() ~= castStrata then state.castIconLayer:SetFrameStrata(castStrata) end
+		if state.castIconLayer.GetFrameLevel and state.castIconLayer.SetFrameLevel then
+			local castIconLevel = castFrameLevel + 4
+			if state.castIconLayer:GetFrameLevel() ~= castIconLevel then state.castIconLayer:SetFrameLevel(castIconLevel) end
+		end
+	end
 
 	local anchor = ensureAnchorConfig(castCfg, castDefaults)
 	if (anchor.relativeFrame or "UIParent") ~= "UIParent" then ensureRelativeFrameHooks(anchor.relativeFrame) end
@@ -797,6 +811,7 @@ end
 
 local function configureCastStatic(castCfg, castDefaults)
 	if not state.castBar or not state.castInfo then return end
+	local isEmpoweredDefault = state.castInfo.isEmpowered and state.castUseDefaultArt == true
 	local clr = castCfg.color or castDefaults.color or { 0.9, 0.7, 0.2, 1 }
 	local useClassColor = castCfg.useClassColor
 	if useClassColor == nil then useClassColor = castDefaults.useClassColor end
@@ -805,13 +820,17 @@ local function configureCastStatic(castCfg, castDefaults)
 		local cr, cg, cb, ca = getClassColor(class)
 		if cr then clr = { cr, cg, cb, ca or 1 } end
 	end
-	if state.castInfo.notInterruptible then
+	if isEmpoweredDefault then
+		state.castBar:SetStatusBarDesaturated(false)
+		state.castBar:SetStatusBarColor(0, 0, 0, 0)
+	elseif state.castInfo.notInterruptible then
 		clr = castCfg.notInterruptibleColor or castDefaults.notInterruptibleColor or clr
 		state.castBar:SetStatusBarDesaturated(true)
+		state.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	else
 		state.castBar:SetStatusBarDesaturated(false)
+		state.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	end
-	state.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	local duration = (state.castInfo.endTime or 0) - (state.castInfo.startTime or 0)
 	local maxValue = duration and duration > 0 and duration / 1000 or 1
 	state.castInfo.maxValue = maxValue
@@ -884,7 +903,12 @@ local function updateCastBar()
 		return
 	end
 
-	local elapsedMs = info.isChannel and (endMs - nowMs) or (nowMs - startMs)
+	local elapsedMs
+	if info.isEmpowered then
+		elapsedMs = nowMs - startMs
+	else
+		elapsedMs = info.isChannel and (endMs - nowMs) or (nowMs - startMs)
+	end
 	if elapsedMs < 0 then elapsedMs = 0 end
 	local value = elapsedMs / 1000
 	state.castBar:SetValue(value)
@@ -973,8 +997,11 @@ end
 
 local function showCastInterrupt(event)
 	local castCfg, castDefaults = ensureCastConfig()
+	ensureFrame()
+	if not state.castBar or ((not state.castBar:IsShown()) and not state.castInfo) then return end
+
 	local showInterruptFeedback = castCfg.showInterruptFeedback
-	if showInterruptFeedback == nil then showInterruptFeedback = castDefaults.showInterruptFeedback ~= false end
+	if showInterruptFeedback == nil then showInterruptFeedback = castDefaults.showInterruptFeedback end
 	if showInterruptFeedback == false then
 		stopCast()
 		if shouldShowSampleCast() then setSampleCast() end
@@ -982,6 +1009,7 @@ local function showCastInterrupt(event)
 	end
 
 	clearCastInterruptState()
+	UFHelper.clearEmpowerStages(state)
 	state.castInterruptActive = true
 	local token = state.castInterruptToken or 0
 	if onUpdateActive then
@@ -992,11 +1020,17 @@ local function showCastInterrupt(event)
 	applyCastLayout(castCfg, castDefaults)
 	applyCastFont(castCfg, castDefaults)
 
-	local texKey = castCfg.interruptTexture or castCfg.texture or castDefaults.interruptTexture or castDefaults.texture
-	local interruptTex = UFHelper.resolveCastTexture(texKey)
+	local texKey = castCfg.texture or castDefaults.texture or "DEFAULT"
+	local useDefault = not texKey or texKey == "" or texKey == "DEFAULT"
+	local interruptTex = nil
+	if useDefault and CASTING_BAR_TYPES and CASTING_BAR_TYPES.interrupted and CASTING_BAR_TYPES.interrupted.full then
+		interruptTex = CASTING_BAR_TYPES.interrupted.full
+	else
+		interruptTex = UFHelper.resolveCastTexture(texKey)
+	end
 	if interruptTex then state.castBar:SetStatusBarTexture(interruptTex) end
 	if state.castBar.SetStatusBarDesaturated then state.castBar:SetStatusBarDesaturated(false) end
-	if event == "UNIT_SPELLCAST_FAILED" then
+	if useDefault then
 		state.castBar:SetStatusBarColor(1, 1, 1, 1)
 	else
 		state.castBar:SetStatusBarColor(0.85, 0.12, 0.12, 1)
@@ -1021,9 +1055,8 @@ local function showCastInterrupt(event)
 			state.castIconTexture = iconTexture
 		end
 	end
-	UFHelper.hideCastSpark(state)
 
-	local glowAlpha = 0.8
+	local glowAlpha = useDefault and 0.4 or 0.25
 	if not state.castInterruptGlow then
 		state.castInterruptGlow = state.castBar:CreateTexture(nil, "OVERLAY")
 		if state.castInterruptGlow.SetAtlas then
@@ -1037,19 +1070,21 @@ local function showCastInterrupt(event)
 	end
 	do
 		local w, h = state.castBar:GetSize()
-		if state.castInterruptGlow.SetSize then state.castInterruptGlow:SetSize(w + (h * 0.5), h * 2.2) end
+		if w and h and w > 0 and h > 0 then
+			state.castInterruptGlow:SetSize(w + (h * 0.5), h * 2.2)
+			if state.castInterruptGlow.SetScale then state.castInterruptGlow:SetScale(1) end
+		elseif state.castInterruptGlow.SetScale then
+			state.castInterruptGlow:SetScale(0.5)
+		end
 	end
 	if not state.castInterruptGlowAnim then
 		state.castInterruptGlowAnim = state.castInterruptGlow:CreateAnimationGroup()
 		local fade = state.castInterruptGlowAnim:CreateAnimation("Alpha")
-		fade:SetOrder(1)
-		fade:SetDuration(0.35)
 		fade:SetFromAlpha(glowAlpha)
 		fade:SetToAlpha(0)
+		fade:SetDuration(1.0)
 		state.castInterruptGlowAnim.fade = fade
-		state.castInterruptGlowAnim:SetScript("OnFinished", function()
-			if state.castInterruptGlow then state.castInterruptGlow:Hide() end
-		end)
+		state.castInterruptGlowAnim:SetScript("OnFinished", function() state.castInterruptGlow:Hide() end)
 	elseif state.castInterruptGlowAnim.fade and state.castInterruptGlowAnim.fade.SetFromAlpha then
 		state.castInterruptGlowAnim.fade:SetFromAlpha(glowAlpha)
 	end
@@ -1062,15 +1097,15 @@ local function showCastInterrupt(event)
 		state.castInterruptAnim = state.castBar:CreateAnimationGroup()
 		local hold = state.castInterruptAnim:CreateAnimation("Alpha")
 		hold:SetOrder(1)
-		hold:SetDuration(0.25)
 		hold:SetFromAlpha(1)
 		hold:SetToAlpha(1)
+		hold:SetDuration(1.0)
 		state.castInterruptAnim.hold = hold
 		local fade = state.castInterruptAnim:CreateAnimation("Alpha")
 		fade:SetOrder(2)
-		fade:SetDuration(0.25)
 		fade:SetFromAlpha(1)
 		fade:SetToAlpha(0)
+		fade:SetDuration(0.3)
 		state.castInterruptAnim.fade = fade
 	end
 	state.castBar:SetAlpha(1)
@@ -1189,18 +1224,18 @@ if not eventFrame then
 	eventFrame:RegisterEvent("PLAYER_LOGIN")
 	eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 	eventFrame:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_SENT")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_START")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_STOP")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_FAILED")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_EMPOWER_START")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_EMPOWER_UPDATE")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_DELAYED")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_EMPOWER_STOP")
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_SENT", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_START", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_STOP", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_UPDATE", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_START", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_UPDATE", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_DELAYED", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_STOP", UNIT)
 end
 
 eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
@@ -1226,9 +1261,7 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 	elseif event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" then
 		local castGUID, spellId = ...
 		if not shouldIgnoreCastFail(castGUID, spellId) then showCastInterrupt(event) end
-	elseif event == "UNIT_SPELLCAST_EMPOWER_STOP" then
-		showCastInterrupt("UNIT_SPELLCAST_INTERRUPTED")
-	elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" then
+	elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_EMPOWER_STOP" then
 		if not state.castInterruptActive then
 			stopCast()
 			if shouldShowSampleCast() then setSampleCast() end

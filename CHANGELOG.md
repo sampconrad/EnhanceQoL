@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.19.2] - 2026-02-19
+
+### 🐛 Fixed
+
+- Standalone Castbar: Improved performance by only reacting to your own cast events.
+- Standalone Castbar: `Failed/Interrupted` feedback now only appears when a cast was actually active.
+- Standalone Castbar: `Interrupted` feedback now matches the regular Unit Frame castbar look and timing.
+- Standalone Castbar: Empower casts now progress correctly (no reverse behavior) and show stage effects like the regular Unit Frame castbar.
+- Castbars (Blizzard style): Fixed Empower visuals so the first segment no longer looks incorrect.
+- Standalone Castbar: Fixed duration text visibility during Empower casts.
+- Castbars: Releasing Evoker Empower casts now no longer shows an incorrect `Interrupted` message.
+
+---
+
 ## [7.19.1] - 2026-02-18
 
 ### 🐛 Fixed

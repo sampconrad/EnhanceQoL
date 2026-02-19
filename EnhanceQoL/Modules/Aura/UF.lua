@@ -3576,6 +3576,7 @@ local function configureCastStatic(unit, ccfg, defc)
 	if not st or not st.castBar or not st.castInfo then return end
 	ccfg = ccfg or st.castCfg or {}
 	defc = defc or (defaultsFor(unit) and defaultsFor(unit).cast) or {}
+	local isEmpoweredDefault = st.castInfo.isEmpowered and st.castUseDefaultArt == true
 	local clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
 	local useClassColor = ccfg.useClassColor
 	if useClassColor == nil then useClassColor = defc.useClassColor end
@@ -3589,11 +3590,17 @@ local function configureCastStatic(unit, ccfg, defc)
 		local cr, cg, cb, ca = getClassColor(class)
 		if cr then clr = { cr, cg, cb, ca or 1 } end
 	end
-	if st.castInfo.notInterruptible then
+	if isEmpoweredDefault then
+		st.castBar:SetStatusBarDesaturated(false)
+		st.castBar:SetStatusBarColor(0, 0, 0, 0)
+	elseif st.castInfo.notInterruptible then
 		clr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or clr
 		st.castBar:SetStatusBarDesaturated(true)
+		st.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+	else
+		st.castBar:SetStatusBarDesaturated(false)
+		st.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	end
-	st.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	local duration = (st.castInfo.endTime or 0) - (st.castInfo.startTime or 0)
 	local maxValue = duration and duration > 0 and duration / 1000 or 1
 	st.castInfo.maxValue = maxValue
@@ -7089,11 +7096,6 @@ onEvent = function(self, event, unit, ...)
 		if unit == UNIT.TARGET and not shouldIgnoreCastFail(UNIT.TARGET, castGUID, spellId) then UF.ShowCastInterrupt(UNIT.TARGET, event) end
 		if unit == UNIT.FOCUS and not shouldIgnoreCastFail(UNIT.FOCUS, castGUID, spellId) then UF.ShowCastInterrupt(UNIT.FOCUS, event) end
 		if isBossUnit(unit) and not shouldIgnoreCastFail(unit, castGUID, spellId) then UF.ShowCastInterrupt(unit, event) end
-	elseif event == "UNIT_SPELLCAST_EMPOWER_STOP" then
-		if unit == UNIT.PLAYER then UF.ShowCastInterrupt(UNIT.PLAYER, "UNIT_SPELLCAST_INTERRUPTED") end
-		if unit == UNIT.TARGET then UF.ShowCastInterrupt(UNIT.TARGET, "UNIT_SPELLCAST_INTERRUPTED") end
-		if unit == UNIT.FOCUS then UF.ShowCastInterrupt(UNIT.FOCUS, "UNIT_SPELLCAST_INTERRUPTED") end
-		if isBossUnit(unit) then UF.ShowCastInterrupt(unit, "UNIT_SPELLCAST_INTERRUPTED") end
 	elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_EMPOWER_STOP" then
 		if unit == UNIT.PLAYER then
 			if not (states[UNIT.PLAYER] and states[UNIT.PLAYER].castInterruptActive) then
