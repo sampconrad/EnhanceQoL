@@ -445,6 +445,10 @@ local defaults = {
 			texture = "DEFAULT",
 			color = { 0.9, 0.7, 0.2, 1 },
 			useClassColor = false,
+			useGradient = false,
+			gradientStartColor = { 1, 1, 1, 1 },
+			gradientEndColor = { 1, 1, 1, 1 },
+			gradientDirection = "HORIZONTAL",
 			notInterruptibleColor = DEFAULT_NOT_INTERRUPTIBLE_COLOR,
 			showInterruptFeedback = true,
 		},
@@ -619,6 +623,10 @@ local defaults = {
 			texture = "DEFAULT",
 			color = { 0.9, 0.7, 0.2, 1 },
 			useClassColor = false,
+			useGradient = false,
+			gradientStartColor = { 1, 1, 1, 1 },
+			gradientEndColor = { 1, 1, 1, 1 },
+			gradientDirection = "HORIZONTAL",
 			notInterruptibleColor = DEFAULT_NOT_INTERRUPTIBLE_COLOR,
 			showInterruptFeedback = true,
 		},
@@ -3591,14 +3599,14 @@ local function configureCastStatic(unit, ccfg, defc)
 	end
 	if isEmpoweredDefault then
 		st.castBar:SetStatusBarDesaturated(false)
-		st.castBar:SetStatusBarColor(0, 0, 0, 0)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, nil, 0, 0, 0, 0)
 	elseif st.castInfo.notInterruptible then
 		clr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or clr
 		st.castBar:SetStatusBarDesaturated(true)
-		st.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, ccfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	else
 		st.castBar:SetStatusBarDesaturated(false)
-		st.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, ccfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	end
 	local duration = (st.castInfo.endTime or 0) - (st.castInfo.startTime or 0)
 	local maxValue = duration and duration > 0 and duration / 1000 or 1
@@ -3824,9 +3832,9 @@ function UF.ShowCastInterrupt(unit, event)
 	if interruptTex then st.castBar:SetStatusBarTexture(interruptTex) end
 	if st.castBar.SetStatusBarDesaturated then st.castBar:SetStatusBarDesaturated(false) end
 	if useDefault then
-		st.castBar:SetStatusBarColor(1, 1, 1, 1)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, nil, 1, 1, 1, 1)
 	else
-		st.castBar:SetStatusBarColor(0.85, 0.12, 0.12, 1)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, nil, 0.85, 0.12, 0.12, 1)
 	end
 	st.castBar:SetMinMaxValues(0, 1)
 	st.castBar:SetValue(1)
@@ -4013,11 +4021,8 @@ local function setCastInfoFromUnit(unit)
 			end
 			local clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
 			local nclr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or { 204 / 255, 204 / 255, 204 / 255, 1 }
-			st.castBar:GetStatusBarTexture():SetVertexColorFromBoolean(
-				notInterruptible,
-				CreateColor(nclr[1] or 0.9, nclr[2] or 0.7, nclr[3] or 0.2, nclr[4] or 1),
-				CreateColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
-			)
+			local activeColor = notInterruptible and nclr or clr
+			UFHelper.SetCastbarColorWithGradient(st.castBar, ccfg, activeColor[1] or 0.9, activeColor[2] or 0.7, activeColor[3] or 0.2, activeColor[4] or 1)
 			st.castBar:SetStatusBarDesaturated(true)
 			local showDuration = ccfg.showDuration ~= false and st.castDuration ~= nil
 			if not showDuration then

@@ -5,12 +5,71 @@ local LVendor = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Vendor", true)
 local wipe = wipe
 local mailboxContactsOrder = {}
 local moneyTrackerOrder = {}
+local warbandTargetOrder = {}
 
 local function applyParentSection(entries, section)
 	for _, entry in ipairs(entries or {}) do
 		entry.parentSection = section
 		if entry.children then applyParentSection(entry.children, section) end
 	end
+end
+
+local function getClassColoredCharacterLabel(info)
+	local name = (info and info.name) or UNKNOWNOBJECT or "?"
+	local realm = (info and info.realm) or GetRealmName() or "?"
+	local class = info and info.class
+	local col = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[class or ""] or { r = 1, g = 1, b = 1 }
+	return string.format("|cff%02x%02x%02x%s-%s|r", (col.r or 1) * 255, (col.g or 1) * 255, (col.b or 1) * 255, name, realm)
+end
+
+local function listTrackedCharacters()
+	local tracker = addon.db and addon.db["moneyTracker"] or {}
+	local entries = {}
+	local seen = {}
+
+	local function addEntry(guid, info)
+		if not guid or guid == "" or seen[guid] then return end
+		seen[guid] = true
+		local rawSort = string.format("%s-%s", (info and info.name) or "", (info and info.realm) or ""):lower()
+		entries[#entries + 1] = {
+			key = guid,
+			label = getClassColoredCharacterLabel(info),
+			sortKey = rawSort,
+		}
+	end
+
+	for guid, info in pairs(tracker) do
+		if type(info) == "table" then addEntry(guid, info) end
+	end
+
+	local selectedGuid = addon.db and addon.db["autoWarbandGoldTargetCharacter"]
+	if selectedGuid and selectedGuid ~= "" and not seen[selectedGuid] then addEntry(selectedGuid, tracker[selectedGuid] or {
+		name = UNKNOWNOBJECT or "?",
+		realm = GetRealmName(),
+	}) end
+
+	local playerGuid = UnitGUID("player")
+	if playerGuid and not seen[playerGuid] then addEntry(playerGuid, {
+		name = UnitName("player"),
+		realm = GetRealmName(),
+		class = select(2, UnitClass("player")),
+	}) end
+
+	table.sort(entries, function(a, b)
+		if a.sortKey == b.sortKey then return a.key < b.key end
+		return a.sortKey < b.sortKey
+	end)
+
+	return entries
+end
+
+local function getSelectedWarbandTargetCharacter()
+	local selected = addon.db and addon.db["autoWarbandGoldTargetCharacter"]
+	if selected and selected ~= "" then return selected end
+
+	local playerGuid = UnitGUID("player")
+	if addon.db and playerGuid then addon.db["autoWarbandGoldTargetCharacter"] = playerGuid end
+	return playerGuid or ""
 end
 
 local cVendorEconomy = addon.SettingsLayout.rootECONOMY
@@ -50,6 +109,132 @@ local data = {
 }
 
 applyParentSection(data, vendorsExpandable)
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cVendorEconomy, data)
+
+local bankExpandable = addon.functions.SettingsCreateExpandableSection(cVendorEconomy, {
+	name = _G.BANK or BANK or "Bank",
+	expanded = false,
+	colorizeTitle = false,
+})
+
+data = {
+	{
+		var = "autoWarbandGold",
+		text = L["autoWarbandGold"],
+		func = function(v) addon.db["autoWarbandGold"] = v and true or false end,
+		desc = L["autoWarbandGoldDesc"],
+		children = {
+			{
+				var = "autoWarbandGoldTargetGold",
+				text = L["autoWarbandGoldTargetDefaultGold"] or L["autoWarbandGoldTargetGold"],
+				desc = L["autoWarbandGoldTargetDefaultGoldDesc"] or L["autoWarbandGoldTargetGoldDesc"],
+				get = function() return addon.db and addon.db["autoWarbandGoldTargetGold"] or 10000 end,
+				set = function(value) addon.db["autoWarbandGoldTargetGold"] = value end,
+				min = 0,
+				max = 100000,
+				step = 100,
+				default = 10000,
+				sType = "slider",
+				parent = true,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["autoWarbandGold"]
+						and addon.SettingsLayout.elements["autoWarbandGold"].setting
+						and addon.SettingsLayout.elements["autoWarbandGold"].setting:GetValue() == true
+				end,
+			},
+			{
+				var = "autoWarbandGoldTargetCharacter",
+				text = L["autoWarbandGoldTargetCharacter"] or CHARACTER,
+				desc = L["autoWarbandGoldTargetCharacterDesc"],
+				listFunc = function()
+					local tList = {}
+					wipe(warbandTargetOrder)
+
+					for _, entry in ipairs(listTrackedCharacters()) do
+						tList[entry.key] = entry.label
+						table.insert(warbandTargetOrder, entry.key)
+					end
+
+					if #warbandTargetOrder == 0 then
+						tList[""] = NONE
+						table.insert(warbandTargetOrder, "")
+					end
+					return tList
+				end,
+				order = warbandTargetOrder,
+				get = function() return getSelectedWarbandTargetCharacter() end,
+				set = function(key, maybeKey)
+					local resolved = maybeKey or key
+					if not resolved or resolved == "" then resolved = UnitGUID("player") or "" end
+					addon.db["autoWarbandGoldTargetCharacter"] = resolved
+
+					local sliderEntry = addon.SettingsLayout and addon.SettingsLayout.elements and addon.SettingsLayout.elements["autoWarbandGoldTargetGoldPerCharacter"]
+					local sliderVariable = sliderEntry and sliderEntry.setting and sliderEntry.setting.GetVariable and sliderEntry.setting:GetVariable()
+					if sliderVariable and Settings and Settings.NotifyUpdate then
+						Settings.NotifyUpdate(sliderVariable)
+					end
+				end,
+				default = "",
+				type = Settings.VarType.String,
+				sType = "scrolldropdown",
+				parent = true,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["autoWarbandGold"]
+						and addon.SettingsLayout.elements["autoWarbandGold"].setting
+						and addon.SettingsLayout.elements["autoWarbandGold"].setting:GetValue() == true
+				end,
+			},
+			{
+				var = "autoWarbandGoldTargetGoldPerCharacter",
+				text = L["autoWarbandGoldTargetGoldPerCharacter"] or L["autoWarbandGoldTargetGold"],
+				desc = L["autoWarbandGoldTargetGoldPerCharacterDesc"] or L["autoWarbandGoldTargetGoldDesc"],
+				get = function()
+					local guid = getSelectedWarbandTargetCharacter()
+					if not guid or guid == "" then return addon.db and addon.db["autoWarbandGoldTargetGold"] or 10000 end
+					local perChar = addon.db and addon.db["autoWarbandGoldPerCharacter"]
+					local value = perChar and perChar[guid]
+					if value == nil then return addon.db and addon.db["autoWarbandGoldTargetGold"] or 10000 end
+					return value
+				end,
+				set = function(value)
+					local guid = getSelectedWarbandTargetCharacter()
+					if not guid or guid == "" then return end
+					addon.db["autoWarbandGoldPerCharacter"] = addon.db["autoWarbandGoldPerCharacter"] or {}
+					addon.db["autoWarbandGoldPerCharacter"][guid] = value
+				end,
+				min = 0,
+				max = 100000,
+				step = 100,
+				default = 10000,
+				sType = "slider",
+				parent = true,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["autoWarbandGold"]
+						and addon.SettingsLayout.elements["autoWarbandGold"].setting
+						and addon.SettingsLayout.elements["autoWarbandGold"].setting:GetValue() == true
+				end,
+			},
+			{
+				var = "autoWarbandGoldWithdraw",
+				text = L["autoWarbandGoldWithdraw"],
+				func = function(v) addon.db["autoWarbandGoldWithdraw"] = v and true or false end,
+				desc = L["autoWarbandGoldWithdrawDesc"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["autoWarbandGold"]
+						and addon.SettingsLayout.elements["autoWarbandGold"].setting
+						and addon.SettingsLayout.elements["autoWarbandGold"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				type = Settings.VarType.Boolean,
+				sType = "checkbox",
+			},
+		},
+	},
+}
+
+applyParentSection(data, bankExpandable)
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cVendorEconomy, data)
 

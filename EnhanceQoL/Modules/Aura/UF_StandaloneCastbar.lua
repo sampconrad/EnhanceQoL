@@ -22,7 +22,7 @@ local UNIT = "player"
 local EDITMODE_FRAME_ID = "EQOL_Castbar"
 local EDITMODE_SETTINGS_MAX_HEIGHT = 900
 local MIN_CASTBAR_WIDTH = 50
-local CASTBAR_CONFIG_VERSION = 1
+local CASTBAR_CONFIG_VERSION = 2
 local DEFAULT_NOT_INTERRUPTIBLE_COLOR = { 204 / 255, 204 / 255, 204 / 255, 1 }
 local RELATIVE_ANCHOR_FRAME_MAP = {
 	PlayerFrame = { uf = "EQOLUFPlayerFrame", blizz = "PlayerFrame", ufKey = "player" },
@@ -88,6 +88,10 @@ local fallbackCastDefaults = {
 	texture = "DEFAULT",
 	color = { 0.9, 0.7, 0.2, 1 },
 	useClassColor = false,
+	useGradient = false,
+	gradientStartColor = { 1, 1, 1, 1 },
+	gradientEndColor = { 1, 1, 1, 1 },
+	gradientDirection = "HORIZONTAL",
 	notInterruptibleColor = DEFAULT_NOT_INTERRUPTIBLE_COLOR,
 	showInterruptFeedback = true,
 }
@@ -659,6 +663,82 @@ end
 
 function Castbar.GetDefaults() return copyValue(getCastDefaults() or fallbackCastDefaults) end
 
+local function normalizeGradientColor(value)
+	if type(value) == "table" then
+		if value.r ~= nil then return value.r or 1, value.g or 1, value.b or 1, value.a or 1 end
+		return value[1] or 1, value[2] or 1, value[3] or 1, value[4] or 1
+	end
+	return 1, 1, 1, 1
+end
+
+local function resolveCastbarGradientColors(castCfg, baseR, baseG, baseB, baseA)
+	local sr, sg, sb, sa = normalizeGradientColor(castCfg and castCfg.gradientStartColor)
+	local er, eg, eb, ea = normalizeGradientColor(castCfg and castCfg.gradientEndColor)
+	local br, bg, bb, ba = baseR or 1, baseG or 1, baseB or 1, baseA or 1
+	return br * sr, bg * sg, bb * sb, ba * sa, br * er, bg * eg, bb * eb, ba * ea
+end
+
+local function clearCastbarGradientState(bar)
+	if not bar then return end
+	bar._eqolGradientEnabled = nil
+	bar._eqolGradientTex = nil
+	bar._eqolGradDir = nil
+	bar._eqolGradSR = nil
+	bar._eqolGradSG = nil
+	bar._eqolGradSB = nil
+	bar._eqolGradSA = nil
+	bar._eqolGradER = nil
+	bar._eqolGradEG = nil
+	bar._eqolGradEB = nil
+	bar._eqolGradEA = nil
+end
+
+local function applyCastbarGradient(bar, castCfg, baseR, baseG, baseB, baseA, force)
+	if not bar or not castCfg or castCfg.useGradient ~= true then return false end
+	local tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+	if not tex or not tex.SetGradient then return false end
+	local sr, sg, sb, sa, er, eg, eb, ea = resolveCastbarGradientColors(castCfg, baseR, baseG, baseB, baseA)
+	local direction = castCfg.gradientDirection or "HORIZONTAL"
+	if type(direction) == "string" then direction = direction:upper() end
+	if direction ~= "VERTICAL" then direction = "HORIZONTAL" end
+	if
+		not force
+		and bar._eqolGradientEnabled
+		and bar._eqolGradientTex == tex
+		and bar._eqolGradDir == direction
+		and bar._eqolGradSR == sr
+		and bar._eqolGradSG == sg
+		and bar._eqolGradSB == sb
+		and bar._eqolGradSA == sa
+		and bar._eqolGradER == er
+		and bar._eqolGradEG == eg
+		and bar._eqolGradEB == eb
+		and bar._eqolGradEA == ea
+	then
+		return true
+	end
+	tex:SetGradient(direction, CreateColor(sr, sg, sb, sa), CreateColor(er, eg, eb, ea))
+	bar._eqolGradientEnabled = true
+	bar._eqolGradientTex = tex
+	bar._eqolGradDir = direction
+	bar._eqolGradSR, bar._eqolGradSG, bar._eqolGradSB, bar._eqolGradSA = sr, sg, sb, sa
+	bar._eqolGradER, bar._eqolGradEG, bar._eqolGradEB, bar._eqolGradEA = er, eg, eb, ea
+	return true
+end
+
+local function setCastbarColorWithGradient(bar, castCfg, r, g, b, a)
+	if not bar then return end
+	local br, bg, bb, ba = r or 1, g or 1, b or 1, a or 1
+	bar:SetStatusBarColor(br, bg, bb, ba)
+	bar._eqolLastColor = bar._eqolLastColor or {}
+	bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4] = br, bg, bb, ba
+	if castCfg and castCfg.useGradient == true then
+		if not applyCastbarGradient(bar, castCfg, br, bg, bb, ba, true) then clearCastbarGradientState(bar) end
+	elseif bar._eqolGradientEnabled then
+		clearCastbarGradientState(bar)
+	end
+end
+
 local function getClassColor(class)
 	if not class then return nil end
 	local fallback = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[class]) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[class])
@@ -853,14 +933,14 @@ local function configureCastStatic(castCfg, castDefaults)
 	end
 	if isEmpoweredDefault then
 		state.castBar:SetStatusBarDesaturated(false)
-		state.castBar:SetStatusBarColor(0, 0, 0, 0)
+		setCastbarColorWithGradient(state.castBar, nil, 0, 0, 0, 0)
 	elseif state.castInfo.notInterruptible then
 		clr = castCfg.notInterruptibleColor or castDefaults.notInterruptibleColor or clr
 		state.castBar:SetStatusBarDesaturated(true)
-		state.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+		setCastbarColorWithGradient(state.castBar, castCfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	else
 		state.castBar:SetStatusBarDesaturated(false)
-		state.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+		setCastbarColorWithGradient(state.castBar, castCfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	end
 	local duration = (state.castInfo.endTime or 0) - (state.castInfo.startTime or 0)
 	local maxValue = duration and duration > 0 and duration / 1000 or 1
@@ -1063,9 +1143,9 @@ local function showCastInterrupt(event)
 	if interruptTex then state.castBar:SetStatusBarTexture(interruptTex) end
 	if state.castBar.SetStatusBarDesaturated then state.castBar:SetStatusBarDesaturated(false) end
 	if useDefault then
-		state.castBar:SetStatusBarColor(1, 1, 1, 1)
+		setCastbarColorWithGradient(state.castBar, nil, 1, 1, 1, 1)
 	else
-		state.castBar:SetStatusBarColor(0.85, 0.12, 0.12, 1)
+		setCastbarColorWithGradient(state.castBar, nil, 0.85, 0.12, 0.12, 1)
 	end
 	state.castBar:SetMinMaxValues(0, 1)
 	state.castBar:SetValue(1)

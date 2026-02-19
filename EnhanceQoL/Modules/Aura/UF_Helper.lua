@@ -1214,6 +1214,94 @@ end
 
 function H.shouldUseDefaultCastArt(st) return st and st.castUseDefaultArt == true end
 
+function H.SetCastbarColorWithGradient(bar, ccfg, r, g, b, a)
+	if not bar then return end
+	local br, bg, bb, ba = r or 1, g or 1, b or 1, a or 1
+	local lastColor = bar._eqolLastColor
+	if not lastColor or lastColor[1] ~= br or lastColor[2] ~= bg or lastColor[3] ~= bb or lastColor[4] ~= ba then
+		bar:SetStatusBarColor(br, bg, bb, ba)
+		bar._eqolLastColor = bar._eqolLastColor or {}
+		bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4] = br, bg, bb, ba
+	end
+
+	local function clearState()
+		bar._eqolGradientEnabled = nil
+		bar._eqolGradientTex = nil
+		bar._eqolGradDir = nil
+		bar._eqolGradSR = nil
+		bar._eqolGradSG = nil
+		bar._eqolGradSB = nil
+		bar._eqolGradSA = nil
+		bar._eqolGradER = nil
+		bar._eqolGradEG = nil
+		bar._eqolGradEB = nil
+		bar._eqolGradEA = nil
+	end
+
+	if not ccfg or ccfg.useGradient ~= true then
+		if bar._eqolGradientEnabled then clearState() end
+		return
+	end
+
+	local tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+	if not tex or not tex.SetGradient then
+		clearState()
+		return
+	end
+
+	local startColor = ccfg.gradientStartColor
+	local endColor = ccfg.gradientEndColor
+	local sr, sg, sb, sa
+	local er, eg, eb, ea
+	if type(startColor) == "table" then
+		if startColor.r ~= nil then
+			sr, sg, sb, sa = startColor.r or 1, startColor.g or 1, startColor.b or 1, startColor.a or 1
+		else
+			sr, sg, sb, sa = startColor[1] or 1, startColor[2] or 1, startColor[3] or 1, startColor[4] or 1
+		end
+	else
+		sr, sg, sb, sa = 1, 1, 1, 1
+	end
+	if type(endColor) == "table" then
+		if endColor.r ~= nil then
+			er, eg, eb, ea = endColor.r or 1, endColor.g or 1, endColor.b or 1, endColor.a or 1
+		else
+			er, eg, eb, ea = endColor[1] or 1, endColor[2] or 1, endColor[3] or 1, endColor[4] or 1
+		end
+	else
+		er, eg, eb, ea = 1, 1, 1, 1
+	end
+	sr, sg, sb, sa = br * sr, bg * sg, bb * sb, ba * sa
+	er, eg, eb, ea = br * er, bg * eg, bb * eb, ba * ea
+
+	local direction = ccfg.gradientDirection or "HORIZONTAL"
+	if type(direction) == "string" then direction = direction:upper() end
+	if direction ~= "VERTICAL" then direction = "HORIZONTAL" end
+
+	if
+		bar._eqolGradientEnabled
+		and bar._eqolGradientTex == tex
+		and bar._eqolGradDir == direction
+		and bar._eqolGradSR == sr
+		and bar._eqolGradSG == sg
+		and bar._eqolGradSB == sb
+		and bar._eqolGradSA == sa
+		and bar._eqolGradER == er
+		and bar._eqolGradEG == eg
+		and bar._eqolGradEB == eb
+		and bar._eqolGradEA == ea
+	then
+		return
+	end
+
+	tex:SetGradient(direction, CreateColor(sr, sg, sb, sa), CreateColor(er, eg, eb, ea))
+	bar._eqolGradientEnabled = true
+	bar._eqolGradientTex = tex
+	bar._eqolGradDir = direction
+	bar._eqolGradSR, bar._eqolGradSG, bar._eqolGradSB, bar._eqolGradSA = sr, sg, sb, sa
+	bar._eqolGradER, bar._eqolGradEG, bar._eqolGradEB, bar._eqolGradEA = er, eg, eb, ea
+end
+
 local CAST_SPARK_WIDTH = 8
 local CAST_SPARK_HEIGHT = 20
 local CAST_SPARK_LAYER_DEFAULT = 3

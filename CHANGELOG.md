@@ -1,5 +1,15 @@
 # Changelog
 
+## [7.20.0] - 2026-02-20
+
+### ✨ Added
+
+- Castbars (Unit Frames + Standalone): Added `Use gradient` with `Gradient start color` and `Gradient end color` for cast fill colors.
+- Economy (Bank): Added automatic gold balancing with the Warband bank.
+- Economy (Bank): Added optional per-character target values and automatic withdraw.
+
+---
+
 ## [7.19.3] - 2026-02-19
 
 ### 🐛 Fixed

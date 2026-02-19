@@ -2852,6 +2852,11 @@ local function initMisc()
 	addon.functions.InitDBValue("hideRaidTools", false)
 	addon.functions.InitDBValue("autoRepair", false)
 	addon.functions.InitDBValue("autoRepairGuildBank", false)
+	addon.functions.InitDBValue("autoWarbandGold", false)
+	addon.functions.InitDBValue("autoWarbandGoldTargetGold", 10000)
+	addon.functions.InitDBValue("autoWarbandGoldPerCharacter", {})
+	addon.functions.InitDBValue("autoWarbandGoldTargetCharacter", "")
+	addon.functions.InitDBValue("autoWarbandGoldWithdraw", false)
 	addon.functions.InitDBValue("sellAllJunk", false)
 	addon.functions.InitDBValue("autoCancelCinematic", false)
 	addon.functions.InitDBValue("quickSkipCinematic", false)
@@ -5382,6 +5387,45 @@ local function shouldAutoChooseQuest()
 	return not IsShiftKeyDown()
 end
 
+local COPPER_PER_GOLD = 10000
+
+function addon.functions.AutoSyncWarbandGold()
+	if not addon.db or not addon.db["autoWarbandGold"] then return end
+	if not C_Bank or not Enum or not Enum.BankType or not Enum.BankType.Account then return end
+
+	local bankType = Enum.BankType.Account
+	if not C_Bank.DoesBankTypeSupportMoneyTransfer or not C_Bank.DoesBankTypeSupportMoneyTransfer(bankType) then return end
+	if not C_Bank.CanUseBank or not C_Bank.CanUseBank(bankType) then return end
+
+	local targetGold = tonumber(addon.db["autoWarbandGoldTargetGold"]) or 0
+	local playerGuid = UnitGUID("player")
+	local perCharacterTargets = addon.db["autoWarbandGoldPerCharacter"]
+	if type(perCharacterTargets) == "table" and playerGuid and perCharacterTargets[playerGuid] ~= nil then targetGold = tonumber(perCharacterTargets[playerGuid]) or targetGold end
+	if targetGold < 0 then targetGold = 0 end
+	local targetCopper = math.floor((targetGold * COPPER_PER_GOLD) + 0.5)
+	local playerMoney = GetMoney() or 0
+
+	if playerMoney > targetCopper then
+		if not (C_Bank.CanDepositMoney and C_Bank.DepositMoney and C_Bank.CanDepositMoney(bankType)) then return end
+		local amountToDeposit = playerMoney - targetCopper
+		if amountToDeposit <= 0 then return end
+		C_Bank.DepositMoney(bankType, amountToDeposit)
+		print((L["autoWarbandGoldDeposited"] or "Deposited %s to Warband bank."):format(addon.functions.formatMoney(amountToDeposit)))
+		return
+	end
+
+	if not addon.db["autoWarbandGoldWithdraw"] then return end
+	if playerMoney >= targetCopper then return end
+	if not (C_Bank.CanWithdrawMoney and C_Bank.WithdrawMoney and C_Bank.CanWithdrawMoney(bankType)) then return end
+
+	local warbandMoney = C_Bank.FetchDepositedMoney and C_Bank.FetchDepositedMoney(bankType) or 0
+	local amountToWithdraw = math.min(targetCopper - playerMoney, warbandMoney)
+	if amountToWithdraw <= 0 then return end
+
+	C_Bank.WithdrawMoney(bankType, amountToWithdraw)
+	print((L["autoWarbandGoldWithdrawn"] or "Withdrew %s from Warband bank."):format(addon.functions.formatMoney(amountToWithdraw)))
+end
+
 local function loadSubAddon(name)
 	local subAddonName = name
 
@@ -5698,6 +5742,11 @@ local eventHandlers = {
 		if arg1 == 53 and addon.db["openCharframeOnUpgrade"] then
 			if CharacterFrame:IsShown() == false then ToggleCharacter("PaperDollFrame") end
 		end
+	end,
+	["BANKFRAME_OPENED"] = function()
+		C_Timer.After(0, function()
+			if addon.functions and addon.functions.AutoSyncWarbandGold then addon.functions.AutoSyncWarbandGold() end
+		end)
 	end,
 	["PLAYER_LOGIN"] = function()
 		addon.functions.applyUIScalePreset()
