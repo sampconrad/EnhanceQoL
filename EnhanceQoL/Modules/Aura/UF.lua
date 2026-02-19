@@ -6658,7 +6658,9 @@ onEvent = function(self, event, unit, ...)
 		refreshRangeFadeSpells(true)
 		return
 	end
-	if event == "PLAYER_ENTERING_WORLD" then
+	if event == "PLAYER_LOGIN" then
+		updateNameAndLevel(getCfg(UNIT.PLAYER), UNIT.PLAYER)
+	elseif event == "PLAYER_ENTERING_WORLD" then
 		local playerCfg = getCfg(UNIT.PLAYER)
 		local targetCfg = getCfg(UNIT.TARGET)
 		local totCfg = getCfg(UNIT.TARGET_TARGET)
