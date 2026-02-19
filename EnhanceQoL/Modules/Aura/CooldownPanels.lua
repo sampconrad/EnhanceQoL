@@ -5398,8 +5398,8 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 	local panelKey = normalizeId(panelId)
 	local countFontPath, countFontSize, countFontStyle = Helper.GetCountFontDefaults(frame)
 	local chargesFontPath, chargesFontSize, chargesFontStyle = Helper.GetChargesFontDefaults(frame)
-	local fontOptions = Helper.GetFontOptions(countFontPath)
-	local chargesFontOptions = Helper.GetFontOptions(chargesFontPath)
+	local function fontOptions() return Helper.GetFontOptions(countFontPath) end
+	local function chargesFontOptions() return Helper.GetFontOptions(chargesFontPath) end
 	local function hasStaticTextEntries() return panel and panel.entries and next(panel.entries) ~= nil end
 	local function setStaticTextEntryId(entryId)
 		local runtimePanel = getRuntime(panelId)
@@ -6247,7 +6247,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return layout.cooldownTextFont or countFontPath end,
 				set = function(_, value) applyEditLayout(panelId, "cooldownTextFont", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(fontOptions) do
+					for _, option in ipairs(fontOptions()) do
 						root:CreateRadio(
 							option.label,
 							function() return (layout.cooldownTextFont or countFontPath) == option.value end,
@@ -6338,7 +6338,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 					updateStaticTextEntry(entry, "staticTextFont", value)
 				end,
 				generator = function(_, root)
-					for _, option in ipairs(fontOptions) do
+					for _, option in ipairs(fontOptions()) do
 						root:CreateRadio(option.label, function()
 							local entry = getStaticTextEntry()
 							return entry and Helper.ResolveFontPath(entry.staticTextFont, countFontPath) == option.value
@@ -6557,7 +6557,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return layout.stackFont or countFontPath end,
 				set = function(_, value) applyEditLayout(panelId, "stackFont", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(fontOptions) do
+					for _, option in ipairs(fontOptions()) do
 						root:CreateRadio(option.label, function() return (layout.stackFont or countFontPath) == option.value end, function() applyEditLayout(panelId, "stackFont", option.value) end)
 					end
 				end,
@@ -6652,7 +6652,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return layout.chargesFont or chargesFontPath end,
 				set = function(_, value) applyEditLayout(panelId, "chargesFont", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(chargesFontOptions) do
+					for _, option in ipairs(chargesFontOptions()) do
 						root:CreateRadio(
 							option.label,
 							function() return (layout.chargesFont or chargesFontPath) == option.value end,
@@ -6769,7 +6769,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return layout.keybindFont or countFontPath end,
 				set = function(_, value) applyEditLayout(panelId, "keybindFont", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(fontOptions) do
+					for _, option in ipairs(fontOptions()) do
 						root:CreateRadio(
 							option.label,
 							function() return (layout.keybindFont or countFontPath) == option.value end,

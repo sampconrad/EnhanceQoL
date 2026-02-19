@@ -19,6 +19,8 @@
 - Tooltips: Re-applied tooltip scale after Login UI scaling on startup to prevent wrong tooltip size after relog/reload.
 - Container Actions: Fixed an infinite auto-open retry loop when a container cannot be looted.
 - Action Bars: Full button out-of-range coloring now respects the action icon mask again, so the old unmasked rectangle no longer renders over button art.
+- Cooldown Panels: Edit Mode font dropdowns now rebuild dynamically from SharedMedia when opened.
+- Sound: `Personal crafting order added` extra notification now triggers reliably.
 
 ---
 
