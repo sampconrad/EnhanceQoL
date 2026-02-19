@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.19.3] - 2026-02-19
+
+### 🐛 Fixed
+
+- Castbars: Texture secret error
+
+---
+
 ## [7.19.2] - 2026-02-19
 
 ### 🐛 Fixed
