@@ -878,11 +878,12 @@ local function configureCastStatic(castCfg, castDefaults)
 		state.castName:SetText(nameText)
 	end
 	if state.castIcon then
-		local showIcon = castCfg.showIcon ~= false and state.castInfo.texture ~= nil
+		local iconTexture = UFHelper.resolveCastIconTexture(state.castInfo.texture)
+		local showIcon = castCfg.showIcon ~= false and iconTexture ~= nil
 		state.castIcon:SetShown(showIcon)
 		if showIcon then
-			state.castIcon:SetTexture(state.castInfo.texture)
-			state.castIconTexture = state.castInfo.texture
+			state.castIcon:SetTexture(iconTexture)
+			state.castIconTexture = iconTexture
 		end
 	end
 	if state.castDuration then state.castDuration:SetShown(castCfg.showDuration ~= false) end
@@ -1078,7 +1079,7 @@ local function showCastInterrupt(event)
 		state.castName:SetShown(castCfg.showName ~= false)
 	end
 	if state.castIcon then
-		local iconTexture = (state.castInfo and state.castInfo.texture) or state.castIconTexture
+		local iconTexture = UFHelper.resolveCastIconTexture((state.castInfo and state.castInfo.texture) or state.castIconTexture)
 		local showIcon = castCfg.showIcon ~= false and iconTexture ~= nil
 		state.castIcon:SetShown(showIcon)
 		if showIcon then
@@ -1206,7 +1207,7 @@ local function setCastInfoFromUnit()
 
 	state.castInfo = {
 		name = text or name,
-		texture = texture,
+		texture = UFHelper.resolveCastIconTexture(texture),
 		startTime = startTimeMS,
 		endTime = endTimeMS,
 		notInterruptible = notInterruptible,

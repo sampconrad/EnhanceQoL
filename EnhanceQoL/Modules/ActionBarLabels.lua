@@ -299,14 +299,77 @@ end
 
 function Labels.RefreshActionButtonBorder(button) RefreshButtonBorder(button) end
 
+local function SyncRangeOverlayMask(btn, icon, overlay)
+	if not (btn and icon and overlay) then return end
+	if not overlay.AddMaskTexture then return end
+
+	local currentMasks = overlay.EQOL_IconMasks
+	local currentCount = type(currentMasks) == "table" and #currentMasks or 0
+	local iconMaskCount = 0
+	if icon.GetNumMaskTextures and icon.GetMaskTexture then iconMaskCount = icon:GetNumMaskTextures() or 0 end
+	local fallbackMask = btn.IconMask
+	local wantedCount = iconMaskCount
+	if wantedCount == 0 and fallbackMask then wantedCount = 1 end
+
+	local same = currentCount == wantedCount
+	if same then
+		for i = 1, wantedCount do
+			local wantedMask
+			if iconMaskCount > 0 then
+				wantedMask = icon:GetMaskTexture(i)
+			else
+				wantedMask = fallbackMask
+			end
+			if currentMasks[i] ~= wantedMask then
+				same = false
+				break
+			end
+		end
+	end
+	if same then return end
+
+	if type(currentMasks) == "table" and overlay.RemoveMaskTexture then
+		for i = 1, #currentMasks do
+			local mask = currentMasks[i]
+			if mask then overlay:RemoveMaskTexture(mask) end
+		end
+	end
+
+	if wantedCount > 0 then
+		local newMasks = {}
+		for i = 1, wantedCount do
+			local wantedMask
+			if iconMaskCount > 0 then
+				wantedMask = icon:GetMaskTexture(i)
+			else
+				wantedMask = fallbackMask
+			end
+			if wantedMask then
+				overlay:AddMaskTexture(wantedMask)
+				newMasks[#newMasks + 1] = wantedMask
+			end
+		end
+		overlay.EQOL_IconMasks = newMasks
+	else
+		overlay.EQOL_IconMasks = nil
+	end
+end
+
 local function EnsureRangeOverlay(btn, icon)
-	local overlay = btn and btn.EQOL_RangeOverlay
-	if overlay or not (btn and icon and btn.CreateTexture) then return overlay end
-	overlay = btn:CreateTexture(nil, "OVERLAY")
-	overlay:SetPoint("TOPLEFT", icon, "TOPLEFT", 0, 0)
-	overlay:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 0, 0)
-	overlay:Hide()
-	btn.EQOL_RangeOverlay = overlay
+	if not (btn and icon and btn.CreateTexture) then return nil end
+	local overlay = btn.EQOL_RangeOverlay
+	if not overlay then
+		overlay = btn:CreateTexture(nil, "OVERLAY")
+		overlay:Hide()
+		btn.EQOL_RangeOverlay = overlay
+	end
+	if overlay.EQOL_AnchorIcon ~= icon then
+		overlay:ClearAllPoints()
+		overlay:SetPoint("TOPLEFT", icon, "TOPLEFT", 0, 0)
+		overlay:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 0, 0)
+		overlay.EQOL_AnchorIcon = icon
+	end
+	SyncRangeOverlayMask(btn, icon, overlay)
 	return overlay
 end
 

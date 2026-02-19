@@ -12,11 +12,13 @@
 - Standalone Castbar: Fixed duration text visibility during Empower casts.
 - Castbars: Releasing Evoker Empower casts now no longer shows an incorrect `Interrupted` message.
 - Castbars: `Interrupted` now uses Blizzard interrupt art only for Blizzard default castbar textures; custom textures keep their own look.
+- Castbars (UF + Standalone): Missing cast icon textures (e.g. heirloom upgrade casts) now fall back to the Blizzard question mark icon.
 - Unit Frames (Target): Detached power bar `Grow from center` now stays correctly centered on the full frame when portrait mode is enabled.
 - Unit Frames: Added missing `Strong drop shadow` font outline option in Unit Frame settings and implemented the stronger shadow rendering for text.
 - Tooltips: Fixed unit info lines (class color, mount, targeting, item level/spec) sometimes using current target data when hovering the Player frame.
 - Tooltips: Re-applied tooltip scale after Login UI scaling on startup to prevent wrong tooltip size after relog/reload.
 - Container Actions: Fixed an infinite auto-open retry loop when a container cannot be looted.
+- Action Bars: Full button out-of-range coloring now respects the action icon mask again, so the old unmasked rectangle no longer renders over button art.
 
 ---
 

@@ -19,6 +19,7 @@ local EnumPowerType = Enum and Enum.PowerType
 local BLIZZARD_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
 local BLIZZARD_CAST_STANDARD_TEX = "ui-castingbar-full-standard"
 local BLIZZARD_CAST_INTERRUPTED_TEX = "ui-castingbar-interrupted"
+local BLIZZARD_CAST_ICON_FALLBACK_TEX = 134400 -- Interface\\Icons\\INV_Misc_QuestionMark
 local DEFAULT_AURA_BORDER_TEX = "Interface\\Buttons\\UI-Debuff-Overlays"
 local DEFAULT_AURA_BORDER_COORDS = { 0.296875, 0.5703125, 0, 0.515625 }
 local CombatFeedback_Initialize = _G.CombatFeedback_Initialize
@@ -1092,6 +1093,11 @@ function H.resolveCastTexture(key)
 end
 
 function H.resolveCastInterruptTexture() return BLIZZARD_CAST_INTERRUPTED_TEX end
+
+function H.resolveCastIconTexture(texture)
+	if texture == nil or texture == "" or texture == 0 then return BLIZZARD_CAST_ICON_FALLBACK_TEX end
+	return texture
+end
 
 local function normalizePowerToken(powerToken)
 	if type(powerToken) ~= "string" then return powerToken end
