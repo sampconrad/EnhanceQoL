@@ -7575,6 +7575,9 @@ local function ensureUpdateFrame()
 			local name = ...
 			local anchorHelper = CooldownPanels.AnchorHelper
 			if anchorHelper and anchorHelper.HandleAddonLoaded then anchorHelper:HandleAddonLoaded(name) end
+			if type(name) == "string" and (name == "Dominos" or name == "Bartender4" or name == "ElvUI" or name:match("^Dominos_") or name:match("^Bartender4_")) then
+				Keybinds.RequestRefresh("Event:ADDON_LOADED:" .. name)
+			end
 			if name == "Masque" then
 				CooldownPanels:RegisterMasqueButtons()
 				CooldownPanels:ReskinMasque()

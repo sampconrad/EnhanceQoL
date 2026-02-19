@@ -7,6 +7,7 @@
 - Castbars (Unit Frames + Standalone): Added `Use gradient` with `Gradient start color` and `Gradient end color` for cast fill colors.
 - Economy (Bank): Added automatic gold balancing with the Warband bank.
 - Economy (Bank): Added optional per-character target values and automatic withdraw.
+- Cooldown Panels: Keybind display now supports Dominos, Bartender4 and ElvUI action bars (in addition to Blizzard).
 
 ### 🐛 Fixed
 
