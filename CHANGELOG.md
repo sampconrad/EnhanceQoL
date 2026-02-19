@@ -5,6 +5,7 @@
 ### 🐛 Fixed
 
 - Castbars: Texture secret error
+- Mover: Added the missing `Currency Transfer`, so the frame is now available in mover settings.
 
 ---
 

@@ -408,6 +408,14 @@ local frames = {
 		defaultEnabled = true,
 	},
 	{
+		id = "CurrencyTransferMenu",
+		label = L["Currency Transfer"] or "Currency Transfer",
+		group = "vendors",
+		names = { "CurrencyTransferMenu" },
+		addon = "Blizzard_TokenUI",
+		defaultEnabled = true,
+	},
+	{
 		id = "MailFrame",
 		label = L["Mail"] or "Mail",
 		group = "vendors",
