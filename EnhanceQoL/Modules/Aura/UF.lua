@@ -780,6 +780,15 @@ local function ensureDB(unit)
 	return udb
 end
 
+-- Shared context for external Unit Frame importers (see UF_Importers.lua).
+UF._ensureDB = ensureDB
+UF._defaultsFor = defaultsFor
+UF._isBossUnit = isBossUnit
+UF._maxBossFrames = maxBossFrames
+UF._frameNames = UF_FRAME_NAMES
+UF._minWidth = MIN_WIDTH
+UF._unitTokens = UNIT
+
 local function hasVisibilityRules(cfg)
 	if not cfg then return false end
 	local raw = cfg.visibility
@@ -1486,7 +1495,7 @@ local UF_EDITMODE_FRAME_IDS = {
 	boss = "EQOL_UF_Boss",
 }
 
-local function syncEditModeLayoutAnchors(units)
+function UF.SyncEditModeLayoutAnchors(units)
 	if type(units) ~= "table" or #units == 0 then return end
 	local editMode = addon and addon.EditMode
 	if not (editMode and editMode.GetActiveLayoutName) then return end
@@ -1566,6 +1575,10 @@ function UF.ImportProfile(encoded, scopeKey)
 	scopeKey = normalize(scopeKey)
 	encoded = UFHelper.trim(encoded or "")
 	if not encoded or encoded == "" then return false, "NO_INPUT" end
+	if encoded:sub(1, 5) == "!UUF_" then
+		if type(UF.ImportUnhaltedProfile) ~= "function" then return false, "WRONG_KIND" end
+		return UF.ImportUnhaltedProfile(encoded, scopeKey)
+	end
 
 	local deflate = LibStub("LibDeflate")
 	local serializer = LibStub("AceSerializer-3.0")
@@ -1603,7 +1616,7 @@ function UF.ImportProfile(encoded, scopeKey)
 	end
 
 	table.sort(applied, function(a, b) return tostring(a) < tostring(b) end)
-	syncEditModeLayoutAnchors(applied)
+	UF.SyncEditModeLayoutAnchors(applied)
 	addon.variables.requireReload = true
 	return true, applied
 end

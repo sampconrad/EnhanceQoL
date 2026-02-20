@@ -187,6 +187,7 @@ L["UFExportProfileScopeEmpty"] = "That frame does not have any saved settings ye
 L["UFExportProfileFailed"] = "Could not create a Unit Frame export code."
 L["UFImportProfileTitle"] = "Import Unit Frames"
 L["UFImportProfileReloadHint"] = "After importing, your UI will reload automatically."
+L["UFImportProfileExternalHint"] = "Supports Enhance QoL and UnhaltedUnitFrames (!UUF_) codes."
 L["UFImportProfileEmpty"] = "Please enter a code to import."
 L["UFImportProfileInvalid"] = "The code could not be read."
 L["UFImportProfileNoFrames"] = "The code does not contain any Unit Frame settings."

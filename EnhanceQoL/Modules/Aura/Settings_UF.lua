@@ -6237,6 +6237,7 @@ local function registerSettingsUI()
 			func = function()
 				local importText = (L["UFImportProfileTitle"] or "Import Unit Frames")
 				if L["UFImportProfileReloadHint"] then importText = importText .. "\n\n" .. L["UFImportProfileReloadHint"] end
+				importText = importText .. "\n\n" .. (L["UFImportProfileExternalHint"] or "Supports Enhance QoL and UnhaltedUnitFrames (!UUF_) codes.")
 				StaticPopupDialogs["EQOL_UF_IMPORT_SETTINGS"] = StaticPopupDialogs["EQOL_UF_IMPORT_SETTINGS"]
 					or {
 						text = importText,
