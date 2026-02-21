@@ -107,6 +107,11 @@ local function getPersonalOrderCounts()
 	return counts
 end
 
+local function primePersonalOrdersSnapshot()
+	local counts = getPersonalOrderCounts()
+	if counts then personalOrdersSnapshot = counts end
+end
+
 local function diffPersonalOrderCounts(oldCounts, newCounts)
 	local added, removed = 0, 0
 	for key, newCount in pairs(newCounts) do
@@ -148,6 +153,7 @@ local function playExtraSound(event, ...)
 		handleCraftingOrdersUpdate()
 		return
 	end
+	if event == "PLAYER_ENTERING_WORLD" and craftingOrdersTrackingActive then primePersonalOrdersSnapshot() end
 	playExtraSoundByKey(event, ...)
 end
 
@@ -193,6 +199,7 @@ function addon.Sounds.functions.UpdateExtraSounds()
 		craftingOrdersTrackingActive = craftingOrdersActive
 		personalOrdersSnapshot = nil
 	end
+	if craftingOrdersTrackingActive and not personalOrdersSnapshot then primePersonalOrdersSnapshot() end
 	for _, entry in ipairs(events) do
 		local eventName = entry and entry.event
 		if type(eventName) == "string" and eventName ~= "" then

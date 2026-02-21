@@ -664,7 +664,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			[159900] = { text = "GD", cId = { [166] = true }, locID = 543, x = 0.5504, y = 0.3174, zoneID = 606 },
 			[159896] = { text = "ID", cId = { [169] = true }, locID = 543, x = 0.4536, y = 0.1345, zoneID = 595 },
 			[159899] = { text = "SBG", cId = { [165] = true }, locID = 539, x = 0.3185, y = 0.4257, zoneID = 574 },
-			[159898] = { text = "SR", cId = { [161] = true }, mapID = 601, locID = 542, x = 0.3555, y = 0.3360, zoneID = 601 },
+			[1254557] = { text = "SR", cId = { [161] = true }, mapID = 601, locID = 542, x = 0.3555, y = 0.3360, zoneID = 601 },
 			[159902] = { text = "UBRS", cId = { [167] = true }, locID = 36, x = 0.2013, y = 0.2600, zoneID = 617 },
 			[163830] = { text = "ENGI", isToy = true, toyID = 112059, isEngineering = true, zoneID = 572 },
 			[171253] = { text = GARRISON_LOCATION_TOOLTIP, isToy = true, toyID = 110560, isHearthstone = true },

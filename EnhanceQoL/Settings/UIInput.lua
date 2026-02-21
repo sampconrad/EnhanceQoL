@@ -183,6 +183,10 @@ local function applyUIScalePreset()
 	end
 
 	if UIParent and UIParent.SetScale then UIParent:SetScale(scale) end
+
+	if addon.Tooltip and addon.Tooltip.ApplyScale then C_Timer.After(0.25, function()
+		if addon.Tooltip and addon.Tooltip.ApplyScale then addon.Tooltip.ApplyScale() end
+	end) end
 end
 addon.functions.applyUIScalePreset = applyUIScalePreset
 

@@ -37,6 +37,11 @@ local AUTO_ENABLE_OPTIONS = {
 local AUTO_ENABLE_ORDER = { "HEALTH", "MAIN", "SECONDARY" }
 
 local specSettingVars = {}
+local function getActiveSpecIndex()
+	local apiSpec = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization and C_SpecializationInfo.GetSpecialization()
+	if apiSpec and apiSpec > 0 then return apiSpec end
+	return addon.variables and addon.variables.unitSpec
+end
 local function autoEnableSelection()
 	addon.db.resourceBarsAutoEnable = addon.db.resourceBarsAutoEnable or {}
 	-- Migrate legacy boolean flag into the new selection map
@@ -266,7 +271,7 @@ local function setBarEnabled(specIndex, barType, enabled)
 	if ResourceBars.QueueRefresh then ResourceBars.QueueRefresh(specIndex) end
 	if ResourceBars.MaybeRefreshActive then ResourceBars.MaybeRefreshActive(specIndex) end
 	if EditMode and EditMode.RefreshFrame then
-		local curSpec = tonumber(specIndex or addon.variables.unitSpec) or 0
+		local curSpec = tonumber(specIndex or getActiveSpecIndex()) or 0
 		local id = (ResourceBars.GetEditModeFrameId and ResourceBars.GetEditModeFrameId(barType, addon.variables.unitClass, curSpec))
 			or ("resourceBar_" .. tostring(addon.variables.unitClass or "UNKNOWN") .. "_" .. tostring(curSpec) .. "_" .. tostring(barType))
 		local layout = EditMode.GetActiveLayoutName and EditMode:GetActiveLayoutName()
@@ -289,7 +294,7 @@ local function registerEditModeBars()
 	local function registerBar(idSuffix, frameName, barType, widthDefault, heightDefault)
 		local frame = _G[frameName]
 		if not frame then return end
-		local curSpec = tonumber(addon.variables.unitSpec) or 0
+		local curSpec = tonumber(getActiveSpecIndex()) or 0
 		local registeredSpec = curSpec
 		local frameId = (ResourceBars.GetEditModeFrameId and ResourceBars.GetEditModeFrameId(idSuffix, addon.variables.unitClass, registeredSpec))
 			or ("resourceBar_" .. tostring(addon.variables.unitClass or "UNKNOWN") .. "_" .. tostring(curSpec) .. "_" .. tostring(idSuffix))
@@ -301,12 +306,15 @@ local function registerEditModeBars()
 		if registeredFrames[frameId] then return end
 		registeredFrames[frameId] = true
 		registeredByBar[idSuffix] = frameId
-		local cfg = ResourceBars and ResourceBars.getBarSettings and ResourceBars.getBarSettings(barType) or ResourceBars and ResourceBars.GetBarSettings and ResourceBars.GetBarSettings(barType)
-		local anchor = ResourceBars and ResourceBars.getAnchor and ResourceBars.getAnchor(barType, addon.variables.unitSpec)
+		local specCfg = ensureSpecCfg(registeredSpec) or {}
+		local cfg = specCfg[barType]
+		if not cfg and ResourceBars and ResourceBars.getBarSettings then cfg = ResourceBars.getBarSettings(barType) end
+		if not cfg and ResourceBars and ResourceBars.GetBarSettings then cfg = ResourceBars.GetBarSettings(barType) end
+		local anchor = ResourceBars and ResourceBars.getAnchor and ResourceBars.getAnchor(barType, registeredSpec)
 		local titleLabel = (barType == "HEALTH") and (HEALTH or "Health") or (ResourceBars.PowerLabels and ResourceBars.PowerLabels[barType]) or _G["POWER_TYPE_" .. barType] or _G[barType] or barType
 		local function currentSpecInfo()
 			local uc = addon.variables.unitClass
-			local us = addon.variables.unitSpec
+			local us = registeredSpec or getActiveSpecIndex()
 			return ResourceBars and ResourceBars.powertypeClasses and ResourceBars.powertypeClasses[uc] and ResourceBars.powertypeClasses[uc][us]
 		end
 
@@ -322,16 +330,17 @@ local function registerEditModeBars()
 		cfg.backdrop.outset = cfg.backdrop.outset or 0
 		cfg.backdrop.backgroundInset = max(0, cfg.backdrop.backgroundInset or 0)
 		local function curSpecCfg()
-			local spec = addon.variables.unitSpec
+			local spec = registeredSpec or getActiveSpecIndex()
 			local specCfg = ensureSpecCfg(spec)
 			if not specCfg then return nil end
 			specCfg[barType] = specCfg[barType] or {}
 			return specCfg[barType]
 		end
 		local function queueRefresh()
-			if ResourceBars.QueueRefresh then ResourceBars.QueueRefresh(addon.variables.unitSpec) end
-			if ResourceBars.MaybeRefreshActive then ResourceBars.MaybeRefreshActive(addon.variables.unitSpec) end
-			if EditMode and EditMode:IsInEditMode() and addon.variables.unitSpec then
+			local targetSpec = registeredSpec or getActiveSpecIndex()
+			if ResourceBars.QueueRefresh then ResourceBars.QueueRefresh(targetSpec) end
+			if ResourceBars.MaybeRefreshActive then ResourceBars.MaybeRefreshActive(targetSpec) end
+			if EditMode and EditMode:IsInEditMode() and targetSpec then
 				if ResourceBars.Refresh then ResourceBars.Refresh() end
 				if ResourceBars.ReanchorAll then ResourceBars.ReanchorAll() end
 			end
@@ -1093,6 +1102,38 @@ local function registerEditModeBars()
 					isEnabled = function()
 						local c = curSpecCfg()
 						return c and c.showSeparator == true
+					end,
+					parentId = "frame",
+				}
+
+				settingsList[#settingsList + 1] = {
+					name = L["Separated offset"] or "Separated offset",
+					kind = settingType.Slider,
+					allowInput = true,
+					field = "separatedOffset",
+					minValue = 0,
+					maxValue = 30,
+					valueStep = 1,
+					get = function()
+						local c = curSpecCfg()
+						return (c and c.separatedOffset) or 0
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						local new = tonumber(value) or 0
+						if new < 0 then new = 0 end
+						new = math.floor(new + 0.5)
+						if c.separatedOffset == new then return end
+						c.separatedOffset = new
+						queueRefresh()
+					end,
+					default = (cfg and cfg.separatedOffset) or 0,
+					isShown = function() return barType ~= "RUNES" and barType ~= "ESSENCE" end,
+					isEnabled = function()
+						local c = curSpecCfg()
+						if not c then return false end
+						return c.showSeparator == true or c.useGradient == true
 					end,
 					parentId = "frame",
 				}
@@ -2333,6 +2374,28 @@ local function registerEditModeBars()
 						hasOpacity = true,
 						parentId = "colorsetting",
 					}
+
+					settingsList[#settingsList + 1] = {
+						name = "Keep 5-stack fill above 5",
+						kind = settingType.Checkbox,
+						field = "useMaelstromCarryFill",
+						default = false,
+						parentId = "colorsetting",
+						get = function()
+							local c = curSpecCfg()
+							return c and c.useMaelstromCarryFill == true
+						end,
+						set = function(_, value)
+							local c = curSpecCfg()
+							if not c then return end
+							c.useMaelstromCarryFill = value and true or false
+							queueRefresh()
+						end,
+						isEnabled = function()
+							local c = curSpecCfg()
+							return c and c.useMaelstromFiveColor ~= false
+						end,
+					}
 				end
 
 				settingsList[#settingsList + 1] = {
@@ -2740,6 +2803,8 @@ local function registerEditModeBars()
 			},
 			onApply = function(_, _, data)
 				local spec = registeredSpec or addon.variables.unitSpec
+				local activeSpec = getActiveSpecIndex()
+				if activeSpec and spec and spec ~= activeSpec then return end
 				local specCfg = ensureSpecCfg(spec)
 				if not specCfg then return end
 				specCfg[barType] = specCfg[barType] or {}

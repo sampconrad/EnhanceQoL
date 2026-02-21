@@ -426,6 +426,45 @@ local function getMasqueGroup()
 	return CooldownPanels.runtime.masqueGroup
 end
 
+local ICON_BORDER_TEXTURE_DEFAULT = "DEFAULT"
+
+local function iconBorderOptions()
+	local list = {}
+	local seen = {}
+	local function add(value, label)
+		local lv = tostring(value or ""):lower()
+		if lv == "" or seen[lv] then return end
+		seen[lv] = true
+		list[#list + 1] = { value = value, label = label or value }
+	end
+	add(ICON_BORDER_TEXTURE_DEFAULT, _G.DEFAULT or (L and L["Default"]) or "Default")
+	if not LSM then return list end
+	local hash = LSM:HashTable("border") or {}
+	for name, path in pairs(hash) do
+		if type(path) == "string" and path ~= "" then add(name, tostring(name)) end
+	end
+	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
+	return list
+end
+
+local function normalizeIconBorderTexture(value, fallback)
+	if type(value) == "string" and value ~= "" then return value end
+	if type(fallback) == "string" and fallback ~= "" then return fallback end
+	return ICON_BORDER_TEXTURE_DEFAULT
+end
+
+local function resolveIconBorderTexture(value)
+	local key = normalizeIconBorderTexture(value, ICON_BORDER_TEXTURE_DEFAULT)
+	local ufHelper = addon.Aura and addon.Aura.UFHelper
+	if ufHelper and ufHelper.resolveBorderTexture then return ufHelper.resolveBorderTexture(key) end
+	if not key or key == "" or key == ICON_BORDER_TEXTURE_DEFAULT then return "Interface\\Buttons\\WHITE8x8" end
+	if LSM and LSM.Fetch then
+		local tex = LSM:Fetch("border", key)
+		if type(tex) == "string" and tex ~= "" then return tex end
+	end
+	return key
+end
+
 function CooldownPanels:RegisterMasqueButtons()
 	local group = getMasqueGroup()
 	if not group then return end
@@ -477,6 +516,14 @@ local function clearRuntimeLayoutShapeCache(runtime)
 	runtime._eqolLayoutRowSize4 = nil
 	runtime._eqolLayoutRowSize5 = nil
 	runtime._eqolLayoutRowSize6 = nil
+	runtime._eqolLayoutIconBorderEnabled = nil
+	runtime._eqolLayoutIconBorderTexture = nil
+	runtime._eqolLayoutIconBorderSize = nil
+	runtime._eqolLayoutIconBorderOffset = nil
+	runtime._eqolLayoutIconBorderColorR = nil
+	runtime._eqolLayoutIconBorderColorG = nil
+	runtime._eqolLayoutIconBorderColorB = nil
+	runtime._eqolLayoutIconBorderColorA = nil
 end
 
 local function didLayoutShapeChange(runtime, layout, layoutCount)
@@ -493,6 +540,11 @@ local function didLayoutShapeChange(runtime, layout, layoutCount)
 	local rowSize4 = rowSizes and rowSizes[4] or nil
 	local rowSize5 = rowSizes and rowSizes[5] or nil
 	local rowSize6 = rowSizes and rowSizes[6] or nil
+	local borderColor = layout.iconBorderColor
+	local borderColorR = borderColor and (borderColor.r or borderColor[1]) or nil
+	local borderColorG = borderColor and (borderColor.g or borderColor[2]) or nil
+	local borderColorB = borderColor and (borderColor.b or borderColor[3]) or nil
+	local borderColorA = borderColor and (borderColor.a or borderColor[4]) or nil
 	if
 		runtime._eqolLastLayoutCount == layoutCount
 		and runtime._eqolLayoutIconSize == layout.iconSize
@@ -510,6 +562,14 @@ local function didLayoutShapeChange(runtime, layout, layoutCount)
 		and runtime._eqolLayoutRowSize4 == rowSize4
 		and runtime._eqolLayoutRowSize5 == rowSize5
 		and runtime._eqolLayoutRowSize6 == rowSize6
+		and runtime._eqolLayoutIconBorderEnabled == layout.iconBorderEnabled
+		and runtime._eqolLayoutIconBorderTexture == layout.iconBorderTexture
+		and runtime._eqolLayoutIconBorderSize == layout.iconBorderSize
+		and runtime._eqolLayoutIconBorderOffset == layout.iconBorderOffset
+		and runtime._eqolLayoutIconBorderColorR == borderColorR
+		and runtime._eqolLayoutIconBorderColorG == borderColorG
+		and runtime._eqolLayoutIconBorderColorB == borderColorB
+		and runtime._eqolLayoutIconBorderColorA == borderColorA
 	then
 		return false
 	end
@@ -529,6 +589,14 @@ local function didLayoutShapeChange(runtime, layout, layoutCount)
 	runtime._eqolLayoutRowSize4 = rowSize4
 	runtime._eqolLayoutRowSize5 = rowSize5
 	runtime._eqolLayoutRowSize6 = rowSize6
+	runtime._eqolLayoutIconBorderEnabled = layout.iconBorderEnabled
+	runtime._eqolLayoutIconBorderTexture = layout.iconBorderTexture
+	runtime._eqolLayoutIconBorderSize = layout.iconBorderSize
+	runtime._eqolLayoutIconBorderOffset = layout.iconBorderOffset
+	runtime._eqolLayoutIconBorderColorR = borderColorR
+	runtime._eqolLayoutIconBorderColorG = borderColorG
+	runtime._eqolLayoutIconBorderColorB = borderColorB
+	runtime._eqolLayoutIconBorderColorA = borderColorA
 	return true
 end
 
@@ -1438,6 +1506,12 @@ local function createIconFrame(parent)
 	icon.overlay:SetFrameLevel((icon.cooldown:GetFrameLevel() or icon:GetFrameLevel()) + 5)
 	icon.overlay:EnableMouse(false)
 
+	icon.border = CreateFrame("Frame", nil, icon, "BackdropTemplate")
+	icon.border:SetFrameStrata(icon.cooldown:GetFrameStrata() or icon:GetFrameStrata())
+	icon.border:SetFrameLevel((icon.cooldown:GetFrameLevel() or icon:GetFrameLevel()) + 1)
+	icon.border:EnableMouse(false)
+	icon.border:Hide()
+
 	icon.count = icon.overlay:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
 	icon.count:SetPoint("BOTTOMRIGHT", icon.overlay, "BOTTOMRIGHT", -1, 1)
 	icon.count:Hide()
@@ -1770,6 +1844,44 @@ local function setCooldownDrawState(cooldown, drawEdge, drawBling, drawSwipe)
 	end
 end
 
+local function applyIconBorder(icon, layout)
+	if not icon or not icon.border then return end
+	local border = icon.border
+	local defaults = Helper.PANEL_LAYOUT_DEFAULTS
+	local enabled = layout and layout.iconBorderEnabled == true
+	if not enabled then
+		border:Hide()
+		return
+	end
+
+	local edgeSize = Helper.ClampInt(layout.iconBorderSize, 1, 64, defaults.iconBorderSize or 1)
+	local offset = Helper.ClampInt(layout.iconBorderOffset, -64, 64, defaults.iconBorderOffset or 0)
+	local textureKey = normalizeIconBorderTexture(layout.iconBorderTexture, defaults.iconBorderTexture)
+	local edgeFile = resolveIconBorderTexture(textureKey)
+	local color = Helper.NormalizeColor(layout.iconBorderColor, defaults.iconBorderColor)
+
+	if border._eqolBorderEdgeFile ~= edgeFile or border._eqolBorderEdgeSize ~= edgeSize then
+		border:SetBackdrop({
+			edgeFile = edgeFile,
+			edgeSize = edgeSize,
+			insets = { left = 0, right = 0, top = 0, bottom = 0 },
+		})
+		border:SetBackdropColor(0, 0, 0, 0)
+		border._eqolBorderEdgeFile = edgeFile
+		border._eqolBorderEdgeSize = edgeSize
+	end
+
+	if border._eqolBorderOffset ~= offset then
+		border:ClearAllPoints()
+		border:SetPoint("TOPLEFT", icon, "TOPLEFT", -offset, offset)
+		border:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", offset, -offset)
+		border._eqolBorderOffset = offset
+	end
+
+	border:SetBackdropBorderColor(color[1] or 0, color[2] or 0, color[3] or 0, color[4] or 1)
+	border:Show()
+end
+
 local function applyIconLayout(frame, count, layout)
 	if not frame then return end
 	local iconSize = Helper.ClampInt(layout.iconSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
@@ -1908,6 +2020,7 @@ local function applyIconLayout(frame, count, layout)
 			if group and group.ReSkin then group:ReSkin(icon) end
 			icon._eqolMasqueNeedsReskin = nil
 		end
+		applyIconBorder(icon, layout)
 		if icon.count then
 			icon.count:ClearAllPoints()
 			icon.count:SetPoint(stackAnchor, icon, stackAnchor, stackX, stackY)
@@ -2544,6 +2657,11 @@ local function copyPanelSettings(targetPanelId, sourcePanelId)
 			data.opacityInCombat = Helper.NormalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat)
 			data.showTooltips = layout.showTooltips == true
 			data.showIconTexture = layout.showIconTexture ~= false
+			data.iconBorderEnabled = layout.iconBorderEnabled == true
+			data.iconBorderTexture = normalizeIconBorderTexture(layout.iconBorderTexture, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderTexture)
+			data.iconBorderSize = Helper.ClampInt(layout.iconBorderSize, 1, 64, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderSize)
+			data.iconBorderOffset = Helper.ClampInt(layout.iconBorderOffset, -64, 64, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderOffset)
+			data.iconBorderColor = layout.iconBorderColor or Helper.PANEL_LAYOUT_DEFAULTS.iconBorderColor
 			data.hideOnCooldown = layout.hideOnCooldown == true
 			data.showOnCooldown = layout.showOnCooldown == true
 			data.cooldownTextFont = layout.cooldownTextFont or data.cooldownTextFont
@@ -5073,6 +5191,16 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		layout.showTooltips = value == true
 	elseif field == "showIconTexture" then
 		layout.showIconTexture = value ~= false
+	elseif field == "iconBorderEnabled" then
+		layout.iconBorderEnabled = value == true
+	elseif field == "iconBorderTexture" then
+		layout.iconBorderTexture = normalizeIconBorderTexture(value, layout.iconBorderTexture or Helper.PANEL_LAYOUT_DEFAULTS.iconBorderTexture)
+	elseif field == "iconBorderSize" then
+		layout.iconBorderSize = Helper.ClampInt(value, 1, 64, layout.iconBorderSize or Helper.PANEL_LAYOUT_DEFAULTS.iconBorderSize)
+	elseif field == "iconBorderOffset" then
+		layout.iconBorderOffset = Helper.ClampInt(value, -64, 64, layout.iconBorderOffset or Helper.PANEL_LAYOUT_DEFAULTS.iconBorderOffset)
+	elseif field == "iconBorderColor" then
+		layout.iconBorderColor = Helper.NormalizeColor(value, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderColor)
 	elseif field == "hideOnCooldown" then
 		layout.hideOnCooldown = value == true
 		if layout.hideOnCooldown then layout.showOnCooldown = false end
@@ -5194,6 +5322,11 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 	applyEditLayout(panelId, "cooldownGcdDrawSwipe", data.cooldownGcdDrawSwipe, true)
 	applyEditLayout(panelId, "showTooltips", data.showTooltips, true)
 	applyEditLayout(panelId, "showIconTexture", data.showIconTexture, true)
+	applyEditLayout(panelId, "iconBorderEnabled", data.iconBorderEnabled, true)
+	applyEditLayout(panelId, "iconBorderTexture", data.iconBorderTexture, true)
+	applyEditLayout(panelId, "iconBorderSize", data.iconBorderSize, true)
+	applyEditLayout(panelId, "iconBorderOffset", data.iconBorderOffset, true)
+	applyEditLayout(panelId, "iconBorderColor", data.iconBorderColor, true)
 	applyEditLayout(panelId, "hideOnCooldown", data.hideOnCooldown, true)
 	applyEditLayout(panelId, "showOnCooldown", data.showOnCooldown, true)
 	applyEditLayout(panelId, "hideInVehicle", data.hideInVehicle, true)
@@ -5265,8 +5398,8 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 	local panelKey = normalizeId(panelId)
 	local countFontPath, countFontSize, countFontStyle = Helper.GetCountFontDefaults(frame)
 	local chargesFontPath, chargesFontSize, chargesFontStyle = Helper.GetChargesFontDefaults(frame)
-	local fontOptions = Helper.GetFontOptions(countFontPath)
-	local chargesFontOptions = Helper.GetFontOptions(chargesFontPath)
+	local function fontOptions() return Helper.GetFontOptions(countFontPath) end
+	local function chargesFontOptions() return Helper.GetFontOptions(chargesFontPath) end
 	local function hasStaticTextEntries() return panel and panel.entries and next(panel.entries) ~= nil end
 	local function setStaticTextEntryId(entryId)
 		local runtimePanel = getRuntime(panelId)
@@ -5957,6 +6090,69 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				set = function(_, value) applyEditLayout(panelId, "showIconTexture", value) end,
 			},
 			{
+				name = "Icon border",
+				kind = SettingType.CheckboxColor,
+				field = "iconBorderEnabled",
+				parentId = "cooldownPanelDisplay",
+				default = layout.iconBorderEnabled == true,
+				get = function() return layout.iconBorderEnabled == true end,
+				set = function(_, value) applyEditLayout(panelId, "iconBorderEnabled", value) end,
+				colorDefault = Helper.NormalizeColor(layout.iconBorderColor, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderColor),
+				colorGet = function() return layout.iconBorderColor or Helper.PANEL_LAYOUT_DEFAULTS.iconBorderColor end,
+				colorSet = function(_, value) applyEditLayout(panelId, "iconBorderColor", value) end,
+				hasOpacity = true,
+			},
+			{
+				name = L["Border texture"] or "Border texture",
+				kind = SettingType.Dropdown,
+				field = "iconBorderTexture",
+				parentId = "cooldownPanelDisplay",
+				height = 180,
+				disabled = function() return layout.iconBorderEnabled ~= true end,
+				default = normalizeIconBorderTexture(layout.iconBorderTexture, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderTexture),
+				get = function() return normalizeIconBorderTexture(layout.iconBorderTexture, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderTexture) end,
+				set = function(_, value) applyEditLayout(panelId, "iconBorderTexture", value) end,
+				generator = function(_, root)
+					for _, option in ipairs(iconBorderOptions()) do
+						root:CreateRadio(
+							option.label,
+							function() return normalizeIconBorderTexture(layout.iconBorderTexture, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderTexture) == option.value end,
+							function() applyEditLayout(panelId, "iconBorderTexture", option.value) end
+						)
+					end
+				end,
+			},
+			{
+				name = L["Border size"] or "Border size",
+				kind = SettingType.Slider,
+				field = "iconBorderSize",
+				parentId = "cooldownPanelDisplay",
+				default = Helper.ClampInt(layout.iconBorderSize, 1, 64, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderSize),
+				minValue = 1,
+				maxValue = 64,
+				valueStep = 1,
+				allowInput = true,
+				disabled = function() return layout.iconBorderEnabled ~= true end,
+				get = function() return Helper.ClampInt(layout.iconBorderSize, 1, 64, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderSize) end,
+				set = function(_, value) applyEditLayout(panelId, "iconBorderSize", value) end,
+				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+			},
+			{
+				name = L["Border offset"] or "Border offset",
+				kind = SettingType.Slider,
+				field = "iconBorderOffset",
+				parentId = "cooldownPanelDisplay",
+				default = Helper.ClampInt(layout.iconBorderOffset, -64, 64, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderOffset),
+				minValue = -64,
+				maxValue = 64,
+				valueStep = 1,
+				allowInput = true,
+				disabled = function() return layout.iconBorderEnabled ~= true end,
+				get = function() return Helper.ClampInt(layout.iconBorderOffset, -64, 64, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderOffset) end,
+				set = function(_, value) applyEditLayout(panelId, "iconBorderOffset", value) end,
+				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+			},
+			{
 				name = L["CooldownPanelHideOnCooldown"] or "Hide on cooldown",
 				kind = SettingType.Checkbox,
 				field = "hideOnCooldown",
@@ -6051,7 +6247,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return layout.cooldownTextFont or countFontPath end,
 				set = function(_, value) applyEditLayout(panelId, "cooldownTextFont", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(fontOptions) do
+					for _, option in ipairs(fontOptions()) do
 						root:CreateRadio(
 							option.label,
 							function() return (layout.cooldownTextFont or countFontPath) == option.value end,
@@ -6142,7 +6338,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 					updateStaticTextEntry(entry, "staticTextFont", value)
 				end,
 				generator = function(_, root)
-					for _, option in ipairs(fontOptions) do
+					for _, option in ipairs(fontOptions()) do
 						root:CreateRadio(option.label, function()
 							local entry = getStaticTextEntry()
 							return entry and Helper.ResolveFontPath(entry.staticTextFont, countFontPath) == option.value
@@ -6361,7 +6557,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return layout.stackFont or countFontPath end,
 				set = function(_, value) applyEditLayout(panelId, "stackFont", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(fontOptions) do
+					for _, option in ipairs(fontOptions()) do
 						root:CreateRadio(option.label, function() return (layout.stackFont or countFontPath) == option.value end, function() applyEditLayout(panelId, "stackFont", option.value) end)
 					end
 				end,
@@ -6456,7 +6652,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return layout.chargesFont or chargesFontPath end,
 				set = function(_, value) applyEditLayout(panelId, "chargesFont", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(chargesFontOptions) do
+					for _, option in ipairs(chargesFontOptions()) do
 						root:CreateRadio(
 							option.label,
 							function() return (layout.chargesFont or chargesFontPath) == option.value end,
@@ -6573,7 +6769,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return layout.keybindFont or countFontPath end,
 				set = function(_, value) applyEditLayout(panelId, "keybindFont", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(fontOptions) do
+					for _, option in ipairs(fontOptions()) do
 						root:CreateRadio(
 							option.label,
 							function() return (layout.keybindFont or countFontPath) == option.value end,
@@ -6744,6 +6940,11 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			opacityInCombat = Helper.NormalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat),
 			showTooltips = layout.showTooltips == true,
 			showIconTexture = layout.showIconTexture ~= false,
+			iconBorderEnabled = layout.iconBorderEnabled == true,
+			iconBorderTexture = normalizeIconBorderTexture(layout.iconBorderTexture, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderTexture),
+			iconBorderSize = Helper.ClampInt(layout.iconBorderSize, 1, 64, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderSize),
+			iconBorderOffset = Helper.ClampInt(layout.iconBorderOffset, -64, 64, Helper.PANEL_LAYOUT_DEFAULTS.iconBorderOffset),
+			iconBorderColor = layout.iconBorderColor or Helper.PANEL_LAYOUT_DEFAULTS.iconBorderColor,
 			hideOnCooldown = layout.hideOnCooldown == true,
 			showOnCooldown = layout.showOnCooldown == true,
 			hideInVehicle = layout.hideInVehicle == true,
@@ -7374,6 +7575,9 @@ local function ensureUpdateFrame()
 			local name = ...
 			local anchorHelper = CooldownPanels.AnchorHelper
 			if anchorHelper and anchorHelper.HandleAddonLoaded then anchorHelper:HandleAddonLoaded(name) end
+			if type(name) == "string" and (name == "Dominos" or name == "Bartender4" or name == "ElvUI" or name:match("^Dominos_") or name:match("^Bartender4_")) then
+				Keybinds.RequestRefresh("Event:ADDON_LOADED:" .. name)
+			end
 			if name == "Masque" then
 				CooldownPanels:RegisterMasqueButtons()
 				CooldownPanels:ReskinMasque()

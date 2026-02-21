@@ -4,10 +4,11 @@
 	<Script file="CooldownPanels.lua" />
 	<Script file="UF_Helper.lua" />
 	<Script file="UF.lua" />
-	<!-- <Script file="UF_StandaloneCastbar.lua" /> -->
+	<Script file="UF_StandaloneCastbar.lua" />
 	<Include file="UF_GroupFrames.xml" />
 	<Script file="UF_GroupFrames_Helper.lua" />
 	<Script file="UF_GroupFrames.lua" />
 	<Script file="ShamanMaelstromWeaponBar.lua" />
+	<Script file="Settings_Castbar.lua" />
 	<Script file="Settings_UF.lua" />
 </Ui>

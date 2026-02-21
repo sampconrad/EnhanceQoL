@@ -1,10 +1,154 @@
 # Changelog
 
+## [7.20.0] - 2026-02-21
+
+### ✨ Added
+
+- Castbars (Unit Frames + Standalone): Added `Use gradient` with `Gradient start color` and `Gradient end color` for cast fill colors.
+- Economy (Bank): Added automatic gold balancing with the Warband bank.
+- Economy (Bank): Added optional per-character target values and automatic withdraw.
+- Cooldown Panels: Keybind display now supports Dominos, Bartender4 and ElvUI action bars (in addition to Blizzard).
+- Mover: Added `Queue Status Button` as movable frame entry (default: off).
+- Resource Bars (Maelstrom Weapon): Added `Separated offset` for segmented/separated bar spacing.
+- Resource Bars (Maelstrom Weapon): Added `Keep 5-stack fill above 5` option under `Use 5-stack color` (only enabled when `Use 5-stack color` is active).
+
+### 🐛 Fixed
+
+- Character Frame: The selected font for item details now applies correctly again (item level, gems, enchants).
+- Data Panels: Time stream font and text scale updates now apply reliably.
+- Group Frames (Raid): Dynamic layout/viewport scaling now refreshes immediately when roster count crosses `unitsPerColumn`/`maxColumns` thresholds.
+- Group Frames: Offline/DC visuals (name/status/range fade) now refresh reliably.
+- Resource Bars: `Separated offset` now separates segment frames.
+- Unit Frames (Profiles): `Profile scope` now includes Party/Raid/Main Tank/Main Assist, and import/export correctly handles Group Frame settings.
+
+---
+
+## [7.19.3] - 2026-02-19
+
+### 🐛 Fixed
+
+- Castbars: Texture secret error
+- Mover: Added the missing `Currency Transfer`, so the frame is now available in mover settings.
+
+---
+
+## [7.19.2] - 2026-02-19
+
+### 🐛 Fixed
+
+- Standalone Castbar: Improved performance by only reacting to your own cast events.
+- Standalone Castbar: `Failed/Interrupted` feedback now only appears when a cast was actually active.
+- Standalone Castbar: `Interrupted` feedback now matches the regular Unit Frame castbar look and timing.
+- Standalone Castbar: Empower casts now progress correctly (no reverse behavior) and show stage effects like the regular Unit Frame castbar.
+- Castbars (Blizzard style): Fixed Empower visuals so the first segment no longer looks incorrect.
+- Standalone Castbar: Fixed duration text visibility during Empower casts.
+- Castbars: Releasing Evoker Empower casts now no longer shows an incorrect `Interrupted` message.
+- Castbars: `Interrupted` now uses Blizzard interrupt art only for Blizzard default castbar textures; custom textures keep their own look.
+- Castbars (UF + Standalone): Missing cast icon textures (e.g. heirloom upgrade casts) now fall back to the Blizzard question mark icon.
+- Unit Frames (Target): Detached power bar `Grow from center` now stays correctly centered on the full frame when portrait mode is enabled.
+- Unit Frames: Added missing `Strong drop shadow` font outline option in Unit Frame settings and implemented the stronger shadow rendering for text.
+- Tooltips: Fixed unit info lines (class color, mount, targeting, item level/spec) sometimes using current target data when hovering the Player frame.
+- Tooltips: Re-applied tooltip scale after Login UI scaling on startup to prevent wrong tooltip size after relog/reload.
+- Container Actions: Fixed an infinite auto-open retry loop when a container cannot be looted.
+- Action Bars: Full button out-of-range coloring now respects the action icon mask again, so the old unmasked rectangle no longer renders over button art.
+- Cooldown Panels: Edit Mode font dropdowns now rebuild dynamically from SharedMedia when opened.
+- Sound: `Personal crafting order added` extra notification now triggers reliably.
+
+---
+
+## [7.19.1] - 2026-02-18
+
+### 🐛 Fixed
+
+- Standalone Castbar: removed a debug value that hides the setting to enable it
+
+---
+
+## [7.19.0] - 2026-02-18
+
+### ✨ Added
+
+- Button Sink (Minimap toggle): Added an optional click-toggle mode so the flyout opens/closes with left-click instead of hover.
+- Combat Text: Added separate Edit Mode color settings for entering combat and leaving combat text.
+- Unit Frames: Added detached power bar options `Match health width` and `Grow from center`.
+- Unit Frames: Added `Use class color for health backdrop (players)` option for health bar backdrops.
+- Unit Frames / Group Frames: Added `Clamp backdrop to missing health` option to switch between legacy full backdrop and clamped backdrop style.
+- Unit Frames: Added `Use reaction color for NPC names` option (Target/ToT/Focus/Boss) when custom name color is disabled.
+- Unit Frames: Added a `Copy settings` dialog for Player/Target/ToT/Pet/Focus/Boss with selectable sections.
+- Cooldown Panels: Added an option to configure the border
+- Group Frames: Added `Copy settings` with selectable sections, including copy from Unit Frames (Player/Target/ToT/Pet/Focus/Boss) and cross-copy between Party/Raid/MT/MA.
+- Group Frames: Added a dedicated `Settings` section at the top of Edit Mode settings for `Copy settings`.
+- Group Frames: Added a `Target highlight` layer selector (`Above border` / `Behind border`) with the current behavior kept as default.
+- Standalone Castbar implemented to move and configure in Edit Mode.
+
+### 🐛 Fixed
+
+- LFG additional dungeon filter had a secret error
+- Unit Frames (Party): Custom sort was always reset
+- Unit Frames (Player): `Always hide in party/raid` now only hides the Player Frame while actually grouped; solo visibility is no longer affected.
+- Unit Frames: Absorb/heal-absorb layering now stays below the health border, fixing cases where absorb textures could appear above the border.
+- Unit Frames: NPC colors were sometimes wrong
+- Group Frames (Party/Raid): Added `Use Edit Mode tooltip position` so unit tooltips can follow the configured Edit Mode anchor instead of showing at the cursor.
+- Group Frames (Party): Role icons are now anchored to the frame container instead of the health bar, so icons stay in the correct corner when power bars are hidden for selected roles.
+- Group Frames (Party/Raid): Dispel overlay border now stays aligned to the health area when power bars are shown, so it no longer renders outside the frame.
+- Chat Frame: Move editbox to top had a secret caching error
+
+---
+
+## [7.18.0] - 2026-02-16
+
+### ✨ Added
+
+- GCD Bar: Added vertical fill directions in Edit Mode (`Bottom to top` and `Top to bottom`).
+- Group Frames (Main Tank): Added `Hide myself` option to hide your own unit from MT frames.
+- DataPanel: Added LibDataBroker (LDB) stream integration. LDB data objects can now be selected and used directly in Data Panels.
+
+### 🔄 Changed
+
+- GCD Bar: Increased width/height limits for both dimensions.
+- GCD Bar: Width and height sliders now allow direct numeric input.
+
+### 🐛 Fixed
+
+- Chat: Fixed a Lua error in `chatEditBoxOnTop` (`'for' limit must be a number`) when temporary chat windows open and edit box anchor points are cached.
+- Unit Frames (Auras): Custom aura borders now apply to Target/Boss buffs as expected (not only debuffs), including configured border texture/size/offset behavior.
+- Unit Frames (Auras): Fixed a secret-value/taint Lua error in aura border color fallback handling (`canActivePlayerDispel`) during aura updates.
+- Group Frames: Name text anchoring no longer shifts upward when a power bar is shown; non-bottom name anchors now stay stable on the full bar group.
+
+---
+
+## [7.17.1] - 2026-02-16
+
+### 🐛 Fixed
+
+- Group Frames: Border offset now expands the border outward, so increasing it no longer makes the actual frame content area smaller.
+- Resource Bars: Max color now stays active more reliably on affected classes/specs.
+- Unit Frames: Name/level text layering now stays above absorb clip layers, preventing status text from being hidden behind absorb bars.
+
+---
+
+## [7.17.0] - 2026-02-16
+
+### ✨ Added
+
+- Baganator support for Vendor features.
+  - The Destroy Queue button is now available directly in the Baganator bag window.
+  - Items marked for Auto-Sell or Destroy now show their EnhanceQoL marker in Baganator.
+  - The `EnhanceQoL Sell/Destroy` marker can be positioned by the player in Baganator via `Icon Corners`.
+
+### 🐛 Fixed
+
+- Resource Bars: `Use max color` now works reliably.
+
+---
+
 ## [7.16.1] - 2026-02-15
 
 ### 🐛 Fixed
 
 - Unit Frames: Edit Mode settings max height is now dynamic via screen height.
+- Resource Bars: Fixed an issue where changing one spec could overwrite mana/power bar position and size in another spec after reload/spec switches.
+- Resource Bars: Improved spec handling so each specialization now keeps its own bar settings reliably.
 
 ---
 

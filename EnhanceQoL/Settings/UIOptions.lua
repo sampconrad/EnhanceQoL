@@ -1158,11 +1158,24 @@ function addon.functions.initUIOptions()
 
 	local combatDefaults = (addon.CombatText and addon.CombatText.defaults) or {}
 	local combatFont = combatDefaults.fontFace or (addon.variables and addon.variables.defaultFont) or STANDARD_TEXT_FONT
+	local function cloneColor(value, fallback)
+		local source = type(value) == "table" and value or fallback
+		source = type(source) == "table" and source or { r = 1, g = 1, b = 1, a = 1 }
+		return {
+			r = source.r or source[1] or 1,
+			g = source.g or source[2] or 1,
+			b = source.b or source[3] or 1,
+			a = source.a or source[4],
+		}
+	end
 	addon.functions.InitDBValue("combatTextEnabled", false)
 	addon.functions.InitDBValue("combatTextDuration", combatDefaults.duration or 3)
 	addon.functions.InitDBValue("combatTextFont", combatFont)
 	addon.functions.InitDBValue("combatTextFontSize", combatDefaults.fontSize or 32)
-	addon.functions.InitDBValue("combatTextColor", combatDefaults.color or { r = 1, g = 1, b = 1, a = 1 })
+	local defaultCombatColor = cloneColor(addon.db["combatTextColor"], combatDefaults.enterColor or combatDefaults.color or { r = 1, g = 1, b = 1, a = 1 })
+	addon.functions.InitDBValue("combatTextColor", cloneColor(defaultCombatColor, defaultCombatColor))
+	addon.functions.InitDBValue("combatTextEnterColor", cloneColor(defaultCombatColor, defaultCombatColor))
+	addon.functions.InitDBValue("combatTextLeaveColor", cloneColor(defaultCombatColor, combatDefaults.leaveColor or defaultCombatColor))
 
 	if addon.CombatText and addon.CombatText.OnSettingChanged then addon.CombatText:OnSettingChanged(addon.db["combatTextEnabled"]) end
 end
@@ -1222,6 +1235,7 @@ local function createCastbarCategory()
 		name = label,
 		expanded = false,
 		colorizeTitle = false,
+		newTagID = "CastbarsAndCooldowns",
 	})
 	addon.SettingsLayout.uiCastbarsExpandable = expandable
 
@@ -1305,7 +1319,6 @@ local function createCastbarCategory()
 	addon.functions.SettingsCreateHeadline(category, L["CastBars2"], {
 		parentSection = expandable,
 	})
-	--@debug@
 	addon.functions.SettingsCreateCheckbox(category, {
 		var = "useCustomPlayerCastbar",
 		text = L["useCustomPlayerCastbar"] or "Enable castbar",
@@ -1319,7 +1332,6 @@ local function createCastbarCategory()
 		default = false,
 		parentSection = expandable,
 	})
-	--@end-debug@
 	addon.functions.SettingsCreateCheckbox(category, {
 		var = "ShowTargetCastbar",
 		text = L["ShowTargetCastbar"],

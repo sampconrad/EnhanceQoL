@@ -17,6 +17,7 @@ local NormalizeUnitFrameVisibilityConfig = addon.functions and addon.functions.N
 
 local UF = addon.Aura and addon.Aura.UF
 local UFHelper = addon.Aura and addon.Aura.UFHelper
+local CastbarSettings = addon.Aura and addon.Aura.SettingsCastbar
 local function getCastbarModule() return addon.Aura and (addon.Aura.Castbar or addon.Aura.UFStandaloneCastbar) end
 if not (UF and settingType) then return end
 
@@ -146,6 +147,7 @@ local outlineOptions = {
 	{ value = "THICKOUTLINE", label = L["Thick Outline"] or "Thick Outline" },
 	{ value = "MONOCHROMEOUTLINE", label = L["Monochrome Outline"] or "Monochrome Outline" },
 	{ value = "DROPSHADOW", label = L["Drop shadow"] or "Drop shadow" },
+	{ value = "STRONGDROPSHADOW", label = L["Strong drop shadow"] or "Strong drop shadow" },
 }
 
 local anchorOptions = {
@@ -513,6 +515,194 @@ local function availableCopySources(unit)
 	return opts
 end
 
+local copySectionOrder = {
+	"frame",
+	"portrait",
+	"rangeFade",
+	"health",
+	"absorb",
+	"healAbsorb",
+	"power",
+	"classResource",
+	"totemFrame",
+	"raidicon",
+	"cast",
+	"status",
+	"unitStatus",
+	"combatFeedback",
+	"auras",
+	"privateAuras",
+}
+
+local copySectionLabels = {
+	frame = L["Frame"] or "Frame",
+	portrait = L["UFPortrait"] or "Portrait",
+	rangeFade = L["UFRangeFade"] or "Range fade",
+	health = L["HealthBar"] or "Health Bar",
+	absorb = L["AbsorbBar"] or "Absorb Bar",
+	healAbsorb = L["HealAbsorbBar"] or "Heal Absorb Bar",
+	power = L["PowerBar"] or "Power Bar",
+	classResource = L["ClassResource"] or "Class Resource",
+	totemFrame = L["Totem Frame"] or "Totem Frame",
+	raidicon = L["RaidTargetIcon"] or "Raid Target Icon",
+	cast = L["CastBar"] or "Cast Bar",
+	status = L["UFStatusLine"] or "Status line",
+	unitStatus = L["UFUnitStatus"] or "Unit status",
+	combatFeedback = L["UFCombatFeedback"] or "Combat feedback",
+	auras = L["Auras"] or "Auras",
+	privateAuras = L["UFPrivateAuras"] or "Private Auras",
+}
+
+local function getCopySectionSetForUnit(unit)
+	local set = {
+		frame = true,
+		portrait = true,
+		health = true,
+		power = true,
+		raidicon = true,
+		status = true,
+		unitStatus = true,
+		combatFeedback = true,
+	}
+	local bossUnit = isBossUnit(unit)
+	if unit == "target" then set.rangeFade = true end
+	if unit ~= "pet" then
+		set.absorb = true
+		set.healAbsorb = true
+	end
+	if unit == "player" then
+		local hasClassResource, hasTotemFrame = getPlayerClassFrameSupportFlags()
+		if hasClassResource then set.classResource = true end
+		if hasTotemFrame then set.totemFrame = true end
+	end
+	if unit == "player" or unit == "target" or unit == "focus" or bossUnit then
+		set.cast = true
+		set.auras = true
+	end
+	if unit ~= "target" then set.privateAuras = true end
+	return set
+end
+
+local function getCopySectionOptions(fromUnit, toUnit)
+	local opts = {}
+	local fromSections = getCopySectionSetForUnit(fromUnit)
+	local toSections = getCopySectionSetForUnit(toUnit)
+	for _, sectionId in ipairs(copySectionOrder) do
+		if fromSections[sectionId] and toSections[sectionId] then opts[#opts + 1] = { value = sectionId, label = copySectionLabels[sectionId] or sectionId } end
+	end
+	return opts
+end
+
+local function ensureCopySectionSelection(payload)
+	if type(payload) ~= "table" then return end
+	payload.sectionOptions = type(payload.sectionOptions) == "table" and payload.sectionOptions or {}
+	payload.sectionSelection = type(payload.sectionSelection) == "table" and payload.sectionSelection or {}
+	for _, option in ipairs(payload.sectionOptions) do
+		if payload.sectionSelection[option.value] == nil then payload.sectionSelection[option.value] = true end
+	end
+end
+
+local function getSelectedCopySections(payload)
+	local selected = {}
+	if type(payload) ~= "table" then return selected end
+	for _, option in ipairs(payload.sectionOptions or {}) do
+		if payload.sectionSelection and payload.sectionSelection[option.value] == true then selected[#selected + 1] = option.value end
+	end
+	return selected
+end
+
+local function ensureCopySectionCheckbox(dialog, index)
+	dialog.eqolCopySectionRows = dialog.eqolCopySectionRows or {}
+	local row = dialog.eqolCopySectionRows[index]
+	if row then return row end
+	row = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
+	row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	row.Label:SetPoint("LEFT", row, "RIGHT", 1, 1)
+	row.Label:SetJustifyH("LEFT")
+	row.Label:SetWidth(250)
+	row:SetHitRectInsets(0, -250, 0, 0)
+	dialog.eqolCopySectionRows[index] = row
+	return row
+end
+
+local function ensureCopyAllCheckbox(dialog)
+	if dialog.eqolCopyAllRow then return dialog.eqolCopyAllRow end
+	local row = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
+	row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	row.Label:SetPoint("LEFT", row, "RIGHT", 1, 1)
+	row.Label:SetJustifyH("LEFT")
+	row.Label:SetWidth(250)
+	row:SetHitRectInsets(0, -250, 0, 0)
+	row.Label:SetText(L["UFAllSettings"] or "All settings")
+	row:SetScript("OnClick", function(self)
+		local popup = self:GetParent()
+		local payload = popup and popup.data
+		if not payload then return end
+		ensureCopySectionSelection(payload)
+		local checked = self:GetChecked() == true
+		for _, option in ipairs(payload.sectionOptions) do
+			payload.sectionSelection[option.value] = checked
+		end
+		if popup.eqolRefreshCopySelection then popup:eqolRefreshCopySelection() end
+	end)
+	dialog.eqolCopyAllRow = row
+	return row
+end
+
+local function refreshCopySelectionDialog(dialog)
+	local payload = dialog and dialog.data
+	if not payload then return end
+	ensureCopySectionSelection(payload)
+	local options = payload.sectionOptions or {}
+	local popupHeight = 150 + ((#options + 1) * 22)
+	if popupHeight < 190 then popupHeight = 190 end
+	local maxPopupHeight = 540
+	if UIParent and UIParent.GetHeight then
+		local uiHeight = tonumber(UIParent:GetHeight())
+		if uiHeight and uiHeight > 0 then maxPopupHeight = math.max(320, math.floor(uiHeight - 120)) end
+	end
+	if popupHeight > maxPopupHeight then popupHeight = maxPopupHeight end
+	if StaticPopup_Resize then StaticPopup_Resize(dialog, 370, popupHeight) end
+	local allRow = ensureCopyAllCheckbox(dialog)
+	allRow:ClearAllPoints()
+	if dialog.button1 then
+		allRow:SetPoint("TOPLEFT", dialog.button1, "BOTTOMLEFT", -40, -16)
+	else
+		allRow:SetPoint("TOPLEFT", dialog, "TOPLEFT", 24, -72)
+	end
+	allRow:Show()
+	local lastAnchor = allRow
+	local selectedCount = 0
+	for index, option in ipairs(options) do
+		local row = ensureCopySectionCheckbox(dialog, index)
+		row.sectionId = option.value
+		row:ClearAllPoints()
+		row:SetPoint("TOPLEFT", lastAnchor, "BOTTOMLEFT", 0, -2)
+		row.Label:SetText(option.label or option.value)
+		local checked = payload.sectionSelection[option.value] == true
+		row:SetChecked(checked)
+		if checked then selectedCount = selectedCount + 1 end
+		row:SetScript("OnClick", function(self)
+			local popup = self:GetParent()
+			local popupPayload = popup and popup.data
+			if not popupPayload then return end
+			ensureCopySectionSelection(popupPayload)
+			popupPayload.sectionSelection[self.sectionId] = self:GetChecked() == true
+			if popup.eqolRefreshCopySelection then popup:eqolRefreshCopySelection() end
+		end)
+		row:Show()
+		lastAnchor = row
+	end
+	local rows = dialog.eqolCopySectionRows or {}
+	for index = #options + 1, #rows do
+		local row = rows[index]
+		if row then row:Hide() end
+	end
+	local allSelected = #options > 0 and selectedCount == #options
+	allRow:SetChecked(allSelected)
+	if dialog.button1 and dialog.button1.SetEnabled then dialog.button1:SetEnabled(selectedCount > 0) end
+end
+
 local function getVisibilityRuleOptions(unit)
 	if not GetVisibilityRuleMetadata then return {} end
 	local options = {}
@@ -533,6 +723,14 @@ end
 
 local function showCopySettingsPopup(fromUnit, toUnit)
 	if not (fromUnit and toUnit and UF.CopySettings) then return end
+	local sectionOptions = getCopySectionOptions(fromUnit, toUnit)
+	if #sectionOptions == 0 then
+		if UF.CopySettings(fromUnit, toUnit, { keepAnchor = true, keepEnabled = true }) then
+			refresh(toUnit)
+			refreshSettingsUI()
+		end
+		return
+	end
 	StaticPopupDialogs[copyDialogKey] = StaticPopupDialogs[copyDialogKey]
 		or {
 			text = "%s",
@@ -545,9 +743,27 @@ local function showCopySettingsPopup(fromUnit, toUnit)
 			OnAccept = function(self, data)
 				local payload = data or self.data
 				if payload and payload.from and payload.to and UF.CopySettings then
-					if UF.CopySettings(payload.from, payload.to, { keepAnchor = true, keepEnabled = true }) then
+					local selected = getSelectedCopySections(payload)
+					if #selected == 0 then return end
+					local copyOptions = { keepAnchor = true, keepEnabled = true }
+					if #selected < #(payload.sectionOptions or {}) then copyOptions.sections = selected end
+					if UF.CopySettings(payload.from, payload.to, copyOptions) then
 						refresh(payload.to)
 						refreshSettingsUI()
+					end
+				end
+			end,
+			OnShow = function(self, data)
+				self.data = data or self.data
+				ensureCopySectionSelection(self.data or {})
+				if not self.eqolRefreshCopySelection then self.eqolRefreshCopySelection = refreshCopySelectionDialog end
+				self:eqolRefreshCopySelection()
+			end,
+			OnHide = function(self)
+				if self.eqolCopyAllRow then self.eqolCopyAllRow:Hide() end
+				if self.eqolCopySectionRows then
+					for _, row in ipairs(self.eqolCopySectionRows) do
+						if row then row:Hide() end
 					end
 				end
 			end,
@@ -556,8 +772,13 @@ local function showCopySettingsPopup(fromUnit, toUnit)
 	if not dialog then return end
 	local fromLabel = copyFrameLabels[fromUnit] or fromUnit
 	local toLabel = copyFrameLabels[toUnit] or toUnit
-	dialog.text = string.format("%s\n\n%s -> %s", L["Copy settings"] or "Copy settings", fromLabel, toLabel)
-	StaticPopup_Show(copyDialogKey, nil, nil, { from = fromUnit, to = toUnit })
+	dialog.text = string.format("%s\n%s -> %s", L["Copy settings"] or "Copy settings", fromLabel, toLabel)
+	StaticPopup_Show(copyDialogKey, nil, nil, {
+		from = fromUnit,
+		to = toUnit,
+		sectionOptions = sectionOptions,
+		sectionSelection = {},
+	})
 end
 
 local function hideFrameReset(frame)
@@ -940,6 +1161,12 @@ end
 local function buildUnitSettings(unit)
 	local def = defaultsFor(unit)
 	local list = {}
+	local function addDivider(parentId, isShown, isEnabled)
+		local divider = { name = "", kind = settingType.Divider, parentId = parentId }
+		if type(isShown) == "function" then divider.isShown = isShown end
+		if type(isEnabled) == "function" then divider.isEnabled = isEnabled end
+		list[#list + 1] = divider
+	end
 	local isBoss = isBossUnit(unit)
 	local refreshFunc = refresh
 	local function refreshSelf()
@@ -1101,6 +1328,7 @@ local function buildUnitSettings(unit)
 			function(val) return tostring(val) .. "%" end
 		)
 	end
+	addDivider("frame")
 
 	list[#list + 1] = slider(L["UFWidth"] or "Frame width", MIN_WIDTH, 800, 1, function() return getValue(unit, { "width" }, def.width or MIN_WIDTH) end, function(val)
 		setValue(unit, { "width" }, math.max(MIN_WIDTH, val or MIN_WIDTH))
@@ -1160,6 +1388,7 @@ local function buildUnitSettings(unit)
 			refreshSelf()
 		end, (def.growth or "DOWN"):upper(), "frame")
 	end
+	addDivider("frame")
 
 	list[#list + 1] = radioDropdown(L["UFStrata"] or "Frame strata", strataOptions, function() return getValue(unit, { "strata" }, def.strata or defaultStrata or "") end, function(val)
 		setValue(unit, { "strata" }, val ~= "" and val or nil)
@@ -1177,6 +1406,7 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "smoothFill" }, val and true or false)
 		refreshSelf()
 	end, def.smoothFill == true, "frame")
+	addDivider("frame")
 
 	list[#list + 1] = checkboxColor({
 		name = L["UFShowBorder"] or "Show border",
@@ -1254,98 +1484,7 @@ local function buildUnitSettings(unit)
 	end, (def.border and def.border.offset) or (def.border and def.border.edgeSize) or 1, "frame", true)
 	borderOffsetSetting.isEnabled = isBorderEnabled
 	list[#list + 1] = borderOffsetSetting
-
-	list[#list + 1] = checkbox(
-		L["UFDetachedPowerBorder"] or "Show border for detached power bar",
-		function() return getValue(unit, { "border", "detachedPower" }, def.border and def.border.detachedPower == true) == true end,
-		function(val)
-			local border = getValue(unit, { "border" }, def.border or {})
-			border.detachedPower = val and true or false
-			setValue(unit, { "border" }, border)
-			refresh()
-		end,
-		def.border and def.border.detachedPower == true,
-		"frame"
-	)
-
-	local detachedBorderTexture = checkboxDropdown(L["UFDetachedPowerBorderTexture"] or "Detached power border texture", borderOptions, function()
-		local border = getValue(unit, { "border" }, def.border or {})
-		return border.detachedPowerTexture or border.texture or (def.border and def.border.texture) or "DEFAULT"
-	end, function(val)
-		local border = getValue(unit, { "border" }, def.border or {})
-		border.detachedPowerTexture = val or "DEFAULT"
-		setValue(unit, { "border" }, border)
-		refresh()
-	end, (def.border and def.border.detachedPowerTexture) or (def.border and def.border.texture) or "DEFAULT", "frame")
-	list[#list + 1] = detachedBorderTexture
-
-	local detachedBorderSize = slider(L["UFDetachedPowerBorderSize"] or "Detached power border size", 1, 64, 1, function()
-		local border = getValue(unit, { "border" }, def.border or {})
-		return border.detachedPowerSize or border.edgeSize or 1
-	end, function(val)
-		debounced(unit .. "_detachedPowerBorderSize", function()
-			local border = getValue(unit, { "border" }, def.border or {})
-			border.detachedPowerSize = val or 1
-			setValue(unit, { "border" }, border)
-			refresh()
-		end)
-	end, (def.border and def.border.detachedPowerSize) or (def.border and def.border.edgeSize) or 1, "frame", true)
-	list[#list + 1] = detachedBorderSize
-
-	local detachedBorderOffset = slider(L["UFDetachedPowerBorderOffset"] or "Detached power border offset", 0, 64, 1, function()
-		local border = getValue(unit, { "border" }, def.border or {})
-		if border.detachedPowerOffset == nil then
-			if border.offset ~= nil then return border.offset end
-			return border.edgeSize or 1
-		end
-		return border.detachedPowerOffset
-	end, function(val)
-		debounced(unit .. "_detachedPowerBorderOffset", function()
-			local border = getValue(unit, { "border" }, def.border or {})
-			border.detachedPowerOffset = val or 0
-			setValue(unit, { "border" }, border)
-			refresh()
-		end)
-	end, (def.border and def.border.detachedPowerOffset) or (def.border and def.border.offset) or (def.border and def.border.edgeSize) or 1, "frame", true)
-	list[#list + 1] = detachedBorderOffset
-
-	local powerDefaults = def.power or {}
-	local detachedStrataOptions = { { value = "", label = DEFAULT } }
-	for i = 1, #strataOptions do
-		detachedStrataOptions[#detachedStrataOptions + 1] = strataOptions[i]
-	end
-	local detachedPowerStrata = radioDropdown(
-		L["UFDetachedPowerStrata"] or "Detached power bar strata",
-		detachedStrataOptions,
-		function() return getValue(unit, { "power", "detachedStrata" }, powerDefaults.detachedStrata or "") end,
-		function(val)
-			if val == "" then val = nil end
-			setValue(unit, { "power", "detachedStrata" }, val)
-			refresh()
-		end,
-		powerDefaults.detachedStrata or "",
-		"frame",
-		true
-	)
-	list[#list + 1] = detachedPowerStrata
-
-	local detachedPowerLevelOffset = slider(
-		L["UFDetachedPowerLevelOffset"] or "Detached power bar level offset",
-		0,
-		50,
-		1,
-		function() return getValue(unit, { "power", "detachedFrameLevelOffset" }, powerDefaults.detachedFrameLevelOffset or 5) end,
-		function(val)
-			debounced(unit .. "_detachedPowerLevelOffset", function()
-				setValue(unit, { "power", "detachedFrameLevelOffset" }, val or powerDefaults.detachedFrameLevelOffset or 5)
-				refresh()
-			end)
-		end,
-		powerDefaults.detachedFrameLevelOffset or 5,
-		"frame",
-		true
-	)
-	list[#list + 1] = detachedPowerLevelOffset
+	addDivider("frame")
 
 	local highlightDef = def.highlight or {}
 	list[#list + 1] = checkboxColor({
@@ -1423,6 +1562,7 @@ local function buildUnitSettings(unit)
 	end, highlightDef.size or 2, "frame", true)
 	highlightSizeSetting.isEnabled = isHighlightEnabled
 	list[#list + 1] = highlightSizeSetting
+	addDivider("frame")
 
 	local portraitDef = def.portrait or {}
 	list[#list + 1] = { name = L["UFPortrait"] or "Portrait", kind = settingType.Collapsible, id = "portrait", defaultCollapsed = true }
@@ -1656,6 +1796,7 @@ local function buildUnitSettings(unit)
 			colorDefault = { r = tapDef[1] or 0.5, g = tapDef[2] or 0.5, b = tapDef[3] or 0.5, a = tapDef[4] or 1 },
 		})
 	end
+	addDivider("health")
 
 	list[#list + 1] = radioDropdown(
 		L["TextLeft"] or "Left text",
@@ -1758,6 +1899,7 @@ local function buildUnitSettings(unit)
 		healthDef.roundPercent == true,
 		"health"
 	)
+	addDivider("health")
 
 	list[#list + 1] = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "health", "fontSize" }, healthDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_healthFontSize", function()
@@ -1903,6 +2045,7 @@ local function buildUnitSettings(unit)
 	)
 	healthRightY.isShown = function() return showHealthTextOffsets("textRight", healthDef.textRight or "CURMAX") end
 	list[#list + 1] = healthRightY
+	addDivider("health")
 
 	list[#list + 1] = checkbox(L["Use short numbers"] or "Use short numbers", function() return getValue(unit, { "health", "useShortNumbers" }, healthDef.useShortNumbers ~= false) end, function(val)
 		setValue(unit, { "health", "useShortNumbers" }, val and true or false)
@@ -1919,6 +2062,7 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "health", "reverseFill" }, val and true or false)
 		refresh()
 	end, healthDef.reverseFill == true, "health")
+	addDivider("health")
 
 	list[#list + 1] = checkboxColor({
 		name = L["UFBarBackdrop"] or "Show bar backdrop",
@@ -1942,7 +2086,43 @@ local function buildUnitSettings(unit)
 			end)
 		end,
 		colorDefault = { r = 0, g = 0, b = 0, a = 0.6 },
+		isEnabled = function()
+			local isBackdropEnabled = getValue(unit, { "health", "backdrop", "enabled" }, (healthDef.backdrop and healthDef.backdrop.enabled) ~= false) ~= false
+			if not isBackdropEnabled then return false end
+			local useBackdropClassColor = getValue(unit, { "health", "backdrop", "useClassColor" }, healthDef.backdrop and healthDef.backdrop.useClassColor == true) == true
+			return useBackdropClassColor ~= true
+		end,
 	})
+	list[#list + 1] = checkbox(
+		L["UFHealthBackdropClampToFill"] or "Clamp backdrop to missing health",
+		function()
+			local value = getValue(unit, { "health", "backdrop", "clampToFill" }, healthDef.backdrop and healthDef.backdrop.clampToFill)
+			if value == nil then value = false end
+			return value == true
+		end,
+		function(val)
+			setValue(unit, { "health", "backdrop", "clampToFill" }, val and true or false)
+			refresh()
+		end,
+		healthDef.backdrop and healthDef.backdrop.clampToFill == true,
+		"health",
+		function() return getValue(unit, { "health", "backdrop", "enabled" }, (healthDef.backdrop and healthDef.backdrop.enabled) ~= false) ~= false end
+	)
+
+	if not isBoss then
+		list[#list + 1] = checkbox(
+			L["UFHealthBackdropUseClassColor"] or "Use class color for health backdrop (players)",
+			function() return getValue(unit, { "health", "backdrop", "useClassColor" }, healthDef.backdrop and healthDef.backdrop.useClassColor == true) == true end,
+			function(val)
+				setValue(unit, { "health", "backdrop", "useClassColor" }, val and true or false)
+				refreshSelf()
+				refreshSettingsUI()
+			end,
+			healthDef.backdrop and healthDef.backdrop.useClassColor == true,
+			"health",
+			function() return getValue(unit, { "health", "backdrop", "enabled" }, (healthDef.backdrop and healthDef.backdrop.enabled) ~= false) ~= false end
+		)
+	end
 
 	local healthBackdropTexture = checkboxDropdown(
 		L["Backdrop Texture"] or "Backdrop Texture",
@@ -2117,6 +2297,17 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = { name = L["PowerBar"] or "Power Bar", kind = settingType.Collapsible, id = "power", defaultCollapsed = true }
 	local powerDef = def.power or {}
 	local function isPowerEnabled() return getValue(unit, { "power", "enabled" }, powerDef.enabled ~= false) ~= false end
+	local function isPowerDetached() return getValue(unit, { "power", "detached" }, powerDef.detached == true) == true end
+	local function isPowerDetachedEnabled() return isPowerEnabled() and isPowerDetached() end
+	local function isDetachedPowerWidthMatched() return getValue(unit, { "power", "detachedMatchHealthWidth" }, powerDef.detachedMatchHealthWidth == true) == true end
+	local detachedStrataOptions = { { value = "", label = DEFAULT } }
+	for i = 1, #strataOptions do
+		detachedStrataOptions[#detachedStrataOptions + 1] = strataOptions[i]
+	end
+	local function isDetachedPowerBorderEnabled()
+		local border = getValue(unit, { "border" }, def.border or {})
+		return isPowerDetachedEnabled() and border.detachedPower == true
+	end
 
 	list[#list + 1] = checkbox(L["Show power bar"] or "Show power bar", isPowerEnabled, function(val)
 		setValue(unit, { "power", "enabled" }, val and true or false)
@@ -2124,30 +2315,13 @@ local function buildUnitSettings(unit)
 		refreshSettingsUI()
 	end, powerDef.enabled ~= false, "power")
 
-	list[#list + 1] = checkbox(L["Reverse fill"] or "Reverse fill", function() return getValue(unit, { "power", "reverseFill" }, powerDef.reverseFill == true) == true end, function(val)
-		setValue(unit, { "power", "reverseFill" }, val and true or false)
-		refresh()
-	end, powerDef.reverseFill == true, "power", isPowerEnabled)
-
-	local powerHeightSetting = slider(L["UFPowerHeight"] or "Power height", 6, 60, 1, function() return getValue(unit, { "powerHeight" }, def.powerHeight or 16) end, function(val)
-		debounced(unit .. "_powerHeight", function()
-			setValue(unit, { "powerHeight" }, val or def.powerHeight or 16)
-			refresh()
-		end)
-	end, def.powerHeight or 16, "power", true)
-	powerHeightSetting.isEnabled = isPowerEnabled
-	list[#list + 1] = powerHeightSetting
-
-	local function isPowerDetached() return getValue(unit, { "power", "detached" }, powerDef.detached == true) == true end
-
 	local powerDetachedSetting = checkbox(L["UFPowerDetached"] or "Detach power bar", isPowerDetached, function(val)
 		setValue(unit, { "power", "detached" }, val and true or false)
 		refresh()
 		refreshSettingsUI()
 	end, powerDef.detached == true, "power", isPowerEnabled)
 	list[#list + 1] = powerDetachedSetting
-
-	local function isPowerDetachedEnabled() return isPowerEnabled() and isPowerDetached() end
+	addDivider("power", isPowerDetachedEnabled)
 
 	local powerEmptyFallbackSetting = checkbox(
 		L["UFPowerEmptyFallback"] or "Handle empty power bars (max 0)",
@@ -2164,6 +2338,15 @@ local function buildUnitSettings(unit)
 	powerEmptyFallbackSetting.isShown = isPowerDetachedEnabled
 	list[#list + 1] = powerEmptyFallbackSetting
 
+	local powerMatchWidthSetting = checkbox(L["UFPowerDetachedMatchHealthWidth"] or "Match health width", isDetachedPowerWidthMatched, function(val)
+		setValue(unit, { "power", "detachedMatchHealthWidth" }, val and true or false)
+		refresh()
+		refreshSettingsUI()
+	end, powerDef.detachedMatchHealthWidth == true, "power", isPowerDetachedEnabled)
+	powerMatchWidthSetting.isEnabled = isPowerDetachedEnabled
+	powerMatchWidthSetting.isShown = isPowerDetachedEnabled
+	list[#list + 1] = powerMatchWidthSetting
+
 	local powerWidthSetting = slider(L["UFPowerWidth"] or "Power width", MIN_WIDTH, 800, 1, function()
 		local fallback = getValue(unit, { "width" }, def.width or MIN_WIDTH)
 		return getValue(unit, { "power", "width" }, fallback)
@@ -2173,9 +2356,24 @@ local function buildUnitSettings(unit)
 			refresh()
 		end)
 	end, def.width or MIN_WIDTH, "power", true)
-	powerWidthSetting.isEnabled = isPowerDetachedEnabled
+	powerWidthSetting.isEnabled = function() return isPowerDetachedEnabled() and not isDetachedPowerWidthMatched() end
 	powerWidthSetting.isShown = isPowerDetachedEnabled
 	list[#list + 1] = powerWidthSetting
+
+	local powerGrowFromCenterSetting = checkbox(
+		L["UFPowerDetachedGrowFromCenter"] or "Grow from center",
+		function() return getValue(unit, { "power", "detachedGrowFromCenter" }, powerDef.detachedGrowFromCenter == true) == true end,
+		function(val)
+			setValue(unit, { "power", "detachedGrowFromCenter" }, val and true or false)
+			refresh()
+		end,
+		powerDef.detachedGrowFromCenter == true,
+		"power",
+		isPowerDetachedEnabled
+	)
+	powerGrowFromCenterSetting.isEnabled = isPowerDetachedEnabled
+	powerGrowFromCenterSetting.isShown = isPowerDetachedEnabled
+	list[#list + 1] = powerGrowFromCenterSetting
 
 	local powerOffsetX = slider(L["Offset X"] or "Offset X", -OFFSET_RANGE, OFFSET_RANGE, 1, function() return getValue(unit, { "power", "offset", "x" }, 0) end, function(val)
 		debounced(unit .. "_powerOffsetX", function()
@@ -2196,6 +2394,125 @@ local function buildUnitSettings(unit)
 	powerOffsetY.isEnabled = isPowerDetachedEnabled
 	powerOffsetY.isShown = isPowerDetachedEnabled
 	list[#list + 1] = powerOffsetY
+	addDivider("power", isPowerDetachedEnabled)
+
+	local detachedPowerStrata = radioDropdown(
+		L["UFDetachedPowerStrata"] or "Detached power bar strata",
+		detachedStrataOptions,
+		function() return getValue(unit, { "power", "detachedStrata" }, powerDef.detachedStrata or "") end,
+		function(val)
+			if val == "" then val = nil end
+			setValue(unit, { "power", "detachedStrata" }, val)
+			refresh()
+		end,
+		powerDef.detachedStrata or "",
+		"power",
+		true
+	)
+	detachedPowerStrata.isEnabled = isPowerDetachedEnabled
+	detachedPowerStrata.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedPowerStrata
+
+	local detachedPowerLevelOffset = slider(
+		L["UFDetachedPowerLevelOffset"] or "Detached power bar level offset",
+		0,
+		50,
+		1,
+		function() return getValue(unit, { "power", "detachedFrameLevelOffset" }, powerDef.detachedFrameLevelOffset or 5) end,
+		function(val)
+			debounced(unit .. "_detachedPowerLevelOffset", function()
+				setValue(unit, { "power", "detachedFrameLevelOffset" }, val or powerDef.detachedFrameLevelOffset or 5)
+				refresh()
+			end)
+		end,
+		powerDef.detachedFrameLevelOffset or 5,
+		"power",
+		true
+	)
+	detachedPowerLevelOffset.isEnabled = isPowerDetachedEnabled
+	detachedPowerLevelOffset.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedPowerLevelOffset
+	addDivider("power", isPowerDetachedEnabled)
+
+	local detachedBorderToggle = checkbox(
+		L["UFDetachedPowerBorder"] or "Show border for detached power bar",
+		function() return getValue(unit, { "border", "detachedPower" }, def.border and def.border.detachedPower == true) == true end,
+		function(val)
+			local border = getValue(unit, { "border" }, def.border or {})
+			border.detachedPower = val and true or false
+			setValue(unit, { "border" }, border)
+			refresh()
+			refreshSettingsUI()
+		end,
+		def.border and def.border.detachedPower == true,
+		"power"
+	)
+	detachedBorderToggle.isEnabled = isPowerDetachedEnabled
+	detachedBorderToggle.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedBorderToggle
+
+	local detachedBorderTexture = checkboxDropdown(L["UFDetachedPowerBorderTexture"] or "Detached power border texture", borderOptions, function()
+		local border = getValue(unit, { "border" }, def.border or {})
+		return border.detachedPowerTexture or border.texture or (def.border and def.border.texture) or "DEFAULT"
+	end, function(val)
+		local border = getValue(unit, { "border" }, def.border or {})
+		border.detachedPowerTexture = val or "DEFAULT"
+		setValue(unit, { "border" }, border)
+		refresh()
+	end, (def.border and def.border.detachedPowerTexture) or (def.border and def.border.texture) or "DEFAULT", "power")
+	detachedBorderTexture.isEnabled = isDetachedPowerBorderEnabled
+	detachedBorderTexture.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedBorderTexture
+
+	local detachedBorderSize = slider(L["UFDetachedPowerBorderSize"] or "Detached power border size", 1, 64, 1, function()
+		local border = getValue(unit, { "border" }, def.border or {})
+		return border.detachedPowerSize or border.edgeSize or 1
+	end, function(val)
+		debounced(unit .. "_detachedPowerBorderSize", function()
+			local border = getValue(unit, { "border" }, def.border or {})
+			border.detachedPowerSize = val or 1
+			setValue(unit, { "border" }, border)
+			refresh()
+		end)
+	end, (def.border and def.border.detachedPowerSize) or (def.border and def.border.edgeSize) or 1, "power", true)
+	detachedBorderSize.isEnabled = isDetachedPowerBorderEnabled
+	detachedBorderSize.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedBorderSize
+
+	local detachedBorderOffset = slider(L["UFDetachedPowerBorderOffset"] or "Detached power border offset", 0, 64, 1, function()
+		local border = getValue(unit, { "border" }, def.border or {})
+		if border.detachedPowerOffset == nil then
+			if border.offset ~= nil then return border.offset end
+			return border.edgeSize or 1
+		end
+		return border.detachedPowerOffset
+	end, function(val)
+		debounced(unit .. "_detachedPowerBorderOffset", function()
+			local border = getValue(unit, { "border" }, def.border or {})
+			border.detachedPowerOffset = val or 0
+			setValue(unit, { "border" }, border)
+			refresh()
+		end)
+	end, (def.border and def.border.detachedPowerOffset) or (def.border and def.border.offset) or (def.border and def.border.edgeSize) or 1, "power", true)
+	detachedBorderOffset.isEnabled = isDetachedPowerBorderEnabled
+	detachedBorderOffset.isShown = isPowerDetachedEnabled
+	list[#list + 1] = detachedBorderOffset
+	addDivider("power", isPowerDetachedEnabled)
+
+	list[#list + 1] = checkbox(L["Reverse fill"] or "Reverse fill", function() return getValue(unit, { "power", "reverseFill" }, powerDef.reverseFill == true) == true end, function(val)
+		setValue(unit, { "power", "reverseFill" }, val and true or false)
+		refresh()
+	end, powerDef.reverseFill == true, "power", isPowerEnabled)
+
+	local powerHeightSetting = slider(L["UFPowerHeight"] or "Power height", 6, 60, 1, function() return getValue(unit, { "powerHeight" }, def.powerHeight or 16) end, function(val)
+		debounced(unit .. "_powerHeight", function()
+			setValue(unit, { "powerHeight" }, val or def.powerHeight or 16)
+			refresh()
+		end)
+	end, def.powerHeight or 16, "power", true)
+	powerHeightSetting.isEnabled = isPowerEnabled
+	list[#list + 1] = powerHeightSetting
+	addDivider("power")
 
 	local powerTextLeft = radioDropdown(
 		L["TextLeft"] or "Left text",
@@ -2464,6 +2781,7 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "power", "useShortNumbers" }, val and true or false)
 		refresh()
 	end, powerDef.useShortNumbers ~= false, "power", isPowerEnabled)
+	addDivider("power")
 
 	local powerTexture = checkboxDropdown(L["Bar Texture"] or "Bar Texture", textureOpts, function() return getValue(unit, { "power", "texture" }, powerDef.texture or "DEFAULT") end, function(val)
 		setValue(unit, { "power", "texture" }, val)
@@ -3381,6 +3699,83 @@ local function buildUnitSettings(unit)
 			refreshSettingsUI()
 		end, castDef.useClassColor == true, "cast", isCastEnabled)
 
+		if unit == "player" then
+			local function isCastGradientEnabled() return getValue(unit, { "cast", "useGradient" }, castDef.useGradient == true) == true end
+			list[#list + 1] = checkbox(L["Use gradient"] or "Use gradient", isCastGradientEnabled, function(val)
+				setValue(unit, { "cast", "useGradient" }, val and true or false)
+				refresh()
+				refreshSettingsUI()
+			end, castDef.useGradient == true, "cast", isCastEnabled)
+
+			local castGradientModeOptions = {
+				{ value = "CASTBAR", label = L["Gradient with castbar"] or "Gradient with castbar" },
+				{ value = "BAR_END", label = L["Gradient at end of bar"] or "Gradient at end of bar" },
+			}
+			local castGradientMode = checkboxDropdown(
+				L["Gradient mode"] or "Gradient mode",
+				castGradientModeOptions,
+				function() return getValue(unit, { "cast", "gradientMode" }, castDef.gradientMode or "CASTBAR") end,
+				function(val)
+					setValue(unit, { "cast", "gradientMode" }, val or "CASTBAR")
+					refresh()
+				end,
+				castDef.gradientMode or "CASTBAR",
+				"cast"
+			)
+			castGradientMode.isEnabled = function() return isCastEnabled() and isCastGradientEnabled() end
+			list[#list + 1] = castGradientMode
+
+			list[#list + 1] = {
+				name = L["Gradient start color"] or "Gradient start color",
+				kind = settingType.Color,
+				parentId = "cast",
+				isEnabled = function() return isCastEnabled() and isCastGradientEnabled() end,
+				get = function() return getValue(unit, { "cast", "gradientStartColor" }, castDef.gradientStartColor or { 1, 1, 1, 1 }) end,
+				set = function(_, color)
+					setColor(unit, { "cast", "gradientStartColor" }, color.r, color.g, color.b, color.a)
+					refresh()
+				end,
+				colorGet = function() return getValue(unit, { "cast", "gradientStartColor" }, castDef.gradientStartColor or { 1, 1, 1, 1 }) end,
+				colorSet = function(_, color)
+					setColor(unit, { "cast", "gradientStartColor" }, color.r, color.g, color.b, color.a)
+					refresh()
+				end,
+				colorDefault = {
+					r = (castDef.gradientStartColor and castDef.gradientStartColor[1]) or 1,
+					g = (castDef.gradientStartColor and castDef.gradientStartColor[2]) or 1,
+					b = (castDef.gradientStartColor and castDef.gradientStartColor[3]) or 1,
+					a = (castDef.gradientStartColor and castDef.gradientStartColor[4]) or 1,
+				},
+				hasOpacity = true,
+			}
+
+			list[#list + 1] = {
+				name = L["Gradient end color"] or "Gradient end color",
+				kind = settingType.Color,
+				parentId = "cast",
+				isEnabled = function() return isCastEnabled() and isCastGradientEnabled() end,
+				get = function() return getValue(unit, { "cast", "gradientEndColor" }, castDef.gradientEndColor or { 1, 1, 1, 1 }) end,
+				set = function(_, color)
+					setColor(unit, { "cast", "gradientEndColor" }, color.r, color.g, color.b, color.a)
+					refresh()
+				end,
+				colorGet = function() return getValue(unit, { "cast", "gradientEndColor" }, castDef.gradientEndColor or { 1, 1, 1, 1 }) end,
+				colorSet = function(_, color)
+					setColor(unit, { "cast", "gradientEndColor" }, color.r, color.g, color.b, color.a)
+					refresh()
+				end,
+				colorDefault = {
+					r = (castDef.gradientEndColor and castDef.gradientEndColor[1]) or 1,
+					g = (castDef.gradientEndColor and castDef.gradientEndColor[2]) or 1,
+					b = (castDef.gradientEndColor and castDef.gradientEndColor[3]) or 1,
+					a = (castDef.gradientEndColor and castDef.gradientEndColor[4]) or 1,
+				},
+				hasOpacity = true,
+			}
+
+			list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
+		end
+
 		list[#list + 1] = {
 			name = L["Not interruptible color"] or "Not interruptible color",
 			kind = settingType.Color,
@@ -3458,6 +3853,22 @@ local function buildUnitSettings(unit)
 	})
 	nameColorSetting.isEnabled = isNameEnabled
 	list[#list + 1] = nameColorSetting
+
+	local showNameReactionSetting = unit == "target" or unit == "targettarget" or unit == "focus" or isBossUnit(unit)
+	if showNameReactionSetting then
+		local nameReactionSetting = checkbox(
+			L["UFNameUseReactionColor"] or "Use reaction color for NPC names",
+			function() return getValue(unit, { "status", "nameUseReactionColor" }, statusDef.nameUseReactionColor == true) == true end,
+			function(val)
+				setValue(unit, { "status", "nameUseReactionColor" }, val and true or false)
+				refresh()
+			end,
+			statusDef.nameUseReactionColor == true,
+			"status"
+		)
+		nameReactionSetting.isEnabled = function() return isNameEnabled() and getValue(unit, { "status", "nameColorMode" }, statusDef.nameColorMode or "CLASS") ~= "CUSTOM" end
+		list[#list + 1] = nameReactionSetting
+	end
 
 	local nameAnchorSetting = radioDropdown(
 		L["UFNameAnchor"] or "Name anchor",
@@ -3828,6 +4239,7 @@ local function buildUnitSettings(unit)
 		)
 		pvpOffsetY.isEnabled = isPvPIndicatorEnabled
 		list[#list + 1] = pvpOffsetY
+		addDivider("unitStatus")
 
 		local roleDef = def.roleIndicator or { enabled = false, size = 18, offset = { x = 24, y = -2 } }
 		local function isRoleIndicatorEnabled() return getValue(unit, { "roleIndicator", "enabled" }, roleDef.enabled == true) == true end
@@ -3880,6 +4292,7 @@ local function buildUnitSettings(unit)
 		)
 		roleOffsetY.isEnabled = isRoleIndicatorEnabled
 		list[#list + 1] = roleOffsetY
+		addDivider("unitStatus")
 
 		local leaderDef = def.leaderIcon or { enabled = false, size = 12, offset = { x = 0, y = 0 } }
 		local function isLeaderIndicatorEnabled() return getValue(unit, { "leaderIcon", "enabled" }, leaderDef.enabled == true) == true end
@@ -3932,7 +4345,7 @@ local function buildUnitSettings(unit)
 		)
 		leaderOffsetY.isEnabled = isLeaderIndicatorEnabled
 		list[#list + 1] = leaderOffsetY
-		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "unitStatus" }
+		addDivider("unitStatus")
 	end
 
 	list[#list + 1] = checkbox(L["UFUnitStatusEnable"] or "Show unit status", function() return getValue(unit, { "status", "unitStatus", "enabled" }, usDef.enabled == true) == true end, function(val)
@@ -5259,708 +5672,103 @@ local function buildUnitSettings(unit)
 		list[#list].isEnabled = isPrivateDurationEnabled
 	end
 
-	return list
+	-- Keep section order stable across units while preserving each section's internal order.
+	local sectionOrder = {
+		"utility",
+		"frame",
+		"portrait",
+		"rangeFade",
+		"health",
+		"absorb",
+		"healAbsorb",
+		"power",
+		"mainPowerColors",
+		"npcColors",
+		"classResource",
+		"totemFrame",
+		"cast",
+		"raidicon",
+		"status",
+		"unitStatus",
+		"combatFeedback",
+		"auras",
+		"privateAuras",
+	}
+
+	local sectionHeaderIndexById = {}
+	local encounteredSectionIds = {}
+	for i = 1, #list do
+		local entry = list[i]
+		if type(entry) == "table" and entry.kind == settingType.Collapsible and type(entry.id) == "string" and sectionHeaderIndexById[entry.id] == nil then
+			sectionHeaderIndexById[entry.id] = i
+			encounteredSectionIds[#encounteredSectionIds + 1] = entry.id
+		end
+	end
+
+	local orderedSectionIds = {}
+	local seenSectionIds = {}
+	for i = 1, #sectionOrder do
+		local id = sectionOrder[i]
+		if sectionHeaderIndexById[id] then
+			orderedSectionIds[#orderedSectionIds + 1] = id
+			seenSectionIds[id] = true
+		end
+	end
+	for i = 1, #encounteredSectionIds do
+		local id = encounteredSectionIds[i]
+		if not seenSectionIds[id] then
+			orderedSectionIds[#orderedSectionIds + 1] = id
+			seenSectionIds[id] = true
+		end
+	end
+
+	local orderedList = {}
+	local appended = {}
+	for i = 1, #orderedSectionIds do
+		local id = orderedSectionIds[i]
+		local headerIndex = sectionHeaderIndexById[id]
+		if headerIndex and not appended[headerIndex] then
+			orderedList[#orderedList + 1] = list[headerIndex]
+			appended[headerIndex] = true
+		end
+		for j = 1, #list do
+			if not appended[j] then
+				local entry = list[j]
+				if type(entry) == "table" and entry.parentId == id then
+					orderedList[#orderedList + 1] = entry
+					appended[j] = true
+				end
+			end
+		end
+	end
+
+	for i = 1, #list do
+		if not appended[i] then orderedList[#orderedList + 1] = list[i] end
+	end
+
+	return orderedList
 end
 
 local function buildStandaloneCastbarSettings()
-	addon.db = addon.db or {}
-	local castCfg, castDef
-	local CastbarModule = getCastbarModule()
-	if CastbarModule and CastbarModule.GetConfig then
-		castCfg, castDef = CastbarModule.GetConfig()
-	end
-	if type(castCfg) ~= "table" then
-		addon.db.castbar = type(addon.db.castbar) == "table" and addon.db.castbar or {}
-		castCfg = addon.db.castbar
-	end
-	if type(castDef) ~= "table" then
-		if CastbarModule and CastbarModule.GetDefaults then
-			castDef = CastbarModule.GetDefaults()
-		else
-			castDef = {}
-		end
-	end
-
-	local function getCast(path, fallback)
-		local cur = castCfg
-		for i = 2, #path do
-			if not cur then return fallback end
-			cur = cur[path[i]]
-			if cur == nil then return fallback end
-		end
-		return cur
-	end
-
-	local function setCast(path, value)
-		local cur = castCfg
-		for i = 2, #path - 1 do
-			local key = path[i]
-			if type(cur[key]) ~= "table" then cur[key] = {} end
-			cur = cur[key]
-		end
-		cur[path[#path]] = value
-	end
-
-	local function setCastColor(path, r, g, b, a)
-		local _, _, _, curA = toRGBA(getCast(path))
-		setCast(path, { r or 1, g or 1, b or 1, a or curA or 1 })
-	end
-
-	local function refreshCastbar()
-		local CastbarModule = getCastbarModule()
-		if CastbarModule and CastbarModule.Refresh then CastbarModule.Refresh() end
-	end
-
-	local list = {}
-	local textureOpts = textureOptions
-	list[#list + 1] = { name = L["CastBar"] or "Cast Bar", kind = settingType.Collapsible, id = "cast", defaultCollapsed = true }
-
-	local function isCastEnabled() return true end
-	local function isCastIconEnabled() return getCast({ "cast", "showIcon" }, castDef.showIcon ~= false) ~= false end
-	local function isCastNameEnabled() return getCast({ "cast", "showName" }, castDef.showName ~= false) ~= false end
-	local function isCastDurationEnabled() return getCast({ "cast", "showDuration" }, castDef.showDuration ~= false) ~= false end
-	local anchorPointOptions = {
-		{ value = "TOPLEFT", label = "TOPLEFT" },
-		{ value = "TOP", label = "TOP" },
-		{ value = "TOPRIGHT", label = "TOPRIGHT" },
-		{ value = "LEFT", label = "LEFT" },
-		{ value = "CENTER", label = "CENTER" },
-		{ value = "RIGHT", label = "RIGHT" },
-		{ value = "BOTTOMLEFT", label = "BOTTOMLEFT" },
-		{ value = "BOTTOM", label = "BOTTOM" },
-		{ value = "BOTTOMRIGHT", label = "BOTTOMRIGHT" },
-	}
-	local validAnchorPoints = {}
-	for _, entry in ipairs(anchorPointOptions) do
-		validAnchorPoints[entry.value] = true
-	end
-	local function normalizeAnchorPoint(value, fallback)
-		local point = tostring(value or fallback or "CENTER"):upper()
-		if validAnchorPoints[point] then return point end
-		return tostring(fallback or "CENTER"):upper()
-	end
-	local function legacyAnchorToPoint(value)
-		local anchor = type(value) == "string" and value:upper() or "BOTTOM"
-		if anchor == "TOP" then return "BOTTOM", "CENTER" end
-		if anchor == "BOTTOM" then return "TOP", "CENTER" end
-		return "CENTER", "CENTER"
-	end
-	local function ensureCastAnchor()
-		local anchor = getCast({ "cast", "anchor" })
-		local defAnchor = castDef and castDef.anchor
-		local legacyAnchor = (type(anchor) == "string" and anchor) or (type(defAnchor) == "string" and defAnchor) or "BOTTOM"
-		local fallbackPoint, fallbackRelativePoint = legacyAnchorToPoint(legacyAnchor)
-		local fallbackOffset = getCast({ "cast", "offset" }, castDef.offset or { x = 0, y = -4 })
-		local fallbackX = tonumber(fallbackOffset and fallbackOffset.x) or 0
-		local fallbackY = tonumber(fallbackOffset and fallbackOffset.y) or 0
-
-		if type(anchor) ~= "table" then
-			anchor = {
-				point = fallbackPoint,
-				relativePoint = fallbackRelativePoint,
-				relativeFrame = "UIParent",
-				x = fallbackX,
-				y = fallbackY,
-			}
-			setCast({ "cast", "anchor" }, anchor)
-		end
-
-		anchor.point = normalizeAnchorPoint(anchor.point, fallbackPoint)
-		anchor.relativePoint = normalizeAnchorPoint(anchor.relativePoint, anchor.point)
-		anchor.relativeFrame = (type(anchor.relativeFrame) == "string" and anchor.relativeFrame ~= "") and anchor.relativeFrame or "UIParent"
-		if anchor.x == nil then
-			anchor.x = fallbackX
-		else
-			anchor.x = tonumber(anchor.x) or fallbackX
-		end
-		if anchor.y == nil then
-			anchor.y = fallbackY
-		else
-			anchor.y = tonumber(anchor.y) or fallbackY
-		end
-		if anchor.relativeFrame == "UIParent" then anchor.matchRelativeWidth = nil end
-		return anchor
-	end
-	local function anchorUsesUIParent()
-		local anchor = ensureCastAnchor()
-		return (anchor.relativeFrame or "UIParent") == "UIParent"
-	end
-	local function isCastWidthMatchedToAnchor()
-		local anchor = ensureCastAnchor()
-		return not anchorUsesUIParent() and anchor.matchRelativeWidth == true
-	end
-	local function relativeFrameEntries()
-		local entries = {}
-		local seen = {}
-		local function add(key, label)
-			if not key or key == "" or seen[key] then return end
-			seen[key] = true
-			entries[#entries + 1] = { value = key, label = label or key }
-		end
-
-		add("UIParent", "UIParent")
-		add("EssentialCooldownViewer", "Essential Cooldown Viewer")
-		add("UtilityCooldownViewer", "Utility Cooldown Viewer")
-		add("BuffBarCooldownViewer", "Buff Bar Cooldowns")
-		add("BuffIconCooldownViewer", "Buff Icon Cooldowns")
-		local cooldownPanels = addon.Aura and addon.Aura.CooldownPanels
-		if cooldownPanels and cooldownPanels.GetRoot then
-			local root = cooldownPanels:GetRoot()
-			if root and root.panels then
-				local order = root.order or {}
-				local function addPanelEntry(panelId, panel)
-					if not panel or panel.enabled == false then return end
-					local label = string.format("Panel %s: %s", tostring(panelId), panel.name or "Cooldown Panel")
-					add("EQOL_CooldownPanel" .. tostring(panelId), label)
-				end
-				if #order > 0 then
-					for _, panelId in ipairs(order) do
-						addPanelEntry(panelId, root.panels[panelId])
-					end
-				else
-					for panelId, panel in pairs(root.panels) do
-						addPanelEntry(panelId, panel)
-					end
-				end
-			end
-		end
-
-		local dataPanel = addon.DataPanel
-		if dataPanel and dataPanel.List then
-			local ids = {}
-			for id in pairs(dataPanel.List() or {}) do
-				ids[#ids + 1] = tostring(id)
-			end
-			table.sort(ids, function(a, b)
-				local na, nb = tonumber(a), tonumber(b)
-				if na and nb then return na < nb end
-				return tostring(a) < tostring(b)
-			end)
-			for _, id in ipairs(ids) do
-				local panel = dataPanel.Get and dataPanel.Get(id)
-				local frameName = panel and panel.frame and panel.frame.GetName and panel.frame:GetName() or nil
-				if not frameName or frameName == "" then frameName = parentAddonName .. "DataPanel" .. tostring(id) end
-				local panelName = panel and panel.name
-				local label = (type(panelName) == "string" and panelName ~= "") and ("Data Panel: " .. panelName) or ("Data Panel " .. tostring(id))
-				add(frameName, label)
-			end
-		end
-
-		if _G.EQOLHealthBar then add("EQOLHealthBar", HEALTH or "Health") end
-		local resourceBars = addon.Aura and addon.Aura.ResourceBars
-		local classPowerTypes = resourceBars and resourceBars.classPowerTypes or {}
-		local powerLabels = resourceBars and resourceBars.PowerLabels or {}
-		if type(classPowerTypes) == "table" then
-			for _, powerType in ipairs(classPowerTypes) do
-				local frameName = "EQOL" .. tostring(powerType) .. "Bar"
-				if _G[frameName] then
-					local label = powerLabels[powerType] or _G["POWER_TYPE_" .. tostring(powerType)] or tostring(powerType):gsub("_", " ")
-					add(frameName, tostring(label))
-				end
-			end
-		end
-
-		local anchor = ensureCastAnchor()
-		local currentRelative = anchor and anchor.relativeFrame
-		if currentRelative and not seen[currentRelative] then add(currentRelative, currentRelative) end
-		return entries
-	end
-	local function validateRelativeFrame(anchor)
-		local target = anchor and anchor.relativeFrame or "UIParent"
-		local entries = relativeFrameEntries()
-		for _, entry in ipairs(entries) do
-			if entry.value == target then return target end
-		end
-		if anchor then
-			anchor.relativeFrame = "UIParent"
-			anchor.matchRelativeWidth = nil
-		end
-		return "UIParent"
-	end
-
-	local castWidth = slider(L["UFWidth"] or "Frame width", 50, 800, 1, function() return getCast({ "cast", "width" }, castDef.width or 220) end, function(val)
-		setCast({ "cast", "width" }, math.max(50, val or 50))
-		refreshCastbar()
-	end, castDef.width or 220, "cast", true)
-	castWidth.isEnabled = function() return isCastEnabled() and not isCastWidthMatchedToAnchor() end
-	list[#list + 1] = castWidth
-
-	local castHeight = slider(L["Cast bar height"] or "Cast bar height", 6, 40, 1, function() return getCast({ "cast", "height" }, castDef.height or 16) end, function(val)
-		setCast({ "cast", "height" }, val or castDef.height or 16)
-		refreshCastbar()
-	end, castDef.height or 16, "cast", true)
-	castHeight.isEnabled = isCastEnabled
-	list[#list + 1] = castHeight
-
-	local castRelativeFrame = radioDropdown("Relative frame", relativeFrameEntries, function()
-		local anchor = ensureCastAnchor()
-		return validateRelativeFrame(anchor)
-	end, function(value)
-		local anchor = ensureCastAnchor()
-		local target = value or "UIParent"
-		local validTarget = false
-		for _, entry in ipairs(relativeFrameEntries()) do
-			if entry.value == target then
-				validTarget = true
-				break
-			end
-		end
-		if not validTarget then target = "UIParent" end
-		anchor.relativeFrame = target
-		if target == "UIParent" then
-			anchor.point = normalizeAnchorPoint(anchor.point, "CENTER")
-			anchor.relativePoint = normalizeAnchorPoint(anchor.relativePoint, anchor.point)
-			anchor.matchRelativeWidth = nil
-		else
-			anchor.point = normalizeAnchorPoint(anchor.point, "TOPLEFT")
-			anchor.relativePoint = normalizeAnchorPoint(anchor.relativePoint, "BOTTOMLEFT")
-		end
-		refreshCastbar()
-		refreshSettingsUI()
-	end, "UIParent", "cast")
-	castRelativeFrame.isEnabled = isCastEnabled
-	list[#list + 1] = castRelativeFrame
-
-	local castAnchorPoint = radioDropdown("Anchor point", anchorPointOptions, function()
-		local anchor = ensureCastAnchor()
-		return anchor.point or "CENTER"
-	end, function(value)
-		local anchor = ensureCastAnchor()
-		anchor.point = normalizeAnchorPoint(value, anchor.point or "CENTER")
-		refreshCastbar()
-	end, "CENTER", "cast")
-	castAnchorPoint.isEnabled = isCastEnabled
-	list[#list + 1] = castAnchorPoint
-
-	local castAnchorRelativePoint = radioDropdown("Anchor target point", anchorPointOptions, function()
-		local anchor = ensureCastAnchor()
-		return anchor.relativePoint or anchor.point or "CENTER"
-	end, function(value)
-		local anchor = ensureCastAnchor()
-		anchor.relativePoint = normalizeAnchorPoint(value, anchor.point or "CENTER")
-		refreshCastbar()
-	end, "CENTER", "cast")
-	castAnchorRelativePoint.isEnabled = isCastEnabled
-	list[#list + 1] = castAnchorRelativePoint
-
-	local castOffsetX = slider(L["Offset X"] or "Offset X", -OFFSET_RANGE, OFFSET_RANGE, 1, function()
-		local anchor = ensureCastAnchor()
-		return anchor.x or 0
-	end, function(val)
-		local anchor = ensureCastAnchor()
-		anchor.x = tonumber(val) or 0
-		refreshCastbar()
-	end, 0, "cast", true)
-	castOffsetX.isEnabled = isCastEnabled
-	list[#list + 1] = castOffsetX
-
-	local castOffsetY = slider(L["Offset Y"] or "Offset Y", -OFFSET_RANGE, OFFSET_RANGE, 1, function()
-		local anchor = ensureCastAnchor()
-		return anchor.y or 0
-	end, function(val)
-		local anchor = ensureCastAnchor()
-		anchor.y = tonumber(val) or 0
-		refreshCastbar()
-	end, 0, "cast", true)
-	castOffsetY.isEnabled = isCastEnabled
-	list[#list + 1] = castOffsetY
-
-	list[#list + 1] = checkbox("Match width of anchor", function()
-		local anchor = ensureCastAnchor()
-		return (anchor.relativeFrame or "UIParent") ~= "UIParent" and anchor.matchRelativeWidth == true
-	end, function(val)
-		local anchor = ensureCastAnchor()
-		if (anchor.relativeFrame or "UIParent") == "UIParent" then
-			anchor.matchRelativeWidth = nil
-		else
-			anchor.matchRelativeWidth = val and true or nil
-		end
-		refreshCastbar()
-		refreshSettingsUI()
-	end, false, "cast", function() return isCastEnabled() and not anchorUsesUIParent() end)
-
-	list[#list + 1] = checkbox(L["Show spell icon"] or "Show spell icon", function() return getCast({ "cast", "showIcon" }, castDef.showIcon ~= false) ~= false end, function(val)
-		setCast({ "cast", "showIcon" }, val and true or false)
-		refreshCastbar()
-		refreshSettingsUI()
-	end, castDef.showIcon ~= false, "cast", isCastEnabled)
-
-	local castIconSize = slider(L["Icon size"] or "Icon size", 8, 64, 1, function() return getCast({ "cast", "iconSize" }, castDef.iconSize or 22) end, function(val)
-		setCast({ "cast", "iconSize" }, val or castDef.iconSize or 22)
-		refreshCastbar()
-	end, castDef.iconSize or 22, "cast", true)
-	castIconSize.isEnabled = isCastIconEnabled
-	list[#list + 1] = castIconSize
-
-	local castIconOffsetX = slider(
-		L["Icon X Offset"] or "Icon X Offset",
-		-OFFSET_RANGE,
-		OFFSET_RANGE,
-		1,
-		function() return getCast({ "cast", "iconOffset", "x" }, (castDef.iconOffset and castDef.iconOffset.x) or -4) end,
-		function(val)
-			setCast({ "cast", "iconOffset", "x" }, val or -4)
-			refreshCastbar()
-		end,
-		(castDef.iconOffset and castDef.iconOffset.x) or -4,
-		"cast",
-		true
-	)
-	castIconOffsetX.isEnabled = isCastIconEnabled
-	list[#list + 1] = castIconOffsetX
-
-	list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
-
-	list[#list + 1] = checkbox(L["Show spell name"] or "Show spell name", function() return getCast({ "cast", "showName" }, castDef.showName ~= false) ~= false end, function(val)
-		setCast({ "cast", "showName" }, val and true or false)
-		refreshCastbar()
-		refreshSettingsUI()
-	end, castDef.showName ~= false, "cast", isCastEnabled)
-
-	list[#list + 1] = checkbox(L["Show cast target"] or "Show cast target", function() return getCast({ "cast", "showCastTarget" }, castDef.showCastTarget == true) == true end, function(val)
-		setCast({ "cast", "showCastTarget" }, val and true or false)
-		refreshCastbar()
-		refreshSettingsUI()
-	end, castDef.showCastTarget == true, "cast", isCastNameEnabled)
-
-	local castNameX = slider(
-		L["Name X Offset"] or "Name X Offset",
-		-OFFSET_RANGE,
-		OFFSET_RANGE,
-		1,
-		function() return getCast({ "cast", "nameOffset", "x" }, (castDef.nameOffset and castDef.nameOffset.x) or 6) end,
-		function(val)
-			setCast({ "cast", "nameOffset", "x" }, val or 0)
-			refreshCastbar()
-		end,
-		(castDef.nameOffset and castDef.nameOffset.x) or 6,
-		"cast",
-		true
-	)
-	castNameX.isEnabled = isCastNameEnabled
-	list[#list + 1] = castNameX
-
-	local castNameY = slider(
-		L["Name Y Offset"] or "Name Y Offset",
-		-OFFSET_RANGE,
-		OFFSET_RANGE,
-		1,
-		function() return getCast({ "cast", "nameOffset", "y" }, (castDef.nameOffset and castDef.nameOffset.y) or 0) end,
-		function(val)
-			setCast({ "cast", "nameOffset", "y" }, val or 0)
-			refreshCastbar()
-		end,
-		(castDef.nameOffset and castDef.nameOffset.y) or 0,
-		"cast",
-		true
-	)
-	castNameY.isEnabled = isCastNameEnabled
-	list[#list + 1] = castNameY
-
-	local function getCastFont() return getCast({ "cast", "font" }, castDef.font or "") end
-	local castNameFont = {
-		name = L["Font"] or "Font",
-		kind = settingType.DropdownColor,
-		height = 180,
-		parentId = "cast",
-		default = castDef.font or "",
-		generator = function(_, root)
-			local opts = fontOptions()
-			if type(opts) ~= "table" then return end
-			for _, opt in ipairs(opts) do
-				local value = opt.value
-				local label = opt.label
-				root:CreateCheckbox(label, function() return getCastFont() == value end, function()
-					if getCastFont() ~= value then
-						setCast({ "cast", "font" }, value)
-						refreshCastbar()
-					end
-				end)
-			end
-		end,
-		colorDefault = { r = 1, g = 1, b = 1, a = 1 },
-		colorGet = function()
-			local fallback = castDef.fontColor or { 1, 1, 1, 1 }
-			local r, g, b, a = toRGBA(getCast({ "cast", "fontColor" }, castDef.fontColor), fallback)
-			return { r = r, g = g, b = b, a = a }
-		end,
-		colorSet = function(_, color)
-			setCastColor({ "cast", "fontColor" }, color.r, color.g, color.b, color.a)
-			refreshCastbar()
-		end,
-		hasOpacity = true,
-	}
-	castNameFont.isEnabled = isCastNameEnabled
-	list[#list + 1] = castNameFont
-
-	local castNameFontOutline = checkboxDropdown(
-		L["Font outline"] or "Font outline",
-		outlineOptions,
-		function() return getCast({ "cast", "fontOutline" }, castDef.fontOutline or "OUTLINE") end,
-		function(val)
-			setCast({ "cast", "fontOutline" }, val)
-			refreshCastbar()
-		end,
-		castDef.fontOutline or "OUTLINE",
-		"cast"
-	)
-	castNameFontOutline.isEnabled = isCastNameEnabled
-	list[#list + 1] = castNameFontOutline
-
-	local castNameFontSize = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getCast({ "cast", "fontSize" }, castDef.fontSize or 12) end, function(val)
-		setCast({ "cast", "fontSize" }, val or 12)
-		refreshCastbar()
-	end, castDef.fontSize or 12, "cast", true)
-	castNameFontSize.isEnabled = isCastNameEnabled
-	list[#list + 1] = castNameFontSize
-
-	local castNameMaxCharsSetting = slider(
-		L["UFCastNameMaxChars"] or "Cast name max width",
-		0,
-		100,
-		1,
-		function() return getCast({ "cast", "nameMaxChars" }, castDef.nameMaxChars or 0) end,
-		function(val)
-			setCast({ "cast", "nameMaxChars" }, val or 0)
-			refreshCastbar()
-		end,
-		castDef.nameMaxChars or 0,
-		"cast",
-		true
-	)
-	castNameMaxCharsSetting.isEnabled = isCastNameEnabled
-	list[#list + 1] = castNameMaxCharsSetting
-
-	list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
-
-	list[#list + 1] = checkbox(L["Show cast duration"] or "Show cast duration", function() return getCast({ "cast", "showDuration" }, castDef.showDuration ~= false) ~= false end, function(val)
-		setCast({ "cast", "showDuration" }, val and true or false)
-		refreshCastbar()
-		refreshSettingsUI()
-	end, castDef.showDuration ~= false, "cast", isCastEnabled)
-
-	local castDurationFormatOptions = {
-		{ value = "REMAINING", label = L["UFCastDurationRemaining"] or "Remaining" },
-		{ value = "REMAINING_TOTAL", label = L["UFCastDurationRemainingTotal"] or "Remaining/Total" },
-		{ value = "ELAPSED_TOTAL", label = L["UFCastDurationElapsedTotal"] or "Elapsed/Total" },
-	}
-	local castDurationFormat = checkboxDropdown(
-		L["UFCastDurationFormat"] or "Cast duration format",
-		castDurationFormatOptions,
-		function() return getCast({ "cast", "durationFormat" }, castDef.durationFormat or "REMAINING") end,
-		function(val)
-			setCast({ "cast", "durationFormat" }, val or "REMAINING")
-			refreshCastbar()
-		end,
-		castDef.durationFormat or "REMAINING",
-		"cast"
-	)
-	castDurationFormat.isEnabled = isCastDurationEnabled
-	list[#list + 1] = castDurationFormat
-
-	local castDurX = slider(
-		L["Duration X Offset"] or "Duration X Offset",
-		-OFFSET_RANGE,
-		OFFSET_RANGE,
-		1,
-		function() return getCast({ "cast", "durationOffset", "x" }, (castDef.durationOffset and castDef.durationOffset.x) or -6) end,
-		function(val)
-			setCast({ "cast", "durationOffset", "x" }, val or 0)
-			refreshCastbar()
-		end,
-		(castDef.durationOffset and castDef.durationOffset.x) or -6,
-		"cast",
-		true
-	)
-	castDurX.isEnabled = isCastDurationEnabled
-	list[#list + 1] = castDurX
-
-	local castDurY = slider(
-		L["Duration Y Offset"] or "Duration Y Offset",
-		-OFFSET_RANGE,
-		OFFSET_RANGE,
-		1,
-		function() return getCast({ "cast", "durationOffset", "y" }, (castDef.durationOffset and castDef.durationOffset.y) or 0) end,
-		function(val)
-			setCast({ "cast", "durationOffset", "y" }, val or 0)
-			refreshCastbar()
-		end,
-		(castDef.durationOffset and castDef.durationOffset.y) or 0,
-		"cast",
-		true
-	)
-	castDurY.isEnabled = isCastDurationEnabled
-	list[#list + 1] = castDurY
-
-	local castTexture = checkboxDropdown(L["Cast texture"] or "Cast texture", textureOpts, function() return getCast({ "cast", "texture" }, castDef.texture or "DEFAULT") end, function(val)
-		setCast({ "cast", "texture" }, val)
-		refreshCastbar()
-	end, castDef.texture or "DEFAULT", "cast")
-	castTexture.isEnabled = isCastEnabled
-	list[#list + 1] = castTexture
-
-	list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
-
-	local castBackdrop = checkboxColor({
-		name = L["UFBarBackdrop"] or "Show bar backdrop",
-		parentId = "cast",
-		defaultChecked = (castDef.backdrop and castDef.backdrop.enabled) ~= false,
-		isChecked = function() return getCast({ "cast", "backdrop", "enabled" }, (castDef.backdrop and castDef.backdrop.enabled) ~= false) ~= false end,
-		onChecked = function(val)
-			setCast({ "cast", "backdrop", "enabled" }, val and true or false)
-			refreshCastbar()
-			refreshSettingsUI()
-		end,
-		getColor = function() return toRGBA(getCast({ "cast", "backdrop", "color" }, castDef.backdrop and castDef.backdrop.color), castDef.backdrop and castDef.backdrop.color or { 0, 0, 0, 0.6 }) end,
-		onColor = function(color)
-			setCastColor({ "cast", "backdrop", "color" }, color.r, color.g, color.b, color.a)
-			refreshCastbar()
-		end,
-		colorDefault = { r = 0, g = 0, b = 0, a = 0.6 },
-		isEnabled = isCastEnabled,
+	if not (CastbarSettings and CastbarSettings.BuildStandaloneCastbarSettings) then return {} end
+	return CastbarSettings.BuildStandaloneCastbarSettings({
+		L = L,
+		settingType = settingType,
+		getCastbarModule = getCastbarModule,
+		toRGBA = toRGBA,
+		refreshSettingsUI = refreshSettingsUI,
+		textureOptions = textureOptions,
+		borderOptions = borderOptions,
+		fontOptions = fontOptions,
+		outlineOptions = outlineOptions,
+		strataOptionsWithDefault = strataOptionsWithDefault,
+		OFFSET_RANGE = OFFSET_RANGE,
+		checkbox = checkbox,
+		slider = slider,
+		radioDropdown = radioDropdown,
+		checkboxDropdown = checkboxDropdown,
+		checkboxColor = checkboxColor,
 	})
-	castBackdrop.isEnabled = isCastEnabled
-	list[#list + 1] = castBackdrop
-
-	local function isCastBorderEnabled() return getCast({ "cast", "border", "enabled" }, (castDef.border and castDef.border.enabled) == true) == true end
-	list[#list + 1] = checkboxColor({
-		name = L["Cast bar border"] or "Cast bar border",
-		parentId = "cast",
-		defaultChecked = (castDef.border and castDef.border.enabled) == true,
-		isChecked = function() return isCastBorderEnabled() end,
-		onChecked = function(val)
-			setCast({ "cast", "border", "enabled" }, val and true or false)
-			if val and not getCast({ "cast", "border", "color" }) then setCast({ "cast", "border", "color" }, (castDef.border and castDef.border.color) or { 0, 0, 0, 0.8 }) end
-			refreshCastbar()
-			refreshSettingsUI()
-		end,
-		getColor = function()
-			local fallback = (castDef.border and castDef.border.color) or { 0, 0, 0, 0.8 }
-			return toRGBA(getCast({ "cast", "border", "color" }, castDef.border and castDef.border.color), fallback)
-		end,
-		onColor = function(color)
-			setCastColor({ "cast", "border", "color" }, color.r, color.g, color.b, color.a)
-			setCast({ "cast", "border", "enabled" }, true)
-			refreshCastbar()
-		end,
-		colorDefault = {
-			r = (castDef.border and castDef.border.color and castDef.border.color[1]) or 0,
-			g = (castDef.border and castDef.border.color and castDef.border.color[2]) or 0,
-			b = (castDef.border and castDef.border.color and castDef.border.color[3]) or 0,
-			a = (castDef.border and castDef.border.color and castDef.border.color[4]) or 0.8,
-		},
-		isEnabled = isCastEnabled,
-	})
-
-	local castBorderTexture = checkboxDropdown(
-		L["Border texture"] or "Border texture",
-		borderOptions,
-		function() return getCast({ "cast", "border", "texture" }, (castDef.border and castDef.border.texture) or "DEFAULT") end,
-		function(val)
-			setCast({ "cast", "border", "texture" }, val or "DEFAULT")
-			refreshCastbar()
-		end,
-		(castDef.border and castDef.border.texture) or "DEFAULT",
-		"cast"
-	)
-	castBorderTexture.isEnabled = isCastBorderEnabled
-	list[#list + 1] = castBorderTexture
-
-	local castBorderSize = slider(L["Border size"] or "Border size", 1, 64, 1, function()
-		local border = getCast({ "cast", "border" }, castDef.border or {})
-		return border.edgeSize or 1
-	end, function(val)
-		local border = getCast({ "cast", "border" }, castDef.border or {})
-		border.edgeSize = val or 1
-		setCast({ "cast", "border" }, border)
-		refreshCastbar()
-	end, (castDef.border and castDef.border.edgeSize) or 1, "cast", true)
-	castBorderSize.isEnabled = isCastBorderEnabled
-	list[#list + 1] = castBorderSize
-
-	local castBorderOffset = slider(L["Border offset"] or "Border offset", 0, 64, 1, function()
-		local border = getCast({ "cast", "border" }, castDef.border or {})
-		if border.offset == nil then return border.edgeSize or 1 end
-		return border.offset
-	end, function(val)
-		local border = getCast({ "cast", "border" }, castDef.border or {})
-		border.offset = val or 0
-		setCast({ "cast", "border" }, border)
-		refreshCastbar()
-	end, (castDef.border and castDef.border.offset) or (castDef.border and castDef.border.edgeSize) or 1, "cast", true)
-	castBorderOffset.isEnabled = isCastBorderEnabled
-	list[#list + 1] = castBorderOffset
-
-	list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
-
-	local function isCastColorEnabled() return isCastEnabled() and getCast({ "cast", "useClassColor" }, castDef.useClassColor == true) ~= true end
-	list[#list + 1] = {
-		name = L["Cast color"] or "Cast color",
-		kind = settingType.Color,
-		parentId = "cast",
-		isEnabled = isCastColorEnabled,
-		get = function() return getCast({ "cast", "color" }, castDef.color or { 0.9, 0.7, 0.2, 1 }) end,
-		set = function(_, color)
-			setCastColor({ "cast", "color" }, color.r, color.g, color.b, color.a)
-			refreshCastbar()
-		end,
-		colorGet = function() return getCast({ "cast", "color" }, castDef.color or { 0.9, 0.7, 0.2, 1 }) end,
-		colorSet = function(_, color)
-			setCastColor({ "cast", "color" }, color.r, color.g, color.b, color.a)
-			refreshCastbar()
-		end,
-		colorDefault = {
-			r = (castDef.color and castDef.color[1]) or 0.9,
-			g = (castDef.color and castDef.color[2]) or 0.7,
-			b = (castDef.color and castDef.color[3]) or 0.2,
-			a = (castDef.color and castDef.color[4]) or 1,
-		},
-		hasOpacity = true,
-	}
-
-	list[#list + 1] = checkbox(L["Use class color"] or "Use class color", function() return getCast({ "cast", "useClassColor" }, castDef.useClassColor == true) == true end, function(val)
-		setCast({ "cast", "useClassColor" }, val and true or false)
-		refreshCastbar()
-		refreshSettingsUI()
-	end, castDef.useClassColor == true, "cast", isCastEnabled)
-
-	list[#list + 1] = {
-		name = L["Not interruptible color"] or "Not interruptible color",
-		kind = settingType.Color,
-		parentId = "cast",
-		isEnabled = isCastEnabled,
-		get = function() return getCast({ "cast", "notInterruptibleColor" }, castDef.notInterruptibleColor or { 204 / 255, 204 / 255, 204 / 255, 1 }) end,
-		set = function(_, color)
-			setCastColor({ "cast", "notInterruptibleColor" }, color.r, color.g, color.b, color.a)
-			refreshCastbar()
-		end,
-		colorGet = function() return getCast({ "cast", "notInterruptibleColor" }, castDef.notInterruptibleColor or { 204 / 255, 204 / 255, 204 / 255, 1 }) end,
-		colorSet = function(_, color)
-			setCastColor({ "cast", "notInterruptibleColor" }, color.r, color.g, color.b, color.a)
-			refreshCastbar()
-		end,
-		colorDefault = {
-			r = (castDef.notInterruptibleColor and castDef.notInterruptibleColor[1]) or (204 / 255),
-			g = (castDef.notInterruptibleColor and castDef.notInterruptibleColor[2]) or (204 / 255),
-			b = (castDef.notInterruptibleColor and castDef.notInterruptibleColor[3]) or (204 / 255),
-			a = (castDef.notInterruptibleColor and castDef.notInterruptibleColor[4]) or 1,
-		},
-		hasOpacity = true,
-	}
-
-	list[#list + 1] = checkbox(
-		L["Show interrupt feedback"] or "Show interrupt feedback",
-		function() return getCast({ "cast", "showInterruptFeedback" }, castDef.showInterruptFeedback ~= false) ~= false end,
-		function(val)
-			setCast({ "cast", "showInterruptFeedback" }, val and true or false)
-			refreshCastbar()
-		end,
-		castDef.showInterruptFeedback ~= false,
-		"cast",
-		isCastEnabled
-	)
-
-	return list
 end
 
 local standaloneCastbarSettingsRegistered = false
@@ -6129,14 +5937,6 @@ local function registerSettingsUI()
 		addon.db.ufGroupFrames[kind] = addon.db.ufGroupFrames[kind] or {}
 		return addon.db.ufGroupFrames[kind]
 	end
-	addon.functions.SettingsCreateText(
-		cUF,
-		"|cffffcc66"
-			.. (L["UFGroupFramesBetaDisclaimer"] or "Group Frames are currently a beta test.\nSome parts are still missing; this is mainly for current usability checks.\nFor correct aura filtering, WoW 12.0.1 is recommended (12.0.0 may show extra auras).")
-			.. "|r",
-		{ parentSection = expandable }
-	)
-	addon.functions.SettingsCreateText(cUF, "", { parentSection = expandable })
 	addon.functions.SettingsCreateCheckbox(cUF, {
 		var = "ufEnablePartyGroupFrames",
 		text = L["UFGroupFramesPartyEnable"] or "Enable party frames",
@@ -6405,7 +6205,12 @@ local function registerSettingsUI()
 			focus = L["UFFocusFrame"] or FOCUS,
 			pet = L["UFPetFrame"] or PET,
 			boss = L["UFBossFrame"] or BOSS or "Boss Frame",
+			party = PARTY or "Party",
+			raid = RAID or "Raid",
+			mt = MAINTANK or "Main Tank",
+			ma = MAINASSIST or "Main Assist",
 		}
+		local scopeOrder = { "ALL", "player", "target", "targettarget", "focus", "pet", "boss", "party", "raid", "mt", "ma" }
 		local function getScope()
 			addon.db = addon.db or {}
 			local cur = addon.db.ufProfileScope or "ALL"
@@ -6429,6 +6234,7 @@ local function registerSettingsUI()
 			var = "ufProfileScope",
 			text = L["ProfileScope"] or (L["Apply to"] or "Apply to"),
 			list = scopeOptions,
+			order = scopeOrder,
 			get = getScope,
 			set = setScope,
 			default = "ALL",

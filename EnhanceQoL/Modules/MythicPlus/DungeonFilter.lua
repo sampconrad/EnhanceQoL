@@ -328,6 +328,7 @@ function addon.MythicPlus.functions.addDungeonFilter()
 			end
 		end
 	end
+	if addon.functions.isRestrictedContent(true) then return end
 	-- Force one refresh so our filter runs once immediately.
 	RefreshVisibleEntries()
 end

@@ -21,20 +21,28 @@ local PREVIEW_PADDING_Y = 10
 
 local function defaultFontFace() return (addon.variables and addon.variables.defaultFont) or STANDARD_TEXT_FONT end
 
-CombatText.defaults = CombatText.defaults or {
-	duration = 3,
-	fontSize = 32,
-	fontFace = defaultFontFace(),
-	color = { r = 1, g = 1, b = 1, a = 1 },
-}
+CombatText.defaults = CombatText.defaults
+	or {
+		duration = 3,
+		fontSize = 32,
+		fontFace = defaultFontFace(),
+		color = { r = 1, g = 1, b = 1, a = 1 },
+		enterColor = { r = 1, g = 1, b = 1, a = 1 },
+		leaveColor = { r = 1, g = 1, b = 1, a = 1 },
+	}
 
 local defaults = CombatText.defaults
+defaults.enterColor = defaults.enterColor or defaults.color or { r = 1, g = 1, b = 1, a = 1 }
+defaults.leaveColor = defaults.leaveColor or defaults.color or defaults.enterColor or { r = 1, g = 1, b = 1, a = 1 }
+defaults.color = defaults.color or defaults.enterColor
 
 local DB_ENABLED = "combatTextEnabled"
 local DB_DURATION = "combatTextDuration"
 local DB_FONT = "combatTextFont"
 local DB_FONT_SIZE = "combatTextFontSize"
 local DB_COLOR = "combatTextColor"
+local DB_ENTER_COLOR = "combatTextEnterColor"
+local DB_LEAVE_COLOR = "combatTextLeaveColor"
 
 local function getValue(key, fallback)
 	if not addon.db then return fallback end
@@ -50,7 +58,7 @@ local function clamp(value, minValue, maxValue)
 	return value
 end
 
-local function normalizeColor(value)
+local function normalizeColor(value, fallback)
 	if type(value) == "table" then
 		local r = value.r or value[1] or 1
 		local g = value.g or value[2] or 1
@@ -60,7 +68,7 @@ local function normalizeColor(value)
 	elseif type(value) == "number" then
 		return value, value, value
 	end
-	local d = defaults.color or {}
+	local d = fallback or defaults.color or {}
 	return d.r or 1, d.g or 1, d.b or 1, d.a
 end
 
@@ -92,9 +100,7 @@ local function combatLabel() return _G.COMBAT or "Combat" end
 local function getCombatText(inCombat)
 	local key = inCombat and "combatTextEnter" or "combatTextLeave"
 	local text = L[key]
-	if type(text) == "string" and text ~= "" and text ~= key then
-		return text
-	end
+	if type(text) == "string" and text ~= "" and text ~= key then return text end
 	return (inCombat and "+" or "-") .. combatLabel()
 end
 
@@ -108,15 +114,29 @@ function CombatText:GetFontFace()
 	return face
 end
 
-function CombatText:GetColor() return normalizeColor(getValue(DB_COLOR, defaults.color)) end
+function CombatText:GetEnterColor()
+	local fallback = defaults.enterColor or defaults.color
+	local value = getValue(DB_ENTER_COLOR, getValue(DB_COLOR, fallback))
+	return normalizeColor(value, fallback)
+end
 
-function CombatText:ApplyStyle()
+function CombatText:GetLeaveColor()
+	local fallback = defaults.leaveColor or defaults.enterColor or defaults.color
+	local value = getValue(DB_LEAVE_COLOR, getValue(DB_COLOR, fallback))
+	return normalizeColor(value, fallback)
+end
+
+function CombatText:GetColor() return self:GetEnterColor() end
+
+function CombatText:ApplyStyle(r, g, b, a)
 	if not self.frame or not self.frame.text then return end
 	local font = self:GetFontFace()
 	local size = self:GetFontSize()
 	local ok = self.frame.text:SetFont(font, size, "OUTLINE")
 	if not ok then self.frame.text:SetFont(defaultFontFace(), size, "OUTLINE") end
-	local r, g, b, a = self:GetColor()
+	if r == nil or g == nil or b == nil then
+		r, g, b, a = self:GetEnterColor()
+	end
 	self.frame.text:SetTextColor(r, g, b, a or 1)
 end
 
@@ -170,11 +190,11 @@ function CombatText:SetText(text)
 	self:UpdateFrameSize()
 end
 
-function CombatText:ShowText(text)
+function CombatText:ShowText(text, r, g, b, a)
 	local frame = self:EnsureFrame()
 	if not frame then return end
 	self:CancelHideTimer()
-	self:ApplyStyle()
+	self:ApplyStyle(r, g, b, a)
 	self:SetText(text)
 	frame:Show()
 	local duration = self:GetDuration()
@@ -192,7 +212,13 @@ end
 
 function CombatText:ShowCombatText(inCombat)
 	if self.previewing then return end
-	self:ShowText(getCombatText(inCombat))
+	local r, g, b, a
+	if inCombat then
+		r, g, b, a = self:GetEnterColor()
+	else
+		r, g, b, a = self:GetLeaveColor()
+	end
+	self:ShowText(getCombatText(inCombat), r, g, b, a)
 end
 
 function CombatText:ShowEditModeHint(show)
@@ -201,7 +227,8 @@ function CombatText:ShowEditModeHint(show)
 		self.previewing = true
 		self:CancelHideTimer()
 		if self.frame.bg then self.frame.bg:Show() end
-		self:ApplyStyle()
+		local r, g, b, a = self:GetEnterColor()
+		self:ApplyStyle(r, g, b, a)
 		self:SetText(getCombatText(true))
 		self.frame:Show()
 	else
@@ -242,12 +269,15 @@ function CombatText:ApplyLayoutData(data)
 	local duration = clamp(data.duration or defaults.duration, 0.5, 10)
 	local fontSize = clamp(data.fontSize or defaults.fontSize, 8, 96)
 	local fontFace = normalizeFontFace(data.fontFace) or defaultFontFace()
-	local r, g, b, a = normalizeColor(data.color or defaults.color)
+	local enterR, enterG, enterB, enterA = normalizeColor(data.enterColor or data.color or defaults.enterColor, defaults.enterColor)
+	local leaveR, leaveG, leaveB, leaveA = normalizeColor(data.leaveColor or data.enterColor or data.color or defaults.leaveColor, defaults.leaveColor)
 
 	addon.db[DB_DURATION] = duration
 	addon.db[DB_FONT_SIZE] = fontSize
 	addon.db[DB_FONT] = fontFace
-	addon.db[DB_COLOR] = { r = r, g = g, b = b, a = a }
+	addon.db[DB_ENTER_COLOR] = { r = enterR, g = enterG, b = enterB, a = enterA }
+	addon.db[DB_LEAVE_COLOR] = { r = leaveR, g = leaveG, b = leaveB, a = leaveA }
+	addon.db[DB_COLOR] = { r = enterR, g = enterG, b = enterB, a = enterA }
 
 	self:ApplyStyle()
 	self:UpdateFrameSize()
@@ -268,10 +298,21 @@ local function applySetting(field, value)
 		local fontFace = normalizeFontFace(value) or defaultFontFace()
 		addon.db[DB_FONT] = fontFace
 		value = fontFace
-	elseif field == "color" then
-		local r, g, b, a = normalizeColor(value)
+	elseif field == "enterColor" then
+		local r, g, b, a = normalizeColor(value, defaults.enterColor)
+		addon.db[DB_ENTER_COLOR] = { r = r, g = g, b = b, a = a }
 		addon.db[DB_COLOR] = { r = r, g = g, b = b, a = a }
-		value = addon.db[DB_COLOR]
+		value = addon.db[DB_ENTER_COLOR]
+	elseif field == "leaveColor" then
+		local r, g, b, a = normalizeColor(value, defaults.leaveColor)
+		addon.db[DB_LEAVE_COLOR] = { r = r, g = g, b = b, a = a }
+		value = addon.db[DB_LEAVE_COLOR]
+	elseif field == "color" then
+		local r, g, b, a = normalizeColor(value, defaults.enterColor)
+		addon.db[DB_COLOR] = { r = r, g = g, b = b, a = a }
+		addon.db[DB_ENTER_COLOR] = { r = r, g = g, b = b, a = a }
+		addon.db[DB_LEAVE_COLOR] = { r = r, g = g, b = b, a = a }
+		value = addon.db[DB_ENTER_COLOR]
 	end
 
 	if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_ID, field, value, nil, true) end
@@ -325,16 +366,28 @@ function CombatText:RegisterEditMode()
 				end,
 			},
 			{
-				name = L["combatTextColor"] or "Text color",
+				name = L["combatTextEnterColor"] or "Entering combat color",
 				kind = SettingType.Color,
-				field = "color",
-				default = defaults.color,
+				field = "enterColor",
+				default = defaults.enterColor,
 				hasOpacity = true,
 				get = function()
-					local r, g, b, a = CombatText:GetColor()
+					local r, g, b, a = CombatText:GetEnterColor()
 					return { r = r, g = g, b = b, a = a }
 				end,
-				set = function(_, value) applySetting("color", value) end,
+				set = function(_, value) applySetting("enterColor", value) end,
+			},
+			{
+				name = L["combatTextLeaveColor"] or "Leaving combat color",
+				kind = SettingType.Color,
+				field = "leaveColor",
+				default = defaults.leaveColor,
+				hasOpacity = true,
+				get = function()
+					local r, g, b, a = CombatText:GetLeaveColor()
+					return { r = r, g = g, b = b, a = a }
+				end,
+				set = function(_, value) applySetting("leaveColor", value) end,
 			},
 		}
 	end
@@ -350,8 +403,12 @@ function CombatText:RegisterEditMode()
 			duration = self:GetDuration(),
 			fontSize = self:GetFontSize(),
 			fontFace = self:GetFontFace(),
-			color = (function()
-				local r, g, b, a = self:GetColor()
+			enterColor = (function()
+				local r, g, b, a = self:GetEnterColor()
+				return { r = r, g = g, b = b, a = a }
+			end)(),
+			leaveColor = (function()
+				local r, g, b, a = self:GetLeaveColor()
 				return { r = r, g = g, b = b, a = a }
 			end)(),
 		},

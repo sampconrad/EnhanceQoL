@@ -15,9 +15,11 @@ local H = addon.Aura.UFHelper
 addon.variables = addon.variables or {}
 
 local LSM = LibStub("LibSharedMedia-3.0")
-local CASTING_BAR_TYPES = _G.CASTING_BAR_TYPES
 local EnumPowerType = Enum and Enum.PowerType
 local BLIZZARD_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
+local BLIZZARD_CAST_STANDARD_TEX = "ui-castingbar-full-standard"
+local BLIZZARD_CAST_INTERRUPTED_TEX = "ui-castingbar-interrupted"
+local BLIZZARD_CAST_ICON_FALLBACK_TEX = 134400 -- Interface\\Icons\\INV_Misc_QuestionMark
 local DEFAULT_AURA_BORDER_TEX = "Interface\\Buttons\\UI-Debuff-Overlays"
 local DEFAULT_AURA_BORDER_COORDS = { 0.296875, 0.5703125, 0, 0.515625 }
 local CombatFeedback_Initialize = _G.CombatFeedback_Initialize
@@ -131,7 +133,27 @@ function H.getNPCSelectionKey(unit)
 	if not npcColorUnits[unit] then return nil end
 	if UnitIsPlayer and UnitIsPlayer(unit) then return nil end
 	local t = UnitSelectionType and UnitSelectionType(unit)
-	return selectionKeyByType[t]
+	if issecretvalue and issecretvalue(t) then t = nil end
+	local key = selectionKeyByType[t]
+
+	local reaction = UnitReaction and UnitReaction(unit, "player")
+	if issecretvalue and issecretvalue(reaction) then reaction = nil end
+	if reaction then
+		if reaction <= 3 then return "enemy" end
+		if reaction == 4 then return "neutral" end
+		return "friendly"
+	end
+
+	if key == "friendly" and UnitCanAttack and UnitCanAttack("player", unit) then
+		if UnitIsEnemy and UnitIsEnemy("player", unit) then return "enemy" end
+		return "neutral"
+	end
+
+	if key then return key end
+	if UnitIsEnemy and UnitIsEnemy("player", unit) then return "enemy" end
+	if UnitCanAttack and UnitCanAttack("player", unit) then return "neutral" end
+	if UnitIsFriend and UnitIsFriend("player", unit) then return "friendly" end
+	return nil
 end
 
 function H.getNPCOverrideColor(unit)
@@ -156,6 +178,7 @@ end
 
 local nameWidthCache = {}
 local DROP_SHADOW_FLAG = "DROPSHADOW"
+local STRONG_DROP_SHADOW_FLAG = "STRONGDROPSHADOW"
 
 local function utf8Iter(str) return (str or ""):gmatch("[%z\1-\127\194-\244][\128-\191]*") end
 
@@ -194,11 +217,15 @@ end
 
 local function normalizeFontOutline(outline)
 	if outline == nil then return "OUTLINE" end
-	if outline == "" or outline == "NONE" or outline == DROP_SHADOW_FLAG then return nil end
+	if outline == "" or outline == "NONE" or outline == DROP_SHADOW_FLAG or outline == STRONG_DROP_SHADOW_FLAG then return nil end
 	return outline
 end
 
-local function wantsDropShadow(outline) return outline == DROP_SHADOW_FLAG end
+local function getDropShadowStrength(outline)
+	if outline == STRONG_DROP_SHADOW_FLAG then return "strong" end
+	if outline == DROP_SHADOW_FLAG then return "normal" end
+	return nil
+end
 
 function H.clamp(value, minV, maxV)
 	if value < minV then return minV end
@@ -246,11 +273,19 @@ function H.setupAbsorbClamp(health, absorb)
 		local clip = CreateFrame("Frame", nil, health)
 		clip:SetAllPoints(health)
 		clip:SetClipsChildren(true)
-		clip:SetFrameLevel(health:GetFrameLevel() + 5)
 		health.absorbClip = clip
 	end
 
 	local clip = health.absorbClip
+	clip:SetAllPoints(health)
+	if clip.SetFrameStrata and health.GetFrameStrata then
+		local healthStrata = health:GetFrameStrata()
+		if healthStrata and clip:GetFrameStrata() ~= healthStrata then clip:SetFrameStrata(healthStrata) end
+	end
+	if clip.SetFrameLevel and health.GetFrameLevel then
+		local desiredLevel = (health:GetFrameLevel() or 0) + 1
+		if clip:GetFrameLevel() ~= desiredLevel then clip:SetFrameLevel(desiredLevel) end
+	end
 
 	absorb:SetParent(clip)
 	absorb:ClearAllPoints()
@@ -299,11 +334,18 @@ function H.setupAbsorbOverShift(healthBar, overAbsorbBar, height, maxHeight)
 	if not healthBar._healthFillClip then
 		local clip = CreateFrame("Frame", nil, healthBar)
 		clip:SetClipsChildren(true)
-		clip:SetFrameLevel(healthBar:GetFrameLevel() + 6)
 		healthBar._healthFillClip = clip
 	end
 
 	local clip = healthBar._healthFillClip
+	if clip.SetFrameStrata and healthBar.GetFrameStrata then
+		local healthStrata = healthBar:GetFrameStrata()
+		if healthStrata and clip:GetFrameStrata() ~= healthStrata then clip:SetFrameStrata(healthStrata) end
+	end
+	if clip.SetFrameLevel and healthBar.GetFrameLevel then
+		local desiredLevel = (healthBar:GetFrameLevel() or 0) + 1
+		if clip:GetFrameLevel() ~= desiredLevel then clip:SetFrameLevel(desiredLevel) end
+	end
 	clip:ClearAllPoints()
 
 	if healthBar:GetReverseFill() then
@@ -385,7 +427,11 @@ function H.applyFont(fs, fontPath, size, outline)
 	if size == nil or size <= 0 then size = 1 end
 	local ok = fs.SetFont and fs:SetFont(fontFile, size or 14, flags)
 	if not ok and fontPath and fontPath ~= "" then fs:SetFont(H.getFont(nil), size or 14, flags) end
-	if wantsDropShadow(outline) then
+	local shadowStrength = getDropShadowStrength(outline)
+	if shadowStrength == "strong" then
+		fs:SetShadowColor(0, 0, 0, 0.85)
+		fs:SetShadowOffset(1, -1)
+	elseif shadowStrength == "normal" then
 		fs:SetShadowColor(0, 0, 0, 0.5)
 		fs:SetShadowOffset(0.5, -0.5)
 	else
@@ -1038,15 +1084,20 @@ end
 
 function H.resolveCastTexture(key)
 	if key == "SOLID" then return "Interface\\Buttons\\WHITE8x8" end
-	if not key or key == "DEFAULT" then
-		if CASTING_BAR_TYPES and CASTING_BAR_TYPES.standard and CASTING_BAR_TYPES.standard.full then return CASTING_BAR_TYPES.standard.full end
-		return BLIZZARD_TEX
-	end
+	if not key or key == "DEFAULT" then return BLIZZARD_CAST_STANDARD_TEX or BLIZZARD_TEX end
 	if LSM then
 		local tex = LSM:Fetch("statusbar", key)
 		if tex then return tex end
 	end
 	return key
+end
+
+function H.resolveCastInterruptTexture() return BLIZZARD_CAST_INTERRUPTED_TEX end
+
+function H.resolveCastIconTexture(texture)
+	if issecretvalue and issecretvalue(texture) then return texture end
+	if texture == nil then return BLIZZARD_CAST_ICON_FALLBACK_TEX end
+	return texture
 end
 
 local function normalizePowerToken(powerToken)
@@ -1162,6 +1213,129 @@ function H.applyStatusBarReverseFill(bar, reverse)
 end
 
 function H.shouldUseDefaultCastArt(st) return st and st.castUseDefaultArt == true end
+
+local function clearCastbarGradientState(bar)
+	if not bar then return end
+	bar._eqolGradientEnabled = nil
+	bar._eqolGradientTex = nil
+	bar._eqolGradDir = nil
+	bar._eqolGradSR = nil
+	bar._eqolGradSG = nil
+	bar._eqolGradSB = nil
+	bar._eqolGradSA = nil
+	bar._eqolGradER = nil
+	bar._eqolGradEG = nil
+	bar._eqolGradEB = nil
+	bar._eqolGradEA = nil
+end
+
+local function normalizeGradientColor(color)
+	if type(color) ~= "table" then return 1, 1, 1, 1 end
+	if color.r ~= nil then return color.r or 1, color.g or 1, color.b or 1, color.a or 1 end
+	return color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1
+end
+
+local function normalizeCastbarGradientMode(value)
+	if type(value) == "string" and value:upper() == "BAR_END" then return "BAR_END" end
+	return "CASTBAR"
+end
+
+local function resolveCastbarGradientProgress(bar, progressOverride)
+	local progress = tonumber(progressOverride)
+	if not progress and bar and bar.GetMinMaxValues and bar.GetValue then
+		local minValue, maxValue = bar:GetMinMaxValues()
+		local value = bar:GetValue()
+		if type(value) == "number" and type(minValue) == "number" and type(maxValue) == "number" then
+			local range = maxValue - minValue
+			if range > 0 then progress = (value - minValue) / range end
+		end
+	end
+	if type(progress) ~= "number" then return nil end
+	return H.clamp(progress, 0, 1)
+end
+
+local function applyCastbarGradient(bar, ccfg, baseR, baseG, baseB, baseA, progressOverride)
+	if not bar or not ccfg or ccfg.useGradient ~= true then return false end
+	local tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+	if not tex or not tex.SetGradient then return false end
+
+	local sr, sg, sb, sa = normalizeGradientColor(ccfg.gradientStartColor)
+	local er, eg, eb, ea = normalizeGradientColor(ccfg.gradientEndColor)
+	local br, bg, bb, ba = baseR or 1, baseG or 1, baseB or 1, baseA or 1
+	sr, sg, sb, sa = br * sr, bg * sg, bb * sb, ba * sa
+	er, eg, eb, ea = br * er, bg * eg, bb * eb, ba * ea
+
+	if normalizeCastbarGradientMode(ccfg.gradientMode) == "BAR_END" then
+		local progress = resolveCastbarGradientProgress(bar, progressOverride)
+		if progress then
+			er = sr + (er - sr) * progress
+			eg = sg + (eg - sg) * progress
+			eb = sb + (eb - sb) * progress
+			ea = sa + (ea - sa) * progress
+		end
+	end
+
+	local direction = ccfg.gradientDirection or "HORIZONTAL"
+	if type(direction) == "string" then direction = direction:upper() end
+	if direction ~= "VERTICAL" then direction = "HORIZONTAL" end
+
+	if
+		bar._eqolGradientEnabled
+		and bar._eqolGradientTex == tex
+		and bar._eqolGradDir == direction
+		and bar._eqolGradSR == sr
+		and bar._eqolGradSG == sg
+		and bar._eqolGradSB == sb
+		and bar._eqolGradSA == sa
+		and bar._eqolGradER == er
+		and bar._eqolGradEG == eg
+		and bar._eqolGradEB == eb
+		and bar._eqolGradEA == ea
+	then
+		return true
+	end
+
+	tex:SetGradient(direction, CreateColor(sr, sg, sb, sa), CreateColor(er, eg, eb, ea))
+	bar._eqolGradientEnabled = true
+	bar._eqolGradientTex = tex
+	bar._eqolGradDir = direction
+	bar._eqolGradSR, bar._eqolGradSG, bar._eqolGradSB, bar._eqolGradSA = sr, sg, sb, sa
+	bar._eqolGradER, bar._eqolGradEG, bar._eqolGradEB, bar._eqolGradEA = er, eg, eb, ea
+	return true
+end
+
+function H.SetCastbarColorWithGradient(bar, ccfg, r, g, b, a, progressOverride)
+	if not bar then return end
+	local br, bg, bb, ba = r or 1, g or 1, b or 1, a or 1
+	local lastColor = bar._eqolLastColor
+	if not lastColor or lastColor[1] ~= br or lastColor[2] ~= bg or lastColor[3] ~= bb or lastColor[4] ~= ba then
+		bar:SetStatusBarColor(br, bg, bb, ba)
+		bar._eqolLastColor = bar._eqolLastColor or {}
+		bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4] = br, bg, bb, ba
+	end
+	if ccfg and ccfg.useGradient == true then
+		if not applyCastbarGradient(bar, ccfg, br, bg, bb, ba, progressOverride) then clearCastbarGradientState(bar) end
+	elseif bar._eqolGradientEnabled then
+		clearCastbarGradientState(bar)
+	end
+end
+
+function H.RefreshCastbarGradient(bar, ccfg, r, g, b, a, progressOverride)
+	if not bar then return end
+	local br, bg, bb, ba = r, g, b, a
+	if br == nil then
+		if bar._eqolLastColor then
+			br, bg, bb, ba = bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4]
+		elseif bar.GetStatusBarColor then
+			br, bg, bb, ba = bar:GetStatusBarColor()
+		end
+	end
+	if ccfg and ccfg.useGradient == true then
+		if not applyCastbarGradient(bar, ccfg, br or 1, bg or 1, bb or 1, ba or 1, progressOverride) then clearCastbarGradientState(bar) end
+	elseif bar._eqolGradientEnabled then
+		clearCastbarGradientState(bar)
+	end
+end
 
 local CAST_SPARK_WIDTH = 8
 local CAST_SPARK_HEIGHT = 20
@@ -2089,7 +2263,7 @@ function H.truncateTextToWidth(fontPath, fontSize, fontOutline, text, maxWidth)
 	local measure = nameWidthCache._measure
 	if not measure then return text end
 	local size = fontSize or 14
-	local outline = fontOutline or "OUTLINE"
+	local outline = normalizeFontOutline(fontOutline)
 	local ok = measure.SetFont and measure:SetFont(H.getFont(fontPath), size, outline)
 	if ok == false then measure:SetFont(H.getFont(nil), size, outline) end
 	measure:SetText(text)

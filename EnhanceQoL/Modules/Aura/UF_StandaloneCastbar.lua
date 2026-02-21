@@ -22,7 +22,7 @@ local UNIT = "player"
 local EDITMODE_FRAME_ID = "EQOL_Castbar"
 local EDITMODE_SETTINGS_MAX_HEIGHT = 900
 local MIN_CASTBAR_WIDTH = 50
-local CASTBAR_CONFIG_VERSION = 1
+local CASTBAR_CONFIG_VERSION = 2
 local DEFAULT_NOT_INTERRUPTIBLE_COLOR = { 204 / 255, 204 / 255, 204 / 255, 1 }
 local RELATIVE_ANCHOR_FRAME_MAP = {
 	PlayerFrame = { uf = "EQOLUFPlayerFrame", blizz = "PlayerFrame", ufKey = "player" },
@@ -49,6 +49,11 @@ local VALID_ANCHOR_POINTS = {
 	BOTTOM = true,
 	BOTTOMRIGHT = true,
 }
+local STRATA_ORDER = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
+local STRATA_INDEX = {}
+for i = 1, #STRATA_ORDER do
+	STRATA_INDEX[STRATA_ORDER[i]] = i
+end
 
 local state = Castbar._state or {}
 Castbar._state = state
@@ -83,6 +88,11 @@ local fallbackCastDefaults = {
 	texture = "DEFAULT",
 	color = { 0.9, 0.7, 0.2, 1 },
 	useClassColor = false,
+	useGradient = false,
+	gradientStartColor = { 1, 1, 1, 1 },
+	gradientEndColor = { 1, 1, 1, 1 },
+	gradientDirection = "HORIZONTAL",
+	gradientMode = "CASTBAR",
 	notInterruptibleColor = DEFAULT_NOT_INTERRUPTIBLE_COLOR,
 	showInterruptFeedback = true,
 }
@@ -101,6 +111,13 @@ local function mergeDefaults(target, defaults)
 			mergeDefaults(target[key], value)
 		end
 	end
+end
+
+local function normalizeStrataToken(value)
+	if type(value) ~= "string" or value == "" then return nil end
+	local token = string.upper(value)
+	if STRATA_INDEX[token] then return token end
+	return nil
 end
 
 local function normalizeAnchorPoint(value, fallback)
@@ -301,12 +318,34 @@ local function getEffectiveScale(frame)
 	return 1
 end
 
+local function getAnchorMatchHorizontalOutsets(castCfg, castDefaults)
+	local border = castCfg.border
+	if border == nil then border = castDefaults.border end
+	if type(border) ~= "table" or border.enabled == false then return 0, 0 end
+
+	local offset = tonumber(border.offset)
+	if offset == nil then
+		local defBorder = castDefaults.border
+		offset = type(defBorder) == "table" and tonumber(defBorder.offset) or nil
+	end
+	if offset == nil then
+		local edgeSize = tonumber(border.edgeSize)
+		if edgeSize == nil then
+			local defBorder = castDefaults.border
+			edgeSize = type(defBorder) == "table" and tonumber(defBorder.edgeSize) or nil
+		end
+		offset = edgeSize or 1
+	end
+	offset = math.max(0, tonumber(offset) or 0)
+	return offset, offset
+end
+
 local function computeBarWidthForAnchorMatch(targetWidth, castCfg, castDefaults, barHeight)
 	local desiredTotal = tonumber(targetWidth) or MIN_CASTBAR_WIDTH
 	if desiredTotal < MIN_CASTBAR_WIDTH then desiredTotal = MIN_CASTBAR_WIDTH end
 
-	local barLeftOutset, barRightOutset = getBarHorizontalOutsets(castCfg, castDefaults)
-	local minX = -barLeftOutset
+	local leftOutset, rightOutset = getAnchorMatchHorizontalOutsets(castCfg, castDefaults)
+	local minX = -leftOutset
 	local iconRight
 	local showIcon, iconSize, iconOffsetX = getIconLayoutInfo(castCfg, castDefaults, barHeight)
 	if showIcon then
@@ -315,8 +354,8 @@ local function computeBarWidthForAnchorMatch(targetWidth, castCfg, castDefaults,
 		iconRight = iconOffsetX
 	end
 
-	local barWidth = desiredTotal + minX - barRightOutset
-	if iconRight and iconRight > (barWidth + barRightOutset) then barWidth = iconRight - barRightOutset end
+	local barWidth = desiredTotal + minX - rightOutset
+	if iconRight and iconRight > (barWidth + rightOutset) then barWidth = iconRight - rightOutset end
 	if barWidth < MIN_CASTBAR_WIDTH then barWidth = MIN_CASTBAR_WIDTH end
 	return barWidth
 end
@@ -324,7 +363,16 @@ end
 local function computeAnchorMatchXAdjustment(castCfg, castDefaults, barHeight, barWidth, point)
 	local width = tonumber(barWidth) or 0
 	if width <= 0 then return 0 end
-	local minX, maxX = getVisualHorizontalBounds(castCfg, castDefaults, barHeight, width)
+	local leftOutset, rightOutset = getAnchorMatchHorizontalOutsets(castCfg, castDefaults)
+	local minX = -leftOutset
+	local maxX = width + rightOutset
+	local showIcon, iconSize, iconOffsetX = getIconLayoutInfo(castCfg, castDefaults, barHeight)
+	if showIcon then
+		local iconLeft = iconOffsetX - iconSize
+		local iconRight = iconOffsetX
+		if iconLeft < minX then minX = iconLeft end
+		if iconRight > maxX then maxX = iconRight end
+	end
 	local visualWidth = maxX - minX
 	local anchorFactor = getHorizontalAnchorFactor(point)
 	-- Shift bar anchor so the configured anchor point targets the visual bounds,
@@ -616,6 +664,133 @@ end
 
 function Castbar.GetDefaults() return copyValue(getCastDefaults() or fallbackCastDefaults) end
 
+local function normalizeGradientColor(value)
+	if type(value) == "table" then
+		if value.r ~= nil then return value.r or 1, value.g or 1, value.b or 1, value.a or 1 end
+		return value[1] or 1, value[2] or 1, value[3] or 1, value[4] or 1
+	end
+	return 1, 1, 1, 1
+end
+
+local function resolveCastbarGradientColors(castCfg, baseR, baseG, baseB, baseA)
+	local sr, sg, sb, sa = normalizeGradientColor(castCfg and castCfg.gradientStartColor)
+	local er, eg, eb, ea = normalizeGradientColor(castCfg and castCfg.gradientEndColor)
+	local br, bg, bb, ba = baseR or 1, baseG or 1, baseB or 1, baseA or 1
+	return br * sr, bg * sg, bb * sb, ba * sa, br * er, bg * eg, bb * eb, ba * ea
+end
+
+local function normalizeCastbarGradientMode(value)
+	if type(value) == "string" and value:upper() == "BAR_END" then return "BAR_END" end
+	return "CASTBAR"
+end
+
+local function clamp01(value)
+	if value < 0 then return 0 end
+	if value > 1 then return 1 end
+	return value
+end
+
+local function resolveCastbarGradientProgress(bar, progressOverride)
+	local progress = tonumber(progressOverride)
+	if not progress and bar and bar.GetMinMaxValues and bar.GetValue then
+		local minValue, maxValue = bar:GetMinMaxValues()
+		local value = bar:GetValue()
+		if type(value) == "number" and type(minValue) == "number" and type(maxValue) == "number" then
+			local range = maxValue - minValue
+			if range > 0 then progress = (value - minValue) / range end
+		end
+	end
+	if type(progress) ~= "number" then return nil end
+	return clamp01(progress)
+end
+
+local function clearCastbarGradientState(bar)
+	if not bar then return end
+	bar._eqolGradientEnabled = nil
+	bar._eqolGradientTex = nil
+	bar._eqolGradDir = nil
+	bar._eqolGradSR = nil
+	bar._eqolGradSG = nil
+	bar._eqolGradSB = nil
+	bar._eqolGradSA = nil
+	bar._eqolGradER = nil
+	bar._eqolGradEG = nil
+	bar._eqolGradEB = nil
+	bar._eqolGradEA = nil
+end
+
+local function applyCastbarGradient(bar, castCfg, baseR, baseG, baseB, baseA, progressOverride)
+	if not bar or not castCfg or castCfg.useGradient ~= true then return false end
+	local tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+	if not tex or not tex.SetGradient then return false end
+	local sr, sg, sb, sa, er, eg, eb, ea = resolveCastbarGradientColors(castCfg, baseR, baseG, baseB, baseA)
+	if normalizeCastbarGradientMode(castCfg.gradientMode) == "BAR_END" then
+		local progress = resolveCastbarGradientProgress(bar, progressOverride)
+		if progress then
+			er = sr + (er - sr) * progress
+			eg = sg + (eg - sg) * progress
+			eb = sb + (eb - sb) * progress
+			ea = sa + (ea - sa) * progress
+		end
+	end
+	local direction = castCfg.gradientDirection or "HORIZONTAL"
+	if type(direction) == "string" then direction = direction:upper() end
+	if direction ~= "VERTICAL" then direction = "HORIZONTAL" end
+	if
+		bar._eqolGradientEnabled
+		and bar._eqolGradientTex == tex
+		and bar._eqolGradDir == direction
+		and bar._eqolGradSR == sr
+		and bar._eqolGradSG == sg
+		and bar._eqolGradSB == sb
+		and bar._eqolGradSA == sa
+		and bar._eqolGradER == er
+		and bar._eqolGradEG == eg
+		and bar._eqolGradEB == eb
+		and bar._eqolGradEA == ea
+	then
+		return true
+	end
+	tex:SetGradient(direction, CreateColor(sr, sg, sb, sa), CreateColor(er, eg, eb, ea))
+	bar._eqolGradientEnabled = true
+	bar._eqolGradientTex = tex
+	bar._eqolGradDir = direction
+	bar._eqolGradSR, bar._eqolGradSG, bar._eqolGradSB, bar._eqolGradSA = sr, sg, sb, sa
+	bar._eqolGradER, bar._eqolGradEG, bar._eqolGradEB, bar._eqolGradEA = er, eg, eb, ea
+	return true
+end
+
+local function setCastbarColorWithGradient(bar, castCfg, r, g, b, a, progressOverride)
+	if not bar then return end
+	local br, bg, bb, ba = r or 1, g or 1, b or 1, a or 1
+	local lastColor = bar._eqolLastColor
+	if not lastColor or lastColor[1] ~= br or lastColor[2] ~= bg or lastColor[3] ~= bb or lastColor[4] ~= ba then bar:SetStatusBarColor(br, bg, bb, ba) end
+	bar._eqolLastColor = bar._eqolLastColor or {}
+	bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4] = br, bg, bb, ba
+	if castCfg and castCfg.useGradient == true then
+		if not applyCastbarGradient(bar, castCfg, br, bg, bb, ba, progressOverride) then clearCastbarGradientState(bar) end
+	elseif bar._eqolGradientEnabled then
+		clearCastbarGradientState(bar)
+	end
+end
+
+local function refreshCastbarGradient(bar, castCfg, r, g, b, a, progressOverride)
+	if not bar then return end
+	local br, bg, bb, ba = r, g, b, a
+	if br == nil then
+		if bar._eqolLastColor then
+			br, bg, bb, ba = bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4]
+		elseif bar.GetStatusBarColor then
+			br, bg, bb, ba = bar:GetStatusBarColor()
+		end
+	end
+	if castCfg and castCfg.useGradient == true then
+		if not applyCastbarGradient(bar, castCfg, br or 1, bg or 1, bb or 1, ba or 1, progressOverride) then clearCastbarGradientState(bar) end
+	elseif bar._eqolGradientEnabled then
+		clearCastbarGradientState(bar)
+	end
+end
+
 local function getClassColor(class)
 	if not class then return nil end
 	local fallback = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[class]) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[class])
@@ -660,6 +835,28 @@ local function applyCastLayout(castCfg, castDefaults)
 	local width = resolveCastbarWidth(castCfg, castDefaults, height)
 	if width < MIN_CASTBAR_WIDTH then width = MIN_CASTBAR_WIDTH end
 	state.castBar:SetSize(width, height)
+	local castStrata = normalizeStrataToken(castCfg.strata) or normalizeStrataToken(castDefaults.strata) or ((state.frame and state.frame.GetFrameStrata and state.frame:GetFrameStrata()) or "MEDIUM")
+	local castLevelOffset = tonumber(castCfg.frameLevelOffset)
+	if castLevelOffset == nil then castLevelOffset = tonumber(castDefaults.frameLevelOffset) end
+	if castLevelOffset == nil then castLevelOffset = 1 end
+	local baseFrameLevel = (state.frame and state.frame.GetFrameLevel and state.frame:GetFrameLevel()) or 0
+	local castFrameLevel = math.max(0, baseFrameLevel + castLevelOffset)
+	if state.castBar.GetFrameStrata and state.castBar.SetFrameStrata and state.castBar:GetFrameStrata() ~= castStrata then state.castBar:SetFrameStrata(castStrata) end
+	if state.castBar.GetFrameLevel and state.castBar.SetFrameLevel and state.castBar:GetFrameLevel() ~= castFrameLevel then state.castBar:SetFrameLevel(castFrameLevel) end
+	if state.castTextLayer then
+		if state.castTextLayer.GetFrameStrata and state.castTextLayer.SetFrameStrata and state.castTextLayer:GetFrameStrata() ~= castStrata then state.castTextLayer:SetFrameStrata(castStrata) end
+		if state.castTextLayer.GetFrameLevel and state.castTextLayer.SetFrameLevel then
+			local castTextLevel = castFrameLevel + 5
+			if state.castTextLayer:GetFrameLevel() ~= castTextLevel then state.castTextLayer:SetFrameLevel(castTextLevel) end
+		end
+	end
+	if state.castIconLayer then
+		if state.castIconLayer.GetFrameStrata and state.castIconLayer.SetFrameStrata and state.castIconLayer:GetFrameStrata() ~= castStrata then state.castIconLayer:SetFrameStrata(castStrata) end
+		if state.castIconLayer.GetFrameLevel and state.castIconLayer.SetFrameLevel then
+			local castIconLevel = castFrameLevel + 4
+			if state.castIconLayer:GetFrameLevel() ~= castIconLevel then state.castIconLayer:SetFrameLevel(castIconLevel) end
+		end
+	end
 
 	local anchor = ensureAnchorConfig(castCfg, castDefaults)
 	if (anchor.relativeFrame or "UIParent") ~= "UIParent" then ensureRelativeFrameHooks(anchor.relativeFrame) end
@@ -777,6 +974,7 @@ end
 
 local function configureCastStatic(castCfg, castDefaults)
 	if not state.castBar or not state.castInfo then return end
+	local isEmpoweredDefault = state.castInfo.isEmpowered and state.castUseDefaultArt == true
 	local clr = castCfg.color or castDefaults.color or { 0.9, 0.7, 0.2, 1 }
 	local useClassColor = castCfg.useClassColor
 	if useClassColor == nil then useClassColor = castDefaults.useClassColor end
@@ -785,17 +983,22 @@ local function configureCastStatic(castCfg, castDefaults)
 		local cr, cg, cb, ca = getClassColor(class)
 		if cr then clr = { cr, cg, cb, ca or 1 } end
 	end
-	if state.castInfo.notInterruptible then
+	if isEmpoweredDefault then
+		state.castBar:SetStatusBarDesaturated(false)
+		setCastbarColorWithGradient(state.castBar, nil, 0, 0, 0, 0)
+	elseif state.castInfo.notInterruptible then
 		clr = castCfg.notInterruptibleColor or castDefaults.notInterruptibleColor or clr
 		state.castBar:SetStatusBarDesaturated(true)
+		setCastbarColorWithGradient(state.castBar, castCfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	else
 		state.castBar:SetStatusBarDesaturated(false)
+		setCastbarColorWithGradient(state.castBar, castCfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	end
-	state.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	local duration = (state.castInfo.endTime or 0) - (state.castInfo.startTime or 0)
 	local maxValue = duration and duration > 0 and duration / 1000 or 1
 	state.castInfo.maxValue = maxValue
 	state.castBar:SetMinMaxValues(0, maxValue)
+	refreshCastbarGradient(state.castBar, isEmpoweredDefault and nil or castCfg)
 	if state.castName then
 		local showName = castCfg.showName ~= false
 		state.castName:SetShown(showName)
@@ -808,11 +1011,12 @@ local function configureCastStatic(castCfg, castDefaults)
 		state.castName:SetText(nameText)
 	end
 	if state.castIcon then
-		local showIcon = castCfg.showIcon ~= false and state.castInfo.texture ~= nil
+		local iconTexture = UFHelper.resolveCastIconTexture(state.castInfo.texture)
+		local showIcon = castCfg.showIcon ~= false
 		state.castIcon:SetShown(showIcon)
 		if showIcon then
-			state.castIcon:SetTexture(state.castInfo.texture)
-			state.castIconTexture = state.castInfo.texture
+			state.castIcon:SetTexture(iconTexture)
+			state.castIconTexture = iconTexture
 		end
 	end
 	if state.castDuration then state.castDuration:SetShown(castCfg.showDuration ~= false) end
@@ -864,10 +1068,21 @@ local function updateCastBar()
 		return
 	end
 
-	local elapsedMs = info.isChannel and (endMs - nowMs) or (nowMs - startMs)
+	local elapsedMs
+	if info.isEmpowered then
+		elapsedMs = nowMs - startMs
+	else
+		elapsedMs = info.isChannel and (endMs - nowMs) or (nowMs - startMs)
+	end
 	if elapsedMs < 0 then elapsedMs = 0 end
 	local value = elapsedMs / 1000
 	state.castBar:SetValue(value)
+	if not (info.isEmpowered and state.castUseDefaultArt == true) and castCfg.useGradient == true and normalizeCastbarGradientMode(castCfg.gradientMode) == "BAR_END" then
+		local maxValue = info.maxValue
+		local progress
+		if type(maxValue) == "number" and maxValue > 0 then progress = value / maxValue end
+		refreshCastbarGradient(state.castBar, castCfg, nil, nil, nil, nil, progress)
+	end
 
 	if info.isEmpowered then
 		local maxValue = info.maxValue
@@ -953,8 +1168,11 @@ end
 
 local function showCastInterrupt(event)
 	local castCfg, castDefaults = ensureCastConfig()
+	ensureFrame()
+	if not state.castBar or ((not state.castBar:IsShown()) and not state.castInfo) then return end
+
 	local showInterruptFeedback = castCfg.showInterruptFeedback
-	if showInterruptFeedback == nil then showInterruptFeedback = castDefaults.showInterruptFeedback ~= false end
+	if showInterruptFeedback == nil then showInterruptFeedback = castDefaults.showInterruptFeedback end
 	if showInterruptFeedback == false then
 		stopCast()
 		if shouldShowSampleCast() then setSampleCast() end
@@ -962,6 +1180,7 @@ local function showCastInterrupt(event)
 	end
 
 	clearCastInterruptState()
+	UFHelper.clearEmpowerStages(state)
 	state.castInterruptActive = true
 	local token = state.castInterruptToken or 0
 	if onUpdateActive then
@@ -972,14 +1191,20 @@ local function showCastInterrupt(event)
 	applyCastLayout(castCfg, castDefaults)
 	applyCastFont(castCfg, castDefaults)
 
-	local texKey = castCfg.interruptTexture or castCfg.texture or castDefaults.interruptTexture or castDefaults.texture
-	local interruptTex = UFHelper.resolveCastTexture(texKey)
+	local texKey = castCfg.texture or castDefaults.texture or "DEFAULT"
+	local useDefault = not texKey or texKey == "" or texKey == "DEFAULT"
+	local interruptTex
+	if useDefault then
+		interruptTex = (UFHelper.resolveCastInterruptTexture and UFHelper.resolveCastInterruptTexture()) or UFHelper.resolveCastTexture(texKey)
+	else
+		interruptTex = UFHelper.resolveCastTexture(texKey)
+	end
 	if interruptTex then state.castBar:SetStatusBarTexture(interruptTex) end
 	if state.castBar.SetStatusBarDesaturated then state.castBar:SetStatusBarDesaturated(false) end
-	if event == "UNIT_SPELLCAST_FAILED" then
-		state.castBar:SetStatusBarColor(1, 1, 1, 1)
+	if useDefault then
+		setCastbarColorWithGradient(state.castBar, nil, 1, 1, 1, 1)
 	else
-		state.castBar:SetStatusBarColor(0.85, 0.12, 0.12, 1)
+		setCastbarColorWithGradient(state.castBar, nil, 0.85, 0.12, 0.12, 1)
 	end
 	state.castBar:SetMinMaxValues(0, 1)
 	state.castBar:SetValue(1)
@@ -993,17 +1218,16 @@ local function showCastInterrupt(event)
 		state.castName:SetShown(castCfg.showName ~= false)
 	end
 	if state.castIcon then
-		local iconTexture = (state.castInfo and state.castInfo.texture) or state.castIconTexture
-		local showIcon = castCfg.showIcon ~= false and iconTexture ~= nil
+		local iconTexture = UFHelper.resolveCastIconTexture((state.castInfo and state.castInfo.texture) or state.castIconTexture)
+		local showIcon = castCfg.showIcon ~= false
 		state.castIcon:SetShown(showIcon)
 		if showIcon then
 			state.castIcon:SetTexture(iconTexture)
 			state.castIconTexture = iconTexture
 		end
 	end
-	UFHelper.hideCastSpark(state)
 
-	local glowAlpha = 0.8
+	local glowAlpha = useDefault and 0.4 or 0.25
 	if not state.castInterruptGlow then
 		state.castInterruptGlow = state.castBar:CreateTexture(nil, "OVERLAY")
 		if state.castInterruptGlow.SetAtlas then
@@ -1017,19 +1241,21 @@ local function showCastInterrupt(event)
 	end
 	do
 		local w, h = state.castBar:GetSize()
-		if state.castInterruptGlow.SetSize then state.castInterruptGlow:SetSize(w + (h * 0.5), h * 2.2) end
+		if w and h and w > 0 and h > 0 then
+			state.castInterruptGlow:SetSize(w + (h * 0.5), h * 2.2)
+			if state.castInterruptGlow.SetScale then state.castInterruptGlow:SetScale(1) end
+		elseif state.castInterruptGlow.SetScale then
+			state.castInterruptGlow:SetScale(0.5)
+		end
 	end
 	if not state.castInterruptGlowAnim then
 		state.castInterruptGlowAnim = state.castInterruptGlow:CreateAnimationGroup()
 		local fade = state.castInterruptGlowAnim:CreateAnimation("Alpha")
-		fade:SetOrder(1)
-		fade:SetDuration(0.35)
 		fade:SetFromAlpha(glowAlpha)
 		fade:SetToAlpha(0)
+		fade:SetDuration(1.0)
 		state.castInterruptGlowAnim.fade = fade
-		state.castInterruptGlowAnim:SetScript("OnFinished", function()
-			if state.castInterruptGlow then state.castInterruptGlow:Hide() end
-		end)
+		state.castInterruptGlowAnim:SetScript("OnFinished", function() state.castInterruptGlow:Hide() end)
 	elseif state.castInterruptGlowAnim.fade and state.castInterruptGlowAnim.fade.SetFromAlpha then
 		state.castInterruptGlowAnim.fade:SetFromAlpha(glowAlpha)
 	end
@@ -1042,15 +1268,15 @@ local function showCastInterrupt(event)
 		state.castInterruptAnim = state.castBar:CreateAnimationGroup()
 		local hold = state.castInterruptAnim:CreateAnimation("Alpha")
 		hold:SetOrder(1)
-		hold:SetDuration(0.25)
 		hold:SetFromAlpha(1)
 		hold:SetToAlpha(1)
+		hold:SetDuration(1.0)
 		state.castInterruptAnim.hold = hold
 		local fade = state.castInterruptAnim:CreateAnimation("Alpha")
 		fade:SetOrder(2)
-		fade:SetDuration(0.25)
 		fade:SetFromAlpha(1)
 		fade:SetToAlpha(0)
+		fade:SetDuration(0.3)
 		state.castInterruptAnim.fade = fade
 	end
 	state.castBar:SetAlpha(1)
@@ -1120,7 +1346,7 @@ local function setCastInfoFromUnit()
 
 	state.castInfo = {
 		name = text or name,
-		texture = texture,
+		texture = UFHelper.resolveCastIconTexture(texture),
 		startTime = startTimeMS,
 		endTime = endTimeMS,
 		notInterruptible = notInterruptible,
@@ -1169,18 +1395,18 @@ if not eventFrame then
 	eventFrame:RegisterEvent("PLAYER_LOGIN")
 	eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 	eventFrame:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_SENT")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_START")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_STOP")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_FAILED")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_EMPOWER_START")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_EMPOWER_UPDATE")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_DELAYED")
-	eventFrame:RegisterEvent("UNIT_SPELLCAST_EMPOWER_STOP")
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_SENT", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_START", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_STOP", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_UPDATE", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_START", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_UPDATE", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_DELAYED", UNIT)
+	eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_STOP", UNIT)
 end
 
 eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
@@ -1206,9 +1432,7 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 	elseif event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" then
 		local castGUID, spellId = ...
 		if not shouldIgnoreCastFail(castGUID, spellId) then showCastInterrupt(event) end
-	elseif event == "UNIT_SPELLCAST_EMPOWER_STOP" then
-		showCastInterrupt("UNIT_SPELLCAST_INTERRUPTED")
-	elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" then
+	elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_EMPOWER_STOP" then
 		if not state.castInterruptActive then
 			stopCast()
 			if shouldShowSampleCast() then setSampleCast() end

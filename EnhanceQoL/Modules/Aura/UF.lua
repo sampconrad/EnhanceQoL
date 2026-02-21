@@ -1,4 +1,3 @@
--- luacheck: globals CASTING_BAR_TYPES
 local parentAddonName = "EnhanceQoL"
 local addonName, addon = ...
 
@@ -323,6 +322,8 @@ local defaults = {
 		power = {
 			enabled = true,
 			detached = false,
+			detachedGrowFromCenter = false,
+			detachedMatchHealthWidth = false,
 			detachedFrameLevelOffset = 5,
 			detachedStrata = nil,
 			emptyMaxFallback = false,
@@ -351,6 +352,7 @@ local defaults = {
 			fontOutline = "OUTLINE",
 			nameColorMode = "CLASS", -- CLASS or CUSTOM
 			nameColor = { 0.8, 0.8, 1, 1 },
+			nameUseReactionColor = false,
 			levelColor = { 1, 0.85, 0, 1 },
 			levelStrata = nil,
 			levelFrameLevelOffset = 5,
@@ -443,6 +445,11 @@ local defaults = {
 			texture = "DEFAULT",
 			color = { 0.9, 0.7, 0.2, 1 },
 			useClassColor = false,
+			useGradient = false,
+			gradientStartColor = { 1, 1, 1, 1 },
+			gradientEndColor = { 1, 1, 1, 1 },
+			gradientDirection = "HORIZONTAL",
+			gradientMode = "CASTBAR",
 			notInterruptibleColor = DEFAULT_NOT_INTERRUPTIBLE_COLOR,
 			showInterruptFeedback = true,
 		},
@@ -617,6 +624,11 @@ local defaults = {
 			texture = "DEFAULT",
 			color = { 0.9, 0.7, 0.2, 1 },
 			useClassColor = false,
+			useGradient = false,
+			gradientStartColor = { 1, 1, 1, 1 },
+			gradientEndColor = { 1, 1, 1, 1 },
+			gradientDirection = "HORIZONTAL",
+			gradientMode = "CASTBAR",
 			notInterruptibleColor = DEFAULT_NOT_INTERRUPTIBLE_COLOR,
 			showInterruptFeedback = true,
 		},
@@ -850,18 +862,200 @@ local function copySettings(fromUnit, toUnit, opts)
 	local src = ensureDB(fromUnit)
 	local dest = ensureDB(toUnit)
 	if not src or not dest then return false end
-	local keepAnchor = opts.keepAnchor ~= false
-	local keepEnabled = opts.keepEnabled ~= false
-	local anchor = keepAnchor and dest.anchor and CopyTable(dest.anchor) or dest.anchor
-	local enabled = keepEnabled and dest.enabled
-	if wipe then wipe(dest) end
-	for k, v in pairs(src) do
-		if type(v) == "table" then
-			dest[k] = CopyTable(v)
-		else
-			dest[k] = v
+	local function cloneSettingValue(value)
+		if type(value) ~= "table" then return value end
+		if addon.functions and addon.functions.copyTable then return addon.functions.copyTable(value) end
+		if CopyTable then return CopyTable(value) end
+		local out = {}
+		for key, child in pairs(value) do
+			out[key] = cloneSettingValue(child)
+		end
+		return out
+	end
+	local function getPathValue(root, path)
+		if type(root) ~= "table" or type(path) ~= "table" then return nil, false end
+		local cur = root
+		for i = 1, #path do
+			if type(cur) ~= "table" then return nil, false end
+			cur = cur[path[i]]
+			if cur == nil then return nil, false end
+		end
+		return cur, true
+	end
+	local function clearPathValue(root, path)
+		if type(root) ~= "table" or type(path) ~= "table" or #path == 0 then return end
+		if #path == 1 then
+			root[path[1]] = nil
+			return
+		end
+		local cur = root
+		local trail = {}
+		for i = 1, #path - 1 do
+			local key = path[i]
+			local nxt = cur[key]
+			if type(nxt) ~= "table" then return end
+			trail[#trail + 1] = { parent = cur, key = key }
+			cur = nxt
+		end
+		cur[path[#path]] = nil
+		for i = #trail, 1, -1 do
+			local node = trail[i]
+			local child = node.parent[node.key]
+			if type(child) == "table" and not next(child) then
+				node.parent[node.key] = nil
+			else
+				break
+			end
 		end
 	end
+	local function setPathValue(root, path, value)
+		if type(root) ~= "table" or type(path) ~= "table" or #path == 0 then return end
+		if value == nil then
+			clearPathValue(root, path)
+			return
+		end
+		local cur = root
+		for i = 1, #path - 1 do
+			local key = path[i]
+			if type(cur[key]) ~= "table" then cur[key] = {} end
+			cur = cur[key]
+		end
+		cur[path[#path]] = value
+	end
+	local function copyPathValue(path)
+		local value, exists = getPathValue(src, path)
+		if exists then
+			setPathValue(dest, path, cloneSettingValue(value))
+		else
+			clearPathValue(dest, path)
+		end
+	end
+	local copySectionRules = {
+		frame = {
+			{ "showTooltip" },
+			{ "tooltipUseEditMode" },
+			{ "hideInVehicle" },
+			{ "hideInPetBattle" },
+			{ "hideInClientScene" },
+			{ "visibility" },
+			{ "visibilityFade" },
+			{ "width" },
+			{ "anchor" },
+			{ "spacing" },
+			{ "growth" },
+			{ "strata" },
+			{ "frameLevel" },
+			{ "smoothFill" },
+			{ "border" },
+			{ "highlight" },
+			{ "power", "detachedStrata" },
+			{ "power", "detachedFrameLevelOffset" },
+		},
+		portrait = {
+			{ "portrait" },
+		},
+		rangeFade = {
+			{ "rangeFade" },
+		},
+		health = {
+			{ "healthHeight" },
+			{ "health" },
+		},
+		absorb = {
+			{ "health", "absorbColor" },
+			{ "health", "absorbUseCustomColor" },
+			{ "health", "useAbsorbGlow" },
+			{ "health", "absorbReverseFill" },
+			{ "health", "absorbOverlayHeight" },
+			{ "health", "absorbTexture" },
+		},
+		healAbsorb = {
+			{ "health", "healAbsorbColor" },
+			{ "health", "healAbsorbUseCustomColor" },
+			{ "health", "healAbsorbReverseFill" },
+			{ "health", "healAbsorbOverlayHeight" },
+			{ "health", "healAbsorbTexture" },
+		},
+		power = {
+			{ "powerHeight" },
+			{ "power" },
+		},
+		classResource = {
+			{ "classResource" },
+		},
+		totemFrame = {
+			{ "classResource", "totemFrame" },
+		},
+		raidicon = {
+			{ "raidIcon" },
+		},
+		cast = {
+			{ "cast" },
+		},
+		status = {
+			{ "status", "enabled" },
+			{ "status", "fontSize" },
+			{ "status", "font" },
+			{ "status", "fontOutline" },
+			{ "status", "nameColorMode" },
+			{ "status", "nameColor" },
+			{ "status", "nameUseReactionColor" },
+			{ "status", "nameAnchor" },
+			{ "status", "nameOffset" },
+			{ "status", "nameMaxChars" },
+			{ "status", "nameFontSize" },
+			{ "status", "levelEnabled" },
+			{ "status", "hideLevelAtMax" },
+			{ "status", "levelColorMode" },
+			{ "status", "levelColor" },
+			{ "status", "levelAnchor" },
+			{ "status", "levelOffset" },
+			{ "status", "levelStrata" },
+			{ "status", "levelFrameLevelOffset" },
+			{ "status", "levelFontSize" },
+			{ "status", "classificationIcon" },
+		},
+		unitStatus = {
+			{ "status", "unitStatus" },
+			{ "status", "combatIndicator" },
+			{ "pvpIndicator" },
+			{ "roleIndicator" },
+			{ "leaderIcon" },
+			{ "resting" },
+		},
+		combatFeedback = {
+			{ "combatFeedback" },
+		},
+		auras = {
+			{ "auraIcons" },
+		},
+		privateAuras = {
+			{ "privateAuras" },
+		},
+	}
+	local keepAnchor = opts.keepAnchor ~= false
+	local keepEnabled = opts.keepEnabled ~= false
+	local anchor = keepAnchor and dest.anchor and cloneSettingValue(dest.anchor) or dest.anchor
+	local enabled = keepEnabled and dest.enabled
+	local copied = false
+	if type(opts.sections) == "table" then
+		for _, sectionId in ipairs(opts.sections) do
+			local rules = copySectionRules[sectionId]
+			if type(rules) == "table" then
+				for _, path in ipairs(rules) do
+					copyPathValue(path)
+				end
+				copied = true
+			end
+		end
+	else
+		if wipe then wipe(dest) end
+		for k, v in pairs(src) do
+			dest[k] = cloneSettingValue(v)
+		end
+		copied = true
+	end
+	if not copied then return false end
 	if keepAnchor then dest.anchor = anchor end
 	if keepEnabled then dest.enabled = enabled end
 	return true
@@ -1292,7 +1486,7 @@ local UF_EDITMODE_FRAME_IDS = {
 	boss = "EQOL_UF_Boss",
 }
 
-local function syncEditModeLayoutAnchors(units)
+function UF.SyncEditModeLayoutAnchors(units)
 	if type(units) ~= "table" or #units == 0 then return end
 	local editMode = addon and addon.EditMode
 	if not (editMode and editMode.GetActiveLayoutName) then return end
@@ -1330,27 +1524,44 @@ function UF.ExportProfile(scopeKey, profileName)
 		if isBossUnit(key) then return "boss" end
 		return key
 	end
+	local function isGroupScopeKey(key) return key == "party" or key == "raid" or key == "mt" or key == "ma" end
+	local function hasExportableEntries(tbl)
+		if type(tbl) ~= "table" then return false end
+		for _, value in pairs(tbl) do
+			if type(value) == "table" then return true end
+		end
+		return false
+	end
 	scopeKey = normalize(scopeKey)
 	local db, externalProfile = resolveProfileDB(profileName)
 	if type(db) ~= "table" then return nil, "NO_DATA" end
-	local cfg = db.ufFrames
-	if not cfg and not externalProfile then
+	local frameCfg = db.ufFrames
+	if not frameCfg and not externalProfile then
 		db.ufFrames = {}
-		cfg = db.ufFrames
+		frameCfg = db.ufFrames
 	end
-	if type(cfg) ~= "table" then return nil, "NO_DATA" end
+	local groupCfg = db.ufGroupFrames
 
 	local payload = {
 		kind = UF_PROFILE_SHARE_KIND,
-		version = 1,
+		version = 2,
 		frames = {},
+		groupFrames = {},
 	}
 
 	if scopeKey == "ALL" then
-		if not next(cfg) then return nil, "EMPTY" end
-		payload.frames = CopyTable(cfg)
+		local hasUnitFrames = hasExportableEntries(frameCfg)
+		local hasGroupFrames = hasExportableEntries(groupCfg)
+		if not hasUnitFrames and not hasGroupFrames then return nil, "EMPTY" end
+		if hasUnitFrames then payload.frames = CopyTable(frameCfg) end
+		if hasGroupFrames then payload.groupFrames = CopyTable(groupCfg) end
+	elseif isGroupScopeKey(scopeKey) then
+		local src = type(groupCfg) == "table" and groupCfg[scopeKey] or nil
+		if type(src) ~= "table" then return nil, "SCOPE_EMPTY" end
+		payload.groupFrames[scopeKey] = CopyTable(src)
 	else
-		local src = cfg[scopeKey]
+		local src = type(frameCfg) == "table" and frameCfg[scopeKey] or nil
+		if type(frameCfg) ~= "table" and externalProfile then return nil, "NO_DATA" end
 		if type(src) ~= "table" then return nil, "SCOPE_EMPTY" end
 		payload.frames[scopeKey] = CopyTable(src)
 	end
@@ -1369,6 +1580,7 @@ function UF.ImportProfile(encoded, scopeKey)
 		if isBossUnit(key) then return "boss" end
 		return key
 	end
+	local function isGroupScopeKey(key) return key == "party" or key == "raid" or key == "mt" or key == "ma" end
 	scopeKey = normalize(scopeKey)
 	encoded = UFHelper.trim(encoded or "")
 	if not encoded or encoded == "" then return false, "NO_INPUT" end
@@ -1383,33 +1595,61 @@ function UF.ImportProfile(encoded, scopeKey)
 	if not ok or type(data) ~= "table" then return false, "DESERIALIZE" end
 
 	if data.kind ~= UF_PROFILE_SHARE_KIND then return false, "WRONG_KIND" end
-	if type(data.frames) ~= "table" then return false, "NO_FRAMES" end
+	local sourceFrames = type(data.frames) == "table" and data.frames or nil
+	local sourceGroupFrames = type(data.groupFrames) == "table" and data.groupFrames or nil
+	if not sourceFrames and not sourceGroupFrames then return false, "NO_FRAMES" end
 
 	addon.db = addon.db or {}
 	addon.db.ufFrames = addon.db.ufFrames or {}
-	local target = addon.db.ufFrames
+	addon.db.ufGroupFrames = addon.db.ufGroupFrames or {}
+	local targetFrames = addon.db.ufFrames
+	local targetGroupFrames = addon.db.ufGroupFrames
 	local applied = {}
+	local appliedSet = {}
+	local function markApplied(key)
+		if not appliedSet[key] then
+			appliedSet[key] = true
+			applied[#applied + 1] = key
+		end
+	end
+	local function applyFrameConfig(key, frameCfg)
+		if isGroupScopeKey(key) then
+			targetGroupFrames[key] = CopyTable(frameCfg)
+		else
+			targetFrames[key] = CopyTable(frameCfg)
+		end
+		markApplied(key)
+	end
 
 	if scopeKey == "ALL" then
-		for unit, frameCfg in pairs(data.frames) do
+		for unit, frameCfg in pairs(sourceFrames or {}) do
 			if type(frameCfg) == "table" then
 				local key = normalize(unit)
-				target[key] = CopyTable(frameCfg)
-				applied[#applied + 1] = key
+				applyFrameConfig(key, frameCfg)
+			end
+		end
+		for unit, frameCfg in pairs(sourceGroupFrames or {}) do
+			if type(frameCfg) == "table" then
+				local key = normalize(unit)
+				applyFrameConfig(key, frameCfg)
 			end
 		end
 		if #applied == 0 then return false, "NO_FRAMES" end
 	else
 		local key = scopeKey
-		local source = data.frames[key] or data.frames[normalize(key)]
-		if not source and isBossUnit(key) then source = data.frames["boss1"] or data.frames["boss"] end
+		local source
+		if isGroupScopeKey(key) then
+			source = (sourceGroupFrames and sourceGroupFrames[key]) or (sourceFrames and (sourceFrames[key] or sourceFrames[normalize(key)]))
+		else
+			source = sourceFrames and (sourceFrames[key] or sourceFrames[normalize(key)])
+			if not source and isBossUnit(key) and sourceFrames then source = sourceFrames["boss1"] or sourceFrames["boss"] end
+		end
 		if type(source) ~= "table" then return false, "SCOPE_MISSING" end
-		target[key] = CopyTable(source)
-		applied[#applied + 1] = key
+		applyFrameConfig(key, source)
 	end
 
 	table.sort(applied, function(a, b) return tostring(a) < tostring(b) end)
-	syncEditModeLayoutAnchors(applied)
+	UF.SyncEditModeLayoutAnchors(applied)
 	addon.variables.requireReload = true
 	return true, applied
 end
@@ -1716,13 +1956,6 @@ function AuraUtil.ensureAuraButton(container, icons, index, ac)
 			if not self._showTooltip then return end
 			local tooltip = GameTooltip
 			if not tooltip or (tooltip.IsForbidden and tooltip:IsForbidden()) then return end
-			local spellId = self.spellId
-			if spellId and (not issecretvalue or not issecretvalue(spellId)) then
-				tooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-				tooltip:SetSpellByID(spellId)
-				tooltip:Show()
-				return
-			end
 			local unitToken = self.unitToken
 			local auraInstanceID = self.auraInstanceID
 			if not unitToken or not auraInstanceID then return end
@@ -1962,7 +2195,13 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 	local dispelR, dispelG, dispelB
 	if btn.border then
 		local useMasqueBorder = btn._eqolMasqueType ~= nil
-		if isDebuff then
+		local borderKey = ac and ac.borderTexture
+		local showBorder = isDebuff == true
+		if not showBorder then
+			local borderKeyName = borderKey and tostring(borderKey):upper() or "DEFAULT"
+			showBorder = borderKeyName ~= "" and borderKeyName ~= "DEFAULT"
+		end
+		if showBorder then
 			local r, g, b = 1, 0.25, 0.25
 			local usedApiColor
 			if not aura.isSample and aura.auraInstanceID and aura.auraInstanceID > 0 and C_UnitAuras and C_UnitAuras.GetAuraDispelTypeColor and UFHelper and UFHelper.debuffColorCurve then
@@ -1979,19 +2218,24 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 			if not usedApiColor then
 				local fr, fg, fb
 				if UFHelper and UFHelper.getDebuffColorFromName then
-					fr, fg, fb = UFHelper.getDebuffColorFromName(aura.dispelName or "None")
+					local dispelName = aura.dispelName
+					local canActivePlayerDispel = aura.canActivePlayerDispel
+					if issecretvalue and issecretvalue(canActivePlayerDispel) then canActivePlayerDispel = nil end
+					if (not dispelName or dispelName == "") and canActivePlayerDispel == true then dispelName = "Magic" end
+					fr, fg, fb = UFHelper.getDebuffColorFromName(dispelName or "None")
 				end
 				if fr then
 					r, g, b = fr, fg, fb
 				end
 			end
-			dispelR, dispelG, dispelB = r, g, b
+			if isDebuff then
+				dispelR, dispelG, dispelB = r, g, b
+			end
 			if useMasqueBorder then
 				if UFHelper and UFHelper.hideAuraBorderFrame then UFHelper.hideAuraBorderFrame(btn) end
 				btn.border:SetVertexColor(r, g, b, 1)
 				btn.border:Show()
 			else
-				local borderKey = ac and ac.borderTexture
 				local borderMode = tostring((ac and ac.borderRenderMode) or "EDGE"):upper()
 				local useOverlayBorderMode = borderMode == "OVERLAY"
 				local borderTex, borderCoords, borderIsEdge
@@ -3063,16 +3307,23 @@ local function setBackdrop(frame, borderCfg, borderDef, fallbackEnabled)
 	end
 end
 
-local function applyBarBackdrop(bar, cfg)
+local function applyBarBackdrop(bar, cfg, overrideR, overrideG, overrideB, overrideA, options)
 	if not bar then return end
 	cfg = cfg or {}
+	options = options or {}
 	local bd = cfg.backdrop or {}
+	local clampToFill = options.clampToFill == true
+	local reverseFill = options.reverseFill == true
 	local cache = bar._ufBackdropCache
 	if bd.enabled == false then
-		if cache and cache.enabled == false then return end
-		bar:SetBackdrop(nil)
+		if cache and cache.enabled == false and cache.clampToFill == clampToFill and cache.reverseFill == reverseFill then return end
+		if bar.SetBackdrop then bar:SetBackdrop(nil) end
+		if bar._ufBackdropTexture then bar._ufBackdropTexture:Hide() end
 		cache = cache or {}
 		cache.enabled = false
+		cache.clampToFill = clampToFill
+		cache.reverseFill = reverseFill
+		cache.statusTex = nil
 		bar._ufBackdropCache = cache
 		return
 	end
@@ -3094,6 +3345,9 @@ local function applyBarBackdrop(bar, cfg)
 	cache.colorG = colorG
 	cache.colorB = colorB
 	cache.colorA = colorA
+	cache.clampToFill = clampToFill
+	cache.reverseFill = reverseFill
+	cache.statusTex = currentStatusTex
 	bar._ufBackdropCache = cache
 end
 
@@ -3337,6 +3591,8 @@ local function configureCastStatic(unit, ccfg, defc)
 	if not st or not st.castBar or not st.castInfo then return end
 	ccfg = ccfg or st.castCfg or {}
 	defc = defc or (defaultsFor(unit) and defaultsFor(unit).cast) or {}
+	local gradientCfg = unit == UNIT.PLAYER and ccfg or nil
+	local isEmpoweredDefault = st.castInfo.isEmpowered and st.castUseDefaultArt == true
 	local clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
 	local useClassColor = ccfg.useClassColor
 	if useClassColor == nil then useClassColor = defc.useClassColor end
@@ -3350,16 +3606,23 @@ local function configureCastStatic(unit, ccfg, defc)
 		local cr, cg, cb, ca = getClassColor(class)
 		if cr then clr = { cr, cg, cb, ca or 1 } end
 	end
-	if st.castInfo.notInterruptible then
+	if isEmpoweredDefault then
+		st.castBar:SetStatusBarDesaturated(false)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, nil, 0, 0, 0, 0)
+	elseif st.castInfo.notInterruptible then
 		clr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or clr
 		st.castBar:SetStatusBarDesaturated(true)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, gradientCfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+	else
+		st.castBar:SetStatusBarDesaturated(false)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, gradientCfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	end
-	st.castBar:SetStatusBarColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	local duration = (st.castInfo.endTime or 0) - (st.castInfo.startTime or 0)
 	local maxValue = duration and duration > 0 and duration / 1000 or 1
 	st.castInfo.maxValue = maxValue
 	-- UFHelper.applyStatusBarReverseFill(st.castBar, st.castInfo.isChannel == true and not st.castInfo.isEmpowered)
 	st.castBar:SetMinMaxValues(0, maxValue)
+	UFHelper.RefreshCastbarGradient(st.castBar, isEmpoweredDefault and nil or gradientCfg)
 	if st.castName then
 		local showName = ccfg.showName ~= false
 		st.castName:SetShown(showName)
@@ -3373,11 +3636,12 @@ local function configureCastStatic(unit, ccfg, defc)
 		st.castName:SetText(nameText)
 	end
 	if st.castIcon then
-		local showIcon = ccfg.showIcon ~= false and st.castInfo.texture ~= nil
+		local iconTexture = UFHelper.resolveCastIconTexture(st.castInfo.texture)
+		local showIcon = ccfg.showIcon ~= false
 		st.castIcon:SetShown(showIcon)
 		if showIcon then
-			st.castIcon:SetTexture(st.castInfo.texture)
-			st.castIconTexture = st.castInfo.texture
+			st.castIcon:SetTexture(iconTexture)
+			st.castIconTexture = iconTexture
 		end
 	end
 	if st.castDuration then st.castDuration:SetShown(ccfg.showDuration ~= false) end
@@ -3433,6 +3697,18 @@ local function updateCastBar(unit)
 	if elapsedMs < 0 then elapsedMs = 0 end
 	local value = elapsedMs / 1000
 	st.castBar:SetValue(value)
+	if
+		unit == UNIT.PLAYER
+		and not (st.castInfo.isEmpowered and st.castUseDefaultArt == true)
+		and ccfg.useGradient == true
+		and type(ccfg.gradientMode) == "string"
+		and ccfg.gradientMode:upper() == "BAR_END"
+	then
+		local maxValue = st.castInfo.maxValue
+		local progress
+		if type(maxValue) == "number" and maxValue > 0 then progress = value / maxValue end
+		UFHelper.RefreshCastbarGradient(st.castBar, ccfg, nil, nil, nil, nil, progress)
+	end
 	if st.castInfo.isEmpowered then
 		local maxValue = st.castInfo.maxValue
 		if not maxValue then
@@ -3569,18 +3845,18 @@ function UF.ShowCastInterrupt(unit, event)
 
 	local texKey = ccfg.texture or defc.texture or "DEFAULT"
 	local useDefault = not texKey or texKey == "" or texKey == "DEFAULT"
-	local interruptTex = nil
-	if useDefault and CASTING_BAR_TYPES and CASTING_BAR_TYPES.interrupted and CASTING_BAR_TYPES.interrupted.full then
-		interruptTex = CASTING_BAR_TYPES.interrupted.full
+	local interruptTex
+	if useDefault then
+		interruptTex = (UFHelper.resolveCastInterruptTexture and UFHelper.resolveCastInterruptTexture()) or UFHelper.resolveCastTexture(texKey)
 	else
 		interruptTex = UFHelper.resolveCastTexture(texKey)
 	end
 	if interruptTex then st.castBar:SetStatusBarTexture(interruptTex) end
 	if st.castBar.SetStatusBarDesaturated then st.castBar:SetStatusBarDesaturated(false) end
 	if useDefault then
-		st.castBar:SetStatusBarColor(1, 1, 1, 1)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, nil, 1, 1, 1, 1)
 	else
-		st.castBar:SetStatusBarColor(0.85, 0.12, 0.12, 1)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, nil, 0.85, 0.12, 0.12, 1)
 	end
 	st.castBar:SetMinMaxValues(0, 1)
 	st.castBar:SetValue(1)
@@ -3594,8 +3870,8 @@ function UF.ShowCastInterrupt(unit, event)
 		st.castName:SetShown(ccfg.showName ~= false)
 	end
 	if st.castIcon then
-		local iconTexture = (st.castInfo and st.castInfo.texture) or st.castIconTexture
-		local showIcon = ccfg.showIcon ~= false and iconTexture ~= nil
+		local iconTexture = UFHelper.resolveCastIconTexture((st.castInfo and st.castInfo.texture) or st.castIconTexture)
+		local showIcon = ccfg.showIcon ~= false
 		st.castIcon:SetShown(showIcon)
 		if showIcon then
 			st.castIcon:SetTexture(iconTexture)
@@ -3757,11 +4033,12 @@ local function setCastInfoFromUnit(unit)
 				st.castName:SetText(nameText)
 			end
 			if st.castIcon then
-				local showIcon = ccfg.showIcon ~= false and texture ~= nil
+				local iconTexture = UFHelper.resolveCastIconTexture(texture)
+				local showIcon = ccfg.showIcon ~= false
 				st.castIcon:SetShown(showIcon)
 				if showIcon then
-					st.castIcon:SetTexture(texture)
-					st.castIconTexture = texture
+					st.castIcon:SetTexture(iconTexture)
+					st.castIconTexture = iconTexture
 				end
 			end
 			local clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
@@ -3773,7 +4050,8 @@ local function setCastInfoFromUnit(unit)
 			)
 			st.castBar:SetStatusBarDesaturated(true)
 			local showDuration = ccfg.showDuration ~= false and st.castDuration ~= nil
-			if not showDuration then
+			local needsOnUpdate = showDuration
+			if not needsOnUpdate then
 				if castOnUpdateHandlers[unit] then
 					st.castBar:SetScript("OnUpdate", nil)
 					castOnUpdateHandlers[unit] = nil
@@ -3782,8 +4060,15 @@ local function setCastInfoFromUnit(unit)
 					st.castDuration:SetText("")
 					st.castDuration:Hide()
 				end
-			elseif not castOnUpdateHandlers[unit] then
-				st.castDuration:Show()
+			else
+				if st.castDuration then
+					if showDuration then
+						st.castDuration:Show()
+					else
+						st.castDuration:SetText("")
+						st.castDuration:Hide()
+					end
+				end
 				st.castBar._eqolCastDurationElapsed = 0
 				st.castBar:SetScript("OnUpdate", function(self, elapsed)
 					local timerObj = st.castBarDuration
@@ -3797,12 +4082,16 @@ local function setCastInfoFromUnit(unit)
 					if self._eqolCastDurationElapsed < 0.1 then return end
 					self._eqolCastDurationElapsed = 0
 
+					local totalDuration = timerObj:GetTotalDuration()
+					if type(totalDuration) ~= "number" then totalDuration = 0 end
+
+					if not showDuration or not st.castDuration then return end
 					local durationFormat = ccfg.durationFormat or defc.durationFormat or "REMAINING"
 					if durationFormat == "ELAPSED_TOTAL" then
-						st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetElapsedDuration(), timerObj:GetTotalDuration()))
+						st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetElapsedDuration(), totalDuration))
 						return
 					elseif durationFormat == "REMAINING_TOTAL" then
-						st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetRemainingDuration(), timerObj:GetTotalDuration()))
+						st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetRemainingDuration(), totalDuration))
 						return
 					else
 						st.castDuration:SetText(("%.1f"):format(timerObj:GetRemainingDuration()))
@@ -3825,7 +4114,7 @@ local function setCastInfoFromUnit(unit)
 	st.castCfg = resolvedCfg
 	st.castInfo = {
 		name = text or name,
-		texture = texture,
+		texture = UFHelper.resolveCastIconTexture(texture),
 		startTime = startTimeMS,
 		endTime = endTimeMS,
 		notInterruptible = notInterruptible,
@@ -3887,10 +4176,13 @@ local function updateHealth(cfg, unit)
 	end
 	st.health:SetValue(cur or 0, interpolation)
 	local hc = cfg.health or {}
-	local healthGuid = UnitGUID and UnitGUID(unit) or nil
-	if issecretvalue and issecretvalue(healthGuid) then healthGuid = nil end
-	if st._healthColorGuid ~= healthGuid then
-		st._healthColorGuid = healthGuid
+	local cacheGuid = UnitGUID and UnitGUID(unit) or nil
+	local guidComparable = cacheGuid ~= nil and not (issecretvalue and issecretvalue(cacheGuid))
+	if not guidComparable then
+		st._healthColorGuid = nil
+		st._healthColorDirty = true
+	elseif st._healthColorGuid ~= cacheGuid then
+		st._healthColorGuid = cacheGuid
 		st._healthColorDirty = true
 	end
 
@@ -4126,7 +4418,38 @@ local function setFrameLevelAbove(child, parent, offset)
 	child:SetFrameLevel(level)
 end
 
-local function getHealthTextAnchor(st)
+function UF.syncAbsorbFrameLevels(st)
+	if not st or not st.health then return end
+	local health = st.health
+	local healthLevel = (health.GetFrameLevel and health:GetFrameLevel()) or 0
+	local overlayLevel = max(0, healthLevel + 1)
+	local healthStrata = health.GetFrameStrata and health:GetFrameStrata()
+	local borderFrame = st.barGroup and st.barGroup._ufBorder
+	if borderFrame and borderFrame.GetFrameLevel then
+		local borderLevel = borderFrame:GetFrameLevel() or (overlayLevel + 1)
+		if overlayLevel >= borderLevel then overlayLevel = max(0, borderLevel - 1) end
+	end
+	local function apply(frame)
+		if not frame then return end
+		if healthStrata and frame.SetFrameStrata and frame:GetFrameStrata() ~= healthStrata then frame:SetFrameStrata(healthStrata) end
+		if frame.SetFrameLevel and frame:GetFrameLevel() ~= overlayLevel then frame:SetFrameLevel(overlayLevel) end
+	end
+	apply(health.absorbClip)
+	apply(health._healthFillClip)
+	apply(st.absorb)
+	apply(st.absorb2)
+	apply(st.healAbsorb)
+	if borderFrame and st.barGroup and borderFrame.SetFrameStrata and st.barGroup.GetFrameStrata then
+		local borderStrata = st.barGroup:GetFrameStrata()
+		if borderStrata and borderFrame:GetFrameStrata() ~= borderStrata then borderFrame:SetFrameStrata(borderStrata) end
+	end
+	if borderFrame and borderFrame.SetFrameLevel then
+		local desiredBorderLevel = overlayLevel + 1
+		if borderFrame:GetFrameLevel() < desiredBorderLevel then borderFrame:SetFrameLevel(desiredBorderLevel) end
+	end
+end
+
+local function getHealthTextAnchor(st, includeStatus)
 	if not st or not st.health then return nil end
 	local anchor = st.health
 	local maxLevel = (anchor.GetFrameLevel and anchor:GetFrameLevel()) or 0
@@ -4140,6 +4463,7 @@ local function getHealthTextAnchor(st)
 	end
 	consider(st.health.absorbClip)
 	consider(st.health._healthFillClip)
+	if includeStatus then consider(st.status) end
 	return anchor
 end
 
@@ -4160,16 +4484,20 @@ local function syncTextFrameLevels(st)
 	if not st then return end
 	local scfg = (st.cfg and st.cfg.status) or {}
 	local healthAnchor = getHealthTextAnchor(st) or st.health
+	local statusAnchor = getHealthTextAnchor(st, true) or st.status or healthAnchor
 	setFrameLevelAbove(st.healthTextLayer, healthAnchor, 5)
 	setFrameLevelAbove(st.powerTextLayer, st.power, 5)
-	setFrameLevelAbove(st.statusTextLayer, st.status, 5)
+	setFrameLevelAbove(st.statusTextLayer, statusAnchor, 5)
 	local levelLayer = st.levelTextLayer or st.statusTextLayer
 	local levelOffset = tonumber(scfg.levelFrameLevelOffset)
 	if levelOffset == nil then levelOffset = 5 end
-	setFrameLevelAbove(levelLayer, st.status, levelOffset)
-	if levelLayer and levelLayer.SetFrameStrata and st.status and st.status.GetFrameStrata then
+	setFrameLevelAbove(levelLayer, statusAnchor, levelOffset)
+	if levelLayer and levelLayer.SetFrameStrata then
 		local levelStrata = normalizeStrataToken(scfg.levelStrata)
-		levelLayer:SetFrameStrata(levelStrata or st.status:GetFrameStrata())
+		local fallbackStrata
+		if statusAnchor and statusAnchor.GetFrameStrata then fallbackStrata = statusAnchor:GetFrameStrata() end
+		if not fallbackStrata and st.status and st.status.GetFrameStrata then fallbackStrata = st.status:GetFrameStrata() end
+		if levelStrata or fallbackStrata then levelLayer:SetFrameStrata(levelStrata or fallbackStrata) end
 	end
 	if st.restLoop and st.statusTextLayer then setFrameLevelAbove(st.restLoop, st.statusTextLayer, 3) end
 	if st.castTextLayer then setFrameLevelAbove(st.castTextLayer, st.castBar, 5) end
@@ -4660,8 +4988,10 @@ local function layoutFrame(cfg, unit)
 	if st.health.SetFrameLevel then st.health:SetFrameLevel(frameLevel + 2) end
 	st.status:SetHeight(statusHeight)
 	st.health:SetSize(width, healthHeight)
+	local detachedGrowFromCenter = powerDetached and pcfg.detachedGrowFromCenter == true
+	local detachedMatchHealthWidth = powerDetached and pcfg.detachedMatchHealthWidth == true
 	local powerWidth = width
-	if powerDetached and pcfg.width and pcfg.width > 0 then powerWidth = pcfg.width end
+	if powerDetached and not detachedMatchHealthWidth and pcfg.width and pcfg.width > 0 then powerWidth = pcfg.width end
 	st.power:SetSize(powerWidth, powerHeight)
 	st.power:SetShown(powerEnabled)
 
@@ -4708,16 +5038,26 @@ local function layoutFrame(cfg, unit)
 		local off = pcfg.offset or {}
 		local ox = off.x or 0
 		local oy = off.y or 0
+		local centerOx = detachedGrowFromCenter and (ox - (st._portraitCenterOffset or 0)) or ox
 		if detachedPowerBorder and st.powerGroup then
 			if st.power.GetParent and st.power:GetParent() ~= st.powerGroup then st.power:SetParent(st.powerGroup) end
 			st.powerGroup:Show()
 			st.powerGroup:SetSize(powerWidth + detachedPowerOffset * 2, powerHeight + detachedPowerOffset * 2)
-			st.powerGroup:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox - detachedPowerOffset, oy + detachedPowerOffset)
-			st.power:SetPoint("TOPLEFT", st.powerGroup, "TOPLEFT", detachedPowerOffset, -detachedPowerOffset)
+			if detachedGrowFromCenter then
+				st.powerGroup:SetPoint("TOP", st.health, "BOTTOM", centerOx, oy + detachedPowerOffset)
+				st.power:SetPoint("TOP", st.powerGroup, "TOP", 0, -detachedPowerOffset)
+			else
+				st.powerGroup:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox - detachedPowerOffset, oy + detachedPowerOffset)
+				st.power:SetPoint("TOPLEFT", st.powerGroup, "TOPLEFT", detachedPowerOffset, -detachedPowerOffset)
+			end
 		else
 			if st.powerGroup then st.powerGroup:Hide() end
 			if st.power.GetParent and st.power:GetParent() ~= st.barGroup then st.power:SetParent(st.barGroup) end
-			st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox, oy)
+			if detachedGrowFromCenter then
+				st.power:SetPoint("TOP", st.health, "BOTTOM", centerOx, oy)
+			else
+				st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox, oy)
+			end
 		end
 	else
 		if st.powerGroup then st.powerGroup:Hide() end
@@ -4819,6 +5159,7 @@ local function layoutFrame(cfg, unit)
 		end
 		setBackdrop(st.powerGroup, powerBorderCfg, nil, false)
 	end
+	UF.syncAbsorbFrameLevels(st)
 	UFHelper.applyHighlightStyle(st, st._highlightCfg)
 
 	if (unit == UNIT.PLAYER or unit == "target" or unit == UNIT.FOCUS or isBossUnit(unit)) and st.auraContainer then
@@ -5075,7 +5416,35 @@ local function applyBars(cfg, unit)
 	local reverseHealth = hc.reverseFill
 	if reverseHealth == nil then reverseHealth = defH.reverseFill == true end
 	UFHelper.applyStatusBarReverseFill(st.health, reverseHealth)
-	applyBarBackdrop(st.health, hc)
+	local healthBackdropR, healthBackdropG, healthBackdropB, healthBackdropA
+	local healthBackdropClampToFill
+	do
+		local backdropCfg = hc.backdrop or {}
+		local useBackdropClassColor = backdropCfg.useClassColor
+		if useBackdropClassColor == nil and defH.backdrop then useBackdropClassColor = defH.backdrop.useClassColor end
+		healthBackdropClampToFill = backdropCfg.clampToFill
+		if healthBackdropClampToFill == nil and defH.backdrop then healthBackdropClampToFill = defH.backdrop.clampToFill end
+		if healthBackdropClampToFill == nil then healthBackdropClampToFill = false end
+		if useBackdropClassColor == true then
+			local class
+			if UnitIsPlayer and UnitIsPlayer(unit) then
+				class = select(2, UnitClass(unit))
+			elseif unit == UNIT.PET then
+				class = select(2, UnitClass(UNIT.PLAYER))
+			end
+			local cr, cg, cb = getClassColor(class)
+			if cr then
+				local backdropColor = backdropCfg.color or (defH.backdrop and defH.backdrop.color) or { 0, 0, 0, 0.6 }
+				healthBackdropR, healthBackdropG, healthBackdropB = cr, cg, cb
+				healthBackdropA = backdropColor[4]
+				if healthBackdropA == nil then healthBackdropA = 0.6 end
+			end
+		end
+	end
+	applyBarBackdrop(st.health, hc, healthBackdropR, healthBackdropG, healthBackdropB, healthBackdropA, {
+		clampToFill = healthBackdropClampToFill == true,
+		reverseFill = reverseHealth,
+	})
 	if powerEnabled then
 		st.power:SetStatusBarTexture(UFHelper.resolveTexture(pcfg.texture))
 		if unit == UNIT.PLAYER then refreshMainPower(unit) end
@@ -5162,6 +5531,7 @@ local function applyBars(cfg, unit)
 		st.healAbsorb:SetValue(0, interpolation)
 		-- no heal absorb glow
 	end
+	UF.syncAbsorbFrameLevels(st)
 	if st.castBar and (unit == UNIT.PLAYER or unit == UNIT.TARGET or unit == UNIT.FOCUS or isBossUnit(unit)) then
 		local defc = (defaultsFor(unit) and defaultsFor(unit).cast) or {}
 		local ccfg = cfg.cast or defc
@@ -5201,6 +5571,7 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 	if cfg and cfg.enabled == false then return end
 	if st.nameText then
 		local scfg = cfg.status or {}
+		local defStatus = (defaultsFor(unit) and defaultsFor(unit).status) or {}
 		local nc
 		local nr, ng, nb, na
 		local isPlayerUnit = UnitIsPlayer and UnitIsPlayer(unit)
@@ -5214,12 +5585,19 @@ local function updateNameAndLevel(cfg, unit, levelOverride)
 				if cr then
 					nr, ng, nb, na = cr, cg, cb, ca
 				end
-			elseif UFHelper and UFHelper.getNPCSelectionKey and UFHelper.getNPCSelectionKey(unit) then
-				local fallback = NORMAL_FONT_COLOR
-				nr = (fallback and (fallback.r or fallback[1])) or 1
-				ng = (fallback and (fallback.g or fallback[2])) or 0.82
-				nb = (fallback and (fallback.b or fallback[3])) or 0
-				na = (fallback and (fallback.a or fallback[4])) or 1
+			else
+				local useReactionColor = scfg.nameUseReactionColor
+				if useReactionColor == nil then useReactionColor = defStatus.nameUseReactionColor == true end
+				if useReactionColor == true and UFHelper and UFHelper.getNPCHealthColor then
+					nr, ng, nb, na = UFHelper.getNPCHealthColor(unit)
+				end
+				if not nr and UFHelper and UFHelper.getNPCSelectionKey and UFHelper.getNPCSelectionKey(unit) then
+					local fallback = NORMAL_FONT_COLOR
+					nr = (fallback and (fallback.r or fallback[1])) or 1
+					ng = (fallback and (fallback.g or fallback[2])) or 0.82
+					nb = (fallback and (fallback.b or fallback[3])) or 0
+					na = (fallback and (fallback.a or fallback[4])) or 1
+				end
 			end
 		end
 		if not nr then
@@ -6322,7 +6700,9 @@ onEvent = function(self, event, unit, ...)
 		refreshRangeFadeSpells(true)
 		return
 	end
-	if event == "PLAYER_ENTERING_WORLD" then
+	if event == "PLAYER_LOGIN" then
+		updateNameAndLevel(getCfg(UNIT.PLAYER), UNIT.PLAYER)
+	elseif event == "PLAYER_ENTERING_WORLD" then
 		local playerCfg = getCfg(UNIT.PLAYER)
 		local targetCfg = getCfg(UNIT.TARGET)
 		local totCfg = getCfg(UNIT.TARGET_TARGET)
@@ -6762,11 +7142,6 @@ onEvent = function(self, event, unit, ...)
 		if unit == UNIT.TARGET and not shouldIgnoreCastFail(UNIT.TARGET, castGUID, spellId) then UF.ShowCastInterrupt(UNIT.TARGET, event) end
 		if unit == UNIT.FOCUS and not shouldIgnoreCastFail(UNIT.FOCUS, castGUID, spellId) then UF.ShowCastInterrupt(UNIT.FOCUS, event) end
 		if isBossUnit(unit) and not shouldIgnoreCastFail(unit, castGUID, spellId) then UF.ShowCastInterrupt(unit, event) end
-	elseif event == "UNIT_SPELLCAST_EMPOWER_STOP" then
-		if unit == UNIT.PLAYER then UF.ShowCastInterrupt(UNIT.PLAYER, "UNIT_SPELLCAST_INTERRUPTED") end
-		if unit == UNIT.TARGET then UF.ShowCastInterrupt(UNIT.TARGET, "UNIT_SPELLCAST_INTERRUPTED") end
-		if unit == UNIT.FOCUS then UF.ShowCastInterrupt(UNIT.FOCUS, "UNIT_SPELLCAST_INTERRUPTED") end
-		if isBossUnit(unit) then UF.ShowCastInterrupt(unit, "UNIT_SPELLCAST_INTERRUPTED") end
 	elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_EMPOWER_STOP" then
 		if unit == UNIT.PLAYER then
 			if not (states[UNIT.PLAYER] and states[UNIT.PLAYER].castInterruptActive) then

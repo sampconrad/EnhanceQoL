@@ -113,8 +113,14 @@ local data = {
 		text = L["chatEditBoxOnTop"],
 		desc = L["chatEditBoxOnTopDesc"],
 		func = function(key)
+			local wasEnabled = addon.db["chatEditBoxOnTop"] == true
 			addon.db["chatEditBoxOnTop"] = key
 			if addon.functions.ApplyChatEditBoxOnTop then addon.functions.ApplyChatEditBoxOnTop(key) end
+			if wasEnabled and key == false then
+				addon.variables = addon.variables or {}
+				addon.variables.requireReload = true
+				if addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
+			end
 		end,
 		default = false,
 	},

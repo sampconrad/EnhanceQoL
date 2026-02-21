@@ -46,12 +46,12 @@ addon.Sounds.extraSoundEvents = {
 	{
 		event = "CRAFTINGORDERS_PERSONAL_ORDER_NEW",
 		label = "soundExtraEventCraftingOrdersNew",
-		registerEvent = "CRAFTINGORDERS_UPDATE_PERSONAL_ORDER_COUNTS",
+		registerEvent = { "PLAYER_ENTERING_WORLD", "CRAFTINGORDERS_UPDATE_PERSONAL_ORDER_COUNTS" },
 	},
 	{
 		event = "CRAFTINGORDERS_PERSONAL_ORDER_REMOVED",
 		label = "soundExtraEventCraftingOrdersRemoved",
-		registerEvent = "CRAFTINGORDERS_UPDATE_PERSONAL_ORDER_COUNTS",
+		registerEvent = { "PLAYER_ENTERING_WORLD", "CRAFTINGORDERS_UPDATE_PERSONAL_ORDER_COUNTS" },
 	},
 }
 

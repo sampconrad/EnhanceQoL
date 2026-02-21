@@ -12,9 +12,22 @@ local expandable = addon.functions.SettingsCreateExpandableSection(cContainer, {
 
 local wOpen = false -- Variable to ignore multiple checks for openItems
 local function openItems(items)
+	local madeProgress = false
+
+	local function didItemProgress(beforeItemID, beforeCount, afterInfo)
+		if not beforeItemID then return false end
+		if not afterInfo or afterInfo.itemID ~= beforeItemID then return true end
+		local afterCount = afterInfo.stackCount or 1
+		return afterCount < beforeCount
+	end
+
 	local function openNextItem()
 		if #items == 0 then
-			addon.functions.checkForContainer()
+			if madeProgress then
+				addon.functions.checkForContainer()
+			else
+				wOpen = false
+			end
 			return
 		end
 
@@ -23,14 +36,33 @@ local function openItems(items)
 			return
 		end
 
-		if not MerchantFrame:IsShown() then
-			local item = table.remove(items, 1)
-			local iLoc = ItemLocation:CreateFromBagAndSlot(item.bag, item.slot)
-			C_Timer.After(0.15, function()
-				C_Container.UseContainerItem(item.bag, item.slot)
-				C_Timer.After(0.4, openNextItem) -- 400ms Pause zwischen den boxen
-			end)
+		if MerchantFrame and MerchantFrame:IsShown() then
+			wOpen = false
+			return
 		end
+
+		local item = table.remove(items, 1)
+		if not item then
+			openNextItem()
+			return
+		end
+
+		local beforeInfo = C_Container.GetContainerItemInfo and C_Container.GetContainerItemInfo(item.bag, item.slot)
+		local beforeItemID = beforeInfo and beforeInfo.itemID
+		local beforeCount = (beforeInfo and beforeInfo.stackCount) or 1
+		if not beforeItemID then
+			openNextItem()
+			return
+		end
+
+		C_Timer.After(0.15, function()
+			C_Container.UseContainerItem(item.bag, item.slot)
+			C_Timer.After(0.4, function()
+				local afterInfo = C_Container.GetContainerItemInfo and C_Container.GetContainerItemInfo(item.bag, item.slot)
+				if didItemProgress(beforeItemID, beforeCount, afterInfo) then madeProgress = true end
+				openNextItem()
+			end) -- 400ms Pause zwischen den boxen
+		end)
 	end
 	openNextItem()
 end
@@ -66,7 +98,7 @@ local data = {
 
 addon.functions.SettingsCreateText(cContainer, L["containerActionsFeatureDesc2"], { parentSection = expandable })
 addon.functions.SettingsCreateCheckbox(cContainer, data)
-addon.functions.SettingsCreateText(cContainer, L["containerActionsEditModeHint"] .. "\n" .. "|cff99e599" .. L["containerActionsBlacklistHint"] .. "|r",{parentSection = expandable})
+addon.functions.SettingsCreateText(cContainer, L["containerActionsEditModeHint"] .. "\n" .. "|cff99e599" .. L["containerActionsBlacklistHint"] .. "|r", { parentSection = expandable })
 
 data = {
 	listFunc = function()

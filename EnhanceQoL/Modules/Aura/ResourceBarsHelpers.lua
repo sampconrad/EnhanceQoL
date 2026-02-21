@@ -328,6 +328,40 @@ local function hideDiscreteSegments(bar)
 	end
 end
 
+local function resolveDiscreteSeparatorSize(cfg, separatorThickness)
+	local size = tonumber(separatorThickness)
+	if size == nil then size = tonumber(cfg and cfg.separatorThickness) end
+	if size == nil then size = 1 end
+	return math.max(0, math.floor(size + 0.5))
+end
+
+local function resolveDiscreteSegmentOffset(cfg)
+	local offset = tonumber(cfg and cfg.separatedOffset) or 0
+	return math.max(0, math.floor(offset + 0.5))
+end
+
+local function resolveDiscreteSegmentGap(cfg, separatorThickness)
+	local offset = resolveDiscreteSegmentOffset(cfg)
+	if offset > 0 then return offset end
+	return resolveDiscreteSeparatorSize(cfg, separatorThickness)
+end
+
+local function resolveMaelstromCarryMode(bar, cfg, count, clamped)
+	if not (bar and cfg and cfg.useMaelstromCarryFill == true and cfg.useMaelstromTenStacks ~= true) then return false end
+	if bar._usingMaxColor == true then return false end
+	if (bar._rbType ~= "MAELSTROM_WEAPON") or count <= 0 then return false end
+	local maelstromSegments = (ResourceBars and ResourceBars.MAELSTROM_WEAPON_SEGMENTS) or 5
+	if count ~= maelstromSegments then return false end
+
+	local rawStacks = tonumber(bar._rbDiscreteRawValue) or clamped or 0
+	local overflow = rawStacks - count
+	if overflow <= 0 then return false end
+	if overflow > count then overflow = count end
+
+	local carryR, carryG, carryB, carryA = normalizeGradientColor(bar._baseColor or { 1, 1, 1, 1 })
+	return true, overflow, carryR, carryG, carryB, carryA
+end
+
 function ResourceBars.HideDiscreteSegments(bar)
 	if not bar then return end
 	hideDiscreteSegments(bar)
@@ -355,15 +389,19 @@ function ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separ
 	local vertical = cfg and cfg.verticalFill == true
 	local reverse = cfg and cfg.reverseFill == true
 
-	local gap = tonumber(separatorThickness)
-	if gap == nil then gap = tonumber(cfg and cfg.separatorThickness) end
-	if gap == nil then gap = 1 end
-	gap = math.max(0, math.floor(gap + 0.5))
-	if count < 2 then gap = 0 end
+	local separatorSize = resolveDiscreteSeparatorSize(cfg, separatorThickness)
+	local segmentOffset = resolveDiscreteSegmentOffset(cfg)
+	local requestedGap = resolveDiscreteSegmentGap(cfg, separatorThickness)
+	local gap = requestedGap
+	if count < 2 then
+		requestedGap = 0
+		gap = 0
+	end
 
 	local span = vertical and h or w
 	local maxGap = (count > 1) and math.max(0, math.floor((span - count) / (count - 1))) or 0
 	if gap > maxGap then gap = maxGap end
+	local markerThickness = min(separatorSize, gap)
 
 	local available = span - (gap * (count - 1))
 	if available < count then available = count end
@@ -433,7 +471,9 @@ function ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separ
 	end
 
 	local neededGaps = count - 1
-	if gap > 0 and neededGaps > 0 then
+	local showSeparatorRequested = cfg and cfg.showSeparator == true and separatorSize > 0 and count > 1 and segmentOffset == 0
+	if showSeparatorRequested and markerThickness > 0 and neededGaps > 0 then
+		local markOffset = floor((gap - markerThickness) * 0.5)
 		for i = 1, neededGaps do
 			local mark = gapMarks[i]
 			if not mark then
@@ -445,15 +485,15 @@ function ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separ
 			mark:ClearAllPoints()
 			mark:SetColorTexture(sr, sg, sb, sa)
 			if vertical then
-				mark:SetPoint("BOTTOM", segments[i], "TOP", 0, 0)
+				mark:SetPoint("BOTTOM", segments[i], "TOP", 0, markOffset)
 				mark:SetPoint("LEFT", inner, "LEFT", 0, 0)
 				mark:SetPoint("RIGHT", inner, "RIGHT", 0, 0)
-				mark:SetHeight(gap)
+				mark:SetHeight(markerThickness)
 			else
-				mark:SetPoint("LEFT", segments[i], "RIGHT", 0, 0)
+				mark:SetPoint("LEFT", segments[i], "RIGHT", markOffset, 0)
 				mark:SetPoint("TOP", inner, "TOP", 0, 0)
 				mark:SetPoint("BOTTOM", inner, "BOTTOM", 0, 0)
-				mark:SetWidth(gap)
+				mark:SetWidth(markerThickness)
 			end
 			if not mark:IsShown() then mark:Show() end
 		end
@@ -468,7 +508,10 @@ function ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separ
 
 	bar._rbDiscreteCount = count
 	bar._rbDiscreteVertical = vertical
+	bar._rbDiscreteGapRequested = requestedGap
 	bar._rbDiscreteGap = gap
+	bar._rbDiscreteSeparatorSize = separatorSize
+	bar._rbDiscreteShowSeparatorRequested = showSeparatorRequested
 	bar._rbDiscreteReverse = reverse
 end
 
@@ -482,13 +525,22 @@ function ResourceBars.UpdateDiscreteSegments(bar, cfg, count, value, color, text
 
 	local vertical = cfg and cfg.verticalFill == true
 	local reverse = cfg and cfg.reverseFill == true
-	local gap = tonumber(separatorThickness)
-	if gap == nil then gap = tonumber(cfg and cfg.separatorThickness) end
-	if gap == nil then gap = 1 end
-	gap = math.max(0, math.floor(gap + 0.5))
+	local separatorSize = resolveDiscreteSeparatorSize(cfg, separatorThickness)
+	local segmentOffset = resolveDiscreteSegmentOffset(cfg)
+	local gap = resolveDiscreteSegmentGap(cfg, separatorThickness)
+	if count < 2 then gap = 0 end
+	local showSeparatorRequested = cfg and cfg.showSeparator == true and separatorSize > 0 and count > 1 and segmentOffset == 0
 
-	if not bar._rbDiscreteSegments or bar._rbDiscreteCount ~= count or bar._rbDiscreteVertical ~= vertical or bar._rbDiscreteGap ~= gap or bar._rbDiscreteReverse ~= reverse then
-		ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, gap, separatorColor)
+	if
+		not bar._rbDiscreteSegments
+		or bar._rbDiscreteCount ~= count
+		or bar._rbDiscreteVertical ~= vertical
+		or bar._rbDiscreteGapRequested ~= gap
+		or bar._rbDiscreteReverse ~= reverse
+		or bar._rbDiscreteSeparatorSize ~= separatorSize
+		or bar._rbDiscreteShowSeparatorRequested ~= showSeparatorRequested
+	then
+		ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separatorThickness, separatorColor)
 	end
 
 	local segments = bar._rbDiscreteSegments
@@ -509,6 +561,8 @@ function ResourceBars.UpdateDiscreteSegments(bar, cfg, count, value, color, text
 	elseif clamped > count then
 		clamped = count
 	end
+	local useMaelstromCarryFill, carryOverflow, carryR, carryG, carryB, carryA = resolveMaelstromCarryMode(bar, cfg, count, clamped)
+	if useMaelstromCarryFill then clamped = count end
 
 	for physicalIndex = 1, count do
 		local sb = segments[physicalIndex]
@@ -543,15 +597,21 @@ function ResourceBars.UpdateDiscreteSegments(bar, cfg, count, value, color, text
 					sb._rbSegmentBgColorKey = nil
 				end
 			end
-			if sb._rbSegmentFillColorKey ~= fillColorKey then
+			local segmentR, segmentG, segmentB, segmentA = baseR, baseG, baseB, baseA
+			local segmentColorKey = fillColorKey
+			if useMaelstromCarryFill and logicalIndex > carryOverflow then
+				segmentR, segmentG, segmentB, segmentA = carryR, carryG, carryB, carryA
+				segmentColorKey = segmentR .. ":" .. segmentG .. ":" .. segmentB .. ":" .. segmentA
+			end
+			if sb._rbSegmentFillColorKey ~= segmentColorKey then
 				if ResourceBars.SetStatusBarColorWithGradient then
-					ResourceBars.SetStatusBarColorWithGradient(sb, cfg, baseR, baseG, baseB, baseA)
+					ResourceBars.SetStatusBarColorWithGradient(sb, cfg, segmentR, segmentG, segmentB, segmentA)
 				else
-					sb:SetStatusBarColor(baseR, baseG, baseB, baseA or 1)
+					sb:SetStatusBarColor(segmentR, segmentG, segmentB, segmentA or 1)
 				end
-				sb._rbSegmentFillColorKey = fillColorKey
+				sb._rbSegmentFillColorKey = segmentColorKey
 			elseif ResourceBars.RefreshStatusBarGradient then
-				ResourceBars.RefreshStatusBarGradient(sb, cfg, baseR, baseG, baseB, baseA)
+				ResourceBars.RefreshStatusBarGradient(sb, cfg, segmentR, segmentG, segmentB, segmentA)
 			end
 
 			sb:SetMinMaxValues(0, 1)

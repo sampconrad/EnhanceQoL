@@ -750,6 +750,13 @@ local function getVisibilityFadeAlpha(state)
 	return clampVisibilityAlpha(state.fadeAlpha)
 end
 
+local function HasFrameVisibilityRuleBesidesGroupHide(cfg)
+	if type(cfg) ~= "table" then return false end
+	return (cfg.MOUSEOVER or cfg.ALWAYS_IN_COMBAT or cfg.ALWAYS_OUT_OF_COMBAT or cfg.PLAYER_HAS_TARGET or cfg.PLAYER_CASTING or cfg.PLAYER_MOUNTED or cfg.PLAYER_NOT_MOUNTED or cfg.PLAYER_IN_GROUP)
+			and true
+		or false
+end
+
 local function EvaluateFrameVisibility(state)
 	local cfg = state.config
 	if not cfg or not next(cfg) then return false, nil end
@@ -757,9 +764,13 @@ local function EvaluateFrameVisibility(state)
 	if cfg.ALWAYS_HIDDEN then return false, "ALWAYS_HIDDEN" end
 	local context = frameVisibilityContext
 
-	if cfg.ALWAYS_HIDE_IN_GROUP and state.supportsGroupRule and context.inGroup then
-		if cfg.MOUSEOVER and state.isMouseOver then return true, "MOUSEOVER" end
-		return false, "ALWAYS_HIDE_IN_GROUP"
+	if cfg.ALWAYS_HIDE_IN_GROUP and state.supportsGroupRule then
+		if context.inGroup then
+			if cfg.MOUSEOVER and state.isMouseOver then return true, "MOUSEOVER" end
+			return false, "ALWAYS_HIDE_IN_GROUP"
+		end
+		-- If this is the only active rule, keep the frame visible while solo.
+		if not HasFrameVisibilityRuleBesidesGroupHide(cfg) then return true, "ALWAYS_HIDE_IN_GROUP_SOLO" end
 	end
 
 	if cfg.ALWAYS_IN_COMBAT and context.inCombat then return true, "ALWAYS_IN_COMBAT" end
@@ -2841,6 +2852,11 @@ local function initMisc()
 	addon.functions.InitDBValue("hideRaidTools", false)
 	addon.functions.InitDBValue("autoRepair", false)
 	addon.functions.InitDBValue("autoRepairGuildBank", false)
+	addon.functions.InitDBValue("autoWarbandGold", false)
+	addon.functions.InitDBValue("autoWarbandGoldTargetGold", 10000)
+	addon.functions.InitDBValue("autoWarbandGoldPerCharacter", {})
+	addon.functions.InitDBValue("autoWarbandGoldTargetCharacter", "")
+	addon.functions.InitDBValue("autoWarbandGoldWithdraw", false)
 	addon.functions.InitDBValue("sellAllJunk", false)
 	addon.functions.InitDBValue("autoCancelCinematic", false)
 	addon.functions.InitDBValue("quickSkipCinematic", false)
@@ -3461,42 +3477,11 @@ local function initChatFrame()
 			ensureChatFrameHooks()
 		end
 
-	local function storeEditBoxPoints(editBox)
-		addon.variables = addon.variables or {}
-		addon.variables.chatEditBoxAnchorCache = addon.variables.chatEditBoxAnchorCache or {}
-		local cache = addon.variables.chatEditBoxAnchorCache
-		if cache[editBox] then return end
-		local points = {}
-		for i = 1, editBox:GetNumPoints() do
-			points[i] = { editBox:GetPoint(i) }
-		end
-		cache[editBox] = { points = points, width = editBox:GetWidth(), height = editBox:GetHeight() }
-	end
-
-	local function restoreEditBoxPoints(editBox)
-		addon.variables = addon.variables or {}
-		local cache = addon.variables.chatEditBoxAnchorCache
-		local state = cache and cache[editBox]
-		if not state then return end
-		editBox:ClearAllPoints()
-		if state.points then
-			for _, point in ipairs(state.points) do
-				editBox:SetPoint(point[1], point[2], point[3], point[4], point[5])
-			end
-		end
-		if not state.points or #state.points == 0 then
-			if state.width then editBox:SetWidth(state.width) end
-			if state.height then editBox:SetHeight(state.height) end
-		end
-		cache[editBox] = nil
-	end
-
 	addon.functions.ApplyChatEditBoxOnTop = addon.functions.ApplyChatEditBoxOnTop
 		or function(enabled)
 			forEachChatFrame(function(frame, editBox)
 				if not (frame and editBox) then return end
 				if enabled then
-					storeEditBoxPoints(editBox)
 					editBox:ClearAllPoints()
 					editBox:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
 					editBox:SetWidth(frame:GetWidth())
@@ -3506,8 +3491,6 @@ local function initChatFrame()
 						end)
 						frame.eqolEditBoxSizeHooked = true
 					end
-				else
-					restoreEditBoxPoints(editBox)
 				end
 			end)
 
@@ -3748,6 +3731,7 @@ local function initUI()
 	addon.functions.InitDBValue("frameVisibilityFadeStrength", 1)
 	addon.functions.InitDBValue("buttonsink", {})
 	addon.functions.InitDBValue("buttonSinkAnchorPreference", "AUTO")
+	addon.functions.InitDBValue("minimapButtonBinIconClickToggle", false)
 	addon.functions.InitDBValue("minimapButtonBinColumns", DEFAULT_BUTTON_SINK_COLUMNS)
 	addon.functions.InitDBValue("minimapButtonBinHideBackground", false)
 	addon.functions.InitDBValue("minimapButtonBinHideBorder", false)
@@ -3767,6 +3751,59 @@ local function initUI()
 	addon.functions.InitDBValue("enableSquareMinimapLayout", false)
 	addon.functions.InitDBValue("squareMinimapBorderSize", 1)
 	addon.functions.InitDBValue("squareMinimapBorderColor", { r = 0, g = 0, b = 0 })
+	addon.functions.InitDBValue("enableSquareMinimapStats", false)
+	addon.functions.InitDBValue("squareMinimapStatsFont", STANDARD_TEXT_FONT)
+	addon.functions.InitDBValue("squareMinimapStatsOutline", "OUTLINE")
+	addon.functions.InitDBValue("squareMinimapStatsTime", true)
+	addon.functions.InitDBValue("squareMinimapStatsTimeAnchor", "BOTTOMLEFT")
+	addon.functions.InitDBValue("squareMinimapStatsTimeOffsetX", 3)
+	addon.functions.InitDBValue("squareMinimapStatsTimeOffsetY", 17)
+	addon.functions.InitDBValue("squareMinimapStatsTimeFontSize", 18)
+	addon.functions.InitDBValue("squareMinimapStatsTimeColor", { r = 1, g = 1, b = 1, a = 1 })
+	addon.functions.InitDBValue("squareMinimapStatsTimeDisplayMode", "server")
+	addon.functions.InitDBValue("squareMinimapStatsTimeUse24Hour", true)
+	addon.functions.InitDBValue("squareMinimapStatsTimeShowSeconds", false)
+	addon.functions.InitDBValue("squareMinimapStatsFPS", true)
+	addon.functions.InitDBValue("squareMinimapStatsFPSAnchor", "BOTTOMLEFT")
+	addon.functions.InitDBValue("squareMinimapStatsFPSOffsetX", 3)
+	addon.functions.InitDBValue("squareMinimapStatsFPSOffsetY", 3)
+	addon.functions.InitDBValue("squareMinimapStatsFPSFontSize", 12)
+	addon.functions.InitDBValue("squareMinimapStatsFPSColor", { r = 1, g = 1, b = 1, a = 1 })
+	addon.functions.InitDBValue("squareMinimapStatsFPSThresholdMedium", 30)
+	addon.functions.InitDBValue("squareMinimapStatsFPSThresholdHigh", 60)
+	addon.functions.InitDBValue("squareMinimapStatsFPSColorLow", { r = 1, g = 0, b = 0, a = 1 })
+	addon.functions.InitDBValue("squareMinimapStatsFPSColorMid", { r = 1, g = 1, b = 0, a = 1 })
+	addon.functions.InitDBValue("squareMinimapStatsFPSColorHigh", { r = 0, g = 1, b = 0, a = 1 })
+	addon.functions.InitDBValue("squareMinimapStatsFPSUpdateInterval", 0.25)
+	addon.functions.InitDBValue("squareMinimapStatsLatency", true)
+	addon.functions.InitDBValue("squareMinimapStatsLatencyAnchor", "BOTTOMRIGHT")
+	addon.functions.InitDBValue("squareMinimapStatsLatencyOffsetX", -3)
+	addon.functions.InitDBValue("squareMinimapStatsLatencyOffsetY", 3)
+	addon.functions.InitDBValue("squareMinimapStatsLatencyFontSize", 12)
+	addon.functions.InitDBValue("squareMinimapStatsLatencyColor", { r = 1, g = 1, b = 1, a = 1 })
+	addon.functions.InitDBValue("squareMinimapStatsLatencyMode", "max")
+	addon.functions.InitDBValue("squareMinimapStatsLatencyThresholdLow", 50)
+	addon.functions.InitDBValue("squareMinimapStatsLatencyThresholdMid", 150)
+	addon.functions.InitDBValue("squareMinimapStatsLatencyColorLow", { r = 0, g = 1, b = 0, a = 1 })
+	addon.functions.InitDBValue("squareMinimapStatsLatencyColorMid", { r = 1, g = 0.65, b = 0, a = 1 })
+	addon.functions.InitDBValue("squareMinimapStatsLatencyColorHigh", { r = 1, g = 0, b = 0, a = 1 })
+	addon.functions.InitDBValue("squareMinimapStatsLatencyUpdateInterval", 1.0)
+	addon.functions.InitDBValue("squareMinimapStatsLocation", true)
+	addon.functions.InitDBValue("squareMinimapStatsLocationAnchor", "TOP")
+	addon.functions.InitDBValue("squareMinimapStatsLocationOffsetX", 0)
+	addon.functions.InitDBValue("squareMinimapStatsLocationOffsetY", -3)
+	addon.functions.InitDBValue("squareMinimapStatsLocationFontSize", 12)
+	addon.functions.InitDBValue("squareMinimapStatsLocationColor", { r = 1, g = 1, b = 1, a = 1 })
+	addon.functions.InitDBValue("squareMinimapStatsLocationShowSubzone", false)
+	addon.functions.InitDBValue("squareMinimapStatsLocationUseZoneColor", true)
+	addon.functions.InitDBValue("squareMinimapStatsCoordinates", true)
+	addon.functions.InitDBValue("squareMinimapStatsCoordinatesAnchor", "TOP")
+	addon.functions.InitDBValue("squareMinimapStatsCoordinatesOffsetX", 0)
+	addon.functions.InitDBValue("squareMinimapStatsCoordinatesOffsetY", -17)
+	addon.functions.InitDBValue("squareMinimapStatsCoordinatesFontSize", 12)
+	addon.functions.InitDBValue("squareMinimapStatsCoordinatesColor", { r = 1, g = 1, b = 1, a = 1 })
+	addon.functions.InitDBValue("squareMinimapStatsCoordinatesHideInInstance", true)
+	addon.functions.InitDBValue("squareMinimapStatsCoordinatesUpdateInterval", 0.2)
 	addon.functions.InitDBValue("minimapButtonsMouseover", false)
 	addon.functions.InitDBValue("unclampMinimapCluster", false)
 	addon.functions.InitDBValue("enableMinimapClusterScale", false)
@@ -4361,7 +4398,7 @@ local function initUI()
 
 			if addon.db["useMinimapButtonBinIcon"] then
 				buttonBag:SetScript("OnLeave", function(self)
-					if addon.db["useMinimapButtonBinIcon"] then C_Timer.After(1, function() hoverOutFrame() end) end
+					if addon.db["useMinimapButtonBinIcon"] and addon.db["minimapButtonBinIconClickToggle"] ~= true then C_Timer.After(1, function() hoverOutFrame() end) end
 				end)
 			else
 				if not addon.db["lockMinimapButtonBin"] then
@@ -4403,11 +4440,26 @@ local function initUI()
 					icon = "Interface\\AddOns\\" .. addonName .. "\\Icons\\SinkHole.tga" or "Interface\\ICONS\\INV_Misc_QuestionMark", -- irgendein Icon
 					label = addonName .. "_ButtonSinkMap",
 					OnEnter = function(self)
-						positionBagFrame(addon.variables.buttonSink, LDBIcon.objects[addonName .. "_ButtonSinkMap"])
+						if addon.db["minimapButtonBinIconClickToggle"] then return end
+						local anchorButton = LDBIcon.objects[addonName .. "_ButtonSinkMap"] or self
+						if not anchorButton then return end
+						positionBagFrame(addon.variables.buttonSink, anchorButton)
 						addon.variables.buttonSink:Show()
 					end,
+					OnClick = function(self, button)
+						if addon.db["minimapButtonBinIconClickToggle"] ~= true then return end
+						if button and button ~= "LeftButton" then return end
+						if not addon.variables.buttonSink then return end
+						if addon.variables.buttonSink:IsShown() then
+							addon.variables.buttonSink:Hide()
+						else
+							local anchorButton = LDBIcon.objects[addonName .. "_ButtonSinkMap"] or self
+							if anchorButton then positionBagFrame(addon.variables.buttonSink, anchorButton) end
+							addon.variables.buttonSink:Show()
+						end
+					end,
 					OnLeave = function(self)
-						if addon.db["useMinimapButtonBinIcon"] then C_Timer.After(1, function() hoverOutFrame() end) end
+						if addon.db["useMinimapButtonBinIcon"] and addon.db["minimapButtonBinIconClickToggle"] ~= true then C_Timer.After(1, function() hoverOutFrame() end) end
 					end,
 				}
 				-- Registriere das Icon bei LibDBIcon
@@ -5388,6 +5440,45 @@ local function shouldAutoChooseQuest()
 	return not IsShiftKeyDown()
 end
 
+local COPPER_PER_GOLD = 10000
+
+function addon.functions.AutoSyncWarbandGold()
+	if not addon.db or not addon.db["autoWarbandGold"] then return end
+	if not C_Bank or not Enum or not Enum.BankType or not Enum.BankType.Account then return end
+
+	local bankType = Enum.BankType.Account
+	if not C_Bank.DoesBankTypeSupportMoneyTransfer or not C_Bank.DoesBankTypeSupportMoneyTransfer(bankType) then return end
+	if not C_Bank.CanUseBank or not C_Bank.CanUseBank(bankType) then return end
+
+	local targetGold = tonumber(addon.db["autoWarbandGoldTargetGold"]) or 0
+	local playerGuid = UnitGUID("player")
+	local perCharacterTargets = addon.db["autoWarbandGoldPerCharacter"]
+	if type(perCharacterTargets) == "table" and playerGuid and perCharacterTargets[playerGuid] ~= nil then targetGold = tonumber(perCharacterTargets[playerGuid]) or targetGold end
+	if targetGold < 0 then targetGold = 0 end
+	local targetCopper = math.floor((targetGold * COPPER_PER_GOLD) + 0.5)
+	local playerMoney = GetMoney() or 0
+
+	if playerMoney > targetCopper then
+		if not (C_Bank.CanDepositMoney and C_Bank.DepositMoney and C_Bank.CanDepositMoney(bankType)) then return end
+		local amountToDeposit = playerMoney - targetCopper
+		if amountToDeposit <= 0 then return end
+		C_Bank.DepositMoney(bankType, amountToDeposit)
+		print((L["autoWarbandGoldDeposited"] or "Deposited %s to Warband bank."):format(addon.functions.formatMoney(amountToDeposit)))
+		return
+	end
+
+	if not addon.db["autoWarbandGoldWithdraw"] then return end
+	if playerMoney >= targetCopper then return end
+	if not (C_Bank.CanWithdrawMoney and C_Bank.WithdrawMoney and C_Bank.CanWithdrawMoney(bankType)) then return end
+
+	local warbandMoney = C_Bank.FetchDepositedMoney and C_Bank.FetchDepositedMoney(bankType) or 0
+	local amountToWithdraw = math.min(targetCopper - playerMoney, warbandMoney)
+	if amountToWithdraw <= 0 then return end
+
+	C_Bank.WithdrawMoney(bankType, amountToWithdraw)
+	print((L["autoWarbandGoldWithdrawn"] or "Withdrew %s from Warband bank."):format(addon.functions.formatMoney(amountToWithdraw)))
+end
+
 local function loadSubAddon(name)
 	local subAddonName = name
 
@@ -5704,6 +5795,11 @@ local eventHandlers = {
 		if arg1 == 53 and addon.db["openCharframeOnUpgrade"] then
 			if CharacterFrame:IsShown() == false then ToggleCharacter("PaperDollFrame") end
 		end
+	end,
+	["BANKFRAME_OPENED"] = function()
+		C_Timer.After(0, function()
+			if addon.functions and addon.functions.AutoSyncWarbandGold then addon.functions.AutoSyncWarbandGold() end
+		end)
 	end,
 	["PLAYER_LOGIN"] = function()
 		addon.functions.applyUIScalePreset()

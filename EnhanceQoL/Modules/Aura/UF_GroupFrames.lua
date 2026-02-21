@@ -112,6 +112,7 @@ local function normalizeGroupNumberFormat(format)
 	if mapped then return mapped end
 	return text
 end
+
 local function hideDispelTint(st)
 	if not (st and st.dispelTint) then return end
 	if st._dispelTintShown == false then return end
@@ -174,15 +175,24 @@ local function setBackdrop(frame, borderCfg)
 		local borderFrame = ensureBorderFrame(frame)
 		if not borderFrame then return end
 		local color = borderCfg.color or { 0, 0, 0, 0.8 }
-		local insetVal = borderCfg.offset
-		if insetVal == nil then insetVal = borderCfg.inset end
-		if insetVal == nil then insetVal = borderCfg.edgeSize or 1 end
+		local edgeSize = tonumber(borderCfg.edgeSize) or 1
+		if edgeSize < 1 then edgeSize = 1 end
+		local offset = borderCfg.offset
+		if offset == nil then offset = borderCfg.inset end
+		if offset == nil then offset = edgeSize end
+		offset = max(0, tonumber(offset) or 0)
+		local insetVal = borderCfg.inset
+		if insetVal == nil then insetVal = edgeSize end
+		insetVal = max(0, tonumber(insetVal) or edgeSize)
 		local edgeFile = (UFHelper and UFHelper.resolveBorderTexture and UFHelper.resolveBorderTexture(borderCfg.texture)) or "Interface\\Buttons\\WHITE8x8"
+		borderFrame:ClearAllPoints()
+		borderFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", -offset, offset)
+		borderFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", offset, -offset)
 		borderFrame:SetBackdrop({
 			bgFile = "Interface\\Buttons\\WHITE8x8",
 			edgeFile = edgeFile,
 			tile = false,
-			edgeSize = borderCfg.edgeSize or 1,
+			edgeSize = edgeSize,
 			insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
 		})
 		borderFrame:SetBackdropColor(0, 0, 0, 0)
@@ -207,9 +217,6 @@ local function ensureHighlightFrame(st, key)
 		frame:EnableMouse(false)
 		st._highlightFrames[key] = frame
 	end
-	frame:SetFrameStrata(st.barGroup:GetFrameStrata())
-	local baseLevel = st.barGroup:GetFrameLevel() or 0
-	frame:SetFrameLevel(baseLevel + 4)
 	return frame
 end
 
@@ -228,12 +235,15 @@ local function buildHighlightConfig(cfg, def, key)
 	local offset = hcfg.offset
 	if offset == nil then offset = hdef.offset end
 	offset = tonumber(offset) or 0
+	local layer = tostring(hcfg.layer or hdef.layer or "ABOVE_BORDER"):upper()
+	if layer ~= "BEHIND_BORDER" then layer = "ABOVE_BORDER" end
 	return {
 		enabled = true,
 		texture = texture,
 		size = size,
 		color = color,
 		offset = offset,
+		layer = layer,
 	}
 end
 
@@ -249,6 +259,16 @@ local function applyHighlightStyle(st, cfg, key)
 	end
 	frame = ensureHighlightFrame(st, key)
 	if not frame then return end
+	if frame.SetFrameStrata and st.barGroup and st.barGroup.GetFrameStrata then frame:SetFrameStrata(st.barGroup:GetFrameStrata()) end
+	if frame.SetFrameLevel and st.barGroup and st.barGroup.GetFrameLevel then
+		local baseLevel = st.barGroup:GetFrameLevel() or 0
+		local layer = tostring(cfg.layer or "ABOVE_BORDER"):upper()
+		if layer == "BEHIND_BORDER" then
+			frame:SetFrameLevel(baseLevel + 2)
+		else
+			frame:SetFrameLevel(baseLevel + 4)
+		end
+	end
 	local size = cfg.size or 1
 	if size < 1 then size = 1 end
 	local offset = cfg.offset or 0
@@ -268,20 +288,24 @@ local function applyHighlightStyle(st, cfg, key)
 	frame:Hide()
 end
 
-local function applyBarBackdrop(bar, cfg)
-	if not bar or not bar.SetBackdrop then return end
+local function applyBarBackdrop(bar, cfg, options)
+	if not bar then return end
 	cfg = cfg or {}
+	options = options or {}
 	local bd = cfg.backdrop or {}
+	local clampToFill = options.clampToFill == true
 	local enabled = bd.enabled ~= false
 	local col = bd.color or { 0, 0, 0, 0.6 }
 	local r = col[1] or 0
 	local g = col[2] or 0
 	local b = col[3] or 0
 	local a = col[4] or 0.6
+	local currentStatusTex = (clampToFill and bar.GetStatusBarTexture and bar:GetStatusBarTexture()) or nil
 
 	if not enabled then
-		if bar._eqolBackdropEnabled == false then return end
-		bar:SetBackdrop(nil)
+		if bar._eqolBackdropEnabled == false and bar._eqolBackdropClampToFill == clampToFill then return end
+		if bar.SetBackdrop then bar:SetBackdrop(nil) end
+		if bar._eqolBackdropTexture then bar._eqolBackdropTexture:Hide() end
 		bar._eqolBackdropEnabled = false
 		bar._eqolBackdropR, bar._eqolBackdropG, bar._eqolBackdropB, bar._eqolBackdropA = nil, nil, nil, nil
 		bar._eqolBackdropConfigured = nil
@@ -304,6 +328,9 @@ local function applyBarBackdrop(bar, cfg)
 	bar._eqolBackdropConfigured = true
 	bar._eqolBackdropBgFile = bgFile
 	bar._eqolBackdropEnabled = true
+	bar._eqolBackdropConfigured = true
+	bar._eqolBackdropClampToFill = clampToFill
+	bar._eqolBackdropStatusTex = currentStatusTex
 	bar._eqolBackdropR, bar._eqolBackdropG, bar._eqolBackdropB, bar._eqolBackdropA = r, g, b, a
 end
 
@@ -1004,6 +1031,7 @@ local DEFAULTS = {
 		tooltip = {
 			mode = "OFF",
 			modifier = "ALT",
+			useEditMode = false,
 		},
 		width = 180,
 		height = 100,
@@ -1051,6 +1079,7 @@ local DEFAULTS = {
 			texture = "DEFAULT",
 			size = 2,
 			offset = 0,
+			layer = "ABOVE_BORDER",
 			color = { 1, 1, 0, 1 },
 		},
 		health = {
@@ -1392,6 +1421,7 @@ local DEFAULTS = {
 		tooltip = {
 			mode = "OFF",
 			modifier = "ALT",
+			useEditMode = false,
 		},
 		width = 100,
 		height = 80,
@@ -1446,6 +1476,7 @@ local DEFAULTS = {
 			texture = "DEFAULT",
 			size = 2,
 			offset = 0,
+			layer = "ABOVE_BORDER",
 			color = { 1, 1, 0, 1 },
 		},
 		health = {
@@ -1791,6 +1822,7 @@ do
 	mtDefaults.enabled = false
 	mtDefaults.sortMethod = "NAME"
 	mtDefaults.sortDir = "ASC"
+	mtDefaults.hideSelf = false
 	mtDefaults.groupBy = nil
 	mtDefaults.groupingOrder = nil
 	mtDefaults.groupFilter = nil
@@ -2106,6 +2138,7 @@ local function updateButtonConfig(self, cfg)
 	if tooltipMode == "OOC" then tooltipMode = "OUT_OF_COMBAT" end
 	st._tooltipMode = tooltipMode
 	st._tooltipModifier = tostring(tooltipCfg.modifier or tooltipDef.modifier or "ALT"):upper()
+	st._tooltipUseEditMode = (tooltipCfg.useEditMode ~= nil and tooltipCfg.useEditMode == true) or ((tooltipCfg.useEditMode == nil) and tooltipDef.useEditMode == true)
 
 	local wantsPower = true
 	local powerHeight = cfg.powerHeight
@@ -2207,7 +2240,9 @@ function GF:BuildButton(self)
 	local cfg = getCfg(kind)
 	self._eqolCfg = cfg
 	updateButtonConfig(self, cfg)
+	local def = DEFAULTS[kind] or {}
 	local hc = cfg.health or {}
+	local defH = def.health or {}
 	local pcfg = cfg.power or {}
 	local tc = cfg.text or {}
 
@@ -2244,7 +2279,10 @@ function GF:BuildButton(self)
 		st._lastHealthTexture = healthTexKey
 	end
 	stabilizeStatusBarTexture(st.health)
-	applyBarBackdrop(st.health, hc)
+	local healthBackdropClampToFill = (hc.backdrop and hc.backdrop.clampToFill)
+	if healthBackdropClampToFill == nil then healthBackdropClampToFill = defH.backdrop and defH.backdrop.clampToFill end
+	if healthBackdropClampToFill == nil then healthBackdropClampToFill = false end
+	applyBarBackdrop(st.health, hc, { clampToFill = healthBackdropClampToFill == true })
 
 	if not st.absorb then
 		st.absorb = CreateFrame("StatusBar", nil, st.health, "BackdropTemplate")
@@ -2294,7 +2332,7 @@ function GF:BuildButton(self)
 			local lvl = st.healthTextLayer:GetFrameLevel() or 0
 			st.dispelTint:SetFrameLevel(lvl)
 		end
-		st.dispelTint:SetAllPoints(st.barGroup)
+		st.dispelTint:SetAllPoints(st.health)
 	end
 
 	if not st.healthTextLeft then st.healthTextLeft = st.healthTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
@@ -2375,7 +2413,7 @@ function GF:BuildButton(self)
 
 	if not st._sizeHooked then
 		st._sizeHooked = true
-		self:HookScript("OnSizeChanged", function(btn) GF:LayoutButton(btn) end)
+		self:HookScript("OnSizeChanged", function(btn) GF:OnUnitButtonSizeChanged(btn) end)
 	end
 
 	self:SetClampedToScreen(true)
@@ -2391,6 +2429,23 @@ function GF:BuildButton(self)
 	GF:LayoutButton(self)
 end
 
+function GF:OnUnitButtonSizeChanged(self)
+	if not self then return end
+	GF:LayoutButton(self)
+
+	local unit = getUnit(self)
+	local st = getState(self)
+	if not (unit and st) then return end
+
+	GF:UpdateHealthStyle(self)
+	GF:UpdateHealthValue(self, unit, st)
+	GF:UpdatePowerValue(self, unit, st)
+	GF:UpdateName(self, unit, st)
+	GF:UpdateStatusText(self, unit, st)
+	GF:UpdateLevel(self, unit, st)
+	GF:UpdateRange(self)
+end
+
 function GF:LayoutButton(self)
 	if not self then return end
 	local st = getState(self)
@@ -2401,6 +2456,9 @@ function GF:LayoutButton(self)
 	local def = DEFAULTS[kind] or {}
 	local hc = cfg.health or {}
 	local defH = def.health or {}
+	local healthBackdropClampToFill = (hc.backdrop and hc.backdrop.clampToFill)
+	if healthBackdropClampToFill == nil then healthBackdropClampToFill = defH.backdrop and defH.backdrop.clampToFill end
+	if healthBackdropClampToFill == nil then healthBackdropClampToFill = false end
 
 	local scale = GFH.GetEffectiveScale(self)
 	if not scale or scale <= 0 then scale = (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1 end
@@ -2410,26 +2468,13 @@ function GF:LayoutButton(self)
 	if st._powerHidden then powerH = 0 end
 	local w, h = self:GetSize()
 	if not w or not h then return end
-	local borderOffset = 0
-	local bc = cfg.border or {}
-	if bc.enabled ~= false then
-		borderOffset = bc.offset
-		if borderOffset == nil then borderOffset = bc.edgeSize or 1 end
-		borderOffset = max(0, borderOffset or 0)
-	end
-	local maxOffset = floor((math.min(w, h) - 4) / 2)
-	if maxOffset < 0 then maxOffset = 0 end
-	if borderOffset > maxOffset then borderOffset = maxOffset end
-	borderOffset = roundToPixel(borderOffset, scale)
-
-	local availH = h - borderOffset * 2
+	local availH = h
 	if availH < 1 then availH = 1 end
 	if powerH > availH - 4 then powerH = math.max(0, availH * 0.25) end
 	powerH = roundToEvenPixel(max(0, powerH), scale)
 	if powerH > availH then powerH = availH end
 
-	local negBorderOffset = roundToPixel(-borderOffset, scale)
-	local healthBottomOffset = roundToPixel(powerH + borderOffset, scale)
+	local healthBottomOffset = roundToPixel(powerH, scale)
 
 	st.barGroup:SetAllPoints(self)
 	setBackdrop(st.barGroup, cfg.border)
@@ -2440,18 +2485,21 @@ function GF:LayoutButton(self)
 	applyHighlightStyle(st, st._highlightTargetCfg, "target")
 
 	st.power:ClearAllPoints()
-	st.power:SetPoint("BOTTOMLEFT", st.barGroup, "BOTTOMLEFT", borderOffset, borderOffset)
-	st.power:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", negBorderOffset, borderOffset)
+	st.power:SetPoint("BOTTOMLEFT", st.barGroup, "BOTTOMLEFT", 0, 0)
+	st.power:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", 0, 0)
 	st.power:SetHeight(powerH)
 
 	st.health:ClearAllPoints()
-	st.health:SetPoint("TOPLEFT", st.barGroup, "TOPLEFT", borderOffset, negBorderOffset)
-	st.health:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", negBorderOffset, healthBottomOffset)
-	applyBarBackdrop(st.health, hc)
+	st.health:SetPoint("TOPLEFT", st.barGroup, "TOPLEFT", 0, 0)
+	st.health:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", 0, healthBottomOffset)
+	applyBarBackdrop(st.health, hc, { clampToFill = healthBackdropClampToFill == true })
 	applyBarBackdrop(st.power, cfg.power or {})
 
 	self.powerBarUsedHeight = powerH > 0 and powerH or 0
-	if st.dispelTint and st.dispelTint.SetOrientation and DispelOverlayOrientation then st.dispelTint:SetOrientation(self, DispelOverlayOrientation.VerticalTopToBottom, 0, 0) end
+	if st.dispelTint then
+		st.dispelTint:SetAllPoints(st.health)
+		if st.dispelTint.SetOrientation and DispelOverlayOrientation then st.dispelTint:SetOrientation(self, DispelOverlayOrientation.VerticalTopToBottom, 0, 0) end
+	end
 
 	if UFHelper and UFHelper.applyFont then
 		UFHelper.applyFont(st.healthTextLeft, hc.font, hc.fontSize or 12, hc.fontOutline)
@@ -2549,8 +2597,9 @@ function GF:LayoutButton(self)
 		local relPoint = rc.relativePoint or "LEFT"
 		local ox = roundToPixel(rc.x or 2, scale)
 		local oy = roundToPixel(rc.y or 0, scale)
+		local roleAnchor = st.barGroup or self or st.health
 		st.roleIcon:ClearAllPoints()
-		st.roleIcon:SetPoint(point, st.health, relPoint, ox, oy)
+		st.roleIcon:SetPoint(point, roleAnchor, relPoint, ox, oy)
 		st.roleIcon:SetSize(size, size)
 		rolePad = size + (rc.spacing or 2)
 	else
@@ -2576,8 +2625,10 @@ function GF:LayoutButton(self)
 		local namePad = (nameAnchor and nameAnchor:find("LEFT")) and rolePad or 0
 		local nameX = (nameOffset.x ~= nil and nameOffset.x or baseOffset.x or 6) + namePad
 		local nameY = nameOffset.y ~= nil and nameOffset.y or baseOffset.y or 0
+		local nameAnchorFrame = st.barGroup or st.health
+		if nameAnchor and nameAnchor:find("BOTTOM") then nameAnchorFrame = st.health or nameAnchorFrame end
 		if GFH and GFH.SnapPointOffsets then
-			nameX, nameY = GFH.SnapPointOffsets(st.health, nameAnchor, nameX, nameY, scale)
+			nameX, nameY = GFH.SnapPointOffsets(nameAnchorFrame, nameAnchor, nameX, nameY, scale)
 		else
 			nameX, nameY = roundToPixel(nameX, scale), roundToPixel(nameY, scale)
 		end
@@ -2595,16 +2646,16 @@ function GF:LayoutButton(self)
 			local leftX, leftY
 			local rightX, rightY
 			if GFH and GFH.SnapPointOffsets then
-				leftX, leftY = GFH.SnapPointOffsets(st.health, leftPoint, nameX, nameY, scale)
-				rightX, rightY = GFH.SnapPointOffsets(st.health, rightPoint, -4, nameY, scale)
+				leftX, leftY = GFH.SnapPointOffsets(nameAnchorFrame, leftPoint, nameX, nameY, scale)
+				rightX, rightY = GFH.SnapPointOffsets(nameAnchorFrame, rightPoint, -4, nameY, scale)
 			else
 				leftX, leftY = roundToPixel(nameX, scale), roundToPixel(nameY, scale)
 				rightX, rightY = roundToPixel(-4, scale), roundToPixel(nameY, scale)
 			end
-			st.nameText:SetPoint(leftPoint, st.health, leftPoint, leftX, leftY)
-			st.nameText:SetPoint(rightPoint, st.health, rightPoint, rightX, rightY)
+			st.nameText:SetPoint(leftPoint, nameAnchorFrame, leftPoint, leftX, leftY)
+			st.nameText:SetPoint(rightPoint, nameAnchorFrame, rightPoint, rightX, rightY)
 		else
-			st.nameText:SetPoint(nameAnchor, st.health, nameAnchor, nameX, nameY)
+			st.nameText:SetPoint(nameAnchor, nameAnchorFrame, nameAnchor, nameX, nameY)
 		end
 		local justify = "CENTER"
 		if nameAnchor and nameAnchor:find("LEFT") then
@@ -5619,7 +5670,20 @@ function GF.UnitButton_OnEnter(self)
 	local unit = getUnit(self)
 	if not unit then return end
 	if not GameTooltip or GameTooltip:IsForbidden() then return end
-	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+	local useEditMode = st and st._tooltipUseEditMode
+	if useEditMode == nil then
+		local kind = (self and self._eqolGroupKind) or "party"
+		local cfg = (self and (self._eqolCfg or getCfg(kind))) or getCfg(kind)
+		local tc = cfg and cfg.tooltip or nil
+		local def = (DEFAULTS[kind] and DEFAULTS[kind].tooltip) or (DEFAULTS.party and DEFAULTS.party.tooltip) or nil
+		useEditMode = tc and tc.useEditMode
+		if useEditMode == nil then useEditMode = def and def.useEditMode end
+	end
+	if useEditMode == true and GameTooltip_SetDefaultAnchor then
+		GameTooltip_SetDefaultAnchor(GameTooltip, self)
+	else
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+	end
 	GameTooltip:SetUnit(unit)
 	GameTooltip:Show()
 end
@@ -6397,6 +6461,41 @@ function GF:RefreshStatusText()
 	end
 end
 
+function GF:RefreshConnectionState(unit)
+	if not isFeatureEnabled() then return 0 end
+	local refreshed = 0
+	local unitToken = (type(unit) == "string") and unit or nil
+	local function refreshChild(child)
+		if not (child and child._eqolUFState) then return end
+		local childUnit = getUnit(child)
+		if not childUnit then return end
+		if unitToken and childUnit ~= unitToken then return end
+
+		local st = getState(child)
+		GF:CacheUnitStatic(child)
+		GF:UpdateHealthStyle(child)
+		GF:UpdateHealthValue(child, childUnit, st)
+		GF:UpdatePowerValue(child, childUnit, st)
+		GF:UpdateName(child, childUnit, st)
+		GF:UpdateStatusText(child, childUnit, st)
+		GF:UpdateLevel(child, childUnit, st)
+		GF:UpdateRange(child)
+		refreshed = refreshed + 1
+	end
+
+	for _, header in pairs(GF.headers or {}) do
+		forEachChild(header, function(child) refreshChild(child) end)
+	end
+
+	if GF._raidGroupHeaders then
+		for _, header in ipairs(GF._raidGroupHeaders) do
+			if header and not header._eqolSpecialHide then forEachChild(header, function(child) refreshChild(child) end) end
+		end
+	end
+
+	return refreshed
+end
+
 function GF:RefreshGroupIndicators()
 	if not isFeatureEnabled() then return end
 	local cfg = getCfg("raid")
@@ -6897,7 +6996,7 @@ function GF:ApplyHeaderAttributes(kind)
 	elseif isSplitRoleKind(kind) then
 		setAttr("showParty", false)
 		setAttr("showRaid", true)
-		setAttr("showPlayer", true)
+		setAttr("showPlayer", not (kind == "mt" and cfg.hideSelf == true))
 		setAttr("showSolo", false)
 		setAttr("groupingOrder", nil)
 		setAttr("groupFilter", nil)
@@ -6916,7 +7015,7 @@ function GF:ApplyHeaderAttributes(kind)
 	if header._eqolForceShow then
 		setAttr("showParty", true)
 		setAttr("showRaid", true)
-		setAttr("showPlayer", true)
+		setAttr("showPlayer", not (kind == "mt" and cfg.hideSelf == true))
 		setAttr("showSolo", true)
 	end
 
@@ -7452,6 +7551,1058 @@ local EDITMODE_IDS = {
 	ma = "EQOL_UF_GROUP_MA",
 }
 
+GF._groupCopySourceGroup = "group"
+GF._groupCopySourceUnit = "unit"
+GF._groupCopyDialogKey = "EQOL_UF_GROUP_COPY_SETTINGS"
+
+GF._groupCopySourceLabels = {
+	party = PARTY or "Party",
+	raid = RAID or "Raid",
+	mt = MAINTANK or "Main Tank",
+	ma = MAINASSIST or "Main Assist",
+}
+
+GF._groupCopyUnitSourceLabels = {
+	player = PLAYER or "Player",
+	target = TARGET or "Target",
+	targettarget = L["UFToTFrame"] or "Target of Target",
+	pet = PET or "Pet",
+	focus = FOCUS or "Focus",
+	boss = BOSS or "Boss",
+}
+
+GF._groupCopySectionOrder = {
+	"frame",
+	"layout",
+	"border",
+	"hoverHighlight",
+	"targetHighlight",
+	"text",
+	"health",
+	"absorb",
+	"healabsorb",
+	"level",
+	"statustext",
+	"dispeltint",
+	"groupicons",
+	"raidmarker",
+	"statusicons",
+	"roleicons",
+	"power",
+	"buffs",
+	"debuffs",
+	"externals",
+	"privateAuras",
+	"party",
+	"raid",
+}
+
+GF._groupCopySectionLabels = {
+	frame = "Frame",
+	layout = "Layout",
+	border = "Border",
+	hoverHighlight = "Hover highlight",
+	targetHighlight = "Target highlight",
+	text = "Name",
+	health = "Health",
+	absorb = "Absorb",
+	healabsorb = "Heal absorb",
+	level = "Level",
+	statustext = "Status line",
+	dispeltint = "Dispel tint",
+	groupicons = "Group icons",
+	raidmarker = "Raid marker",
+	statusicons = "Status icons",
+	roleicons = "Role icons",
+	power = "Power",
+	buffs = "Buffs",
+	debuffs = "Debuffs",
+	externals = "Externals",
+	privateAuras = L["UFPrivateAuras"] or "Private Auras",
+	party = PARTY or "Party",
+	raid = RAID or "Raid",
+}
+
+GF._groupCopySectionRules = {
+	frame = {
+		{ "width" },
+		{ "height" },
+		{ "powerHeight" },
+		{ "hideInClientScene" },
+		{ "tooltip" },
+		{ "point" },
+		{ "relativePoint" },
+		{ "relativeTo" },
+		{ "x" },
+		{ "y" },
+	},
+	layout = {
+		{ "spacing" },
+		{ "growth" },
+		{ "groupGrowth" },
+		{ "barTexture" },
+		{ "unitsPerColumn" },
+		{ "maxColumns" },
+		{ "columnSpacing" },
+	},
+	border = {
+		{ "border" },
+	},
+	hoverHighlight = {
+		{ "highlightHover" },
+	},
+	targetHighlight = {
+		{ "highlightTarget" },
+	},
+	text = {
+		{ "text" },
+		{ "status", "nameColorMode" },
+		{ "status", "nameColor" },
+	},
+	health = {
+		{ "health" },
+	},
+	absorb = {
+		{ "health", "absorbEnabled" },
+		{ "health", "showSampleAbsorb" },
+		{ "health", "absorbTexture" },
+		{ "health", "absorbReverseFill" },
+		{ "health", "absorbUseCustomColor" },
+		{ "health", "absorbColor" },
+	},
+	healabsorb = {
+		{ "health", "healAbsorbEnabled" },
+		{ "health", "showSampleHealAbsorb" },
+		{ "health", "healAbsorbTexture" },
+		{ "health", "healAbsorbReverseFill" },
+		{ "health", "healAbsorbUseCustomColor" },
+		{ "health", "healAbsorbColor" },
+	},
+	level = {
+		{ "status", "levelEnabled" },
+		{ "status", "hideLevelAtMax" },
+		{ "status", "levelColorMode" },
+		{ "status", "levelColor" },
+		{ "status", "levelFontSize" },
+		{ "status", "levelFont" },
+		{ "status", "levelFontOutline" },
+		{ "status", "levelAnchor" },
+		{ "status", "levelOffset" },
+	},
+	statustext = {
+		{ "status", "unitStatus" },
+		{ "status", "groupNumber" },
+	},
+	dispeltint = {
+		{ "status", "dispelTint" },
+	},
+	groupicons = {
+		{ "status", "leaderIcon" },
+		{ "status", "assistIcon" },
+	},
+	raidmarker = {
+		{ "status", "raidIcon" },
+	},
+	statusicons = {
+		{ "status", "readyCheckIcon" },
+		{ "status", "summonIcon" },
+		{ "status", "resurrectIcon" },
+		{ "status", "phaseIcon" },
+	},
+	roleicons = {
+		{ "roleIcon" },
+	},
+	power = {
+		{ "powerHeight" },
+		{ "power" },
+	},
+	buffs = {
+		{ "auras", "buff" },
+	},
+	debuffs = {
+		{ "auras", "debuff" },
+	},
+	externals = {
+		{ "auras", "externals" },
+	},
+	privateAuras = {
+		{ "privateAuras" },
+	},
+	party = {
+		{ "showPlayer" },
+		{ "showSolo" },
+		{ "sortMethod" },
+		{ "sortDir" },
+		{ "customSort" },
+	},
+	raid = {
+		{ "hideSelf" },
+		{ "unitsPerColumn" },
+		{ "maxColumns" },
+		{ "columnSpacing" },
+		{ "groupBy" },
+		{ "groupingOrder" },
+		{ "groupFilter" },
+		{ "sortMethod" },
+		{ "sortDir" },
+		{ "customSort" },
+		{ "groupIndicator" },
+	},
+}
+
+GF._groupCopyUnitSections = {
+	frame = true,
+	border = true,
+	text = true,
+	health = true,
+	absorb = true,
+	healabsorb = true,
+	level = true,
+	statustext = true,
+	raidmarker = true,
+	power = true,
+	buffs = true,
+	debuffs = true,
+	privateAuras = true,
+}
+
+function GF._groupCopyCloneValue(value)
+	if type(value) ~= "table" then return value end
+	if addon.functions and addon.functions.copyTable then return addon.functions.copyTable(value) end
+	if CopyTable then return CopyTable(value) end
+	local out = {}
+	for key, child in pairs(value) do
+		out[key] = GF._groupCopyCloneValue(child)
+	end
+	return out
+end
+
+function GF._groupCopyGetPathValue(root, path)
+	if type(root) ~= "table" or type(path) ~= "table" then return nil, false end
+	local cur = root
+	for i = 1, #path do
+		if type(cur) ~= "table" then return nil, false end
+		cur = cur[path[i]]
+		if cur == nil then return nil, false end
+	end
+	return cur, true
+end
+
+function GF._groupCopyClearPathValue(root, path)
+	if type(root) ~= "table" or type(path) ~= "table" or #path == 0 then return end
+	if #path == 1 then
+		root[path[1]] = nil
+		return
+	end
+	local cur = root
+	local trail = {}
+	for i = 1, #path - 1 do
+		local key = path[i]
+		local nxt = cur[key]
+		if type(nxt) ~= "table" then return end
+		trail[#trail + 1] = { parent = cur, key = key }
+		cur = nxt
+	end
+	cur[path[#path]] = nil
+	for i = #trail, 1, -1 do
+		local node = trail[i]
+		local child = node.parent[node.key]
+		if type(child) == "table" and not next(child) then
+			node.parent[node.key] = nil
+		else
+			break
+		end
+	end
+end
+
+function GF._groupCopySetPathValue(root, path, value)
+	if type(root) ~= "table" or type(path) ~= "table" or #path == 0 then return end
+	if value == nil then
+		GF._groupCopyClearPathValue(root, path)
+		return
+	end
+	local cur = root
+	for i = 1, #path - 1 do
+		local key = path[i]
+		if type(cur[key]) ~= "table" then cur[key] = {} end
+		cur = cur[key]
+	end
+	cur[path[#path]] = value
+end
+
+function GF._groupCopyPath(src, dest, path)
+	local value, exists = GF._groupCopyGetPathValue(src, path)
+	if exists then
+		GF._groupCopySetPathValue(dest, path, GF._groupCopyCloneValue(value))
+	else
+		GF._groupCopyClearPathValue(dest, path)
+	end
+end
+
+function GF._groupCopyPathWithDefaults(sourceKind, src, dest, path)
+	local value, exists = GF._groupCopyGetPathValue(src, path)
+	if not exists then
+		local def = DEFAULTS[sourceKind]
+		if type(def) == "table" then
+			value, exists = GF._groupCopyGetPathValue(def, path)
+		end
+	end
+	if exists then GF._groupCopySetPathValue(dest, path, GF._groupCopyCloneValue(value)) end
+end
+
+function GF._groupCopyWipeTarget(t)
+	if type(t) ~= "table" then return end
+	if wipe then
+		wipe(t)
+		return
+	end
+	for key in pairs(t) do
+		t[key] = nil
+	end
+end
+
+function GF._isGroupCopyKind(kind) return kind == "party" or kind == "raid" or kind == "mt" or kind == "ma" end
+
+function GF._buildGroupCopySectionSetForGroupKind(kind)
+	local set = {
+		frame = true,
+		layout = true,
+		border = true,
+		hoverHighlight = true,
+		targetHighlight = true,
+		text = true,
+		health = true,
+		absorb = true,
+		healabsorb = true,
+		level = true,
+		statustext = true,
+		dispeltint = true,
+		groupicons = true,
+		raidmarker = true,
+		statusicons = true,
+		roleicons = true,
+		power = true,
+		buffs = true,
+		debuffs = true,
+		externals = true,
+		privateAuras = true,
+	}
+	if kind == "party" then
+		set.party = true
+	elseif kind == "raid" or kind == "mt" or kind == "ma" then
+		set.raid = true
+	end
+	return set
+end
+
+function GF._buildGroupCopySectionSetForUnitSource()
+	local set = {}
+	for sectionId in pairs(GF._groupCopyUnitSections) do
+		set[sectionId] = true
+	end
+	return set
+end
+
+function GF._buildGroupCopySourceOptions(targetKind)
+	local options = {}
+	for _, sourceKind in ipairs({ "party", "raid", "mt", "ma" }) do
+		if sourceKind ~= targetKind then
+			options[#options + 1] = {
+				sourceType = GF._groupCopySourceGroup,
+				sourceKey = sourceKind,
+				label = GF._groupCopySourceLabels[sourceKind] or sourceKind,
+			}
+		end
+	end
+	for _, sourceUnit in ipairs({ "player", "target", "targettarget", "focus", "pet", "boss" }) do
+		options[#options + 1] = {
+			sourceType = GF._groupCopySourceUnit,
+			sourceKey = sourceUnit,
+			label = GF._groupCopyUnitSourceLabels[sourceUnit] or sourceUnit,
+		}
+	end
+	return options
+end
+
+function GF._buildGroupCopySectionOptions(source, targetKind)
+	local options = {}
+	if type(source) ~= "table" or not GF._isGroupCopyKind(targetKind) then return options end
+	local sourceSet
+	if source.sourceType == GF._groupCopySourceGroup and GF._isGroupCopyKind(source.sourceKey) then
+		sourceSet = GF._buildGroupCopySectionSetForGroupKind(source.sourceKey)
+	elseif source.sourceType == GF._groupCopySourceUnit then
+		sourceSet = GF._buildGroupCopySectionSetForUnitSource()
+	else
+		return options
+	end
+	local targetSet = GF._buildGroupCopySectionSetForGroupKind(targetKind)
+	for _, sectionId in ipairs(GF._groupCopySectionOrder) do
+		if sourceSet[sectionId] and targetSet[sectionId] then options[#options + 1] = { value = sectionId, label = GF._groupCopySectionLabels[sectionId] or sectionId } end
+	end
+	return options
+end
+
+function GF._getGroupCopyTargetLabel(kind) return GF._groupCopySourceLabels[kind] or kind end
+
+function GF._getGroupCopySourceLabel(source)
+	if type(source) ~= "table" then return "" end
+	if source.label and source.label ~= "" then return source.label end
+	if source.sourceType == GF._groupCopySourceGroup then return GF._groupCopySourceLabels[source.sourceKey] or source.sourceKey end
+	if source.sourceType == GF._groupCopySourceUnit then return GF._groupCopyUnitSourceLabels[source.sourceKey] or source.sourceKey end
+	return tostring(source.sourceKey or "")
+end
+
+function GF._ensureGroupCopySectionSelection(payload)
+	if type(payload) ~= "table" then return end
+	payload.sectionOptions = type(payload.sectionOptions) == "table" and payload.sectionOptions or {}
+	payload.sectionSelection = type(payload.sectionSelection) == "table" and payload.sectionSelection or {}
+	for _, option in ipairs(payload.sectionOptions) do
+		if payload.sectionSelection[option.value] == nil then payload.sectionSelection[option.value] = true end
+	end
+end
+
+function GF._getSelectedGroupCopySections(payload)
+	local selected = {}
+	if type(payload) ~= "table" then return selected end
+	for _, option in ipairs(payload.sectionOptions or {}) do
+		if payload.sectionSelection and payload.sectionSelection[option.value] == true then selected[#selected + 1] = option.value end
+	end
+	return selected
+end
+
+function GF._resolveGroupCopySectionSelection(sectionOptions, selectedSections)
+	local resolved = {}
+	local selectedMap = nil
+	if type(selectedSections) == "table" then
+		selectedMap = {}
+		for _, sectionId in ipairs(selectedSections) do
+			if type(sectionId) == "string" and sectionId ~= "" then selectedMap[sectionId] = true end
+		end
+	end
+	for _, option in ipairs(sectionOptions or EMPTY) do
+		if selectedMap == nil or selectedMap[option.value] then resolved[#resolved + 1] = option.value end
+	end
+	return resolved
+end
+
+function GF._preserveGroupCopyAnchorState(cfg)
+	if type(cfg) ~= "table" then return nil end
+	return {
+		point = cfg.point,
+		relativePoint = cfg.relativePoint,
+		relativeTo = cfg.relativeTo,
+		x = cfg.x,
+		y = cfg.y,
+	}
+end
+
+function GF._restoreGroupCopyAnchorState(cfg, anchorState)
+	if type(cfg) ~= "table" or type(anchorState) ~= "table" then return end
+	cfg.point = anchorState.point
+	cfg.relativePoint = anchorState.relativePoint
+	cfg.relativeTo = anchorState.relativeTo
+	cfg.x = anchorState.x
+	cfg.y = anchorState.y
+end
+
+function GF._copyGroupSourceToGroup(sourceKind, targetKind, sectionIds, keepAnchor, keepEnabled)
+	local src = getCfg(sourceKind)
+	local dest = getCfg(targetKind)
+	if not (type(src) == "table" and type(dest) == "table") then return false end
+	local anchorState = keepAnchor and GF._preserveGroupCopyAnchorState(dest) or nil
+	local enabledValue = keepEnabled and dest.enabled
+	local copied = false
+
+	if type(sectionIds) == "table" and #sectionIds > 0 then
+		for _, sectionId in ipairs(sectionIds) do
+			local rules = GF._groupCopySectionRules[sectionId]
+			if type(rules) == "table" then
+				for _, path in ipairs(rules) do
+					GF._groupCopyPathWithDefaults(sourceKind, src, dest, path)
+				end
+				copied = true
+			end
+		end
+	else
+		GF._groupCopyWipeTarget(dest)
+		for key, value in pairs(src) do
+			dest[key] = GF._groupCopyCloneValue(value)
+		end
+		copied = true
+	end
+
+	if not copied then return false end
+	if keepAnchor then GF._restoreGroupCopyAnchorState(dest, anchorState) end
+	if keepEnabled then dest.enabled = enabledValue end
+	sanitizeHealthColorMode(dest)
+	if GFH and GFH.SyncAurasEnabled then GFH.SyncAurasEnabled(dest) end
+	return true
+end
+
+function GF._getUnitCopySourceConfig(unitKey)
+	if type(unitKey) ~= "string" or unitKey == "" then return nil end
+	if UF and UF.GetConfig then
+		local cfg = UF.GetConfig(unitKey)
+		if type(cfg) == "table" then return cfg end
+		if unitKey == "boss" then
+			cfg = UF.GetConfig("boss1")
+			if type(cfg) == "table" then return cfg end
+		end
+	end
+	local db = addon and addon.db and addon.db.ufFrames
+	if type(db) ~= "table" then return nil end
+	if unitKey == "boss" then return db.boss or db.boss1 end
+	return db[unitKey]
+end
+
+function GF._copyUnitAuraIconsToGroup(sectionId, srcAuras, dest)
+	if type(srcAuras) ~= "table" or type(dest) ~= "table" then return false end
+	local ac = ensureAuraConfig(dest)
+	local copied = false
+
+	if sectionId == "buffs" then
+		local buff = ac.buff or {}
+		ac.buff = buff
+		local enabled = srcAuras.showBuffs
+		if enabled == nil then enabled = srcAuras.enabled end
+		if enabled ~= nil then
+			buff.enabled = enabled and true or false
+			copied = true
+		end
+		if srcAuras.size ~= nil then
+			buff.size = srcAuras.size
+			copied = true
+		end
+		local perRow = tonumber(srcAuras.perRow)
+		if perRow and perRow > 0 then
+			buff.perRow = perRow
+			copied = true
+		end
+		if srcAuras.max ~= nil then
+			buff.max = srcAuras.max
+			copied = true
+		end
+		if srcAuras.padding ~= nil then
+			buff.spacing = srcAuras.padding
+			copied = true
+		end
+		if srcAuras.anchor ~= nil then
+			buff.anchorPoint = srcAuras.anchor
+			copied = true
+		end
+		local offset = srcAuras.offset
+		if type(offset) == "table" then
+			buff.x = offset.x or 0
+			buff.y = offset.y or 0
+			copied = true
+		end
+		if srcAuras.showTooltip ~= nil then
+			buff.showTooltip = srcAuras.showTooltip == true
+			copied = true
+		end
+		local showCooldown = srcAuras.showCooldownBuffs
+		if showCooldown == nil then showCooldown = srcAuras.showCooldown end
+		if showCooldown ~= nil then
+			buff.showCooldown = showCooldown and true or false
+			copied = true
+		end
+		if srcAuras.countAnchor ~= nil then
+			buff.countAnchor = srcAuras.countAnchor
+			copied = true
+		end
+		if type(srcAuras.countOffset) == "table" then
+			buff.countOffset = GF._groupCopyCloneValue(srcAuras.countOffset)
+			copied = true
+		end
+		local countSize = srcAuras.countFontSizeBuff
+		if countSize == nil then countSize = srcAuras.countFontSize end
+		if countSize ~= nil then
+			buff.countFontSize = countSize
+			copied = true
+		end
+		if srcAuras.countFontOutline ~= nil then
+			buff.countFontOutline = srcAuras.countFontOutline
+			copied = true
+		end
+		local cooldownSize = srcAuras.cooldownFontSizeBuff
+		if cooldownSize == nil then cooldownSize = srcAuras.cooldownFontSize end
+		if cooldownSize ~= nil then
+			buff.cooldownFontSize = cooldownSize
+			copied = true
+		end
+	elseif sectionId == "debuffs" then
+		local debuff = ac.debuff or {}
+		ac.debuff = debuff
+		local enabled = srcAuras.showDebuffs
+		if enabled == nil then enabled = srcAuras.enabled end
+		if enabled ~= nil then
+			debuff.enabled = enabled and true or false
+			copied = true
+		end
+		local debuffSize = srcAuras.debuffSize
+		if debuffSize == nil then debuffSize = srcAuras.size end
+		if debuffSize ~= nil then
+			debuff.size = debuffSize
+			copied = true
+		end
+		local perRow = tonumber(srcAuras.perRow)
+		if perRow and perRow > 0 then
+			debuff.perRow = perRow
+			copied = true
+		end
+		if srcAuras.max ~= nil then
+			debuff.max = srcAuras.max
+			copied = true
+		end
+		if srcAuras.padding ~= nil then
+			debuff.spacing = srcAuras.padding
+			copied = true
+		end
+		local anchor = srcAuras.anchor
+		local offset = srcAuras.offset
+		if srcAuras.separateDebuffAnchor == true then
+			if srcAuras.debuffAnchor ~= nil then anchor = srcAuras.debuffAnchor end
+			if type(srcAuras.debuffOffset) == "table" then offset = srcAuras.debuffOffset end
+		end
+		if anchor ~= nil then
+			debuff.anchorPoint = anchor
+			copied = true
+		end
+		if type(offset) == "table" then
+			debuff.x = offset.x or 0
+			debuff.y = offset.y or 0
+			copied = true
+		end
+		if srcAuras.showTooltip ~= nil then
+			debuff.showTooltip = srcAuras.showTooltip == true
+			copied = true
+		end
+		local showCooldown = srcAuras.showCooldownDebuffs
+		if showCooldown == nil then showCooldown = srcAuras.showCooldown end
+		if showCooldown ~= nil then
+			debuff.showCooldown = showCooldown and true or false
+			copied = true
+		end
+		if srcAuras.blizzardDispelBorder ~= nil then
+			debuff.showDispelIcon = srcAuras.blizzardDispelBorder == true
+			copied = true
+		end
+		if srcAuras.countAnchor ~= nil then
+			debuff.countAnchor = srcAuras.countAnchor
+			copied = true
+		end
+		if type(srcAuras.countOffset) == "table" then
+			debuff.countOffset = GF._groupCopyCloneValue(srcAuras.countOffset)
+			copied = true
+		end
+		local countSize = srcAuras.countFontSizeDebuff
+		if countSize == nil then countSize = srcAuras.countFontSize end
+		if countSize ~= nil then
+			debuff.countFontSize = countSize
+			copied = true
+		end
+		if srcAuras.countFontOutline ~= nil then
+			debuff.countFontOutline = srcAuras.countFontOutline
+			copied = true
+		end
+		local cooldownSize = srcAuras.cooldownFontSizeDebuff
+		if cooldownSize == nil then cooldownSize = srcAuras.cooldownFontSize end
+		if cooldownSize ~= nil then
+			debuff.cooldownFontSize = cooldownSize
+			copied = true
+		end
+	end
+
+	if copied and GFH and GFH.SyncAurasEnabled then GFH.SyncAurasEnabled(dest) end
+	return copied
+end
+
+function GF._copyUnitSourceSectionToGroup(sectionId, src, dest)
+	if type(src) ~= "table" or type(dest) ~= "table" then return false end
+	if sectionId == "frame" then
+		local copied = false
+		if src.width ~= nil then
+			dest.width = src.width
+			copied = true
+		end
+		if src.height ~= nil then
+			dest.height = src.height
+			copied = true
+		end
+		if src.powerHeight ~= nil then
+			dest.powerHeight = src.powerHeight
+			copied = true
+		end
+		if src.hideInClientScene ~= nil then
+			dest.hideInClientScene = src.hideInClientScene and true or false
+			copied = true
+		end
+		if src.showTooltip ~= nil or src.tooltipUseEditMode ~= nil then
+			dest.tooltip = dest.tooltip or {}
+			if src.showTooltip ~= nil then dest.tooltip.mode = src.showTooltip and "ALWAYS" or "OFF" end
+			if src.tooltipUseEditMode ~= nil then dest.tooltip.useEditMode = src.tooltipUseEditMode and true or false end
+			copied = true
+		end
+		return copied
+	elseif sectionId == "border" then
+		if src.border == nil then return false end
+		dest.border = GF._groupCopyCloneValue(src.border)
+		return true
+	elseif sectionId == "text" then
+		local sc = src.status
+		if type(sc) ~= "table" then return false end
+		local copied = false
+		dest.text = dest.text or {}
+		dest.status = dest.status or {}
+		if sc.nameColorMode ~= nil then
+			dest.status.nameColorMode = sc.nameColorMode
+			dest.text.useClassColor = tostring(sc.nameColorMode or ""):upper() == "CLASS"
+			copied = true
+		end
+		if sc.nameColor ~= nil then
+			dest.status.nameColor = GF._groupCopyCloneValue(sc.nameColor)
+			copied = true
+		end
+		if sc.nameOffset ~= nil then
+			dest.text.nameOffset = GF._groupCopyCloneValue(sc.nameOffset)
+			copied = true
+		end
+		if sc.nameMaxChars ~= nil then
+			dest.text.nameMaxChars = sc.nameMaxChars
+			copied = true
+		end
+		if sc.fontSize ~= nil then
+			dest.text.fontSize = sc.fontSize
+			copied = true
+		end
+		if sc.font ~= nil then
+			dest.text.font = sc.font
+			copied = true
+		end
+		if sc.fontOutline ~= nil then
+			dest.text.fontOutline = sc.fontOutline
+			copied = true
+		end
+		return copied
+	elseif sectionId == "health" then
+		if type(src.health) ~= "table" then return false end
+		dest.health = GF._groupCopyCloneValue(src.health)
+		return true
+	elseif sectionId == "absorb" then
+		local hc = src.health
+		if type(hc) ~= "table" then return false end
+		dest.health = dest.health or {}
+		local copied = false
+		for _, field in ipairs({ "absorbEnabled", "showSampleAbsorb", "absorbTexture", "absorbReverseFill", "absorbUseCustomColor", "absorbColor" }) do
+			if hc[field] ~= nil then
+				dest.health[field] = GF._groupCopyCloneValue(hc[field])
+				copied = true
+			end
+		end
+		return copied
+	elseif sectionId == "healabsorb" then
+		local hc = src.health
+		if type(hc) ~= "table" then return false end
+		dest.health = dest.health or {}
+		local copied = false
+		for _, field in ipairs({ "healAbsorbEnabled", "showSampleHealAbsorb", "healAbsorbTexture", "healAbsorbReverseFill", "healAbsorbUseCustomColor", "healAbsorbColor" }) do
+			if hc[field] ~= nil then
+				dest.health[field] = GF._groupCopyCloneValue(hc[field])
+				copied = true
+			end
+		end
+		return copied
+	elseif sectionId == "level" then
+		local sc = src.status
+		if type(sc) ~= "table" then return false end
+		dest.status = dest.status or {}
+		local copied = false
+		for _, field in ipairs({ "levelEnabled", "hideLevelAtMax", "levelColorMode", "levelColor", "levelFontSize", "levelFont", "levelFontOutline", "levelAnchor" }) do
+			if sc[field] ~= nil then
+				dest.status[field] = GF._groupCopyCloneValue(sc[field])
+				copied = true
+			end
+		end
+		if sc.levelOffset ~= nil then
+			dest.status.levelOffset = GF._groupCopyCloneValue(sc.levelOffset)
+			copied = true
+		end
+		return copied
+	elseif sectionId == "statustext" then
+		local sc = src.status
+		if type(sc) ~= "table" then return false end
+		local copied = false
+		dest.status = dest.status or {}
+		if type(sc.unitStatus) == "table" then
+			dest.status.unitStatus = GF._groupCopyCloneValue(sc.unitStatus)
+			copied = true
+			local usc = sc.unitStatus
+			if usc.showGroup ~= nil or usc.groupFormat ~= nil or usc.groupFontSize ~= nil or usc.groupOffset ~= nil then
+				dest.status.groupNumber = dest.status.groupNumber or {}
+				if usc.showGroup ~= nil then dest.status.groupNumber.enabled = usc.showGroup and true or false end
+				if usc.groupFormat ~= nil then dest.status.groupNumber.format = normalizeGroupNumberFormat(usc.groupFormat) or usc.groupFormat end
+				if usc.groupFontSize ~= nil then dest.status.groupNumber.fontSize = usc.groupFontSize end
+				if usc.groupOffset ~= nil then dest.status.groupNumber.offset = GF._groupCopyCloneValue(usc.groupOffset) end
+			end
+		end
+		return copied
+	elseif sectionId == "raidmarker" then
+		local rc = src.raidIcon
+		if type(rc) ~= "table" then return false end
+		dest.status = dest.status or {}
+		dest.status.raidIcon = dest.status.raidIcon or {}
+		local dst = dest.status.raidIcon
+		local copied = false
+		if rc.enabled ~= nil then
+			dst.enabled = rc.enabled and true or false
+			copied = true
+		end
+		if rc.size ~= nil then
+			dst.size = rc.size
+			copied = true
+		end
+		if rc.point ~= nil then
+			dst.point = rc.point
+			dst.relativePoint = rc.point
+			copied = true
+		end
+		if type(rc.offset) == "table" then
+			dst.x = rc.offset.x or 0
+			dst.y = rc.offset.y or 0
+			copied = true
+		end
+		return copied
+	elseif sectionId == "power" then
+		local copied = false
+		if type(src.power) == "table" then
+			dest.power = GF._groupCopyCloneValue(src.power)
+			copied = true
+		end
+		if src.powerHeight ~= nil then
+			dest.powerHeight = src.powerHeight
+			copied = true
+		end
+		return copied
+	elseif sectionId == "buffs" or sectionId == "debuffs" then
+		return GF._copyUnitAuraIconsToGroup(sectionId, src.auraIcons, dest)
+	elseif sectionId == "privateAuras" then
+		if type(src.privateAuras) ~= "table" then return false end
+		dest.privateAuras = GF._groupCopyCloneValue(src.privateAuras)
+		return true
+	end
+	return false
+end
+
+function GF._copyUnitSourceToGroup(sourceUnit, targetKind, sectionIds, keepAnchor, keepEnabled)
+	local src = GF._getUnitCopySourceConfig(sourceUnit)
+	local dest = getCfg(targetKind)
+	if not (type(src) == "table" and type(dest) == "table") then return false end
+	local anchorState = keepAnchor and GF._preserveGroupCopyAnchorState(dest) or nil
+	local enabledValue = keepEnabled and dest.enabled
+	local copied = false
+	for _, sectionId in ipairs(sectionIds or EMPTY) do
+		if GF._groupCopyUnitSections[sectionId] and GF._copyUnitSourceSectionToGroup(sectionId, src, dest) then copied = true end
+	end
+	if not copied then return false end
+	if keepAnchor then GF._restoreGroupCopyAnchorState(dest, anchorState) end
+	if keepEnabled then dest.enabled = enabledValue end
+	sanitizeHealthColorMode(dest)
+	if GFH and GFH.SyncAurasEnabled then GFH.SyncAurasEnabled(dest) end
+	return true
+end
+
+function GF._applyGroupCopyRefresh(targetKind, editModeId)
+	GF:ApplyHeaderAttributes(targetKind)
+	GF:RefreshNames()
+	GF:RefreshPowerVisibility()
+	GF:RefreshRoleIcons()
+	GF:RefreshGroupIcons()
+	GF:RefreshStatusText()
+	GF:RefreshRaidIcons()
+	GF:RefreshStatusIcons()
+	GF:RefreshDispelTint()
+	GF:RefreshTargetHighlights()
+	GF:RefreshTextStyles()
+	GF:RefreshClientSceneVisibility()
+	if targetKind == "raid" then GF:RefreshGroupIndicators() end
+	refreshAllAuras()
+	if GF._previewActive and GF._previewActive[targetKind] then GF:UpdatePreviewLayout(targetKind) end
+	-- Do not call EditMode:RefreshFrame here: it reapplies stale layout data via onApply
+	-- and can overwrite freshly copied cfg values (e.g. width/height) back to old values.
+	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
+end
+
+function GF._copyGroupSettingsFromSource(source, targetKind, opts)
+	if type(source) ~= "table" or not GF._isGroupCopyKind(targetKind) then return false end
+	opts = opts or {}
+	local sectionOptions = GF._buildGroupCopySectionOptions(source, targetKind)
+	if #sectionOptions == 0 then return false end
+	local keepAnchor = opts.keepAnchor ~= false
+	local keepEnabled = opts.keepEnabled ~= false
+	if source.sourceType == GF._groupCopySourceGroup then
+		if not GF._isGroupCopyKind(source.sourceKey) then return false end
+		local sectionIds = GF._resolveGroupCopySectionSelection(sectionOptions, opts.sections)
+		if #sectionIds == 0 then return false end
+		return GF._copyGroupSourceToGroup(source.sourceKey, targetKind, sectionIds, keepAnchor, keepEnabled)
+	elseif source.sourceType == GF._groupCopySourceUnit then
+		local sectionIds = GF._resolveGroupCopySectionSelection(sectionOptions, opts.sections)
+		if #sectionIds == 0 then return false end
+		return GF._copyUnitSourceToGroup(source.sourceKey, targetKind, sectionIds, keepAnchor, keepEnabled)
+	end
+	return false
+end
+
+function GF._ensureGroupCopySectionCheckbox(dialog, index)
+	dialog.eqolGroupCopySectionRows = dialog.eqolGroupCopySectionRows or {}
+	local row = dialog.eqolGroupCopySectionRows[index]
+	if row then return row end
+	row = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
+	row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	row.Label:SetPoint("LEFT", row, "RIGHT", 1, 1)
+	row.Label:SetJustifyH("LEFT")
+	row.Label:SetWidth(255)
+	row:SetHitRectInsets(0, -255, 0, 0)
+	dialog.eqolGroupCopySectionRows[index] = row
+	return row
+end
+
+function GF._ensureGroupCopyAllCheckbox(dialog)
+	if dialog.eqolGroupCopyAllRow then return dialog.eqolGroupCopyAllRow end
+	local row = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
+	row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	row.Label:SetPoint("LEFT", row, "RIGHT", 1, 1)
+	row.Label:SetJustifyH("LEFT")
+	row.Label:SetWidth(255)
+	row:SetHitRectInsets(0, -255, 0, 0)
+	row.Label:SetText(L["UFAllSettings"] or "All settings")
+	row:SetScript("OnClick", function(self)
+		local popup = self:GetParent()
+		local payload = popup and popup.data
+		if not payload then return end
+		GF._ensureGroupCopySectionSelection(payload)
+		local checked = self:GetChecked() == true
+		for _, option in ipairs(payload.sectionOptions) do
+			payload.sectionSelection[option.value] = checked
+		end
+		if popup.eqolRefreshGroupCopySelection then popup:eqolRefreshGroupCopySelection() end
+	end)
+	dialog.eqolGroupCopyAllRow = row
+	return row
+end
+
+function GF._refreshGroupCopySelectionDialog(dialog)
+	local payload = dialog and dialog.data
+	if not payload then return end
+	GF._ensureGroupCopySectionSelection(payload)
+	local options = payload.sectionOptions or {}
+	local popupHeight = 150 + ((#options + 1) * 22)
+	if popupHeight < 190 then popupHeight = 190 end
+	local maxPopupHeight = 540
+	if UIParent and UIParent.GetHeight then
+		local uiHeight = tonumber(UIParent:GetHeight())
+		if uiHeight and uiHeight > 0 then maxPopupHeight = math.max(320, math.floor(uiHeight - 120)) end
+	end
+	if popupHeight > maxPopupHeight then popupHeight = maxPopupHeight end
+	if StaticPopup_Resize then StaticPopup_Resize(dialog, 380, popupHeight) end
+
+	local allRow = GF._ensureGroupCopyAllCheckbox(dialog)
+	allRow:ClearAllPoints()
+	if dialog.button1 then
+		allRow:SetPoint("TOPLEFT", dialog.button1, "BOTTOMLEFT", -40, -16)
+	else
+		allRow:SetPoint("TOPLEFT", dialog, "TOPLEFT", 24, -72)
+	end
+	allRow:Show()
+
+	local selectedCount = 0
+	local lastAnchor = allRow
+	for index, option in ipairs(options) do
+		local row = GF._ensureGroupCopySectionCheckbox(dialog, index)
+		row.sectionId = option.value
+		row:ClearAllPoints()
+		row:SetPoint("TOPLEFT", lastAnchor, "BOTTOMLEFT", 0, -2)
+		row.Label:SetText(option.label or option.value)
+		local checked = payload.sectionSelection[option.value] == true
+		row:SetChecked(checked)
+		if checked then selectedCount = selectedCount + 1 end
+		row:SetScript("OnClick", function(self)
+			local popup = self:GetParent()
+			local popupPayload = popup and popup.data
+			if not popupPayload then return end
+			GF._ensureGroupCopySectionSelection(popupPayload)
+			popupPayload.sectionSelection[self.sectionId] = self:GetChecked() == true
+			if popup.eqolRefreshGroupCopySelection then popup:eqolRefreshGroupCopySelection() end
+		end)
+		row:Show()
+		lastAnchor = row
+	end
+
+	local rows = dialog.eqolGroupCopySectionRows or {}
+	for index = #options + 1, #rows do
+		local row = rows[index]
+		if row then row:Hide() end
+	end
+	local allSelected = #options > 0 and selectedCount == #options
+	allRow:SetChecked(allSelected)
+	if dialog.button1 and dialog.button1.SetEnabled then dialog.button1:SetEnabled(selectedCount > 0) end
+end
+
+function GF._showGroupCopySettingsPopup(source, targetKind, editModeId)
+	if type(source) ~= "table" or not GF._isGroupCopyKind(targetKind) then return end
+	local sectionOptions = GF._buildGroupCopySectionOptions(source, targetKind)
+	if #sectionOptions == 0 then
+		if GF._copyGroupSettingsFromSource(source, targetKind, { keepAnchor = true, keepEnabled = true }) then GF._applyGroupCopyRefresh(targetKind, editModeId) end
+		return
+	end
+
+	StaticPopupDialogs[GF._groupCopyDialogKey] = StaticPopupDialogs[GF._groupCopyDialogKey]
+		or {
+			text = "%s",
+			button1 = L["Copy"] or ACCEPT,
+			button2 = CANCEL,
+			hideOnEscape = true,
+			timeout = 0,
+			whileDead = 1,
+			preferredIndex = 3,
+			OnAccept = function(self, data)
+				local payload = data or self.data
+				if payload and payload.source and payload.targetKind then
+					local selected = GF._getSelectedGroupCopySections(payload)
+					if #selected == 0 then return end
+					local copyOptions = { keepAnchor = true, keepEnabled = true, sections = selected }
+					if GF._copyGroupSettingsFromSource(payload.source, payload.targetKind, copyOptions) then GF._applyGroupCopyRefresh(payload.targetKind, payload.editModeId) end
+				end
+			end,
+			OnShow = function(self, data)
+				self.data = data or self.data
+				GF._ensureGroupCopySectionSelection(self.data or {})
+				if not self.eqolRefreshGroupCopySelection then self.eqolRefreshGroupCopySelection = GF._refreshGroupCopySelectionDialog end
+				self:eqolRefreshGroupCopySelection()
+			end,
+			OnHide = function(self)
+				if self.eqolGroupCopyAllRow then self.eqolGroupCopyAllRow:Hide() end
+				if self.eqolGroupCopySectionRows then
+					for _, row in ipairs(self.eqolGroupCopySectionRows) do
+						if row then row:Hide() end
+					end
+				end
+			end,
+		}
+
+	local sourceLabel = GF._getGroupCopySourceLabel(source)
+	local targetLabel = GF._getGroupCopyTargetLabel(targetKind)
+	local dialog = StaticPopupDialogs[GF._groupCopyDialogKey]
+	if not dialog then return end
+	dialog.text = string.format("%s\n%s -> %s", L["Copy settings"] or "Copy settings", sourceLabel, targetLabel)
+	StaticPopup_Show(GF._groupCopyDialogKey, nil, nil, {
+		source = source,
+		targetKind = targetKind,
+		editModeId = editModeId,
+		sectionOptions = sectionOptions,
+		sectionSelection = {},
+	})
+end
+
 local function anchorUsesUIParent(kind)
 	local cfg = getCfg(kind)
 	local rel = cfg and cfg.relativeTo
@@ -7652,6 +8803,10 @@ local function buildEditModeSettings(kind, editModeId)
 		{ value = "ALT", label = "Alt" },
 		{ value = "SHIFT", label = "Shift" },
 		{ value = "CTRL", label = "Ctrl" },
+	}
+	local targetHighlightLayerOptions = {
+		{ value = "ABOVE_BORDER", label = L["UFTargetHighlightLayerAboveBorder"] or "Above border" },
+		{ value = "BEHIND_BORDER", label = L["UFTargetHighlightLayerBehindBorder"] or "Behind border" },
 	}
 	local function getTooltipModeValue()
 		local cfg = getCfg(kind)
@@ -7876,6 +9031,30 @@ local function buildEditModeSettings(kind, editModeId)
 		if enabled == nil then enabled = def.enabled end
 		return enabled == true
 	end
+	local function getTargetHighlightLayerValue()
+		local hcfg, def = getHighlightCfg("highlightTarget")
+		local layer = tostring(hcfg.layer or def.layer or "ABOVE_BORDER"):upper()
+		if layer ~= "BEHIND_BORDER" then layer = "ABOVE_BORDER" end
+		return layer
+	end
+	local function getTargetHighlightLayerLabel()
+		local layer = getTargetHighlightLayerValue()
+		for _, option in ipairs(targetHighlightLayerOptions) do
+			if option.value == layer then return option.label end
+		end
+		return layer
+	end
+	local function targetHighlightLayerGenerator()
+		return function(_, root, data)
+			for _, option in ipairs(targetHighlightLayerOptions) do
+				root:CreateRadio(option.label, function() return data.get and data.get() == option.value end, function()
+					if data.set then data.set(nil, option.value) end
+					data.customDefaultText = option.label
+					if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
+				end)
+			end
+		end
+	end
 	local function auraGrowthGenerator()
 		return function(_, root, data)
 			local opts = GFH.auraGrowthOptions or GFH.auraGrowthXOptions
@@ -7895,6 +9074,30 @@ local function buildEditModeSettings(kind, editModeId)
 		return ac.externals and ac.externals.showDR == true
 	end
 	local settings = {
+		{
+			name = SETTINGS or "Settings",
+			kind = SettingType.Collapsible,
+			id = "utility",
+			defaultCollapsed = true,
+		},
+		{
+			name = L["Copy settings"] or "Copy settings",
+			kind = SettingType.Dropdown,
+			field = "copyFrom",
+			parentId = "utility",
+			customDefaultText = L["UFSelectSource"] or "Select source",
+			get = function() return nil end,
+			set = function() end,
+			generator = function(_, root, data)
+				for _, option in ipairs(GF._buildGroupCopySourceOptions(kind)) do
+					root:CreateRadio(option.label, function() return false end, function()
+						GF._showGroupCopySettingsPopup(option, kind, editModeId)
+						if data then data.customDefaultText = option.label end
+						if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
+					end)
+				end
+			end,
+		},
 		{
 			name = "Frame",
 			kind = SettingType.Collapsible,
@@ -8175,6 +9378,33 @@ local function buildEditModeSettings(kind, editModeId)
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "tooltipMode", cfg.tooltip.mode, nil, true) end
 			end,
 			generator = tooltipModeGenerator(),
+		},
+		{
+			name = L["UFTooltipUseEditMode"] or "Use Edit Mode tooltip position",
+			kind = SettingType.Checkbox,
+			field = "tooltipUseEditMode",
+			parentId = "frame",
+			default = (DEFAULTS[kind] and DEFAULTS[kind].tooltip and DEFAULTS[kind].tooltip.useEditMode) == true,
+			get = function()
+				local cfg = getCfg(kind)
+				local tc = cfg and cfg.tooltip or {}
+				local defTooltip = (DEFAULTS[kind] and DEFAULTS[kind].tooltip) or {}
+				if tc.useEditMode == nil then return defTooltip.useEditMode == true end
+				return tc.useEditMode == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.tooltip = cfg.tooltip or {}
+				cfg.tooltip.useEditMode = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "tooltipUseEditMode", cfg.tooltip.useEditMode, nil, true) end
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local tc = cfg and cfg.tooltip or {}
+				local mode = tc.mode or (DEFAULTS[kind] and DEFAULTS[kind].tooltip and DEFAULTS[kind].tooltip.mode) or "OFF"
+				return tostring(mode):upper() ~= "OFF"
+			end,
 		},
 		{
 			name = "Tooltip modifier",
@@ -8804,6 +10034,27 @@ local function buildEditModeSettings(kind, editModeId)
 					end)
 				end
 			end,
+			isEnabled = function() return isHighlightEnabled("highlightTarget") end,
+		},
+		{
+			name = L["UFTargetHighlightLayer"] or "Layer",
+			kind = SettingType.Dropdown,
+			field = "targetHighlightLayer",
+			parentId = "targetHighlight",
+			default = (DEFAULTS[kind] and DEFAULTS[kind].highlightTarget and DEFAULTS[kind].highlightTarget.layer) or "ABOVE_BORDER",
+			customDefaultText = getTargetHighlightLayerLabel(),
+			get = function() return getTargetHighlightLayerValue() end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.highlightTarget = cfg.highlightTarget or {}
+				local layer = tostring(value or "ABOVE_BORDER"):upper()
+				if layer ~= "BEHIND_BORDER" then layer = "ABOVE_BORDER" end
+				cfg.highlightTarget.layer = layer
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "targetHighlightLayer", cfg.highlightTarget.layer, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			generator = targetHighlightLayerGenerator(),
 			isEnabled = function() return isHighlightEnabled("highlightTarget") end,
 		},
 		{
@@ -9866,6 +11117,36 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.health.backdrop.enabled = value and true or false
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healthBackdropEnabled", cfg.health.backdrop.enabled, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
+			end,
+		},
+		{
+			name = "Clamp backdrop to missing health",
+			kind = SettingType.Checkbox,
+			field = "healthBackdropClampToFill",
+			parentId = "health",
+			get = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				local def = DEFAULTS[kind] and DEFAULTS[kind].health or {}
+				local defBackdrop = def and def.backdrop or {}
+				local value = hc.backdrop and hc.backdrop.clampToFill
+				if value == nil then value = defBackdrop.clampToFill end
+				if value == nil then value = false end
+				return value == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.health = cfg.health or {}
+				cfg.health.backdrop = cfg.health.backdrop or {}
+				cfg.health.backdrop.clampToFill = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healthBackdropClampToFill", cfg.health.backdrop.clampToFill, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				return hc.backdrop and hc.backdrop.enabled ~= false
 			end,
 		},
 		{
@@ -15665,6 +16946,25 @@ local function buildEditModeSettings(kind, editModeId)
 			defaultCollapsed = true,
 		}
 		settings[#settings + 1] = {
+			name = L["UFGroupHideSelf"] or "Hide myself",
+			kind = SettingType.Checkbox,
+			field = "hideSelf",
+			parentId = "raid",
+			default = (DEFAULTS.mt and DEFAULTS.mt.hideSelf) or false,
+			get = function()
+				local cfg = getCfg(kind)
+				return cfg and cfg.hideSelf == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.hideSelf = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "hideSelf", cfg.hideSelf, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isShown = function() return kind == "mt" end,
+		}
+		settings[#settings + 1] = {
 			name = "Units per column",
 			kind = SettingType.Slider,
 			allowInput = true,
@@ -16230,9 +17530,10 @@ local function applyEditModeData(kind, data)
 	if data.width ~= nil then cfg.width = clampNumber(data.width, 40, 600, cfg.width or 100) end
 	if data.height ~= nil then cfg.height = clampNumber(data.height, 10, 200, cfg.height or 24) end
 	if data.powerHeight ~= nil then cfg.powerHeight = clampNumber(data.powerHeight, 0, 50, cfg.powerHeight or 6) end
-	if data.tooltipMode ~= nil or data.tooltipModifier ~= nil then cfg.tooltip = cfg.tooltip or {} end
+	if data.tooltipMode ~= nil or data.tooltipModifier ~= nil or data.tooltipUseEditMode ~= nil then cfg.tooltip = cfg.tooltip or {} end
 	if data.tooltipMode ~= nil then cfg.tooltip.mode = tostring(data.tooltipMode):upper() end
 	if data.tooltipModifier ~= nil then cfg.tooltip.modifier = tostring(data.tooltipModifier):upper() end
+	if data.tooltipUseEditMode ~= nil then cfg.tooltip.useEditMode = data.tooltipUseEditMode and true or false end
 	if data.hideInClientScene ~= nil then cfg.hideInClientScene = data.hideInClientScene and true or false end
 	if data.tooltipAuras ~= nil then
 		local ac = ensureAuraConfig(cfg)
@@ -16277,12 +17578,24 @@ local function applyEditModeData(kind, data)
 	if data.hoverHighlightTexture ~= nil then cfg.highlightHover.texture = data.hoverHighlightTexture end
 	if data.hoverHighlightSize ~= nil then cfg.highlightHover.size = clampNumber(data.hoverHighlightSize, 1, 64, cfg.highlightHover.size or 2) end
 	if data.hoverHighlightOffset ~= nil then cfg.highlightHover.offset = clampNumber(data.hoverHighlightOffset, -64, 64, cfg.highlightHover.offset or 0) end
-	if data.targetHighlightEnabled ~= nil or data.targetHighlightColor ~= nil or data.targetHighlightTexture ~= nil or data.targetHighlightSize ~= nil or data.targetHighlightOffset ~= nil then
+	if
+		data.targetHighlightEnabled ~= nil
+		or data.targetHighlightColor ~= nil
+		or data.targetHighlightTexture ~= nil
+		or data.targetHighlightLayer ~= nil
+		or data.targetHighlightSize ~= nil
+		or data.targetHighlightOffset ~= nil
+	then
 		cfg.highlightTarget = cfg.highlightTarget or {}
 	end
 	if data.targetHighlightEnabled ~= nil then cfg.highlightTarget.enabled = data.targetHighlightEnabled and true or false end
 	if data.targetHighlightColor ~= nil then cfg.highlightTarget.color = data.targetHighlightColor end
 	if data.targetHighlightTexture ~= nil then cfg.highlightTarget.texture = data.targetHighlightTexture end
+	if data.targetHighlightLayer ~= nil then
+		local layer = tostring(data.targetHighlightLayer or cfg.highlightTarget.layer or "ABOVE_BORDER"):upper()
+		if layer ~= "BEHIND_BORDER" then layer = "ABOVE_BORDER" end
+		cfg.highlightTarget.layer = layer
+	end
 	if data.targetHighlightSize ~= nil then cfg.highlightTarget.size = clampNumber(data.targetHighlightSize, 1, 64, cfg.highlightTarget.size or 2) end
 	if data.targetHighlightOffset ~= nil then cfg.highlightTarget.offset = clampNumber(data.targetHighlightOffset, -64, 64, cfg.highlightTarget.offset or 0) end
 	if data.showName ~= nil then
@@ -16397,6 +17710,11 @@ local function applyEditModeData(kind, data)
 		cfg.health = cfg.health or {}
 		cfg.health.backdrop = cfg.health.backdrop or {}
 		cfg.health.backdrop.enabled = data.healthBackdropEnabled and true or false
+	end
+	if data.healthBackdropClampToFill ~= nil then
+		cfg.health = cfg.health or {}
+		cfg.health.backdrop = cfg.health.backdrop or {}
+		cfg.health.backdrop.clampToFill = data.healthBackdropClampToFill and true or false
 	end
 	if data.healthBackdropColor ~= nil then
 		cfg.health = cfg.health or {}
@@ -16985,26 +18303,40 @@ local function applyEditModeData(kind, data)
 		if data.showPlayer ~= nil then cfg.showPlayer = data.showPlayer and true or false end
 		if data.showSolo ~= nil then cfg.showSolo = data.showSolo and true or false end
 		local custom = GFH.EnsureCustomSortConfig(cfg)
+		local incomingSortMethod
 		if data.sortMethod ~= nil then
 			local sortMethod = tostring(data.sortMethod):upper()
 			if sortMethod == "CUSTOM" then sortMethod = "NAMELIST" end
 			if sortMethod ~= "INDEX" and sortMethod ~= "NAME" and sortMethod ~= "NAMELIST" then sortMethod = (DEFAULTS.party and DEFAULTS.party.sortMethod) or "INDEX" end
-			cfg.sortMethod = sortMethod
-			if custom then custom.enabled = sortMethod == "NAMELIST" end
+			incomingSortMethod = sortMethod
 		end
 		if data.sortDir ~= nil then
 			local sortDir = tostring(data.sortDir):upper()
 			cfg.sortDir = (GFH and GFH.NormalizeSortDir and GFH.NormalizeSortDir(sortDir)) or ((sortDir == "DESC") and "DESC" or "ASC")
 		end
-		if data.customSortEnabled ~= nil then
-			custom.enabled = data.customSortEnabled and true or false
-			if custom.enabled then
+		if data.customSortEnabled == true then
+			custom.enabled = true
+			cfg.sortMethod = "NAMELIST"
+		end
+		if incomingSortMethod == "NAMELIST" then
+			cfg.sortMethod = "NAMELIST"
+			if custom then custom.enabled = true end
+		elseif incomingSortMethod ~= nil then
+			local defaultPartySort = (DEFAULTS.party and DEFAULTS.party.sortMethod) or "INDEX"
+			local currentlyCustom = resolveSortMethod(cfg) == "NAMELIST" or (custom and custom.enabled == true)
+			if not currentlyCustom then
+				cfg.sortMethod = incomingSortMethod
+				if custom then custom.enabled = false end
+			elseif custom then
+				-- Prevent stale EditMode defaults from downgrading a persisted custom party sort after reload.
+				custom.enabled = true
 				cfg.sortMethod = "NAMELIST"
-			elseif resolveSortMethod(cfg) == "NAMELIST" then
-				cfg.sortMethod = (DEFAULTS.party and DEFAULTS.party.sortMethod) or "INDEX"
+			else
+				cfg.sortMethod = defaultPartySort
 			end
 		end
 	elseif isRaidLikeKind(kind) then
+		if kind == "mt" and data.hideSelf ~= nil then cfg.hideSelf = data.hideSelf and true or false end
 		if kind == "raid" then
 			local custom = GFH.EnsureCustomSortConfig(cfg)
 			if data.customSortEnabled ~= nil then
@@ -17159,13 +18491,20 @@ function GF:EnsureEditMode()
 				targetHighlightEnabled = (cfg.highlightTarget and cfg.highlightTarget.enabled) == true,
 				targetHighlightColor = (cfg.highlightTarget and cfg.highlightTarget.color) or (def.highlightTarget and def.highlightTarget.color) or { 1, 1, 0, 1 },
 				targetHighlightTexture = (cfg.highlightTarget and cfg.highlightTarget.texture) or (def.highlightTarget and def.highlightTarget.texture) or "DEFAULT",
+				targetHighlightLayer = (function()
+					local layer = tostring((cfg.highlightTarget and cfg.highlightTarget.layer) or (def.highlightTarget and def.highlightTarget.layer) or "ABOVE_BORDER"):upper()
+					if layer ~= "BEHIND_BORDER" then layer = "ABOVE_BORDER" end
+					return layer
+				end)(),
 				targetHighlightSize = (cfg.highlightTarget and cfg.highlightTarget.size) or (def.highlightTarget and def.highlightTarget.size) or 2,
 				targetHighlightOffset = (cfg.highlightTarget and cfg.highlightTarget.offset) or (def.highlightTarget and def.highlightTarget.offset) or 0,
 				tooltipMode = tcfg.mode or defTooltip.mode or "OFF",
 				tooltipModifier = tcfg.modifier or defTooltip.modifier or "ALT",
+				tooltipUseEditMode = (tcfg.useEditMode ~= nil and tcfg.useEditMode == true) or ((tcfg.useEditMode == nil) and defTooltip.useEditMode == true),
 				tooltipAuras = ac.buff.showTooltip == true and ac.debuff.showTooltip == true and ac.externals.showTooltip == true,
 				showPlayer = cfg.showPlayer == true,
 				showSolo = cfg.showSolo == true,
+				hideSelf = cfg.hideSelf == true,
 				hideInClientScene = (cfg.hideInClientScene ~= nil and cfg.hideInClientScene == true) or ((cfg.hideInClientScene == nil) and (def.hideInClientScene ~= false)),
 				unitsPerColumn = cfg.unitsPerColumn or (DEFAULTS[kind] and DEFAULTS[kind].unitsPerColumn) or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5,
 				maxColumns = cfg.maxColumns or (DEFAULTS[kind] and DEFAULTS[kind].maxColumns) or (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8,
@@ -17205,6 +18544,7 @@ function GF:EnsureEditMode()
 				healthFontOutline = hc.fontOutline or defH.fontOutline or "OUTLINE",
 				healthTexture = hc.texture or defH.texture or "DEFAULT",
 				healthBackdropEnabled = (hcBackdrop.enabled ~= nil) and (hcBackdrop.enabled ~= false) or (defHBackdrop.enabled ~= false),
+				healthBackdropClampToFill = (hcBackdrop.clampToFill ~= nil) and (hcBackdrop.clampToFill == true) or ((hcBackdrop.clampToFill == nil) and (defHBackdrop.clampToFill == true)),
 				healthBackdropColor = hcBackdrop.color or defHBackdrop.color or { 0, 0, 0, 0.6 },
 				healthLeftX = (cfg.health and cfg.health.offsetLeft and cfg.health.offsetLeft.x) or 0,
 				healthLeftY = (cfg.health and cfg.health.offsetLeft and cfg.health.offsetLeft.y) or 0,
@@ -17616,6 +18956,7 @@ registerFeatureEvents = function(frame)
 		frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 		frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 		frame:RegisterEvent("PLAYER_FLAGS_CHANGED")
+		frame:RegisterEvent("UNIT_CONNECTION")
 		frame:RegisterEvent("GROUP_ROSTER_UPDATE")
 		frame:RegisterEvent("UNIT_NAME_UPDATE")
 		frame:RegisterEvent("PARTY_LEADER_CHANGED")
@@ -17636,6 +18977,7 @@ unregisterFeatureEvents = function(frame)
 		frame:UnregisterEvent("PLAYER_ENTERING_WORLD")
 		frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
 		frame:UnregisterEvent("PLAYER_FLAGS_CHANGED")
+		frame:UnregisterEvent("UNIT_CONNECTION")
 		frame:UnregisterEvent("GROUP_ROSTER_UPDATE")
 		frame:UnregisterEvent("UNIT_NAME_UPDATE")
 		frame:UnregisterEvent("PARTY_LEADER_CHANGED")
@@ -17732,8 +19074,11 @@ do
 			GF:RefreshReadyCheckIcons(event)
 		elseif event == "PLAYER_TARGET_CHANGED" then
 			GF:RefreshTargetHighlights()
+		elseif event == "UNIT_CONNECTION" then
+			GF:RefreshConnectionState(...)
 		elseif event == "PLAYER_FLAGS_CHANGED" then
-			GF:RefreshStatusText()
+			local refreshed = GF:RefreshConnectionState(...)
+			if refreshed == 0 then GF:RefreshStatusText() end
 		elseif event == "INSPECT_READY" then
 			if GFH and GFH.OnInspectReady then
 				local updated = GFH.OnInspectReady(...)
@@ -17746,11 +19091,11 @@ do
 			local rosterChanged, modeChanged, countChanged = GF:DidRosterStateChange()
 			if not rosterChanged then return end
 			local needsFullRefresh = modeChanged
+			local inRaidNow = IsInRaid and IsInRaid()
 			local cfg = getCfg("raid")
 			local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
 			local sortMethod = cfg and resolveSortMethod(cfg) or "INDEX"
-			local useGroupedHeaders = cfg and GF:IsRaidGroupedLayout(cfg) and (sortMethod ~= "NAMELIST" or (custom and custom.enabled == true))
-			if not needsFullRefresh and useGroupedHeaders and countChanged then needsFullRefresh = true end
+			if not needsFullRefresh and inRaidNow and countChanged then needsFullRefresh = true end
 			local updatedCount = 0
 			if needsFullRefresh then
 				GF.Refresh()

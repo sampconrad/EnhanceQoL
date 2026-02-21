@@ -99,14 +99,71 @@ local charIlvlAnchors = {
 	BOTTOMRIGHT = { bgPoint = "BOTTOMRIGHT", bgX = 1, bgY = -1, textPoint = "BOTTOMRIGHT", textX = -1, textY = 1 },
 }
 
-local function applyCharIlvlPosition(element)
+local function isCharIlvlOutsidePosition() return (addon.db["charIlvlPosition"] or "TOPRIGHT") == "OUTSIDE" end
+
+local function hideIlvlBackground(element)
+	if not element or not element.ilvlBackground then return end
+	element.ilvlBackground:SetColorTexture(0, 0, 0, 0)
+	element.ilvlBackground:Hide()
+end
+
+local function applyCharIlvlPosition(element, slot)
 	if not element or not element.ilvlBackground or not element.ilvl then return end
 	local pos = addon.db["charIlvlPosition"] or "TOPRIGHT"
-	local anchor = charIlvlAnchors[pos] or charIlvlAnchors.TOPRIGHT
 	element.ilvlBackground:ClearAllPoints()
 	element.ilvl:ClearAllPoints()
+
+	if pos == "OUTSIDE" then
+		local side = addon.variables.itemSlotSide and addon.variables.itemSlotSide[slot] or 0
+		if side == 1 then
+			element.ilvlBackground:SetPoint("TOPRIGHT", element, "TOPLEFT", -5, -1)
+		elseif side == 2 then
+			element.ilvlBackground:SetPoint("BOTTOM", element, "TOPLEFT", -1, 5)
+		else
+			element.ilvlBackground:SetPoint("TOPLEFT", element, "TOPRIGHT", 5, -1)
+		end
+		element.ilvl:SetPoint("CENTER", element.ilvlBackground, "CENTER", 0, 0)
+		hideIlvlBackground(element)
+		return
+	end
+
+	local anchor = charIlvlAnchors[pos] or charIlvlAnchors.TOPRIGHT
 	element.ilvlBackground:SetPoint(anchor.bgPoint, element, anchor.bgPoint, anchor.bgX, anchor.bgY)
 	element.ilvl:SetPoint(anchor.textPoint, element.ilvlBackground, anchor.textPoint, anchor.textX, anchor.textY)
+	hideIlvlBackground(element)
+end
+
+local function positionGemFrame(element, slot, gemIndex, outsideWithIlvl)
+	if not element or not element.gems or not element.gems[gemIndex] then return end
+	local gemFrame = element.gems[gemIndex]
+	local side = addon.variables.itemSlotSide and addon.variables.itemSlotSide[slot] or 0
+	gemFrame:ClearAllPoints()
+
+	if outsideWithIlvl and element.ilvlBackground then
+		if side == 1 then
+			gemFrame:SetPoint("TOPRIGHT", element.ilvlBackground, "TOPLEFT", -2 - (gemIndex - 1) * 16, -1)
+		elseif side == 2 then
+			gemFrame:SetPoint("BOTTOM", element.ilvlBackground, "TOP", 0, 2 + (gemIndex - 1) * 16)
+		else
+			gemFrame:SetPoint("TOPLEFT", element.ilvlBackground, "TOPRIGHT", 2 + (gemIndex - 1) * 16, -1)
+		end
+		return
+	end
+
+	if side == 0 then
+		gemFrame:SetPoint("TOPLEFT", element, "TOPRIGHT", 5 + (gemIndex - 1) * 16, -1)
+	elseif side == 1 then
+		gemFrame:SetPoint("TOPRIGHT", element, "TOPLEFT", -5 - (gemIndex - 1) * 16, -1)
+	else
+		gemFrame:SetPoint("BOTTOM", element, "TOPLEFT", -1, 5 + (gemIndex - 1) * 16)
+	end
+end
+
+local function applyGemLayout(element, slot, displayCount, outsideWithIlvl)
+	if not element or not element.gems or displayCount <= 0 then return end
+	for i = 1, displayCount do
+		if element.gems[i] then positionGemFrame(element, slot, i, outsideWithIlvl) end
+	end
 end
 
 local function getMissingEnchantOverlayColor()
@@ -298,13 +355,13 @@ local function onInspect(arg1)
 	if not InspectOpt("ilvl") and pdElement.ilvl then pdElement.ilvl:SetText("") end
 	if not pdElement.ilvl and InspectOpt("ilvl") then
 		pdElement.ilvlBackground = pdElement:CreateTexture(nil, "BACKGROUND")
-		pdElement.ilvlBackground:SetColorTexture(0, 0, 0, 0.8) -- Schwarzer Hintergrund mit 80% Transparenz
+		pdElement.ilvlBackground:SetColorTexture(0, 0, 0, 0)
 		pdElement.ilvlBackground:SetPoint("TOPRIGHT", pdElement, "TOPRIGHT", -2, -28)
-		pdElement.ilvlBackground:SetSize(20, 16) -- Größe des Hintergrunds (muss ggf. angepasst werden)
+		pdElement.ilvlBackground:SetSize(20, 16)
 
 		pdElement.ilvl = pdElement:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-		pdElement.ilvl:SetPoint("TOPRIGHT", pdElement.ilvlBackground, "TOPRIGHT", -1, -1) -- Position des Textes im Zentrum des Hintergrunds
-		pdElement.ilvl:SetFont(addon.variables.defaultFont, 16, "OUTLINE") -- Setzt die Schriftart, -größe und -stil (OUTLINE)
+		pdElement.ilvl:SetPoint("TOPRIGHT", pdElement.ilvlBackground, "TOPRIGHT", -1, -1)
+		addon.functions.ApplyItemLevelTextStyle(pdElement.ilvl)
 
 		if C_PaperDollInfo and C_PaperDollInfo.GetInspectItemLevel then
 			local ilvl = C_PaperDollInfo.GetInspectItemLevel(unit)
@@ -312,10 +369,11 @@ local function onInspect(arg1)
 		else
 			pdElement.ilvl:SetFormattedText("")
 		end
-		pdElement.ilvl:SetTextColor(1, 1, 1, 1)
+		addon.functions.ApplyItemLevelTextColor(pdElement.ilvl, nil)
+		hideIlvlBackground(pdElement)
 
 		local textWidth = pdElement.ilvl:GetStringWidth()
-		pdElement.ilvlBackground:SetSize(textWidth + 6, pdElement.ilvl:GetStringHeight() + 4) -- Mehr Padding für bessere Lesbarkeit
+		pdElement.ilvlBackground:SetSize(textWidth + 6, pdElement.ilvl:GetStringHeight() + 4)
 	end
 	for _, key in ipairs(inspectSlotOrder) do
 		local frameName = inspectSlotFrameNames[key]
@@ -342,6 +400,7 @@ local function onInspect(arg1)
 								return
 							end
 							inspectDone[key] = true
+							local displayCount = 0
 							if InspectOpt("gems") then
 								local itemStats = C_Item.GetItemStats(itemLink)
 								local socketCount = 0
@@ -355,7 +414,7 @@ local function onInspect(arg1)
 										if not addon.variables.shouldSocketedChecks[key].func(cSeason, isPvP) then neededSockets = 0 end
 									end
 								end
-								local displayCount = math.max(socketCount, neededSockets)
+								displayCount = math.max(socketCount, neededSockets)
 								if element.gems and #element.gems > displayCount then
 									for i = displayCount + 1, #element.gems do
 										element.gems[i]:UnregisterAllEvents()
@@ -368,13 +427,6 @@ local function onInspect(arg1)
 									if not element.gems[i] then
 										element.gems[i] = CreateFrame("Frame", nil, pdElement)
 										element.gems[i]:SetSize(16, 16) -- Setze die Größe des Icons
-										if addon.variables.itemSlotSide[key] == 0 then
-											element.gems[i]:SetPoint("TOPLEFT", element, "TOPRIGHT", 5 + (i - 1) * 16, -1) -- Verschiebe jedes Icon um 20px
-										elseif addon.variables.itemSlotSide[key] == 1 then
-											element.gems[i]:SetPoint("TOPRIGHT", element, "TOPLEFT", -5 - (i - 1) * 16, -1)
-										else
-											element.gems[i]:SetPoint("BOTTOM", element, "TOPLEFT", -1, 5 + (i - 1) * 16)
-										end
 
 										element.gems[i]:SetFrameStrata("DIALOG")
 										element.gems[i]:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
@@ -382,6 +434,7 @@ local function onInspect(arg1)
 										element.gems[i].icon = element.gems[i]:CreateTexture(nil, "OVERLAY")
 										element.gems[i].icon:SetAllPoints(element.gems[i])
 									end
+									positionGemFrame(element, key, i, false)
 									element.gems[i].icon:SetTexture("Interface\\ItemSocketingFrame\\UI-EmptySocket-Prismatic")
 									if i > socketCount then
 										element.gems[i].icon:SetVertexColor(1, 0, 0)
@@ -403,13 +456,14 @@ local function onInspect(arg1)
 							if InspectOpt("ilvl") then
 								if not element.ilvlBackground then
 									element.ilvlBackground = element:CreateTexture(nil, "BACKGROUND")
-									element.ilvlBackground:SetColorTexture(0, 0, 0, 0.8) -- Schwarzer Hintergrund mit 80% Transparenz
+									element.ilvlBackground:SetColorTexture(0, 0, 0, 0)
 									element.ilvl = element:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-									element.ilvl:SetFont(addon.variables.defaultFont, 14, "OUTLINE") -- Setzt die Schriftart, -größe und -stil (OUTLINE)
 								end
+								addon.functions.ApplyItemLevelTextStyle(element.ilvl)
 
-								applyCharIlvlPosition(element)
-								element.ilvlBackground:SetSize(30, 16) -- Größe des Hintergrunds (muss ggf. angepasst werden)
+								applyCharIlvlPosition(element, key)
+								element.ilvlBackground:SetSize(30, 16)
+								hideIlvlBackground(element)
 
 								local color = eItem:GetItemQualityColor()
 
@@ -424,10 +478,15 @@ local function onInspect(arg1)
 								if not itemLevelText then itemLevelText = eItem:GetCurrentItemLevel() end
 
 								element.ilvl:SetFormattedText(itemLevelText)
-								element.ilvl:SetTextColor(color.r, color.g, color.b, 1)
+								addon.functions.ApplyItemLevelTextColor(element.ilvl, color)
 
 								local textWidth = element.ilvl:GetStringWidth()
-								element.ilvlBackground:SetSize(textWidth + 6, element.ilvl:GetStringHeight() + 4) -- Mehr Padding für bessere Lesbarkeit
+								element.ilvlBackground:SetSize(textWidth + 6, element.ilvl:GetStringHeight() + 4)
+								hideIlvlBackground(element)
+							end
+							if InspectOpt("gems") and displayCount > 0 then
+								local outsideWithIlvl = isCharIlvlOutsidePosition() and InspectOpt("ilvl")
+								applyGemLayout(element, key, displayCount, outsideWithIlvl)
 							end
 							if InspectOpt("enchants") then
 								if not element.enchant then
@@ -501,11 +560,16 @@ local function onInspect(arg1)
 		end
 	end
 
-	if C_PaperDollInfo and C_PaperDollInfo.GetInspectItemLevel then
-		local ilvl = C_PaperDollInfo.GetInspectItemLevel(unit)
-		if ilvl then pdElement.ilvl:SetFormattedText(string.format("%.1f", ilvl)) end
-	else
-		pdElement.ilvl:SetFormattedText("")
+	if pdElement.ilvl then
+		if C_PaperDollInfo and C_PaperDollInfo.GetInspectItemLevel then
+			addon.functions.ApplyItemLevelTextStyle(pdElement.ilvl)
+			local ilvl = C_PaperDollInfo.GetInspectItemLevel(unit)
+			if ilvl then pdElement.ilvl:SetFormattedText(string.format("%.1f", ilvl)) end
+			addon.functions.ApplyItemLevelTextColor(pdElement.ilvl, nil)
+		else
+			pdElement.ilvl:SetFormattedText("")
+		end
+		hideIlvlBackground(pdElement)
 	end
 end
 
@@ -575,6 +639,7 @@ local function setIlvlText(element, slot)
 				local itemQuality = link and select(3, GetItemInfo(link)) or nil
 				updateCharRarityGlow(element, itemQuality)
 				local _, itemID, enchantID = string.match(link, "item:(%d+):(%d*):(%d*):(%d*):(%d*):(%d*):(%d*):(%d*):(%d*):(%d*):(%d*)")
+				local displayCount = 0
 				if CharOpt("gems") then
 					local itemStats = C_Item.GetItemStats(link)
 					local socketCount = 0
@@ -588,9 +653,10 @@ local function setIlvlText(element, slot)
 							if not addon.variables.shouldSocketedChecks[slot].func(cSeason, isPvP) then neededSockets = 0 end
 						end
 					end
-					local displayCount = math.max(socketCount, neededSockets)
+					displayCount = math.max(socketCount, neededSockets)
 					for i = 1, #element.gems do
 						if i <= displayCount then
+							positionGemFrame(element, slot, i, false)
 							element.gems[i]:Show()
 							element.gems[i].icon:SetTexture("Interface\\ItemSocketingFrame\\UI-EmptySocket-Prismatic")
 							if i > socketCount then
@@ -617,17 +683,24 @@ local function setIlvlText(element, slot)
 				if CharOpt("ilvl") then
 					local color = eItem:GetItemQualityColor()
 					local itemLevelText = eItem:GetCurrentItemLevel()
+					addon.functions.ApplyItemLevelTextStyle(element.ilvl)
 
-					applyCharIlvlPosition(element)
+					applyCharIlvlPosition(element, slot)
+					hideIlvlBackground(element)
 
 					element.ilvl:SetFormattedText(itemLevelText)
-					element.ilvl:SetTextColor(color.r, color.g, color.b, 1)
+					addon.functions.ApplyItemLevelTextColor(element.ilvl, color)
 
 					local textWidth = element.ilvl:GetStringWidth()
-					element.ilvlBackground:SetSize(textWidth + 6, element.ilvl:GetStringHeight() + 4) -- Mehr Padding für bessere Lesbarkeit
+					element.ilvlBackground:SetSize(textWidth + 6, element.ilvl:GetStringHeight() + 4)
+					hideIlvlBackground(element)
 				else
 					element.ilvl:SetFormattedText("")
 					element.ilvlBackground:Hide()
+				end
+				if CharOpt("gems") and displayCount > 0 then
+					local outsideWithIlvl = isCharIlvlOutsidePosition() and CharOpt("ilvl")
+					applyGemLayout(element, slot, displayCount, outsideWithIlvl)
 				end
 
 				if CharOpt("enchants") and element.borderGradient then
@@ -839,15 +912,13 @@ local function updateFlyoutButtonInfo(button)
 					if not itemLevel then itemLevel = eItem:GetCurrentItemLevel() end
 					local quality = eItem:GetItemQualityColor()
 
-					if not button.ItemLevelText then
-						button.ItemLevelText = button:CreateFontString(nil, "OVERLAY")
-						button.ItemLevelText:SetFont(addon.variables.defaultFont, 16, "OUTLINE")
-					end
+					if not button.ItemLevelText then button.ItemLevelText = button:CreateFontString(nil, "OVERLAY") end
+					addon.functions.ApplyItemLevelTextStyle(button.ItemLevelText)
 					addon.functions.ApplyBagItemLevelPosition(button.ItemLevelText, button, addon.db["bagIlvlPosition"])
 
 					-- Setze den Text und die Farbe
 					button.ItemLevelText:SetText(itemLevel)
-					button.ItemLevelText:SetTextColor(quality.r, quality.g, quality.b, 1)
+					addon.functions.ApplyItemLevelTextColor(button.ItemLevelText, quality)
 					button.ItemLevelText:Show()
 
 					-- Upgrade icon for Flyout items: compare against the specific slot's equipped item
@@ -1262,16 +1333,16 @@ local function applyMerchantButtonInfo()
 
 							if not itemButton.ItemLevelText then
 								itemButton.ItemLevelText = itemButton:CreateFontString(nil, "OVERLAY")
-								itemButton.ItemLevelText:SetFont(addon.variables.defaultFont, 16, "OUTLINE")
 								itemButton.ItemLevelText:SetShadowOffset(1, -1)
 								itemButton.ItemLevelText:SetShadowColor(0, 0, 0, 1)
 							end
+							addon.functions.ApplyItemLevelTextStyle(itemButton.ItemLevelText)
 							addon.functions.ApplyBagItemLevelPosition(itemButton.ItemLevelText, itemButton, addon.db["bagIlvlPosition"])
 
 							local color = eItem:GetItemQualityColor()
 							local candidateIlvl = eItem:GetCurrentItemLevel()
 							itemButton.ItemLevelText:SetText(candidateIlvl)
-							itemButton.ItemLevelText:SetTextColor(color.r, color.g, color.b, 1)
+							addon.functions.ApplyItemLevelTextColor(itemButton.ItemLevelText, color)
 							itemButton.ItemLevelText:Show()
 							local bType
 
@@ -1430,15 +1501,15 @@ local function updateBuybackButtonInfo()
 
 						if not itemButton.ItemLevelText then
 							itemButton.ItemLevelText = itemButton:CreateFontString(nil, "OVERLAY")
-							itemButton.ItemLevelText:SetFont(addon.variables.defaultFont, 16, "OUTLINE")
 							itemButton.ItemLevelText:SetShadowOffset(1, -1)
 							itemButton.ItemLevelText:SetShadowColor(0, 0, 0, 1)
 						end
+						addon.functions.ApplyItemLevelTextStyle(itemButton.ItemLevelText)
 						addon.functions.ApplyBagItemLevelPosition(itemButton.ItemLevelText, itemButton, addon.db["bagIlvlPosition"])
 
 						local color = eItem:GetItemQualityColor()
 						itemButton.ItemLevelText:SetText(eItem:GetCurrentItemLevel())
-						itemButton.ItemLevelText:SetTextColor(color.r, color.g, color.b, 1)
+						addon.functions.ApplyItemLevelTextColor(itemButton.ItemLevelText, color)
 						itemButton.ItemLevelText:Show()
 
 						local bType
@@ -1515,6 +1586,11 @@ function addon.functions.initItemInventory()
 	addon.functions.InitDBValue("bagIlvlPosition", "TOPRIGHT")
 	addon.functions.InitDBValue("bagUpgradeIconPosition", "BOTTOMRIGHT")
 	addon.functions.InitDBValue("charIlvlPosition", "TOPRIGHT")
+	addon.functions.InitDBValue("ilvlUseItemQualityColor", true)
+	addon.functions.InitDBValue("ilvlTextColor", { r = 1, g = 1, b = 1, a = 1 })
+	addon.functions.InitDBValue("ilvlFontFace", addon.variables.defaultFont)
+	addon.functions.InitDBValue("ilvlFontSize", 14)
+	addon.functions.InitDBValue("ilvlFontOutline", "OUTLINE")
 	addon.functions.InitDBValue("fadeBagQualityIcons", false)
 	addon.functions.InitDBValue("enhancedRarityGlow", false)
 	addon.functions.InitDBValue("showGemsOnCharframe", false)
@@ -1592,11 +1668,11 @@ function addon.functions.initItemInventory()
 	if addon.db["showDurabilityOnCharframe"] == false or (addon.functions and addon.functions.IsTimerunner and addon.functions.IsTimerunner()) then addon.general.durabilityIconFrame:Hide() end
 
 	for key, value in pairs(addon.variables.itemSlots) do
-		-- Hintergrund für das Item-Level
 		value.ilvlBackground = value:CreateTexture(nil, "BACKGROUND")
-		value.ilvlBackground:SetColorTexture(0, 0, 0, 0.8) -- Schwarzer Hintergrund mit 80% Transparenz
+		value.ilvlBackground:SetColorTexture(0, 0, 0, 0)
 		value.ilvlBackground:SetPoint("TOPRIGHT", value, "TOPRIGHT", 1, 1)
-		value.ilvlBackground:SetSize(30, 16) -- Größe des Hintergrunds (muss ggf. angepasst werden)
+		value.ilvlBackground:SetSize(30, 16)
+		hideIlvlBackground(value)
 
 		-- Roter Rahmen mit Farbverlauf
 		if addon.variables.shouldEnchanted[key] or addon.variables.shouldEnchantedChecks[key] then
@@ -1608,8 +1684,8 @@ function addon.functions.initItemInventory()
 		end
 		-- Text für das Item-Level
 		value.ilvl = value:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-		value.ilvl:SetPoint("TOPRIGHT", value.ilvlBackground, "TOPRIGHT", -1, -2) -- Position des Textes im Zentrum des Hintergrunds
-		value.ilvl:SetFont(addon.variables.defaultFont, 14, "OUTLINE") -- Setzt die Schriftart, -größe und -stil (OUTLINE)
+		addon.functions.ApplyItemLevelTextStyle(value.ilvl)
+		applyCharIlvlPosition(value, key)
 
 		value.enchant = value:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
 		if addon.variables.itemSlotSide[key] == 0 then
@@ -1625,14 +1701,7 @@ function addon.functions.initItemInventory()
 		for i = 1, 3 do
 			value.gems[i] = CreateFrame("Frame", nil, PaperDollFrame)
 			value.gems[i]:SetSize(16, 16) -- Setze die Größe des Icons
-
-			if addon.variables.itemSlotSide[key] == 0 then
-				value.gems[i]:SetPoint("TOPLEFT", value, "TOPRIGHT", 5 + (i - 1) * 16, -1) -- Verschiebe jedes Icon um 20px
-			elseif addon.variables.itemSlotSide[key] == 1 then
-				value.gems[i]:SetPoint("TOPRIGHT", value, "TOPLEFT", -5 - (i - 1) * 16, -1)
-			else
-				value.gems[i]:SetPoint("BOTTOM", value, "TOPLEFT", -1, 5 + (i - 1) * 16)
-			end
+			positionGemFrame(value, key, i, false)
 
 			value.gems[i]:SetFrameStrata("HIGH")
 
@@ -1689,6 +1758,20 @@ local function refreshMerchantButtons()
 		updateBuybackButtonInfo()
 	end
 end
+
+local function refreshItemLevelDisplays()
+	if addon.functions and addon.functions.setCharFrame then addon.functions.setCharFrame() end
+	refreshBagFrames(true)
+	refreshBankSlots(addon.db["showIlvlOnBankFrame"] == true)
+	refreshMerchantButtons()
+	if EquipmentFlyoutFrame and EquipmentFlyoutFrame:IsShown() and EquipmentFlyout_UpdateItems then EquipmentFlyout_UpdateItems() end
+	if InspectFrame and InspectFrame:IsShown() and InspectFrame.unit and AnyInspectEnabled() then
+		local guid = UnitGUID(InspectFrame.unit)
+		if guid then onInspect(guid) end
+	end
+end
+
+addon.functions.refreshItemLevelDisplays = refreshItemLevelDisplays
 
 local function isBagDisplaySelected(key)
 	if key == "ilvl" then return addon.db["showIlvlOnBagItems"] == true end
@@ -1747,10 +1830,14 @@ addon.functions.SettingsCreateDropdown(cInventory, {
 		BOTTOMLEFT = L["bottomLeft"],
 		BOTTOM = L["bottom"],
 		BOTTOMRIGHT = L["bottomRight"],
+		OUTSIDE = L["outside"] or "Outside",
 	},
 	text = L["bagIlvlPosition"],
 	get = function() return addon.db["bagIlvlPosition"] or "TOPLEFT" end,
-	set = function(key) addon.db["bagIlvlPosition"] = key end,
+	set = function(key)
+		addon.db["bagIlvlPosition"] = key
+		refreshItemLevelDisplays()
+	end,
 	parent = bagDisplayDropdown,
 	parentCheck = function() return isBagDisplaySelected("ilvl") end,
 	default = "BOTTOMLEFT",

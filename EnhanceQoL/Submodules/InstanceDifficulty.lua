@@ -35,20 +35,6 @@ InstanceDifficulty.text = InstanceDifficulty.text or indicator:CreateFontString(
 InstanceDifficulty.text:SetFont(addon.variables.defaultFont, 14, "OUTLINE")
 InstanceDifficulty.text:Hide()
 
-InstanceDifficulty.icon = InstanceDifficulty.icon or indicator:CreateTexture(nil, "OVERLAY")
-InstanceDifficulty.icon:ClearAllPoints()
-InstanceDifficulty.icon:SetPoint("CENTER", indicator, "CENTER", 0, 4)
-InstanceDifficulty.icon:SetSize(50, 50)
-InstanceDifficulty.icon:Hide()
-
-InstanceDifficulty.icons = {
-	NM = "Interface\\AddOns\\EnhanceQoL\\Icons\\Difficulty_NM.tga",
-	HC = "Interface\\AddOns\\EnhanceQoL\\Icons\\Difficulty_HC.tga",
-	M = "Interface\\AddOns\\EnhanceQoL\\Icons\\Difficulty_M.tga",
-	MPLUS = "Interface\\AddOns\\EnhanceQoL\\Icons\\Difficulty_MPlus.tga",
-	LFR = "Interface\\AddOns\\EnhanceQoL\\Icons\\Difficulty_LFR.tga",
-}
-
 local nmNames = {
 	[RAID_DIFFICULTY1] = true,
 	[RAID_DIFFICULTY2] = true,
@@ -88,7 +74,6 @@ function InstanceDifficulty:Update()
 	if not self.enabled or not addon.db then return end
 	if not IsInInstance() then
 		self.text:Hide()
-		self.icon:Hide()
 		return
 	end
 
@@ -109,8 +94,6 @@ function InstanceDifficulty:Update()
 	elseif difficultyID == 24 then
 		code = "TW"
 	end
-
-	-- Custom icons are temporarily disabled
 
 	local text
 	if maxPlayers and maxPlayers > 0 then
@@ -138,7 +121,6 @@ function InstanceDifficulty:Update()
 		self.text:SetTextColor(1, 1, 1)
 	end
 	self.text:Show()
-	self.icon:Hide()
 end
 
 function InstanceDifficulty:SetEnabled(value)
@@ -159,7 +141,6 @@ function InstanceDifficulty:SetEnabled(value)
 		self.frame:UnregisterEvent("PLAYER_DIFFICULTY_CHANGED")
 		self.frame:UnregisterEvent("CHALLENGE_MODE_START")
 		self.text:Hide()
-		self.icon:Hide()
 		if indicator.Default then
 			indicator.Default:SetScript("OnShow", nil)
 			if IsInInstance() then indicator.Default:Show() end

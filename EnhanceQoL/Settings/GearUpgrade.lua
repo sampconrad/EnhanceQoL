@@ -1,6 +1,7 @@
 local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
+local wipe = wipe
 
 local cGearUpgrade = addon.SettingsLayout.rootGENERAL
 local expandable = addon.functions.SettingsCreateExpandableSection(cGearUpgrade, {
@@ -19,6 +20,14 @@ local function ensureDisplayOptions()
 	else
 		addon.db.charDisplayOptions = addon.db.charDisplayOptions or {}
 		addon.db.inspectDisplayOptions = addon.db.inspectDisplayOptions or {}
+	end
+end
+
+local function refreshItemLevelDisplays()
+	if addon.functions and addon.functions.refreshItemLevelDisplays then
+		addon.functions.refreshItemLevelDisplays()
+	elseif addon.functions and addon.functions.setCharFrame then
+		addon.functions.setCharFrame()
 	end
 end
 
@@ -81,6 +90,33 @@ local function applyCharDisplaySelection(selection)
 	if addon.CharacterStatsFormatting and addon.CharacterStatsFormatting.Refresh then addon.CharacterStatsFormatting.Refresh() end
 end
 
+local ilvlFontOrder = {}
+local ilvlOutlineOrder = { "NONE", "OUTLINE", "THICKOUTLINE", "MONOCHROMEOUTLINE" }
+local ilvlOutlineOptions = {
+	NONE = L["fontOutlineNone"] or NONE,
+	OUTLINE = L["fontOutlineThin"] or "Outline",
+	THICKOUTLINE = L["fontOutlineThick"] or "Thick Outline",
+	MONOCHROMEOUTLINE = L["fontOutlineMono"] or "Monochrome Outline",
+}
+
+local function buildIlvlFontDropdown()
+	local map = {
+		[addon.variables.defaultFont] = L["actionBarFontDefault"] or "Blizzard font",
+	}
+	local LSM = LibStub("LibSharedMedia-3.0", true)
+	if LSM and LSM.HashTable then
+		for name, path in pairs(LSM:HashTable("font") or {}) do
+			if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
+		end
+	end
+	local list, order = addon.functions.prepareListForDropdown(map)
+	wipe(ilvlFontOrder)
+	for i, key in ipairs(order) do
+		ilvlFontOrder[i] = key
+	end
+	return list
+end
+
 local charDisplayDropdown = addon.functions.SettingsCreateMultiDropdown(cGearUpgrade, {
 	var = "charframe_display",
 	text = L["gearDisplayElements"] or "Elements",
@@ -131,18 +167,98 @@ addon.functions.SettingsCreateDropdown(cGearUpgrade, {
 		BOTTOMLEFT = L["bottomLeft"],
 		BOTTOM = L["bottom"],
 		BOTTOMRIGHT = L["bottomRight"],
+		OUTSIDE = L["outsideNearGems"] or "Outside (next to gems)",
 	},
 	text = L["charIlvlPosition"],
-	get = function() return addon.db["charIlvlPosition"] or "BOTTOMLEFT" end,
+	get = function() return addon.db["charIlvlPosition"] or "TOPRIGHT" end,
 	set = function(key)
 		addon.db["charIlvlPosition"] = key
-		addon.functions.setCharFrame()
+		refreshItemLevelDisplays()
 	end,
 	parent = charDisplayDropdown,
 	parentCheck = function() return isCharDisplaySelected("ilvl") end,
-	default = "BOTTOMLEFT",
+	default = "TOPRIGHT",
 	var = "charIlvlPosition",
 	type = Settings.VarType.String,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateHeadline(cGearUpgrade, L["ilvlTextStyleHeader"] or "Item level text style", { parentSection = expandable })
+
+local ilvlQualityColorCheckbox = addon.functions.SettingsCreateCheckbox(cGearUpgrade, {
+	var = "ilvlUseItemQualityColor",
+	text = L["ilvlUseQualityColor"] or "Use item-quality colors",
+	func = function(value)
+		addon.db["ilvlUseItemQualityColor"] = value and true or false
+		refreshItemLevelDisplays()
+	end,
+	default = true,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateColorPicker(cGearUpgrade, {
+	var = "ilvlTextColor",
+	text = L["ilvlCustomColor"] or "Custom item level color",
+	hasOpacity = true,
+	element = ilvlQualityColorCheckbox and ilvlQualityColorCheckbox.element,
+	parentCheck = function() return addon.db["ilvlUseItemQualityColor"] ~= true end,
+	callback = function() refreshItemLevelDisplays() end,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateScrollDropdown(cGearUpgrade, {
+	var = "ilvlFontFace",
+	text = L["ilvlFontLabel"] or "Item level font",
+	listFunc = buildIlvlFontDropdown,
+	order = ilvlFontOrder,
+	default = addon.variables.defaultFont,
+	get = function()
+		local current = addon.db.ilvlFontFace or addon.variables.defaultFont
+		local list = buildIlvlFontDropdown()
+		if not list[current] then current = addon.variables.defaultFont end
+		return current
+	end,
+	set = function(key)
+		addon.db.ilvlFontFace = key
+		refreshItemLevelDisplays()
+	end,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateSlider(cGearUpgrade, {
+	var = "ilvlFontSize",
+	text = L["ilvlFontSize"] or "Item level font size",
+	min = 8,
+	max = 32,
+	step = 1,
+	default = 14,
+	get = function()
+		local value = tonumber(addon.db.ilvlFontSize) or 14
+		if value < 8 then value = 8 end
+		if value > 32 then value = 32 end
+		return value
+	end,
+	set = function(value)
+		value = math.floor((tonumber(value) or 14) + 0.5)
+		if value < 8 then value = 8 end
+		if value > 32 then value = 32 end
+		addon.db.ilvlFontSize = value
+		refreshItemLevelDisplays()
+	end,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateDropdown(cGearUpgrade, {
+	var = "ilvlFontOutline",
+	text = L["ilvlFontOutline"] or "Item level font outline",
+	list = ilvlOutlineOptions,
+	order = ilvlOutlineOrder,
+	default = "OUTLINE",
+	get = function() return addon.db.ilvlFontOutline or "OUTLINE" end,
+	set = function(key)
+		addon.db.ilvlFontOutline = key
+		refreshItemLevelDisplays()
+	end,
 	parentSection = expandable,
 })
 
@@ -161,6 +277,7 @@ end
 local function setInspectDisplayOption(key, value)
 	ensureDisplayOptions()
 	addon.db.inspectDisplayOptions[key] = value and true or false
+	refreshItemLevelDisplays()
 end
 
 local function applyInspectDisplaySelection(selection)
@@ -170,6 +287,7 @@ local function applyInspectDisplaySelection(selection)
 	addon.db.inspectDisplayOptions.gems = selection.gems == true
 	addon.db.inspectDisplayOptions.enchants = selection.enchants == true
 	addon.db.inspectDisplayOptions.gemtip = selection.gemtip == true
+	refreshItemLevelDisplays()
 end
 
 addon.functions.SettingsCreateMultiDropdown(cGearUpgrade, {
@@ -257,6 +375,11 @@ function addon.functions.initGearUpgrade()
 	addon.functions.InitDBValue("charDisplayOptions", {})
 	addon.functions.InitDBValue("inspectDisplayOptions", {})
 	addon.functions.InitDBValue("missingEnchantOverlayColor", { r = 1, g = 0, b = 0, a = 0.6 })
+	addon.functions.InitDBValue("ilvlUseItemQualityColor", true)
+	addon.functions.InitDBValue("ilvlTextColor", { r = 1, g = 1, b = 1, a = 1 })
+	addon.functions.InitDBValue("ilvlFontFace", addon.variables.defaultFont)
+	addon.functions.InitDBValue("ilvlFontSize", 14)
+	addon.functions.InitDBValue("ilvlFontOutline", "OUTLINE")
 end
 
 local eventHandlers = {}

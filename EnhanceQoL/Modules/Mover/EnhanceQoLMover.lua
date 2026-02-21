@@ -18,6 +18,7 @@ local function buildSettings()
 		name = categoryLabel,
 		expanded = false,
 		colorizeTitle = false,
+		newTagID = "Mover",
 	})
 
 	local hintText = L["MoverResetHint"]

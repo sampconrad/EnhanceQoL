@@ -43,17 +43,30 @@ local function safeMatch(text, pattern)
 end
 
 local function GetUnitTokenFromTooltip(tt)
-	if addon.variables.isMidnight then return "mouseover" end
+	local hadTooltipUnit = false
+	if not tt then return nil, hadTooltipUnit end
 	local owner = tt and tt:GetOwner()
 	if owner then
-		if owner.unit then return owner.unit end
+		local ownerUnit = owner.unit
+		if ownerUnit ~= nil then
+			hadTooltipUnit = true
+			if not isSecret(ownerUnit) then return ownerUnit, hadTooltipUnit end
+		end
 		if owner.GetAttribute then
 			local u = owner:GetAttribute("unit")
-			if u then return u end
+			if u ~= nil then
+				hadTooltipUnit = true
+				if not isSecret(u) then return u, hadTooltipUnit end
+			end
 		end
 	end
+	if not tt.GetUnit then return nil, hadTooltipUnit end
 	local _, unit = tt:GetUnit()
-	return unit
+	if unit ~= nil then
+		hadTooltipUnit = true
+		if isSecret(unit) then return nil, hadTooltipUnit end
+	end
+	return unit, hadTooltipUnit
 end
 
 -- no compact score formatting needed anymore
@@ -68,7 +81,9 @@ local function IsInspectUIBusy()
 	return false
 end
 
-local function ClearTooltipInspectState() pendingGUID, pendingUnit, pendingRequestedAt = nil, nil, nil end
+local function ClearTooltipInspectState()
+	pendingGUID, pendingUnit, pendingRequestedAt = nil, nil, nil
+end
 
 local function FinishTooltipInspectRequest()
 	ClearTooltipInspectState()
@@ -474,20 +489,10 @@ local function checkSpell(tooltip, id, name, isSpell)
 end
 
 local function ResolveTooltipUnit(tooltip)
-	local unit
-	if addon.variables.isMidnight then
-		unit = "mouseover"
-	else
-		if GetUnitTokenFromTooltip then unit = GetUnitTokenFromTooltip(tooltip) end
-		if not unit and tooltip and tooltip.GetUnit then
-			-- Fallback for older clients: read unit from tooltip directly
-			local _, ttUnit = tooltip:GetUnit()
-			unit = ttUnit
-		end
-	end
+	local unit, hadTooltipUnit = GetUnitTokenFromTooltip(tooltip)
 	if unit and UnitExists(unit) then return unit end
+	if hadTooltipUnit then return nil end
 	if UnitExists("mouseover") then return "mouseover" end
-	if tooltip == GameTooltip and UnitExists("target") then return "target" end
 	return nil
 end
 
