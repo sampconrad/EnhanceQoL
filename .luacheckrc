@@ -135,6 +135,7 @@ globals = {
 	"SELL_ALL_JUNK_ITEMS_POPUP",
 	"MERCHANT_ITEMS_PER_PAGE",
 	"BUYBACK_ITEMS_PER_PAGE",
+	"RANGE_INDICATOR",
 	"EquipmentManager_UnpackLocation",
 	"AccountBankPanel",
 	"StaticPopup_Resize",
